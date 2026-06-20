@@ -75,14 +75,14 @@ export function ReceiptPreview({
       {
         documentType: "receipt",
         paperSize: mappedPaperSize,
-        title: `${printT("printReceipt")} ${invoice.id}`,
+        title: `${printT("printReceipt")} ${invoice.invoiceNumber || invoice.id}`,
         locale,
       },
     );
     const result = printHtmlDocument(html, {
       documentType: "receipt",
       paperSize: mappedPaperSize,
-      title: `${printT("printReceipt")} ${invoice.id}`,
+      title: `${printT("printReceipt")} ${invoice.invoiceNumber || invoice.id}`,
       locale,
     });
 
@@ -141,7 +141,7 @@ export function ReceiptPreview({
         <div className="space-y-1 text-xs text-slate-600 border-b border-dashed border-slate-300 pb-3 mb-3">
           <div className="flex justify-between">
             <span className="font-semibold">{t("invoiceNo")}:</span>
-            <span className="font-mono font-bold text-slate-900">{invoice.id}</span>
+            <span className="font-mono font-bold text-slate-900">{invoice.invoiceNumber || invoice.id}</span>
           </div>
           {config.showCashier && (
             <div className="flex justify-between">
@@ -272,7 +272,7 @@ export function ReceiptPreview({
               <div className="h-8 bg-slate-900 w-48 flex items-center justify-between px-2 text-white font-mono text-[9px] tracking-[4px] select-none opacity-85">
                 |||||I||||||I|||||I||
               </div>
-              <span className="text-[9px] font-mono text-slate-400 mt-1">{invoice.id}</span>
+              <span className="text-[9px] font-mono text-slate-400 mt-1">{invoice.invoiceNumber || invoice.id}</span>
             </div>
           )}
 

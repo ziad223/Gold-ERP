@@ -17,6 +17,7 @@ import { Link } from "@/i18n/navigation";
 import { formatCurrency } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import { BarcodeLabelPreview } from "@/features/barcodes/components/BarcodeLabelPreview";
+import { assetToLabelData } from "@/lib/print/barcode-label";
 import { AssetCostPanel } from "@/features/assets/components/AssetCostPanel";
 import { AssetEditModal } from "@/features/assets/components/AssetEditModal";
 import { AttachmentsPanel } from "@/features/assets/components/AttachmentsPanel";
@@ -283,15 +284,8 @@ export default function AssetDetailsPage() {
 
       <Modal open={showPrintTag} onClose={() => setShowPrintTag(false)} title={rtl ? "طباعة ملصق الباركود" : "Print Barcode Sticker"} description={rtl ? "معاينة طباعة ملصق أصل المجوهرات والأسعار" : "Sticker tag label preview for printing physical price tags."}>
         <BarcodeLabelPreview
-          assetId={asset.id}
-          name={asset.name}
-          barcode={asset.barcode}
-          rfid={asset.rfid}
-          grossWeight={asset.grossWeight}
-          karat={asset.karat}
-          price={asset.price}
+          item={assetToLabelData(asset)}
           currency={currency}
-          branch={asset.branch}
         />
       </Modal>
 

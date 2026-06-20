@@ -244,6 +244,8 @@ export interface Invoice {
   status: InvoiceStatus;
   /** Lifecycle status (separate from payment `status`). Defaults to "posted". */
   postingStatus?: "draft" | "posted" | "cancelled";
+  /** Customer-facing sequential number (e.g. INV-2026-000010); null for drafts. Display as invoiceNumber || id. */
+  invoiceNumber?: string | null;
   paymentMethod: string;
   paymentSplits?: PaymentSplit[];
   branch: string;

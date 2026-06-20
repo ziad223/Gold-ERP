@@ -28,6 +28,7 @@ import { renderPrintDocument } from "@/features/printing/components/render-print
 import { exportData } from "@/lib/export/export-service";
 import { DEFAULT_BARCODE_LABEL_CONFIG } from "@/lib/print/print-config";
 import { printHtmlDocument } from "@/lib/print/print-service";
+import { type BarcodeLabelData, productToLabelData, assetToLabelData } from "@/lib/print/barcode-label";
 import { formatCurrency, formatNumber } from "@/lib/utils";
 import type { Asset, AssetStatus, AssetType, Product, StockMovement } from "@/lib/types";
 import { useCoreErpData } from "@/hooks/use-core-erp-data";
@@ -144,21 +145,8 @@ export default function InventoryPage() {
 
   const [showColumnsModal, setShowColumnsModal] = useState(false);
 
-  // Barcode Preview States
-  const [printPreviewItems, setPrintPreviewItems] = useState<Array<{
-    id: string;
-    name: string;
-    barcode: string;
-    rfid?: string;
-    grossWeight: number;
-    karat?: number;
-    price: number;
-    branch?: string;
-    stockType?: string;
-    supplierName?: string;
-    createdAt?: string;
-    copies: number;
-  }>>([]);
+  // Barcode Preview States — canonical shared label payload (P7.1).
+  const [printPreviewItems, setPrintPreviewItems] = useState<BarcodeLabelData[]>([]);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [previewConfig, setPreviewConfig] = useState<any>(null);
 
@@ -558,45 +546,23 @@ export default function InventoryPage() {
   };
 
   const printBarcodeLabels = () => {
-    let rawItems: any[] = [];
+    // Unified payload (P7.1): products and assets map to the SAME canonical
+    // BarcodeLabelData via the shared mappers (no type is excluded; barcode
+    // falls back to the record id).
+    const copies = barcodeConfig.copies || 1;
+    let rawItems: BarcodeLabelData[] = [];
     if (activeTab === "products") {
       const selectedSet = new Set(selectedProductIds);
       const targetProds = selectedProductIds.length
         ? filteredProducts.filter((p) => selectedSet.has(p.id))
         : filteredProducts;
-      rawItems = targetProds.map(p => ({
-        id: p.id,
-        name: p.productName,
-        barcode: p.productCode || p.id,
-        rfid: undefined,
-        grossWeight: p.averageUnitWeight || 0,
-        karat: p.karat,
-        price: p.salePrice,
-        branch: p.branchName,
-        stockType: p.stockType,
-        supplierName: undefined,
-        createdAt: undefined,
-        copies: barcodeConfig.copies || 1
-      }));
+      rawItems = targetProds.map((p) => productToLabelData(p, copies));
     } else {
       const selectedSet = new Set(selectedAssetIds);
       const targetAssets = selectedAssetIds.length
         ? filteredAssets.filter((a) => selectedSet.has(a.id))
         : filteredAssets;
-      rawItems = targetAssets.map(a => ({
-        id: a.id,
-        name: a.name,
-        barcode: a.barcode || a.id,
-        rfid: a.rfid,
-        grossWeight: a.grossWeight,
-        karat: a.karat,
-        price: a.price,
-        branch: a.branch,
-        stockType: a.type,
-        supplierName: a.source,
-        createdAt: a.createdAt,
-        copies: barcodeConfig.copies || 1
-      }));
+      rawItems = targetAssets.map((a) => assetToLabelData(a, copies));
     }
 
     if (!rawItems.length) {
@@ -612,23 +578,12 @@ export default function InventoryPage() {
   const handleConfirmPrint = () => {
     if (!printPreviewItems.length || !previewConfig) return;
 
-    const finalItems: any[] = [];
+    // Expand copies; items are already the canonical BarcodePrintItem shape.
+    const finalItems: BarcodeLabelData[] = [];
     printPreviewItems.forEach((item) => {
       const count = Number(item.copies) || 1;
       for (let i = 0; i < count; i++) {
-        finalItems.push({
-          assetId: item.id,
-          name: item.name,
-          barcode: item.barcode,
-          rfid: item.rfid,
-          grossWeight: item.grossWeight,
-          karat: item.karat,
-          price: item.price,
-          branch: item.branch,
-          stockType: item.stockType,
-          supplierName: item.supplierName,
-          createdAt: item.createdAt,
-        });
+        finalItems.push({ ...item, copies: 1 });
       }
     });
 
@@ -1687,7 +1642,7 @@ export default function InventoryPage() {
                   <h4 className="font-extrabold border-b pb-1 text-slate-500">{rtl ? "تحديد عدد النسخ للمنتجات" : "Items list & copies"}</h4>
                   <div className="space-y-2 max-h-[140px] overflow-y-auto border p-2 rounded-xl bg-slate-50 dark:bg-navy-950/40">
                     {printPreviewItems.map((item, idx) => (
-                      <div key={`${item.id}-${idx}`} className="flex items-center justify-between gap-3 text-[11px] font-bold border-b pb-1.5 last:border-b-0 last:pb-0">
+                      <div key={`${item.assetId}-${idx}`} className="flex items-center justify-between gap-3 text-[11px] font-bold border-b pb-1.5 last:border-b-0 last:pb-0">
                         <div className="min-w-0">
                           <span className="block truncate text-navy-950 dark:text-white">{item.name}</span>
                           <span className="text-[10px] text-slate-400 font-mono">{item.barcode} · {item.karat ? `${item.karat}K` : ""} · {item.grossWeight}g</span>
@@ -1739,7 +1694,7 @@ export default function InventoryPage() {
                             <strong className="block truncate">{printPreviewItems[0].name}</strong>
                           )}
                           {previewConfig.showAssetId && (
-                            <div className="text-slate-400 font-mono text-[0.85em]">{printPreviewItems[0].id || printPreviewItems[0].barcode}</div>
+                            <div className="text-slate-400 font-mono text-[0.85em]">{printPreviewItems[0].assetId || printPreviewItems[0].barcode}</div>
                           )}
                           <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", fontSize: "0.9em" }}>
                             {previewConfig.showKarat && printPreviewItems[0].karat && <span>{printPreviewItems[0].karat}K</span>}

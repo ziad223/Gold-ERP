@@ -39,7 +39,10 @@ export default function PosPage() {
 
   // Custom API hooks
   const { products, assets, isLoading: isErpLoading } = useCoreErpData();
-  const { customers, calculatePricing, postInvoice, isPosting } = usePos();
+  const {
+    customers, calculatePricing, postInvoice, isPosting,
+    isApiMode, createDraftInvoice, updateDraftInvoice, cancelDraftInvoice, postDraftInvoice, fetchDraftInvoices,
+  } = usePos();
 
   const [query, setQuery] = useState("");
   const [type, setType] = useState("all");
@@ -88,33 +91,96 @@ export default function PosPage() {
   const [showDraftsModal, setShowDraftsModal] = useState(false);
   const [showSaveDraftModal, setShowSaveDraftModal] = useState(false);
   const [drafts, setDrafts] = useState<any[]>([]);
+  // API-mode draft lifecycle state.
+  const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
+  const [draftBusy, setDraftBusy] = useState(false);
+  const [draftMessage, setDraftMessage] = useState<string | null>(null);
+  const [cancelDraftTarget, setCancelDraftTarget] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [postDraftKey, setPostDraftKey] = useState("");
 
-  // Load drafts on mount
-  useEffect(() => {
+  // Build the cart/charges payload shared by save-draft & update-draft (API).
+  const buildDraftPayload = () => ({
+    customerId,
+    customerName: customers.find((c) => c.id === customerId)?.name || "",
+    branchId: activeBranchId,
+    branch: activeBranch,
+    paymentMethod: method,
+    discount: Number(discount) || 0,
+    makingCharge: Number(makingCharge) || 0,
+    stoneValue: Number(stoneValue) || 0,
+    notes: notes || "",
+    items: cart.map((item) => ({
+      assetId: item.id,
+      name: item.name,
+      quantity: item.quantity,
+      price: item.price,
+      cost: item.cost,
+      weight: item.totalWeight,
+      karat: item.karat,
+      discount: item.discount,
+      makingCharge: item.makingCharge,
+      stoneValue: item.stoneValue,
+    })),
+  });
+
+  const clearCartAndCharges = () => {
+    setCart([]);
+    setDiscount("0");
+    setMakingCharge("0");
+    setStoneValue("0");
+    setNotes("");
+  };
+
+  // Load DRAFT invoices: API-backed in api mode (source of truth), localStorage
+  // only in mock mode (kept as a local fallback, never the api-mode truth).
+  const loadDrafts = async () => {
+    if (isApiMode) {
+      try {
+        setDrafts(await fetchDraftInvoices());
+      } catch (e) {
+        console.error("Failed to load API drafts", e);
+      }
+      return;
+    }
     const saved = localStorage.getItem("darfus-pos-drafts");
     if (saved) {
-      try {
-        setDrafts(JSON.parse(saved));
-      } catch (e) {
-        console.error("Failed to parse drafts", e);
-      }
+      try { setDrafts(JSON.parse(saved)); } catch (e) { console.error("Failed to parse drafts", e); }
     }
-  }, []);
+  };
 
-  const handleSaveDraft = (e: React.FormEvent) => {
+  useEffect(() => {
+    loadDrafts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isApiMode]);
+
+  const handleSaveDraft = async (e: React.FormEvent) => {
     e.preventDefault();
     if (cart.length === 0) return;
+
+    if (isApiMode) {
+      setDraftBusy(true);
+      setPricingError(null);
+      try {
+        const res = await createDraftInvoice(buildDraftPayload(), generateUUID());
+        const draftId = (res as any)?.id;
+        setDraftMessage(rtl ? `تم حفظ المسودة ${draftId}` : `Draft ${draftId} saved`);
+        clearCartAndCharges();
+        setShowSaveDraftModal(false);
+        setDraftName("");
+        await loadDrafts();
+      } catch (err: any) {
+        setPricingError(err.message || (rtl ? "تعذّر حفظ المسودة" : "Failed to save draft"));
+      } finally {
+        setDraftBusy(false);
+      }
+      return;
+    }
+
+    // mock mode — localStorage draft (fallback only)
     const nameToUse = draftName.trim() || `Draft - ${toEnglishDigits(new Date().toLocaleTimeString(locale === "ar" ? "ar-EG-u-nu-latn" : locale, { numberingSystem: "latn" }))}`;
     const newDraft = {
-      id: `draft-${Date.now()}`,
-      name: nameToUse,
-      customerId,
-      cart,
-      discount,
-      makingCharge,
-      stoneValue,
-      notes,
-      method,
+      id: `draft-${Date.now()}`, name: nameToUse, customerId, cart, discount, makingCharge, stoneValue, notes, method,
       timestamp: toEnglishDigits(new Date().toLocaleString(locale === "ar" ? "ar-EG-u-nu-latn" : locale, { numberingSystem: "latn" })),
     };
     const updated = [newDraft, ...drafts];
@@ -125,6 +191,32 @@ export default function PosPage() {
   };
 
   const handleLoadDraft = (draft: any) => {
+    if (isApiMode) {
+      // API draft → hydrate cart from its invoice items.
+      setCustomerId(draft.customerId || "");
+      setCart((draft.items || []).map((it: any) => ({
+        id: it.assetId,
+        name: it.name,
+        price: Number(it.price) || 0,
+        cost: Number(it.cost) || 0,
+        quantity: Number(it.quantity) || 1,
+        totalWeight: Number(it.weight) || 0,
+        karat: it.karat ?? null,
+        isProduct: false,
+        discount: Number(it.discount) || 0,
+        makingCharge: Number(it.makingCharge) || 0,
+        stoneValue: Number(it.stoneValue) || 0,
+      })));
+      setDiscount(String(draft.discount ?? "0"));
+      setMakingCharge(String(draft.makingCharge ?? "0"));
+      setStoneValue(String(draft.stoneValue ?? "0"));
+      setNotes(draft.notes || "");
+      setMethod(draft.paymentMethod || "cash");
+      setActiveDraftId(draft.id);
+      setShowDraftsModal(false);
+      return;
+    }
+    // mock draft
     setCustomerId(draft.customerId);
     setCart(draft.cart);
     setDiscount(draft.discount || "0");
@@ -136,9 +228,77 @@ export default function PosPage() {
   };
 
   const handleDeleteDraft = (draftId: string) => {
+    // In API mode a draft is cancelled (with a reason), not silently deleted.
+    if (isApiMode) {
+      setCancelDraftTarget(draftId);
+      setCancelReason("");
+      return;
+    }
     const updated = drafts.filter((d) => d.id !== draftId);
     setDrafts(updated);
     localStorage.setItem("darfus-pos-drafts", JSON.stringify(updated));
+  };
+
+  // ── Active-draft actions (API mode) ──
+  const handleUpdateDraft = async () => {
+    if (!activeDraftId) return;
+    setDraftBusy(true);
+    setPricingError(null);
+    try {
+      await updateDraftInvoice(activeDraftId, buildDraftPayload());
+      setDraftMessage(rtl ? "تم تحديث المسودة" : "Draft updated");
+      await loadDrafts();
+    } catch (err: any) {
+      setPricingError(err.message || (rtl ? "تعذّر تحديث المسودة" : "Failed to update draft"));
+    } finally {
+      setDraftBusy(false);
+    }
+  };
+
+  const handlePostDraft = async () => {
+    if (!activeDraftId) return;
+    setDraftBusy(true);
+    setPricingError(null);
+    try {
+      const key = postDraftKey || generateUUID();
+      setPostDraftKey(key);
+      // Persist the current cart/charges first so the posted invoice matches the screen.
+      await updateDraftInvoice(activeDraftId, buildDraftPayload());
+      const result = await postDraftInvoice(activeDraftId, key);
+      setCompletedInvoice(result);
+      setCompleted(result.id);
+      setActiveDraftId(null);
+      setPostDraftKey("");
+      clearCartAndCharges();
+      await loadDrafts();
+    } catch (err: any) {
+      setPricingError(err.message || (rtl ? "تعذّر ترحيل المسودة" : "Failed to post draft"));
+    } finally {
+      setDraftBusy(false);
+    }
+  };
+
+  const handleExitDraft = () => {
+    setActiveDraftId(null);
+    clearCartAndCharges();
+  };
+
+  const confirmCancelDraft = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cancelDraftTarget) return;
+    if (!cancelReason.trim()) return;
+    setDraftBusy(true);
+    try {
+      await cancelDraftInvoice(cancelDraftTarget, cancelReason.trim());
+      if (activeDraftId === cancelDraftTarget) { setActiveDraftId(null); clearCartAndCharges(); }
+      setCancelDraftTarget(null);
+      setCancelReason("");
+      await loadDrafts();
+    } catch (err: any) {
+      setPricingError(err.message || (rtl ? "تعذّر إلغاء المسودة" : "Failed to cancel draft"));
+    } finally {
+      setDraftBusy(false);
+    }
   };
 
   // Initialize customer list selection
@@ -401,6 +561,12 @@ export default function PosPage() {
   };
 
   const completeSale = async () => {
+    // While editing a draft, the immediate-post path is disabled to avoid
+    // creating a duplicate invoice — the cart must be posted via the draft.
+    if (activeDraftId) {
+      setPricingError(rtl ? "أنت تعدّل مسودة — استخدم \"ترحيل المسودة\"." : "You are editing a draft — use \"Post draft\".");
+      return;
+    }
     if (settingsNotReady) {
       setPricingError(
         settingsError
@@ -727,7 +893,7 @@ export default function PosPage() {
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setShowDraftsModal(true)}
+                onClick={() => { loadDrafts(); setShowDraftsModal(true); }}
                 className="text-xs font-bold text-slate-500 hover:text-brand-600 transition flex items-center gap-1"
                 type="button"
               >
@@ -1078,14 +1244,36 @@ export default function PosPage() {
               </div>
             )}
 
-            <Button onClick={completeSale} disabled={!cart.length || isPosting || settingsNotReady} className="mt-5 w-full">
-              {isPosting ? (
-                <RefreshCw className="h-5 w-5 animate-spin" />
-              ) : (
-                <CheckCircle2 className="h-5 w-5" />
-              )}
-              {t("complete")}
-            </Button>
+            {activeDraftId && isApiMode ? (
+              <div className="mt-5 space-y-2">
+                <div className="rounded-xl border border-brand-200 bg-brand-50 px-3 py-2 text-xs font-bold text-brand-700 dark:border-brand-900/40 dark:bg-brand-950/30 dark:text-brand-300">
+                  {rtl ? `تعدّل المسودة: ${activeDraftId}` : `Editing draft: ${activeDraftId}`}
+                </div>
+                <Button onClick={handlePostDraft} disabled={!cart.length || draftBusy || settingsNotReady} className="w-full">
+                  {draftBusy ? <RefreshCw className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
+                  {t("postDraft")}
+                </Button>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button variant="secondary" onClick={handleUpdateDraft} disabled={!cart.length || draftBusy}>{t("updateDraft")}</Button>
+                  <Button variant="secondary" className="text-rose-600 hover:text-rose-700" onClick={() => handleDeleteDraft(activeDraftId)} disabled={draftBusy}>{t("cancelDraft")}</Button>
+                  <Button variant="secondary" onClick={handleExitDraft} disabled={draftBusy}>{t("exitDraft")}</Button>
+                </div>
+              </div>
+            ) : (
+              <Button onClick={completeSale} disabled={!cart.length || isPosting || settingsNotReady} className="mt-5 w-full">
+                {isPosting ? (
+                  <RefreshCw className="h-5 w-5 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-5 w-5" />
+                )}
+                {t("complete")}
+              </Button>
+            )}
+            {draftMessage && (
+              <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300">
+                {draftMessage}
+              </div>
+            )}
           </div>
         </Card>
       </div>
@@ -1149,29 +1337,65 @@ export default function PosPage() {
           {drafts.length === 0 ? (
             <p className="text-xs text-muted text-center py-6">{t("noDrafts")}</p>
           ) : (
-            drafts.map((draft) => (
-              <div
-                key={draft.id}
-                className="flex items-center justify-between p-3 rounded-2xl border border-border bg-surface-muted/30 hover:bg-surface-muted/60 transition text-xs"
-              >
-                <div className="space-y-1">
-                  <p className="font-extrabold text-slate-900 dark:text-white">{draft.name}</p>
-                  <p className="text-[10px] text-muted">
-                    {draft.timestamp} · {draft.cart.length} {t("pieces", { count: draft.cart.length })}
-                  </p>
+            drafts.map((draft) => {
+              const itemCount = isApiMode ? (draft.items || []).length : (draft.cart?.length || 0);
+              const title = isApiMode ? (draft.customerName || draft.id) : draft.name;
+              const subtitle = isApiMode
+                ? `${draft.id} · ${toEnglishDigits(draft.date || "")} · ${money(Number(draft.total) || 0)}`
+                : draft.timestamp;
+              return (
+                <div
+                  key={draft.id}
+                  className="flex items-center justify-between p-3 rounded-2xl border border-border bg-surface-muted/30 hover:bg-surface-muted/60 transition text-xs"
+                >
+                  <div className="space-y-1">
+                    <p className="font-extrabold text-slate-900 dark:text-white">{title}</p>
+                    <p className="text-[10px] text-muted">
+                      {subtitle} · {itemCount} {t("pieces", { count: itemCount })}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={() => handleLoadDraft(draft)}>
+                      {t("load")}
+                    </Button>
+                    <Button size="sm" variant="secondary" className="text-rose-600 hover:text-rose-700" onClick={() => handleDeleteDraft(draft.id)}>
+                      {isApiMode ? t("cancelDraft") : t("delete")}
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={() => handleLoadDraft(draft)}>
-                    {t("load")}
-                  </Button>
-                  <Button size="sm" variant="secondary" className="text-rose-600 hover:text-rose-700" onClick={() => handleDeleteDraft(draft.id)}>
-                    {t("delete")}
-                  </Button>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
+      </Modal>
+
+      {/* Cancel Draft (reason required) Modal */}
+      <Modal
+        open={!!cancelDraftTarget}
+        onClose={() => { setCancelDraftTarget(null); setCancelReason(""); }}
+        title={t("cancelDraft")}
+        description={t("cancelDraftDesc")}
+      >
+        <form onSubmit={confirmCancelDraft} className="space-y-4">
+          <div>
+            <label className="label-base">{t("cancelReason")}</label>
+            <input
+              className="input-base w-full"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder={t("cancelReason")}
+              autoFocus
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => { setCancelDraftTarget(null); setCancelReason(""); }}>
+              {common("cancel")}
+            </Button>
+            <Button type="submit" className="text-rose-600" disabled={!cancelReason.trim() || draftBusy}>
+              {t("cancelDraft")}
+            </Button>
+          </div>
+        </form>
       </Modal>
 
       {/* Product Quantity Selector Modal */}

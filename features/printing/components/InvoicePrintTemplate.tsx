@@ -97,7 +97,7 @@ export function InvoicePrintTemplate({ invoice, company, cashierName, locale, la
       </header>
 
       <section className="print-grid print-section">
-        <div className="print-field"><strong>{labels.invoiceNo}</strong><span>{toEnglishDigits(invoice.id)}</span></div>
+        <div className="print-field"><strong>{labels.invoiceNo}</strong><span>{toEnglishDigits(invoice.invoiceNumber || invoice.id)}</span></div>
         <div className="print-field"><strong>{labels.uuid}</strong><span>{toEnglishDigits(invoice.idempotencyKey ?? "-")}</span></div>
         <div className="print-field"><strong>{labels.date}</strong><span>{formattedDate}</span></div>
         {showCustomerInfo && (

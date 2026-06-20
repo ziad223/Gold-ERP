@@ -101,7 +101,7 @@ export function ReceiptPrintTemplate({ invoice, company, cashierName, locale, la
       </header>
 
       <section>
-        <div className="print-field"><strong>{labels.invoiceNo}</strong><span>{toEnglishDigits(invoice.id)}</span></div>
+        <div className="print-field"><strong>{labels.invoiceNo}</strong><span>{toEnglishDigits(invoice.invoiceNumber || invoice.id)}</span></div>
         {showCashier && (
           <div className="print-field"><strong>{labels.cashier}</strong><span>{cashierName ?? "-"}</span></div>
         )}
@@ -186,7 +186,7 @@ export function ReceiptPrintTemplate({ invoice, company, cashierName, locale, la
 
       <footer style={{ marginTop: "4mm", textAlign: "center", borderTop: "1px dashed #94a3b8", paddingTop: "2mm" }}>
         {showBarcode && (
-          <div className="barcode-text" style={{ letterSpacing: 2, fontSize: "0.9rem", fontWeight: "bold" }}>{toEnglishDigits(invoice.id)}</div>
+          <div className="barcode-text" style={{ letterSpacing: 2, fontSize: "0.9rem", fontWeight: "bold" }}>{toEnglishDigits(invoice.invoiceNumber || invoice.id)}</div>
         )}
         <p className="print-subtitle" style={{ fontSize: "0.8rem", marginTop: "1mm" }}>{receiptConfig.footerMessage || labels.footer}</p>
         {receiptConfig.termsMessage && (

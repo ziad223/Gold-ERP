@@ -46,7 +46,7 @@ export default function SalesPage() {
     () => filterData(
       invoices,
       query,
-      [(item) => item.id, (item) => item.customerName, (item) => item.paymentMethod, (item) => item.branch],
+      [(item) => item.id, (item) => item.invoiceNumber || "", (item) => item.customerName, (item) => item.paymentMethod, (item) => item.branch],
       [(item) => status === "all" || item.status === status, (item) => branch === "all" || item.branch === branch],
     ),
     [invoices, query, status, branch],
@@ -104,9 +104,9 @@ export default function SalesPage() {
         }}
         settings={settings}
       />,
-      { documentType: "invoice", paperSize: mappedPaperSize, title: `${printT("printInvoice")} ${invoice.id}`, locale },
+      { documentType: "invoice", paperSize: mappedPaperSize, title: `${printT("printInvoice")} ${invoice.invoiceNumber || invoice.id}`, locale },
     );
-    const result = printHtmlDocument(html, { documentType: "invoice", paperSize: mappedPaperSize, title: invoice.id, locale });
+    const result = printHtmlDocument(html, { documentType: "invoice", paperSize: mappedPaperSize, title: invoice.invoiceNumber || invoice.id, locale });
     if (!result.ok) {
       toast.error(result.errorCode === "popup-blocked" ? printT("popupBlocked") : printT("printFailed"));
     }
@@ -180,7 +180,7 @@ export default function SalesPage() {
         {isLoading ? (
           <LoadingState message={common("loading")} />
         ) : filtered.length ? (
-          <div className="overflow-x-auto"><table className="w-full min-w-[1000px] text-start text-xs"><thead className="bg-slate-50 text-slate-500 dark:bg-navy-950"><tr><th className="px-5 py-4">{t("invoice")}</th><th className="px-5 py-4">{t("customer")}</th><th className="px-5 py-4">{t("date")}</th><th className="px-5 py-4">{t("payment")}</th><th className="px-5 py-4">{t("branch")}</th><th className="px-5 py-4">{t("total")}</th><th className="px-5 py-4">{t("status")}</th><th className="px-5 py-4" /></tr></thead><tbody className="divide-y divide-slate-100 dark:divide-slate-800">{filtered.map((invoice) => <tr key={invoice.id} className="transition hover:bg-slate-50/80 dark:hover:bg-navy-950/60"><td className="px-5 py-4 font-extrabold text-brand-700 dark:text-brand-300">{invoice.id}</td><td className="px-5 py-4 font-bold text-navy-900 dark:text-white">{invoice.customerName}</td><td className="px-5 py-4 text-slate-500">{invoice.date}</td><td className="px-5 py-4 text-slate-500">{invoice.paymentMethod}</td><td className="px-5 py-4 text-slate-500">{invoice.branch}</td><td className="px-5 py-4 font-extrabold">{money(invoice.total)}</td><td className="px-5 py-4"><Badge tone={statusTone(invoice.status)}>{statusLabel(invoice.status)}</Badge></td><td className="px-5 py-4"><button onClick={() => setSelected(invoice)} className="inline-flex items-center gap-1 font-extrabold text-brand-700 hover:underline dark:text-brand-300"><Eye className="h-4 w-4" />{common("view")}</button></td></tr>)}</tbody></table></div>
+          <div className="overflow-x-auto"><table className="w-full min-w-[1000px] text-start text-xs"><thead className="bg-slate-50 text-slate-500 dark:bg-navy-950"><tr><th className="px-5 py-4">{t("invoice")}</th><th className="px-5 py-4">{t("customer")}</th><th className="px-5 py-4">{t("date")}</th><th className="px-5 py-4">{t("payment")}</th><th className="px-5 py-4">{t("branch")}</th><th className="px-5 py-4">{t("total")}</th><th className="px-5 py-4">{t("status")}</th><th className="px-5 py-4" /></tr></thead><tbody className="divide-y divide-slate-100 dark:divide-slate-800">{filtered.map((invoice) => <tr key={invoice.id} className="transition hover:bg-slate-50/80 dark:hover:bg-navy-950/60"><td className="px-5 py-4 font-extrabold text-brand-700 dark:text-brand-300">{invoice.invoiceNumber || invoice.id}</td><td className="px-5 py-4 font-bold text-navy-900 dark:text-white">{invoice.customerName}</td><td className="px-5 py-4 text-slate-500">{invoice.date}</td><td className="px-5 py-4 text-slate-500">{invoice.paymentMethod}</td><td className="px-5 py-4 text-slate-500">{invoice.branch}</td><td className="px-5 py-4 font-extrabold">{money(invoice.total)}</td><td className="px-5 py-4"><Badge tone={statusTone(invoice.status)}>{statusLabel(invoice.status)}</Badge></td><td className="px-5 py-4"><button onClick={() => setSelected(invoice)} className="inline-flex items-center gap-1 font-extrabold text-brand-700 hover:underline dark:text-brand-300"><Eye className="h-4 w-4" />{common("view")}</button></td></tr>)}</tbody></table></div>
         ) : <EmptyState title={common("noResults")} description={common("noResultsDescription")} />}
       </Card>
 

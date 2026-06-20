@@ -7,34 +7,23 @@ import { renderPrintDocument } from "@/features/printing/components/render-print
 import { DEFAULT_BARCODE_LABEL_CONFIG } from "@/lib/print/print-config";
 import { printHtmlDocument } from "@/lib/print/print-service";
 import type { BarcodeLabelConfig } from "@/lib/print/print-types";
+import type { BarcodeLabelData } from "@/lib/print/barcode-label";
 import { formatCurrency } from "@/lib/utils";
 import { useLocale, useTranslations } from "next-intl";
 
 interface BarcodeLabelPreviewProps {
-  assetId: string;
-  name: string;
-  barcode: string;
-  rfid?: string;
-  grossWeight: number;
-  karat?: number;
-  price: number;
+  /** Canonical label payload — shared with the print template (P7.1). */
+  item: BarcodeLabelData;
   currency: string;
-  branch?: string;
   config?: BarcodeLabelConfig;
 }
 
 export function BarcodeLabelPreview({
-  assetId,
-  name,
-  barcode,
-  rfid,
-  grossWeight,
-  karat,
-  price,
+  item,
   currency,
-  branch,
   config = DEFAULT_BARCODE_LABEL_CONFIG,
 }: BarcodeLabelPreviewProps) {
+  const { assetId, name, barcode, rfid, grossWeight, karat, price } = item;
   const locale = useLocale();
   const printT = useTranslations("PrintExport");
   const rtl = locale === "ar";
@@ -42,7 +31,7 @@ export function BarcodeLabelPreview({
   const handlePrint = () => {
     const html = renderPrintDocument(
       <BarcodePrintTemplate
-        items={[{ assetId, name, barcode, rfid, grossWeight, karat, price, branch }]}
+        items={[item]}
         config={config}
         companyAbbreviation="DARFUS"
         currency={currency}

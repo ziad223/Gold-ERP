@@ -5,6 +5,7 @@ import {
   Boxes,
   CircleDollarSign,
   Download,
+  Scale,
   FileBarChart,
   FileSpreadsheet,
   FileText,
@@ -100,7 +101,7 @@ export default function ReportsPage() {
   const prepareReport = (report: ReportItem): PreparedReport => {
     if (report.id === "sales") {
       const rows = invoices.map((invoice) => ({
-        invoice: invoice.id,
+        invoice: invoice.invoiceNumber || invoice.id,
         customer: invoice.customerName,
         date: invoice.date,
         payment: invoice.paymentMethod,
@@ -339,7 +340,10 @@ export default function ReportsPage() {
       <PageHeader
         title={t("title")}
         description={t("description")}
-        actions={<Link href="/reports/exports"><Button variant="secondary"><Download className="h-4 w-4" />{t("exportCenter")}</Button></Link>}
+        actions={<div className="flex gap-2">
+          <Link href="/reports/inventory-valuation"><Button variant="secondary"><Scale className="h-4 w-4" />{t("inventoryValuation")}</Button></Link>
+          <Link href="/reports/exports"><Button variant="secondary"><Download className="h-4 w-4" />{t("exportCenter")}</Button></Link>
+        </div>}
       />
       <Card className="overflow-hidden border-0 bg-gradient-to-l from-navy-950 via-navy-900 to-brand-900 p-6 text-white shadow-soft">
         <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">

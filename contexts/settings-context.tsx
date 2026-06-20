@@ -42,6 +42,8 @@ export interface AppSettings {
   barcode?: any;
   /** Pricing mode foundation (default manual_sale_price; dynamic modes are not yet wired into POS). */
   goldPricingMode?: "manual_sale_price" | "dynamic_by_karat" | "dynamic_by_karat_plus_making";
+  /** P5.1 foundation flag (default false). Split-by-karat posting is NOT enabled yet. */
+  accountingByKarat?: boolean;
 }
 
 interface SettingsContextValue {
@@ -80,6 +82,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   installmentMaxCount: 24,
   installmentMinDownPaymentPercent: 0,
   goldPricingMode: "manual_sale_price",
+  accountingByKarat: false,
   receipt: {
     showLogo: true,
     welcomeMessage: "أهلاً بكم في متجرنا",
@@ -218,7 +221,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           if (raw[k] !== undefined) parsed[k] = String(raw[k]);
         });
 
-        const boolKeys: (keyof AppSettings)[] = ["allowZeroDownPayment", "installmentEnabled"];
+        const boolKeys: (keyof AppSettings)[] = ["allowZeroDownPayment", "installmentEnabled", "accountingByKarat"];
         boolKeys.forEach(k => {
           if (raw[k] !== undefined) parsed[k] = raw[k] === "true" || raw[k] === true;
         });
@@ -319,7 +322,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         "language", "theme", "vatRate", "invoicePrefix", "invoiceNumbering",
         "dateFormat", "decimalPrecision", "paymentMethods", "lowStockThreshold", "receipt", "allowZeroDownPayment",
         "installmentEnabled", "installmentDefaultFrequency", "installmentMaxCount", "installmentMinDownPaymentPercent", "barcode",
-        "goldPricingMode"
+        "goldPricingMode", "accountingByKarat"
       ];
       
       keys.forEach(k => {

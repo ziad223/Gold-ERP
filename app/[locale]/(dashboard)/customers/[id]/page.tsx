@@ -564,7 +564,7 @@ export default function CustomerProfilePage({ params }: PageProps) {
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {displayInvoices.map((inv: any) => (
                     <tr key={inv.id} className="hover:bg-slate-50/50">
-                      <td className="px-4 py-3 font-bold text-brand-600">{toEnglishDigits(inv.id)}</td>
+                      <td className="px-4 py-3 font-bold text-brand-600">{toEnglishDigits(inv.invoiceNumber || inv.id)}</td>
                       <td className="px-4 py-3 text-slate-500">{toEnglishDigits(inv.date)}</td>
                       <td className="px-4 py-3 text-slate-500">{inv.branch}</td>
                       <td className="px-4 py-3 text-slate-500">{inv.paymentMethod}</td>
@@ -644,7 +644,7 @@ export default function CustomerProfilePage({ params }: PageProps) {
                         {statement.invoices.map((inv: any) => (
                           <tr key={inv.id}>
                             <td className="px-4 py-3">
-                              <p className="font-bold">{toEnglishDigits(inv.id)}</p>
+                              <p className="font-bold">{toEnglishDigits(inv.invoiceNumber || inv.id)}</p>
                               <p className="text-[9px] text-slate-400">{inv.branch} · {inv.paymentMethod}</p>
                             </td>
                             <td className="px-4 py-3 text-slate-500">{toEnglishDigits(inv.date)}</td>

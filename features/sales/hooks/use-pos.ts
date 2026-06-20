@@ -84,8 +84,45 @@ export function usePos() {
     return apiCustomers || [];
   };
 
+  // ── Draft invoice lifecycle (API mode) — the POS calls these for the
+  // Save-as-Draft / load / update / cancel / post flow. /pos/checkout is NOT
+  // used here; drafts go through the dedicated lifecycle endpoints.
+  const isApiMode = dataSource === "api";
+
+  const createDraftInvoice = (payload: any, idempotencyKey: string) =>
+    apiClient<any>("/sales/invoices/drafts", { method: "POST", body: JSON.stringify(payload), idempotencyKey, locale });
+
+  const updateDraftInvoice = (id: string, payload: any) =>
+    apiClient<any>(`/sales/invoices/${id}`, { method: "PATCH", body: JSON.stringify(payload), locale });
+
+  const cancelDraftInvoice = (id: string, reason: string) =>
+    apiClient<any>(`/sales/invoices/${id}/cancel`, { method: "POST", body: JSON.stringify({ reason }), locale });
+
+  const postDraftInvoice = async (id: string, idempotencyKey: string) => {
+    const result = await apiClient<any>(`/sales/invoices/${id}/post`, { method: "POST", body: JSON.stringify({}), idempotencyKey, locale });
+    // Posting touches inventory, accounting, treasury, customers — invalidate broadly.
+    invalidateAffectedQueries(queryClient, {
+      entity: "Invoice",
+      action: "create",
+      id: result?.id,
+      related: { customerId: result?.customerId, assetIds: (result?.items || []).map((i: any) => i.assetId).filter(Boolean) },
+    });
+    return result;
+  };
+
+  const fetchDraftInvoices = async () => {
+    const res = await apiClient<{ items?: any[]; data?: any }>("/invoices?postingStatus=draft&pageSize=100&sortBy=createdAt&sortDirection=desc", { locale });
+    return (res as any).items ?? (res as any).data?.items ?? (res as any).data ?? [];
+  };
+
   return {
     customers: getCustomers(),
+    isApiMode,
+    createDraftInvoice,
+    updateDraftInvoice,
+    cancelDraftInvoice,
+    postDraftInvoice,
+    fetchDraftInvoices,
     calculatePricing: async (
       customerId: string,
       assets: Asset[],

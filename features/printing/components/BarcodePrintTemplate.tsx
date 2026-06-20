@@ -1,20 +1,10 @@
 import { formatCurrency } from "@/lib/utils";
 import type { BarcodeLabelConfig } from "@/lib/print/print-types";
+import type { BarcodeLabelData } from "@/lib/print/barcode-label";
 import type { CSSProperties } from "react";
 
-export interface BarcodePrintItem {
-  assetId: string;
-  name: string;
-  barcode: string;
-  rfid?: string;
-  grossWeight: number;
-  karat?: number;
-  price: number;
-  branch?: string;
-  stockType?: string;
-  supplierName?: string;
-  createdAt?: string;
-}
+// The printed item is the canonical shared label payload (P7.1 unification).
+export type BarcodePrintItem = BarcodeLabelData;
 
 interface BarcodePrintTemplateProps {
   items: BarcodePrintItem[];
