@@ -1,12 +1,12 @@
 "use client";
 
+import { useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { useAuth } from "@/contexts/auth-context";
 import { useErp } from "@/contexts/erp-context";
 import { useAppSettings } from "@/contexts/settings-context";
 import { useLocale } from "next-intl";
-import { generateUUID } from "@/lib/api/client";
 import type { Customer, Invoice, Asset } from "@/lib/types";
 import { queryKeys } from "@/lib/query-keys";
 import { invalidateAffectedQueries } from "@/lib/realtime/invalidate-affected-queries";
@@ -27,13 +27,14 @@ interface PricingPreviewResult {
 }
 
 export function usePos() {
-  const { activeBranch, company } = useAuth();
-  const { customers: mockCustomers, invoices: mockInvoices, addInvoice: addMockInvoice } = useErp();
+  const { activeBranch } = useAuth();
+  const { customers: mockCustomers, addInvoice: addMockInvoice } = useErp();
   const { settings } = useAppSettings();
   const queryClient = useQueryClient();
   const locale = useLocale();
 
   const dataSource = process.env.NEXT_PUBLIC_DATA_SOURCE || "mock";
+  const isApiMode = dataSource === "api";
 
   // Query customers list
   const { data: apiCustomers } = useQuery<Customer[]>({
@@ -43,11 +44,15 @@ export function usePos() {
       const res = await apiClient<{ items: Customer[] }>("/customers", { locale });
       return res.items ?? [];
     },
-    enabled: dataSource === "api",
+    enabled: isApiMode,
   });
 
   // Calculate prices preview
-  const pricingMutation = useMutation<PricingPreviewResult, Error, PricingPreviewPayload>({
+  const { mutateAsync: runPricingCalculation } = useMutation<
+    PricingPreviewResult,
+    Error,
+    PricingPreviewPayload
+  >({
     mutationFn: (payload) =>
       apiClient<PricingPreviewResult>("/pricing/calculate", {
         method: "POST",
@@ -57,17 +62,23 @@ export function usePos() {
   });
 
   // Post invoice
-  const postInvoiceMutation = useMutation<Invoice, Error, { invoice: Partial<Invoice>; idempotencyKey: string }>({
+  const { mutateAsync: runPostInvoice, isPending: isPosting } = useMutation<
+    Invoice,
+    Error,
+    { invoice: Partial<Invoice>; idempotencyKey: string }
+  >({
     mutationFn: ({ invoice, idempotencyKey }) =>
       apiClient<Invoice>("/pos/checkout", {
         method: "POST",
         body: JSON.stringify(invoice),
         idempotencyKey,
         locale,
-    }),
+      }),
     onSuccess: (data) => {
       const customerId = data?.customerId;
-      const assetIds = data?.items?.map((item: any) => item.assetId).filter(Boolean) || [];
+      const assetIds =
+        data?.items?.map((item: any) => item.assetId).filter(Boolean) || [];
+
       invalidateAffectedQueries(queryClient, {
         entity: "Invoice",
         action: "create",
@@ -77,84 +88,137 @@ export function usePos() {
     },
   });
 
-  const getCustomers = (): Customer[] => {
-    if (dataSource === "mock") {
+  const getCustomers = useCallback((): Customer[] => {
+    if (!isApiMode) {
       return mockCustomers;
     }
+
     return apiCustomers || [];
-  };
+  }, [apiCustomers, isApiMode, mockCustomers]);
 
   // ── Draft invoice lifecycle (API mode) — the POS calls these for the
   // Save-as-Draft / load / update / cancel / post flow. /pos/checkout is NOT
   // used here; drafts go through the dedicated lifecycle endpoints.
-  const isApiMode = dataSource === "api";
+  const createDraftInvoice = useCallback(
+    (payload: any, idempotencyKey: string) =>
+      apiClient<any>("/sales/invoices/drafts", {
+        method: "POST",
+        body: JSON.stringify(payload),
+        idempotencyKey,
+        locale,
+      }),
+    [locale]
+  );
 
-  const createDraftInvoice = (payload: any, idempotencyKey: string) =>
-    apiClient<any>("/sales/invoices/drafts", { method: "POST", body: JSON.stringify(payload), idempotencyKey, locale });
+  const updateDraftInvoice = useCallback(
+    (id: string, payload: any) =>
+      apiClient<any>(`/sales/invoices/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+        locale,
+      }),
+    [locale]
+  );
 
-  const updateDraftInvoice = (id: string, payload: any) =>
-    apiClient<any>(`/sales/invoices/${id}`, { method: "PATCH", body: JSON.stringify(payload), locale });
+  const cancelDraftInvoice = useCallback(
+    (id: string, reason: string) =>
+      apiClient<any>(`/sales/invoices/${id}/cancel`, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+        locale,
+      }),
+    [locale]
+  );
 
-  const cancelDraftInvoice = (id: string, reason: string) =>
-    apiClient<any>(`/sales/invoices/${id}/cancel`, { method: "POST", body: JSON.stringify({ reason }), locale });
+  const postDraftInvoice = useCallback(
+    async (id: string, idempotencyKey: string) => {
+      const result = await apiClient<any>(`/sales/invoices/${id}/post`, {
+        method: "POST",
+        body: JSON.stringify({}),
+        idempotencyKey,
+        locale,
+      });
 
-  const postDraftInvoice = async (id: string, idempotencyKey: string) => {
-    const result = await apiClient<any>(`/sales/invoices/${id}/post`, { method: "POST", body: JSON.stringify({}), idempotencyKey, locale });
-    // Posting touches inventory, accounting, treasury, customers — invalidate broadly.
-    invalidateAffectedQueries(queryClient, {
-      entity: "Invoice",
-      action: "create",
-      id: result?.id,
-      related: { customerId: result?.customerId, assetIds: (result?.items || []).map((i: any) => i.assetId).filter(Boolean) },
-    });
-    return result;
-  };
+      // Posting touches inventory, accounting, treasury, customers — invalidate broadly.
+      invalidateAffectedQueries(queryClient, {
+        entity: "Invoice",
+        action: "create",
+        id: result?.id,
+        related: {
+          customerId: result?.customerId,
+          assetIds: (result?.items || [])
+            .map((item: any) => item.assetId)
+            .filter(Boolean),
+        },
+      });
 
-  const fetchDraftInvoices = async () => {
-    const res = await apiClient<{ items?: any[]; data?: any }>("/invoices?postingStatus=draft&pageSize=100&sortBy=createdAt&sortDirection=desc", { locale });
+      return result;
+    },
+    [locale, queryClient]
+  );
+
+  const fetchDraftInvoices = useCallback(async () => {
+    const res = await apiClient<{ items?: any[]; data?: any }>(
+      "/invoices?postingStatus=draft&pageSize=100&sortBy=createdAt&sortDirection=desc",
+      { locale }
+    );
+
     return (res as any).items ?? (res as any).data?.items ?? (res as any).data ?? [];
-  };
+  }, [locale]);
 
-  return {
-    customers: getCustomers(),
-    isApiMode,
-    createDraftInvoice,
-    updateDraftInvoice,
-    cancelDraftInvoice,
-    postDraftInvoice,
-    fetchDraftInvoices,
-    calculatePricing: async (
+  const calculatePricing = useCallback(
+    async (
       customerId: string,
       assets: Asset[],
       discount = 0,
       makingCharge = 0,
       stoneValue = 0
     ) => {
-      if (dataSource === "mock") {
-        const basePrice = assets.reduce((sum, item) => sum + item.price, 0);
-        const subtotal = Math.max(0, basePrice + makingCharge + stoneValue - discount);
+      const safeAssets = Array.isArray(assets) ? assets : [];
+
+      if (!isApiMode) {
+        const basePrice = safeAssets.reduce(
+          (sum, item) => sum + (Number(item.price) || 0),
+          0
+        );
+
+        const subtotal = Math.max(
+          0,
+          basePrice + makingCharge + stoneValue - discount
+        );
+
         // VAT rate comes from Settings (single source of truth), not a hardcoded value.
         const vatRate = Number(settings?.vatRate) || 0;
         const tax = Math.round(subtotal * (vatRate / 100) * 100) / 100;
         const total = subtotal + tax;
+
         return {
           subtotal: String(subtotal),
           tax: String(tax),
           total: String(total),
-          items: assets.map((item) => ({ assetId: item.id, price: String(item.price) })),
+          items: safeAssets.map((item) => ({
+            assetId: item.id,
+            price: String(Number(item.price) || 0),
+          })),
         };
       }
-      return pricingMutation.mutateAsync({
+
+      return runPricingCalculation({
         customerId,
-        assetIds: assets.map((item) => item.id),
+        assetIds: safeAssets.map((item) => item.id).filter(Boolean),
         discount,
         makingCharge,
         stoneValue,
       });
     },
-    postInvoice: async (invoice: Partial<Invoice>, idempotencyKey: string) => {
-      if (dataSource === "mock") {
+    [isApiMode, runPricingCalculation, settings?.vatRate]
+  );
+
+  const postInvoice = useCallback(
+    async (invoice: Partial<Invoice>, idempotencyKey: string) => {
+      if (!isApiMode) {
         const id = `INV-${10500 + Math.floor(Math.random() * 300)}`;
+
         const finalInvoice: Invoice = {
           id,
           customerId: invoice.customerId || "",
@@ -171,11 +235,26 @@ export function usePos() {
           branch: activeBranch,
           items: invoice.items || [],
         };
+
         addMockInvoice(finalInvoice);
         return finalInvoice;
       }
-      return postInvoiceMutation.mutateAsync({ invoice, idempotencyKey });
+
+      return runPostInvoice({ invoice, idempotencyKey });
     },
-    isPosting: postInvoiceMutation.isPending,
+    [activeBranch, addMockInvoice, isApiMode, runPostInvoice]
+  );
+
+  return {
+    customers: getCustomers(),
+    isApiMode,
+    createDraftInvoice,
+    updateDraftInvoice,
+    cancelDraftInvoice,
+    postDraftInvoice,
+    fetchDraftInvoices,
+    calculatePricing,
+    postInvoice,
+    isPosting,
   };
 }
