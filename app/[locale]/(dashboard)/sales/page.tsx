@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, Eye, Plus, Printer, ReceiptText } from "lucide-react";
+import { Download, Eye, Plus, Printer } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -18,12 +18,13 @@ import { InvoicePrintTemplate } from "@/features/printing/components/InvoicePrin
 import { renderPrintDocument } from "@/features/printing/components/render-print-document";
 import { Link } from "@/i18n/navigation";
 import { exportData } from "@/lib/export/export-service";
-import { filterData } from "@/hooks/use-data-filters";
 import { printHtmlDocument } from "@/lib/print/print-service";
 import { formatCurrency } from "@/lib/utils";
 import { LoadingState } from "@/components/ui/loading-state";
 import { ErrorState } from "@/components/ui/error-state";
 import type { Invoice } from "@/lib/types";
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
 
 export default function SalesPage() {
   const t = useTranslations("Sales");
@@ -34,30 +35,78 @@ export default function SalesPage() {
   const locale = useLocale();
   const rtl = locale === "ar";
   const { company, user } = useAuth();
-  const { settings } = useAppSettings();
-  const { invoices, isLoading, error, refetch } = useInvoices();
+  const { settings, branches: configuredBranches } = useAppSettings();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
   const [branch, setBranch] = useState("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [isExporting, setIsExporting] = useState(false);
   const [selected, setSelected] = useState<Invoice | null>(null);
+  const {
+    invoices,
+    page: currentPage,
+    pageSize: resolvedPageSize,
+    total: resultTotal,
+    totalPages,
+    isLoading,
+    error,
+    refetch,
+    fetchAllMatching,
+  } = useInvoices({
+    page,
+    pageSize,
+    search: query,
+    filters: { status, branch },
+  });
 
-  const branches = useMemo(() => [...new Set(invoices.map((item) => item.branch))], [invoices]);
-  const filtered = useMemo(
-    () => filterData(
-      invoices,
-      query,
-      [(item) => item.id, (item) => item.invoiceNumber || "", (item) => item.customerName, (item) => item.paymentMethod, (item) => item.branch],
-      [(item) => status === "all" || item.status === status, (item) => branch === "all" || item.branch === branch],
-    ),
-    [invoices, query, status, branch],
-  );
+  const branches = useMemo(() => {
+    const branchNames = new Set(configuredBranches.filter((item) => item.isActive).map((item) => item.name).filter(Boolean));
+    invoices.forEach((item) => {
+      if (item.branch) branchNames.add(item.branch);
+    });
+    if (branch !== "all") branchNames.add(branch);
+    return [...branchNames];
+  }, [configuredBranches, invoices, branch]);
 
   const currency = company?.currency ?? settings?.currency ?? "AED";
   const money = (value: number) => formatCurrency(value, currency, locale);
-  const total = invoices.reduce((sum, item) => sum + item.total, 0);
-  const due = invoices.filter((item) => item.status !== "paid").reduce((sum, item) => sum + item.total, 0);
+  const visiblePageTotal = invoices.reduce((sum, item) => sum + item.total, 0);
+  const visiblePageDue = invoices.filter((item) => item.status !== "paid").reduce((sum, item) => sum + item.total, 0);
+  const visiblePageAverage = visiblePageTotal / Math.max(invoices.length, 1);
+  const pageSummaryHint = rtl ? "إجمالي الصفحة الحالية فقط" : "Current page only";
+  const safeTotalPages = Math.max(totalPages || 1, 1);
+  const firstVisibleRecord = resultTotal === 0 ? 0 : ((currentPage - 1) * resolvedPageSize) + 1;
+  const lastVisibleRecord = resultTotal === 0 ? 0 : Math.min(resultTotal, firstVisibleRecord + invoices.length - 1);
   const statusLabel = (value: Invoice["status"]) => t(value);
   const statusTone = (value: Invoice["status"]) => value === "paid" ? "green" : value === "partial" ? "amber" : value === "returned" ? "rose" : "blue";
+
+  const handleQueryChange = (value: string) => {
+    setQuery(value);
+    setPage(1);
+  };
+
+  const handleStatusChange = (value: string) => {
+    setStatus(value);
+    setPage(1);
+  };
+
+  const handleBranchChange = (value: string) => {
+    setBranch(value);
+    setPage(1);
+  };
+
+  const handleResetFilters = () => {
+    setQuery("");
+    setStatus("all");
+    setBranch("all");
+    setPage(1);
+  };
+
+  const handlePageSizeChange = (value: string) => {
+    setPageSize(Number(value));
+    setPage(1);
+  };
 
   const printInvoice = (invoice: Invoice) => {
     const rawPaperSize = settings?.receipt?.paperSize || "A4";
@@ -112,26 +161,35 @@ export default function SalesPage() {
     }
   };
 
-  const exportSales = () => {
-    const result = exportData({
-      fileName: "sales.csv",
-      title: t("title"),
-      format: "csv",
-      rows: filtered,
-      locale,
-      columns: [
-        { key: "id", header: t("invoice") },
-        { key: "customerName", header: t("customer") },
-        { key: "date", header: t("date") },
-        { key: "branch", header: t("branch") },
-        { key: "paymentMethod", header: t("payment") },
-        { key: "total", header: t("total") },
-        { key: "status", header: t("status"), value: (item) => statusLabel(item.status) },
-      ],
-    });
+  const exportSales = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+      const rows = await fetchAllMatching();
+      const result = exportData({
+        fileName: "sales.csv",
+        title: t("title"),
+        format: "csv",
+        rows,
+        locale,
+        columns: [
+          { key: "id", header: t("invoice") },
+          { key: "customerName", header: t("customer") },
+          { key: "date", header: t("date") },
+          { key: "branch", header: t("branch") },
+          { key: "paymentMethod", header: t("payment") },
+          { key: "total", header: t("total") },
+          { key: "status", header: t("status"), value: (item) => statusLabel(item.status) },
+        ],
+      });
 
-    if (result.ok) toast.success(printT("exportReady"));
-    else toast.error(result.errorCode === "empty-data" ? printT("noDataToExport") : printT("exportFailed"));
+      if (result.ok) toast.success(printT("exportReady"));
+      else toast.error(result.errorCode === "empty-data" ? printT("noDataToExport") : printT("exportFailed"));
+    } catch {
+      toast.error(printT("exportFailed"));
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -148,7 +206,7 @@ export default function SalesPage() {
             <Link href="/sales/installments"><Button variant="secondary">{rtl ? "التقسيط" : "Installments"}</Button></Link>
             <Link href="/sales/gift-vouchers"><Button variant="secondary">{rtl ? "قسائم الهدايا" : "Gift Vouchers"}</Button></Link>
             <Button variant="secondary" onClick={() => refetch()}>{common("refresh")}</Button>
-            <Button variant="secondary" onClick={exportSales}><Download className="h-4 w-4" />{common("export")}</Button>
+            <Button variant="secondary" onClick={exportSales} disabled={isExporting}><Download className="h-4 w-4" />{common("export")}</Button>
             <Link href="/pos"><Button><Plus className="h-4 w-4" />{t("newInvoice")}</Button></Link>
           </div>
         }
@@ -157,31 +215,76 @@ export default function SalesPage() {
       {error && <ErrorState message={error.message} onRetry={() => refetch()} />}
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Card className="p-5"><p className="text-xs font-semibold text-slate-500">{t("totalSales")}</p><p className="mt-2 text-2xl font-black text-navy-950 dark:text-white">{money(total)}</p><p className="mt-2 text-[11px] font-bold text-emerald-600">{t("periodGrowth")}</p></Card>
-        <Card className="p-5"><p className="text-xs font-semibold text-slate-500">{t("dueAmounts")}</p><p className="mt-2 text-2xl font-black text-navy-950 dark:text-white">{money(due)}</p><p className="mt-2 text-[11px] text-slate-400">{t("dueHint")}</p></Card>
-        <Card className="p-5"><p className="text-xs font-semibold text-slate-500">{t("averageInvoice")}</p><p className="mt-2 text-2xl font-black text-navy-950 dark:text-white">{money(total / Math.max(invoices.length, 1))}</p><p className="mt-2 text-[11px] text-slate-400">{t("branchesHint")}</p></Card>
+        <Card className="p-5"><p className="text-xs font-semibold text-slate-500">{t("totalSales")}</p><p className="mt-2 text-2xl font-black text-navy-950 dark:text-white">{money(visiblePageTotal)}</p><p className="mt-2 text-[11px] font-bold text-emerald-600">{pageSummaryHint}</p></Card>
+        <Card className="p-5"><p className="text-xs font-semibold text-slate-500">{t("dueAmounts")}</p><p className="mt-2 text-2xl font-black text-navy-950 dark:text-white">{money(visiblePageDue)}</p><p className="mt-2 text-[11px] text-slate-400">{pageSummaryHint}</p></Card>
+        <Card className="p-5"><p className="text-xs font-semibold text-slate-500">{t("averageInvoice")}</p><p className="mt-2 text-2xl font-black text-navy-950 dark:text-white">{money(visiblePageAverage)}</p><p className="mt-2 text-[11px] text-slate-400">{pageSummaryHint}</p></Card>
       </div>
 
       <Card className="overflow-hidden">
         <DataToolbar
           query={query}
-          onQueryChange={setQuery}
+          onQueryChange={handleQueryChange}
           placeholder={t("search")}
-          resultCount={filtered.length}
+          resultCount={resultTotal}
           resultLabel={filtersT("results")}
           resetLabel={filtersT("reset")}
-          onReset={() => { setQuery(""); setStatus("all"); setBranch("all"); }}
+          onReset={handleResetFilters}
           filters={[
-            { id: "status", label: t("status"), value: status, onChange: setStatus, options: [{ value: "all", label: filtersT("allStatuses") }, { value: "paid", label: t("paid") }, { value: "partial", label: t("partial") }, { value: "due", label: t("due") }, { value: "returned", label: t("returned") }] },
-            { id: "branch", label: t("branch"), value: branch, onChange: setBranch, options: [{ value: "all", label: filtersT("allBranches") }, ...branches.map((item) => ({ value: item, label: item }))] },
+            { id: "status", label: t("status"), value: status, onChange: handleStatusChange, options: [{ value: "all", label: filtersT("allStatuses") }, { value: "paid", label: t("paid") }, { value: "partial", label: t("partial") }, { value: "due", label: t("due") }, { value: "returned", label: t("returned") }] },
+            { id: "branch", label: t("branch"), value: branch, onChange: handleBranchChange, options: [{ value: "all", label: filtersT("allBranches") }, ...branches.map((item) => ({ value: item, label: item }))] },
           ]}
         />
 
         {isLoading ? (
           <LoadingState message={common("loading")} />
-        ) : filtered.length ? (
-          <div className="overflow-x-auto"><table className="w-full min-w-[1000px] text-start text-xs"><thead className="bg-slate-50 text-slate-500 dark:bg-navy-950"><tr><th className="px-5 py-4">{t("invoice")}</th><th className="px-5 py-4">{t("customer")}</th><th className="px-5 py-4">{t("date")}</th><th className="px-5 py-4">{t("payment")}</th><th className="px-5 py-4">{t("branch")}</th><th className="px-5 py-4">{t("total")}</th><th className="px-5 py-4">{t("status")}</th><th className="px-5 py-4" /></tr></thead><tbody className="divide-y divide-slate-100 dark:divide-slate-800">{filtered.map((invoice) => <tr key={invoice.id} className="transition hover:bg-slate-50/80 dark:hover:bg-navy-950/60"><td className="px-5 py-4 font-extrabold text-brand-700 dark:text-brand-300">{invoice.invoiceNumber || invoice.id}</td><td className="px-5 py-4 font-bold text-navy-900 dark:text-white">{invoice.customerName}</td><td className="px-5 py-4 text-slate-500">{invoice.date}</td><td className="px-5 py-4 text-slate-500">{invoice.paymentMethod}</td><td className="px-5 py-4 text-slate-500">{invoice.branch}</td><td className="px-5 py-4 font-extrabold">{money(invoice.total)}</td><td className="px-5 py-4"><Badge tone={statusTone(invoice.status)}>{statusLabel(invoice.status)}</Badge></td><td className="px-5 py-4"><button onClick={() => setSelected(invoice)} className="inline-flex items-center gap-1 font-extrabold text-brand-700 hover:underline dark:text-brand-300"><Eye className="h-4 w-4" />{common("view")}</button></td></tr>)}</tbody></table></div>
+        ) : invoices.length ? (
+          <div className="overflow-x-auto"><table className="w-full min-w-[1000px] text-start text-xs"><thead className="bg-slate-50 text-slate-500 dark:bg-navy-950"><tr><th className="px-5 py-4">{t("invoice")}</th><th className="px-5 py-4">{t("customer")}</th><th className="px-5 py-4">{t("date")}</th><th className="px-5 py-4">{t("payment")}</th><th className="px-5 py-4">{t("branch")}</th><th className="px-5 py-4">{t("total")}</th><th className="px-5 py-4">{t("status")}</th><th className="px-5 py-4" /></tr></thead><tbody className="divide-y divide-slate-100 dark:divide-slate-800">{invoices.map((invoice) => <tr key={invoice.id} className="transition hover:bg-slate-50/80 dark:hover:bg-navy-950/60"><td className="px-5 py-4 font-extrabold text-brand-700 dark:text-brand-300">{invoice.invoiceNumber || invoice.id}</td><td className="px-5 py-4 font-bold text-navy-900 dark:text-white">{invoice.customerName}</td><td className="px-5 py-4 text-slate-500">{invoice.date}</td><td className="px-5 py-4 text-slate-500">{invoice.paymentMethod}</td><td className="px-5 py-4 text-slate-500">{invoice.branch}</td><td className="px-5 py-4 font-extrabold">{money(invoice.total)}</td><td className="px-5 py-4"><Badge tone={statusTone(invoice.status)}>{statusLabel(invoice.status)}</Badge></td><td className="px-5 py-4"><button onClick={() => setSelected(invoice)} className="inline-flex items-center gap-1 font-extrabold text-brand-700 hover:underline dark:text-brand-300"><Eye className="h-4 w-4" />{common("view")}</button></td></tr>)}</tbody></table></div>
         ) : <EmptyState title={common("noResults")} description={common("noResultsDescription")} />}
+
+        {!isLoading && resultTotal > 0 && (
+          <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4 text-xs dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+            <p className="font-semibold text-slate-500">
+              {rtl
+                ? `عرض ${firstVisibleRecord}-${lastVisibleRecord} من ${resultTotal}`
+                : `Showing ${firstVisibleRecord}-${lastVisibleRecord} of ${resultTotal}`}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={pageSize}
+                onChange={(event) => handlePageSizeChange(event.target.value)}
+                className="h-9 rounded-2xl border border-border bg-panel px-3 text-xs font-semibold text-foreground outline-none focus:ring-4 focus:ring-ring/20"
+                aria-label={rtl ? "عدد الفواتير في الصفحة" : "Invoices per page"}
+              >
+                {PAGE_SIZE_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {rtl ? `${option} لكل صفحة` : `${option} / page`}
+                  </option>
+                ))}
+              </select>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={currentPage <= 1}
+                onClick={() => setPage((value) => Math.max(1, value - 1))}
+              >
+                {rtl ? "السابق" : "Previous"}
+              </Button>
+              <span className="min-w-20 text-center font-bold text-slate-500">
+                {rtl ? `صفحة ${currentPage} / ${safeTotalPages}` : `Page ${currentPage} / ${safeTotalPages}`}
+              </span>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={currentPage >= safeTotalPages}
+                onClick={() => setPage((value) => Math.min(safeTotalPages, value + 1))}
+              >
+                {rtl ? "التالي" : "Next"}
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
 
       <Modal open={Boolean(selected)} onClose={() => setSelected(null)} title={selected?.id ?? ""} description={selected?.customerName}>

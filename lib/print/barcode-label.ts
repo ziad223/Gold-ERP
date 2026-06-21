@@ -44,6 +44,25 @@ export function assetToLabelData(asset: any, copies = 1): BarcodeLabelData {
   };
 }
 
+/**
+ * Clamp label-size config to safe ranges so a bad/empty setting can never break
+ * printing (falls back to sensible defaults). Returns a new config object.
+ */
+export function sanitizeBarcodeConfig<T extends Record<string, any>>(config: T): T {
+  const clamp = (v: any, min: number, max: number, dflt: number) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n >= min && n <= max ? n : dflt;
+  };
+  return {
+    ...config,
+    widthMm: clamp(config.widthMm, 10, 300, 62),
+    heightMm: clamp(config.heightMm, 8, 300, 28),
+    columns: Math.round(clamp(config.columns, 1, 8, 2)),
+    copies: Math.round(clamp(config.copies, 1, 1000, 1)),
+    fontSizePx: clamp(config.fontSizePx, 5, 30, 8),
+  };
+}
+
 /** Map a quantity-based Product to the canonical label payload. */
 export function productToLabelData(product: any, copies = 1): BarcodeLabelData {
   return {

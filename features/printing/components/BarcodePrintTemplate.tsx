@@ -1,4 +1,7 @@
 import { formatCurrency } from "@/lib/utils";
+import { getPublicFileUrl } from "@/lib/api/files";
+import { ScannableBarcode } from "@/features/printing/components/ScannableBarcode";
+import { sanitizeBarcodeConfig } from "@/lib/print/barcode-label";
 import type { BarcodeLabelConfig } from "@/lib/print/print-types";
 import type { BarcodeLabelData } from "@/lib/print/barcode-label";
 import type { CSSProperties } from "react";
@@ -10,20 +13,25 @@ interface BarcodePrintTemplateProps {
   items: BarcodePrintItem[];
   config: BarcodeLabelConfig;
   companyAbbreviation: string;
+  /** Company logo path/URL — rendered as an <img> when config.showLogo is on. */
+  companyLogo?: string;
   currency: string;
   locale: string;
 }
 
-export function BarcodePrintTemplate({ items, config, companyAbbreviation, currency, locale }: BarcodePrintTemplateProps) {
+export function BarcodePrintTemplate({ items, config: rawConfig, companyAbbreviation, companyLogo, currency, locale }: BarcodePrintTemplateProps) {
+  // Clamp sizes so a bad/empty setting can never break printing.
+  const config = sanitizeBarcodeConfig(rawConfig);
   const isRtl = config.direction === "RTL";
+  const logoUrl = config.showLogo && companyLogo ? getPublicFileUrl(companyLogo) : "";
   return (
     <section
       className="print-document barcode-sheet"
       data-print-root
       style={{
-        "--label-width": `${config.widthMm || 62}mm`,
-        "--label-height": `${config.heightMm || 28}mm`,
-        "--label-columns": config.columns || 2,
+        "--label-width": `${config.widthMm}mm`,
+        "--label-height": `${config.heightMm}mm`,
+        "--label-columns": config.columns,
         "--label-row-gap": `${config.rowGapMm ?? 3}mm`,
         "--label-column-gap": `${config.columnGapMm ?? 3}mm`,
       } as CSSProperties}
@@ -34,12 +42,16 @@ export function BarcodePrintTemplate({ items, config, companyAbbreviation, curre
           key={`${item.assetId || item.barcode}-${idx}`}
           style={{
             direction: isRtl ? "rtl" : "ltr",
-            fontSize: `${config.fontSizePx || 8}px`,
+            fontSize: `${config.fontSizePx}px`,
             border: config.showBorder ? "1px solid #111827" : "none",
             gridTemplateColumns: config.showQrCode ? "1fr 18mm" : "1fr 22mm"
           } as CSSProperties}
         >
           <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: "1px" }}>
+            {logoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoUrl} alt="" style={{ maxHeight: "6mm", maxWidth: "100%", objectFit: "contain", alignSelf: isRtl ? "flex-end" : "flex-start" }} />
+            )}
             {config.showCompanyName && (
               <div style={{ fontWeight: 900, fontSize: "1.1em", borderBottom: "1px solid #eee", paddingBottom: "1px" }}>
                 {companyAbbreviation}
@@ -92,12 +104,14 @@ export function BarcodePrintTemplate({ items, config, companyAbbreviation, curre
 
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1px" }}>
             {config.showQrCode ? (
-              <div style={{ width: "16mm", height: "16mm", border: "1px solid #111827", display: "grid", placeItems: "center", fontSize: "7px" }}>
-                QR
+              <div style={{ width: "16mm", height: "16mm" }}>
+                <ScannableBarcode type="qr" value={item.barcode} />
               </div>
             ) : (
               <>
-                <BarcodeBars value={item.barcode} />
+                <div style={{ width: "100%", height: "9mm" }}>
+                  <ScannableBarcode type="barcode" value={item.barcode} />
+                </div>
                 <div className="barcode-text" style={{ fontSize: "0.9em" }}>{item.barcode}</div>
               </>
             )}
@@ -106,18 +120,5 @@ export function BarcodePrintTemplate({ items, config, companyAbbreviation, curre
         </article>
       ))}
     </section>
-  );
-}
-
-function BarcodeBars({ value }: { value: string }) {
-  const seed = value.split("").map((char) => char.charCodeAt(0));
-  return (
-    <div className="barcode-visual" aria-label={value}>
-      {Array.from({ length: 24 }).map((_, index) => {
-        const code = seed[index % Math.max(seed.length, 1)] ?? index;
-        const width = (code + index) % 3 === 0 ? 3 : (code + index) % 2 === 0 ? 2 : 1;
-        return <span key={index} className="barcode-bar" style={{ width }} />;
-      })}
-    </div>
   );
 }

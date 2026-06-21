@@ -25,7 +25,7 @@ export const NativeSelect = forwardRef<HTMLSelectElement, NativeSelectProps>(
           ref={ref}
           className={[
             // base layout
-            "w-full h-10 rounded-2xl border border-border",
+            "native-select h-10 min-h-10 max-h-10 w-full rounded-2xl border border-border",
             // bg + text
             "bg-input text-foreground",
             // padding — enough room for the chevron on the right
@@ -39,6 +39,8 @@ export const NativeSelect = forwardRef<HTMLSelectElement, NativeSelectProps>(
             "cursor-pointer transition-colors",
             // hover
             "hover:border-brand-400",
+            // disabled
+            "disabled:cursor-not-allowed disabled:opacity-50",
             // REMOVED: appearance-none is intentionally NOT applied here;
             // the wrapper hides the system arrow, our own chevron shows instead.
             "appearance-none",

@@ -1,6 +1,8 @@
 export type DarfusRole = "admin" | "owner" | "manager" | "accountant" | "sales";
 
 export interface PermissionSet {
+  /** Print barcode / price labels (barcode.print). */
+  printBarcode: boolean;
   viewCosts: boolean;
   viewMargins: boolean;
   overrideGoldRate: boolean;
@@ -16,6 +18,7 @@ export interface PermissionSet {
 
 export const ROLE_PERMISSIONS: Record<DarfusRole, PermissionSet> = {
   admin: {
+    printBarcode: true,
     viewCosts: true,
     viewMargins: true,
     overrideGoldRate: true,
@@ -29,6 +32,7 @@ export const ROLE_PERMISSIONS: Record<DarfusRole, PermissionSet> = {
     viewAuditLogs: true,
   },
   owner: {
+    printBarcode: true,
     viewCosts: true,
     viewMargins: true,
     overrideGoldRate: true,
@@ -42,6 +46,7 @@ export const ROLE_PERMISSIONS: Record<DarfusRole, PermissionSet> = {
     viewAuditLogs: true,
   },
   manager: {
+    printBarcode: true,
     viewCosts: true,
     viewMargins: true,
     overrideGoldRate: true,
@@ -55,6 +60,7 @@ export const ROLE_PERMISSIONS: Record<DarfusRole, PermissionSet> = {
     viewAuditLogs: true,
   },
   accountant: {
+    printBarcode: false,
     viewCosts: true,
     viewMargins: true,
     overrideGoldRate: false,
@@ -68,6 +74,7 @@ export const ROLE_PERMISSIONS: Record<DarfusRole, PermissionSet> = {
     viewAuditLogs: true,
   },
   sales: {
+    printBarcode: true,
     viewCosts: false, // strictly hidden
     viewMargins: false, // strictly hidden
     overrideGoldRate: false,

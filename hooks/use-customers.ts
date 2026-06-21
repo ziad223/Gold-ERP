@@ -29,6 +29,21 @@ export function useCustomers(initialQuery: ListQuery = { page: 1, pageSize: 25 }
     }
   }, [customerRepository]);
 
+  const fetchAllMatching = useCallback(async () => {
+    const firstPage = await customerRepository.list({ ...query, page: 1, pageSize: 250 });
+    if (firstPage.total === 0) return [];
+
+    const rows = [...firstPage.items];
+    const totalPages = Math.max(firstPage.totalPages, Math.ceil(firstPage.total / firstPage.pageSize), 1);
+
+    for (let pageNumber = 2; pageNumber <= totalPages; pageNumber += 1) {
+      const nextPage = await customerRepository.list({ ...query, page: pageNumber, pageSize: firstPage.pageSize });
+      rows.push(...nextPage.items);
+    }
+
+    return rows.slice(0, firstPage.total);
+  }, [customerRepository, query]);
+
   useEffect(() => {
     fetchCustomers(query);
   }, [query, fetchCustomers, rawCustomers]); // rawCustomers dependency ensures UI updates instantly on local mutations
@@ -40,6 +55,7 @@ export function useCustomers(initialQuery: ListQuery = { page: 1, pageSize: 25 }
     query,
     setQuery,
     refresh: () => fetchCustomers(query),
+    fetchAllMatching,
   };
 }
 

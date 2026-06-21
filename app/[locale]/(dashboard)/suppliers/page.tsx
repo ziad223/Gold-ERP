@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DataToolbar } from "@/components/ui/data-toolbar";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { LoadingState } from "@/components/ui/loading-state";
 import { Modal } from "@/components/ui/modal";
 import { PageHeader } from "@/components/ui/page-header";
 import { useAuth } from "@/contexts/auth-context";
@@ -32,6 +34,8 @@ const initialForm = {
   status: "active" as "active" | "inactive",
 };
 
+const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
+
 export default function SuppliersPage() {
   const t = useTranslations("Suppliers");
   const common = useTranslations("Common");
@@ -51,11 +55,25 @@ export default function SuppliersPage() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [dueFilter, setDueFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Custom hook for repository data
-  const { items: suppliers, loading, error, query, setQuery, refresh } = useSuppliers({
-    page: 1,
-    pageSize: 100,
+  const {
+    items: suppliers,
+    page: currentPage,
+    pageSize: resolvedPageSize,
+    total: resultTotal,
+    totalPages,
+    loading,
+    error,
+    setQuery,
+    refresh,
+    fetchAllMatching,
+  } = useSuppliers({
+    page,
+    pageSize,
     search: queryState,
     filters: {
       category: categoryFilter,
@@ -75,11 +93,17 @@ export default function SuppliersPage() {
   const [isEdit, setIsEdit] = useState(false);
 
   const categories = useMemo(() => {
-    return [...new Set(suppliers.map((item) => item.category))];
-  }, [suppliers]);
+    const nextCategories = new Set(suppliers.map((item) => item.category).filter(Boolean));
+    if (categoryFilter !== "all") nextCategories.add(categoryFilter);
+    return [...nextCategories];
+  }, [suppliers, categoryFilter]);
 
   const currency = company?.currency ?? "AED";
   const money = (value: number) => formatCurrency(value, currency, locale);
+  const pageSummaryHint = rtl ? "إجمالي الصفحة الحالية فقط" : "Current page only";
+  const safeTotalPages = Math.max(totalPages || 1, 1);
+  const firstVisibleRecord = resultTotal === 0 ? 0 : ((currentPage - 1) * resolvedPageSize) + 1;
+  const lastVisibleRecord = resultTotal === 0 ? 0 : Math.min(resultTotal, firstVisibleRecord + suppliers.length - 1);
 
   const handleOpenAdd = () => {
     setIsEdit(false);
@@ -214,59 +238,100 @@ export default function SuppliersPage() {
   };
 
   const handleExport = () => {
-    const result = exportData({
-      fileName: "suppliers.csv",
-      title: t("title"),
-      format: "csv",
-      rows: suppliers,
-      locale,
-      columns: [
-        { key: "id", header: exportT("id") },
-        { key: "name", header: t("name") },
-        { key: "category", header: t("category") },
-        { key: "phone", header: t("phone") },
-        { key: "email", header: exportT("email"), value: (item) => item.email || "" },
-        { key: "due", header: t("due") },
-        { key: "rating", header: t("rating") },
-        {
-          key: "status",
-          header: exportT("status"),
-          value: (item) => item.status === "inactive" ? common("inactive") : common("active"),
-        },
-      ],
-    });
+    if (isExporting) return;
+    setIsExporting(true);
+    fetchAllMatching()
+      .then((rows) => {
+        const result = exportData({
+          fileName: "suppliers.csv",
+          title: t("title"),
+          format: "csv",
+          rows,
+          locale,
+          columns: [
+            { key: "id", header: exportT("id") },
+            { key: "name", header: t("name") },
+            { key: "category", header: t("category") },
+            { key: "phone", header: t("phone") },
+            { key: "email", header: exportT("email"), value: (item) => item.email || "" },
+            { key: "due", header: t("due") },
+            { key: "rating", header: t("rating") },
+            {
+              key: "status",
+              header: exportT("status"),
+              value: (item) => item.status === "inactive" ? common("inactive") : common("active"),
+            },
+          ],
+        });
 
-    if (result.ok) toast.success(exportT("exportReady"));
-    else toast.error(result.errorCode === "empty-data" ? exportT("noDataToExport") : exportT("exportFailed"));
+        if (result.ok) toast.success(exportT("exportReady"));
+        else toast.error(result.errorCode === "empty-data" ? exportT("noDataToExport") : exportT("exportFailed"));
+      })
+      .catch(() => toast.error(exportT("exportFailed")))
+      .finally(() => setIsExporting(false));
   };
 
   const handleQueryChange = (q: string) => {
     setQueryState(q);
-    setQuery((prev) => ({ ...prev, search: q }));
+    setPage(1);
+    setQuery((prev) => ({ ...prev, page: 1, search: q }));
   };
 
   const handleCategoryChange = (category: string) => {
     setCategoryFilter(category);
+    setPage(1);
     setQuery((prev) => ({
       ...prev,
+      page: 1,
       filters: { ...prev.filters, category },
     }));
   };
 
   const handleDueChange = (due: string) => {
     setDueFilter(due);
+    setPage(1);
     setQuery((prev) => ({
       ...prev,
+      page: 1,
       filters: { ...prev.filters, due },
     }));
   };
 
   const handleStatusChange = (status: string) => {
     setStatusFilter(status);
+    setPage(1);
     setQuery((prev) => ({
       ...prev,
+      page: 1,
       filters: { ...prev.filters, status },
     }));
+  };
+
+  const handleResetFilters = () => {
+    setQueryState("");
+    setCategoryFilter("all");
+    setDueFilter("all");
+    setStatusFilter("all");
+    setPage(1);
+    setQuery((prev) => ({
+      ...prev,
+      page: 1,
+      search: "",
+      filters: { ...prev.filters, category: "all", due: "all", status: "all" },
+    }));
+  };
+
+  const handlePageSizeChange = (value: string) => {
+    const nextPageSize = Number(value);
+    setPageSize(nextPageSize);
+    setPage(1);
+    setQuery((prev) => ({ ...prev, page: 1, pageSize: nextPageSize }));
+  };
+
+  const goToPage = (nextPage: number) => {
+    const safePage = Math.min(Math.max(nextPage, 1), safeTotalPages);
+    setPage(safePage);
+    setQuery((prev) => ({ ...prev, page: safePage }));
   };
 
   return (
@@ -276,7 +341,7 @@ export default function SuppliersPage() {
         description={t("description")}
         actions={
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={handleExport}>
+            <Button variant="secondary" onClick={handleExport} disabled={isExporting}>
               <Download className="h-4 w-4" /> {common("export")}
             </Button>
             <Link href="/suppliers/purchases">
@@ -294,6 +359,8 @@ export default function SuppliersPage() {
         }
       />
 
+      {error && <ErrorState message={error} onRetry={() => refresh()} />}
+
       <div className="grid gap-4 md:grid-cols-4">
         {[
           [t("totalDue"), money(suppliers.reduce((sum, item) => sum + item.due, 0))],
@@ -304,6 +371,7 @@ export default function SuppliersPage() {
           <Card key={label} className="p-5">
             <p className="text-xs font-semibold text-slate-500">{label}</p>
             <p className="mt-2 text-2xl font-black text-navy-950 dark:text-white">{value}</p>
+            <p className="mt-2 text-[11px] text-slate-400">{pageSummaryHint}</p>
           </Card>
         ))}
       </div>
@@ -313,15 +381,10 @@ export default function SuppliersPage() {
           query={queryState}
           onQueryChange={handleQueryChange}
           placeholder={t("search")}
-          resultCount={suppliers.length}
+          resultCount={resultTotal}
           resultLabel={filtersT("results")}
           resetLabel={filtersT("reset")}
-          onReset={() => {
-            setQueryState("");
-            handleCategoryChange("all");
-            handleDueChange("all");
-            handleStatusChange("all");
-          }}
+          onReset={handleResetFilters}
           filters={[
             {
               id: "category",
@@ -358,7 +421,9 @@ export default function SuppliersPage() {
           ]}
         />
 
-        {suppliers.length ? (
+        {loading ? (
+          <LoadingState message={common("loading")} />
+        ) : suppliers.length ? (
           <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
             {suppliers.map((supplier) => (
               <div
@@ -467,6 +532,51 @@ export default function SuppliersPage() {
           </div>
         ) : (
           <EmptyState title={common("noResults")} description={common("noResultsDescription")} />
+        )}
+
+        {!loading && resultTotal > 0 && (
+          <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4 text-xs dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+            <p className="font-semibold text-slate-500">
+              {rtl
+                ? `عرض ${firstVisibleRecord}-${lastVisibleRecord} من ${resultTotal}`
+                : `Showing ${firstVisibleRecord}-${lastVisibleRecord} of ${resultTotal}`}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={pageSize}
+                onChange={(event) => handlePageSizeChange(event.target.value)}
+                className="h-9 rounded-2xl border border-border bg-panel px-3 text-xs font-semibold text-foreground outline-none focus:ring-4 focus:ring-ring/20"
+                aria-label={rtl ? "عدد الموردين في الصفحة" : "Suppliers per page"}
+              >
+                {PAGE_SIZE_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {rtl ? `${option} لكل صفحة` : `${option} / page`}
+                  </option>
+                ))}
+              </select>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={currentPage <= 1}
+                onClick={() => goToPage(currentPage - 1)}
+              >
+                {rtl ? "السابق" : "Previous"}
+              </Button>
+              <span className="min-w-20 text-center font-bold text-slate-500">
+                {rtl ? `صفحة ${currentPage} / ${safeTotalPages}` : `Page ${currentPage} / ${safeTotalPages}`}
+              </span>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={currentPage >= safeTotalPages}
+                onClick={() => goToPage(currentPage + 1)}
+              >
+                {rtl ? "التالي" : "Next"}
+              </Button>
+            </div>
+          </div>
         )}
       </Card>
 

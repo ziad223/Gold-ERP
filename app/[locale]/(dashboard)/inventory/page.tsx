@@ -29,6 +29,8 @@ import { exportData } from "@/lib/export/export-service";
 import { DEFAULT_BARCODE_LABEL_CONFIG } from "@/lib/print/print-config";
 import { printHtmlDocument } from "@/lib/print/print-service";
 import { type BarcodeLabelData, productToLabelData, assetToLabelData } from "@/lib/print/barcode-label";
+import { ScannableBarcode } from "@/features/printing/components/ScannableBarcode";
+import { getPublicFileUrl } from "@/lib/api/files";
 import { formatCurrency, formatNumber } from "@/lib/utils";
 import type { Asset, AssetStatus, AssetType, Product, StockMovement } from "@/lib/types";
 import { useCoreErpData } from "@/hooks/use-core-erp-data";
@@ -66,6 +68,8 @@ export default function InventoryPage() {
   const { company, user } = useAuth();
   const { addAuditLog } = useErp();
   const { isAuthorized } = usePermissions();
+  // P7.5a: barcode printing is permission-gated (UI + handler).
+  const canPrintBarcode = isAuthorized("printBarcode");
   
   const { products, assets, isLoading: isErpLoading, error: erpError, refetch } = useCoreErpData();
   const { createAsset, updateAsset } = useAssets();
@@ -149,6 +153,9 @@ export default function InventoryPage() {
   const [printPreviewItems, setPrintPreviewItems] = useState<BarcodeLabelData[]>([]);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [previewConfig, setPreviewConfig] = useState<any>(null);
+  // P7.4 batch: scope (selected vs all-filtered) + large-batch acknowledgement.
+  const [printScope, setPrintScope] = useState<"selected" | "filtered">("filtered");
+  const [largeBatchConfirmed, setLargeBatchConfirmed] = useState(false);
 
   const { settings } = useAppSettings();
   const barcodeConfig = settings.barcode || DEFAULT_BARCODE_LABEL_CONFIG;
@@ -545,20 +552,38 @@ export default function InventoryPage() {
     }
   };
 
+  // Per-item copies clamp (mirrors sanitizeBarcodeConfig): invalid → 1, capped.
+  const safeCopies = (c: any) => Math.max(1, Math.min(1000, Math.round(Number(c) || 1)));
+  // Show a confirmation when a batch would print a very large number of labels.
+  const LARGE_BATCH_THRESHOLD = 500;
+  // Total physical labels for the current preview (Σ per-item copies).
+  const totalLabels = printPreviewItems.reduce((s, it) => s + safeCopies(it.copies), 0);
+
   const printBarcodeLabels = () => {
+    // Permission gate — never rely on the button alone.
+    if (!canPrintBarcode) {
+      toast.error(rtl ? "ليس لديك صلاحية طباعة الباركود" : "You don't have barcode print permission");
+      return;
+    }
     // Unified payload (P7.1): products and assets map to the SAME canonical
     // BarcodeLabelData via the shared mappers (no type is excluded; barcode
-    // falls back to the record id).
+    // falls back to the record id). Batch source is the ACTIVE TAB
+    // (products OR assets) — selections are per-tab, so cross-tab mixing is not
+    // offered here; the unified payload supports it if a combined source is
+    // added later.
     const copies = barcodeConfig.copies || 1;
     let rawItems: BarcodeLabelData[] = [];
+    let scope: "selected" | "filtered" = "filtered";
     if (activeTab === "products") {
       const selectedSet = new Set(selectedProductIds);
+      scope = selectedProductIds.length ? "selected" : "filtered";
       const targetProds = selectedProductIds.length
         ? filteredProducts.filter((p) => selectedSet.has(p.id))
         : filteredProducts;
       rawItems = targetProds.map((p) => productToLabelData(p, copies));
     } else {
       const selectedSet = new Set(selectedAssetIds);
+      scope = selectedAssetIds.length ? "selected" : "filtered";
       const targetAssets = selectedAssetIds.length
         ? filteredAssets.filter((a) => selectedSet.has(a.id))
         : filteredAssets;
@@ -570,6 +595,8 @@ export default function InventoryPage() {
       return;
     }
 
+    setPrintScope(scope);
+    setLargeBatchConfirmed(false);
     setPrintPreviewItems(rawItems);
     setPreviewConfig({ ...barcodeConfig });
     setShowPrintPreview(true);
@@ -577,11 +604,23 @@ export default function InventoryPage() {
 
   const handleConfirmPrint = () => {
     if (!printPreviewItems.length || !previewConfig) return;
+    // Re-check permission at the print boundary (defends the handler, not just the button).
+    if (!canPrintBarcode) {
+      toast.error(rtl ? "ليس لديك صلاحية طباعة الباركود" : "You don't have barcode print permission");
+      return;
+    }
 
-    // Expand copies; items are already the canonical BarcodePrintItem shape.
+    // Large-batch guard: require explicit acknowledgement past the threshold.
+    const labelCount = printPreviewItems.reduce((s, it) => s + safeCopies(it.copies), 0);
+    if (labelCount > LARGE_BATCH_THRESHOLD && !largeBatchConfirmed) {
+      toast.warning(rtl ? `سيتم طباعة ${labelCount} ملصقاً — يرجى تأكيد الكمية الكبيرة.` : `${labelCount} labels will print — please acknowledge the large batch.`);
+      return;
+    }
+
+    // Expand copies (sanitized); items are the canonical BarcodePrintItem shape.
     const finalItems: BarcodeLabelData[] = [];
     printPreviewItems.forEach((item) => {
-      const count = Number(item.copies) || 1;
+      const count = safeCopies(item.copies);
       for (let i = 0; i < count; i++) {
         finalItems.push({ ...item, copies: 1 });
       }
@@ -592,6 +631,7 @@ export default function InventoryPage() {
         items={finalItems}
         config={previewConfig}
         companyAbbreviation={company?.businessName || "DARFUS"}
+        companyLogo={company?.logo}
         currency={currency}
         locale={locale}
       />,
@@ -695,7 +735,12 @@ export default function InventoryPage() {
               <Sliders className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
               {rtl ? "تخصيص الأعمدة" : "Column Settings"}
             </Button>
-            <Button variant="secondary" onClick={printBarcodeLabels}>
+            <Button
+              variant="secondary"
+              onClick={printBarcodeLabels}
+              disabled={!canPrintBarcode}
+              title={canPrintBarcode ? undefined : (rtl ? "تحتاج صلاحية طباعة الباركود" : "Barcode print permission required")}
+            >
               <Printer className="h-4 w-4" />
               {t("printBarcode")}
             </Button>
@@ -1685,6 +1730,10 @@ export default function InventoryPage() {
                       >
                         {/* Tag Left Panel */}
                         <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: "1px", lineHeight: "1.1" }}>
+                          {previewConfig.showLogo && company?.logo && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={getPublicFileUrl(company.logo)} alt="" style={{ maxHeight: "18px", maxWidth: "100%", objectFit: "contain" }} />
+                          )}
                           {previewConfig.showCompanyName && (
                             <div style={{ fontWeight: 900, borderBottom: "1px solid #ddd", paddingBottom: "1px", fontSize: "0.95em" }}>
                               {company?.businessName || "DARFUS"}
@@ -1719,12 +1768,14 @@ export default function InventoryPage() {
                         {/* Tag Right Panel (Barcode/QR) */}
                         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "2px" }}>
                           {previewConfig.showQrCode ? (
-                            <div style={{ width: "40px", height: "40px", border: "1px solid #111827", display: "grid", placeItems: "center", fontSize: "18px", fontWeight: "black" }}>
-                              QR
+                            <div style={{ width: "40px", height: "40px" }}>
+                              <ScannableBarcode type="qr" value={printPreviewItems[0].barcode} />
                             </div>
                           ) : (
                             <>
-                              <div style={{ display: "flex", gap: "1px", height: "24px", width: "100%", background: "#111827", padding: "1px" }} />
+                              <div style={{ height: "24px", width: "100%" }}>
+                                <ScannableBarcode type="barcode" value={printPreviewItems[0].barcode} />
+                              </div>
                               <div className="font-mono text-[0.85em]" style={{ letterSpacing: "0.05em" }}>{printPreviewItems[0].barcode}</div>
                             </>
                           )}
@@ -1737,9 +1788,25 @@ export default function InventoryPage() {
               </div>
             </div>
 
+            {/* Batch print summary (read-only) */}
+            <div className="mt-4 rounded-xl bg-surface-muted/40 p-3 text-[11px] font-bold text-slate-600 dark:text-slate-300 grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div>{rtl ? "العناصر" : "Items"}: <span className="text-navy-900 dark:text-white">{printPreviewItems.length}</span></div>
+              <div>{rtl ? "النسخ/عنصر" : "Copies/item"}: <span className="text-navy-900 dark:text-white">{safeCopies(previewConfig.copies)}</span></div>
+              <div>{rtl ? "إجمالي الملصقات" : "Total labels"}: <span className="text-brand-700 dark:text-brand-300">{totalLabels}</span></div>
+              <div>{rtl ? "النطاق" : "Scope"}: <span className="text-navy-900 dark:text-white">{(printScope === "selected" ? (rtl ? "المحدد" : "selected") : (rtl ? "المُصفّى" : "filtered"))} · {activeTab === "products" ? (rtl ? "منتجات" : "products") : (rtl ? "أصول" : "assets")}</span></div>
+            </div>
+
+            {totalLabels > LARGE_BATCH_THRESHOLD && (
+              <label className="mt-3 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300 cursor-pointer">
+                <input type="checkbox" checked={largeBatchConfirmed} onChange={(e) => setLargeBatchConfirmed(e.target.checked)} />
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                {rtl ? `دفعة كبيرة: ${totalLabels} ملصقاً. أؤكد المتابعة.` : `Large batch: ${totalLabels} labels. I confirm.`}
+              </label>
+            )}
+
             <div className="flex justify-end gap-2 pt-4 border-t">
               <Button type="button" variant="secondary" onClick={() => setShowPrintPreview(false)}>{common("cancel")}</Button>
-              <Button type="button" onClick={handleConfirmPrint}>
+              <Button type="button" onClick={handleConfirmPrint} disabled={totalLabels > LARGE_BATCH_THRESHOLD && !largeBatchConfirmed}>
                 <Printer className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
                 {rtl ? "تأكيد وبدء الطباعة" : "Confirm & Print"}
               </Button>

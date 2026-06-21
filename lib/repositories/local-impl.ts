@@ -102,7 +102,9 @@ function paginateAndSort<T>(
           return value === "due" ? item.balance > 0 : item.balance === 0;
         }
         if (key === "due") {
-          return value === "due" ? item.due > 0 : item.due === 0;
+          // A non-positive balance (incl. negatives) counts as "no dues".
+          const due = Number(item.due) || 0;
+          return value === "due" ? due > 0 : due <= 0;
         }
         return String(item[key]) === String(value);
       });
