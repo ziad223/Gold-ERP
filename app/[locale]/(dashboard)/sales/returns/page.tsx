@@ -1,0 +1,385 @@
+"use client";
+
+import { useMemo, useState, useEffect, useCallback } from "react";
+import { ArrowLeft, ArrowRight, Search, RotateCcw, AlertCircle, CheckCircle2 } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
+import { useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/ui/page-header";
+import { useAuth } from "@/contexts/auth-context";
+import { useErp } from "@/contexts/erp-context";
+import { useAppSettings } from "@/contexts/settings-context";
+import { Link } from "@/i18n/navigation";
+import { formatCurrency } from "@/lib/utils";
+import { apiClient } from "@/lib/api/client";
+import type { Invoice } from "@/lib/types";
+import { queryKeys } from "@/lib/query-keys";
+import { toEnglishDigits } from "@/lib/formatters/numbers";
+
+export default function ReturnsPage() {
+  const t = useTranslations("Sales");
+  const common = useTranslations("Common");
+  const locale = useLocale();
+  const rtl = locale === "ar";
+  const queryClient = useQueryClient();
+  const { company, activeBranch, user } = useAuth();
+  const { invoices, addInvoice, updateAssetWithEvent } = useErp();
+  const { settings } = useAppSettings();
+
+  const dataSource = process.env.NEXT_PUBLIC_DATA_SOURCE || "mock";
+  const apiMode = dataSource === "api";
+
+  const [invoiceId, setInvoiceId] = useState("");
+  const [searchedInvoice, setSearchedInvoice] = useState<Invoice | null>(null);
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [reason, setReason] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [apiReturnList, setApiReturnList] = useState<Invoice[]>([]);
+
+  const currency = company?.currency ?? "AED";
+  const money = (value: number) => toEnglishDigits(formatCurrency(value, currency, locale));
+  const BackIcon = rtl ? ArrowRight : ArrowLeft;
+
+  // Load credit notes list from API
+  const loadCreditNotes = useCallback(() => {
+    if (apiMode) {
+      apiClient<{ items: Invoice[] }>(`/invoices?filters=${encodeURIComponent(JSON.stringify({ type: "return" }))}`, { locale })
+        .then((res) => {
+          setApiReturnList(res.items || []);
+        })
+        .catch(() => {});
+    }
+  }, [apiMode, locale]);
+
+  useEffect(() => {
+    loadCreditNotes();
+  }, [loadCreditNotes]);
+
+  // Search invoice handler
+  const handleSearch = async () => {
+    setErrorMsg("");
+    setSuccessMsg("");
+    if (!invoiceId.trim()) return;
+
+    try {
+      if (apiMode) {
+        const res = await apiClient<any>(`/invoices/${invoiceId.trim()}`, { locale });
+        const found = res.data;
+        if (!found) {
+          setErrorMsg(rtl ? "لم يتم العثور على الفاتورة المطلوبة." : "Invoice not found.");
+          setSearchedInvoice(null);
+          return;
+        }
+        if (found.status === "returned") {
+          setErrorMsg(
+            rtl ? "هذه الفاتورة تم إرجاعها بالكامل مسبقاً." : "This invoice has already been fully returned."
+          );
+          setSearchedInvoice(null);
+          return;
+        }
+        setSearchedInvoice(found);
+        setSelectedItems([]);
+      } else {
+        const found = invoices.find(
+          (inv) => inv.id.toLowerCase() === invoiceId.trim().toLowerCase()
+        );
+        if (!found) {
+          setErrorMsg(rtl ? "لم يتم العثور على الفاتورة المطلوبة." : "Invoice not found.");
+          setSearchedInvoice(null);
+          return;
+        }
+        if (found.status === "returned") {
+          setErrorMsg(
+            rtl ? "هذه الفاتورة تم إرجاعها بالكامل مسبقاً." : "This invoice has already been fully returned."
+          );
+          setSearchedInvoice(null);
+          return;
+        }
+        setSearchedInvoice(found);
+        setSelectedItems([]);
+      }
+    } catch (err: any) {
+      setErrorMsg(rtl ? "لم يتم العثور على الفاتورة المطلوبة." : "Invoice not found.");
+      setSearchedInvoice(null);
+    }
+  };
+
+  const handleToggleItem = (assetId: string) => {
+    setSelectedItems((current) =>
+      current.includes(assetId) ? current.filter((id) => id !== assetId) : [...current, assetId]
+    );
+  };
+
+  const handlePostReturn = async () => {
+    if (!searchedInvoice || selectedItems.length === 0) return;
+
+    try {
+      if (apiMode) {
+        await apiClient("/sales/returns", {
+          method: "POST",
+          body: JSON.stringify({
+            originalInvoiceId: searchedInvoice.id,
+            returnedAssetIds: selectedItems,
+            reason
+          }),
+          locale
+        });
+
+        const customerId = searchedInvoice.customerId;
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: queryKeys.invoices }),
+          customerId ? queryClient.invalidateQueries({ queryKey: queryKeys.customerInvoices(customerId) }) : Promise.resolve(),
+          customerId ? queryClient.invalidateQueries({ queryKey: queryKeys.customerStatement(customerId) }) : Promise.resolve(),
+          queryClient.invalidateQueries({ queryKey: queryKeys.assets() }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.dashboard }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.reports }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.treasury }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.accounting }),
+          ...selectedItems.map((assetId) => queryClient.invalidateQueries({ queryKey: queryKeys.asset(assetId) })),
+          ...selectedItems.map((assetId) => queryClient.invalidateQueries({ queryKey: queryKeys.assetTimeline(assetId) })),
+        ]);
+
+        setSuccessMsg(
+          rtl
+            ? `تم تسجيل المرتجع بنجاح وإنشاء سند الرصيد الدائن`
+            : `Return posted successfully! Credit Note generated.`
+        );
+        loadCreditNotes();
+      } else {
+        const returnTimestamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+
+        selectedItems.forEach((assetId) => {
+          updateAssetWithEvent(
+            assetId,
+            { status: "available" },
+            {
+              id: `EV-RET-${Date.now()}-${assetId}`,
+              action: rtl ? "تم الإرجاع" : "RETURNED",
+              date: returnTimestamp,
+              user: user?.firstName || "System",
+              branch: activeBranch,
+              note: `${rtl ? "تم الإرجاع للفاتورة: " : "Returned from Invoice: "} ${searchedInvoice.id}. ${rtl ? "السبب: " : "Reason: "} ${reason}`,
+              sourceDocument: searchedInvoice.id,
+              beforeState: "status:sold",
+              afterState: "status:available",
+              severity: "info",
+            },
+          );
+        });
+
+        const allItemsReturned = selectedItems.length === searchedInvoice.items.length;
+        const returnInvoiceId = `CN-${10000 + Math.floor(Math.random() * 9000)}`;
+        const returnedValue = searchedInvoice.items
+          .filter((item) => selectedItems.includes(item.assetId))
+          .reduce((sum, item) => sum + item.price, 0);
+
+        const creditNote: Invoice = {
+          id: returnInvoiceId,
+          type: "return",
+          customerId: searchedInvoice.customerId,
+          customerName: searchedInvoice.customerName,
+          date: returnTimestamp,
+          total: -returnedValue,
+          tax: -Math.round(returnedValue * ((Number(searchedInvoice.vatRate ?? settings.vatRate) || 0) / 100) * 100) / 100,
+          status: "returned",
+          paymentMethod: searchedInvoice.paymentMethod,
+          branch: activeBranch,
+          items: searchedInvoice.items.filter((item) => selectedItems.includes(item.assetId)),
+          relatedInvoiceId: searchedInvoice.id,
+        };
+
+        addInvoice(creditNote);
+
+        setSuccessMsg(
+          rtl
+            ? `تم تسجيل المرتجع بنجاح وإنشاء سند الرصيد الدائن ${returnInvoiceId}`
+            : `Return posted successfully! Credit Note ${returnInvoiceId} generated.`
+        );
+      }
+      setSearchedInvoice(null);
+      setInvoiceId("");
+      setSelectedItems([]);
+      setReason("");
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to post return.");
+    }
+  };
+
+  const returnList = useMemo(() => {
+    if (apiMode) return apiReturnList;
+    return invoices.filter((inv) => inv.total < 0);
+  }, [apiMode, apiReturnList, invoices]);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <Link href="/sales" className="mb-3 inline-flex items-center gap-1 text-xs font-bold text-muted hover:text-brand-700">
+            <BackIcon className="h-4 w-4" />{t("back") || "Back to sales"}
+          </Link>
+          <h1 className="text-2xl font-black text-foreground lg:text-3xl">
+            {rtl ? "مرتجع المبيعات وسندات الدائن" : "Sales Returns & Credit Notes"}
+          </h1>
+          <p className="text-xs text-muted mt-1">
+            {rtl ? "إدارة عمليات المرتجعات واسترداد قيمة الأصول المبيعة" : "Manage sales return workflows and restore assets."}
+          </p>
+        </div>
+      </div>
+ 
+      {successMsg && (
+        <div className="flex items-center gap-3 rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm font-bold text-emerald-600 dark:text-emerald-400">
+          <CheckCircle2 className="h-5 w-5 shrink-0" />
+          <span>{successMsg}</span>
+        </div>
+      )}
+ 
+      {errorMsg && (
+        <div className="flex items-center gap-3 rounded-3xl border border-destructive/20 bg-destructive/10 p-4 text-sm font-bold text-destructive">
+          <AlertCircle className="h-5 w-5 shrink-0" />
+          <span>{errorMsg}</span>
+        </div>
+      )}
+ 
+      <div className="grid gap-6 xl:grid-cols-[1.2fr_.8fr]">
+        <div className="space-y-6">
+          {/* Lookup Panel */}
+          <Card className="p-6">
+            <h3 className="text-sm font-black text-foreground mb-4">
+              {rtl ? "البحث عن الفاتورة الأصلية" : "Search Original Invoice"}
+            </h3>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder={rtl ? "مثال: INV-10650" : "e.g. INV-10650"}
+                className="input-base max-w-sm"
+                value={invoiceId}
+                onChange={(e) => setInvoiceId(e.target.value)}
+              />
+              <Button onClick={handleSearch}>
+                <Search className="h-4 w-4" />
+                {rtl ? "بحث" : "Search"}
+              </Button>
+            </div>
+          </Card>
+ 
+          {/* Searched Invoice Panel */}
+          {searchedInvoice && (
+            <Card className="p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-black text-foreground">
+                    {rtl ? "بيانات الفاتورة:" : "Invoice Details:"} {toEnglishDigits(searchedInvoice.id)}
+                  </h3>
+                  <p className="text-xs text-muted mt-1">
+                    {searchedInvoice.customerName} · {toEnglishDigits(searchedInvoice.date)}
+                  </p>
+                </div>
+                <Badge tone={searchedInvoice.status === "paid" ? "green" : "amber"}>
+                  {searchedInvoice.status}
+                </Badge>
+              </div>
+ 
+              <div className="border border-border rounded-2xl overflow-hidden">
+                <table className="w-full text-start text-xs">
+                  <thead className="bg-table-header text-muted">
+                    <tr>
+                      <th className="px-4 py-3 text-start w-12">{rtl ? "تحديد" : "Select"}</th>
+                      <th className="px-4 py-3 text-start">{rtl ? "الأصل / العنصر" : "Asset / Item"}</th>
+                      <th className="px-4 py-3 text-start">{rtl ? "رقم الأصل" : "Asset ID"}</th>
+                      <th className="px-4 py-3 text-end">{rtl ? "سعر البيع" : "Sale Price"}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {searchedInvoice.items.map((item) => {
+                      const selected = selectedItems.includes(item.assetId);
+                      return (
+                        <tr key={item.assetId} className="hover:bg-table-row-hover">
+                          <td className="px-4 py-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={selected}
+                              onChange={() => handleToggleItem(item.assetId)}
+                              className="rounded border-border bg-input text-brand-600 focus:ring-brand-500 h-4 w-4"
+                            />
+                          </td>
+                          <td className="px-4 py-3 font-bold text-foreground">{item.name}</td>
+                          <td className="px-4 py-3 font-mono text-muted">{toEnglishDigits(item.assetId)}</td>
+                          <td className="px-4 py-3 text-end font-black">{money(item.price)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+ 
+              {selectedItems.length > 0 && (
+                <div className="space-y-4 pt-4 border-t border-dashed border-border">
+                  <label className="block">
+                    <span className="label-base">{rtl ? "سبب الإرجاع" : "Reason for Return"}</span>
+                    <input
+                      type="text"
+                      className="input-base"
+                      placeholder={rtl ? "أدخل سبب الإرجاع هنا..." : "Enter reason for return..."}
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                    />
+                  </label>
+ 
+                  <div className="flex justify-between items-center rounded-2xl bg-brand-500/5 p-4">
+                    <div>
+                      <p className="text-xs text-muted">{rtl ? "قيمة المستردات المتوقعة" : "Expected Refund Total"}</p>
+                      <p className="text-lg font-black text-brand-700 dark:text-brand-300">
+                        {money(
+                          searchedInvoice.items
+                            .filter((item) => selectedItems.includes(item.assetId))
+                            .reduce((sum, item) => sum + item.price, 0)
+                        )}
+                      </p>
+                    </div>
+                    <Button onClick={handlePostReturn}>
+                      <RotateCcw className="h-4 w-4" />
+                      {rtl ? "اعتماد المرتجع وإصدار سند دائن" : "Post Return & Credit Note"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </Card>
+          )}
+        </div>
+ 
+        {/* Returns Log / Credit Notes */}
+        <div>
+          <Card className="p-6 space-y-4">
+            <h3 className="text-sm font-black text-foreground">
+              {rtl ? "سندات الرصيد الدائن الصادرة" : "Issued Credit Notes"}
+            </h3>
+            {returnList.length === 0 ? (
+              <p className="text-xs text-muted">{rtl ? "لا توجد سندات مرتجعات مسجلة." : "No credit notes recorded."}</p>
+            ) : (
+              <div className="space-y-3">
+                {returnList.map((ret) => (
+                  <div key={ret.id} className="border border-border rounded-2xl p-3 text-xs space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-extrabold text-brand-600 dark:text-brand-400">{toEnglishDigits(ret.id)}</span>
+                      <span className="text-muted">{toEnglishDigits(ret.date)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-bold">{ret.customerName}</span>
+                      <span className="font-black text-rose-600">{money(ret.total)}</span>
+                    </div>
+                    <div className="text-[10px] text-muted truncate">
+                      {rtl ? "العناصر: " : "Items: "} {ret.items.map((i) => i.name).join(", ")}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
