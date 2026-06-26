@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { useAuth } from "@/contexts/auth-context";
@@ -55,6 +56,7 @@ export function usePos() {
         locale,
       }),
   });
+  const { mutateAsync: calculatePricingMutation } = pricingMutation;
 
   // Post invoice
   const postInvoiceMutation = useMutation<Invoice, Error, { invoice: Partial<Invoice>; idempotencyKey: string }>({
@@ -115,15 +117,8 @@ export function usePos() {
     return (res as any).items ?? (res as any).data?.items ?? (res as any).data ?? [];
   };
 
-  return {
-    customers: getCustomers(),
-    isApiMode,
-    createDraftInvoice,
-    updateDraftInvoice,
-    cancelDraftInvoice,
-    postDraftInvoice,
-    fetchDraftInvoices,
-    calculatePricing: async (
+  const calculatePricing = useCallback(
+    async (
       customerId: string,
       assets: Asset[],
       discount = 0,
@@ -144,7 +139,7 @@ export function usePos() {
           items: assets.map((item) => ({ assetId: item.id, price: String(item.price) })),
         };
       }
-      return pricingMutation.mutateAsync({
+      return calculatePricingMutation({
         customerId,
         assetIds: assets.map((item) => item.id),
         discount,
@@ -152,6 +147,18 @@ export function usePos() {
         stoneValue,
       });
     },
+    [calculatePricingMutation, dataSource, settings?.vatRate]
+  );
+
+  return {
+    customers: getCustomers(),
+    isApiMode,
+    createDraftInvoice,
+    updateDraftInvoice,
+    cancelDraftInvoice,
+    postDraftInvoice,
+    fetchDraftInvoices,
+    calculatePricing,
     postInvoice: async (invoice: Partial<Invoice>, idempotencyKey: string) => {
       if (dataSource === "mock") {
         const id = `INV-${10500 + Math.floor(Math.random() * 300)}`;

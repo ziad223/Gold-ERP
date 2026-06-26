@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { Barcode, CheckCircle2, CreditCard, Gem, ShoppingCart, Trash2, UserRound, RefreshCw, AlertTriangle, Printer, FolderOpen, Save } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -66,6 +66,7 @@ export default function PosPage() {
   const [provisionalSubtotal, setProvisionalSubtotal] = useState("0");
   const [pricingError, setPricingError] = useState<string | null>(null);
   const [showJournal, setShowJournal] = useState(false);
+  const lastPricingPayloadKeyRef = useRef<string | null>(null);
 
   // New Pricing Fields
   const [discount, setDiscount] = useState("0");
@@ -350,6 +351,7 @@ export default function PosPage() {
   // Request pricing breakdown calculation whenever cart, customer, or charges switch
   useEffect(() => {
     if (cart.length === 0) {
+      lastPricingPayloadKeyRef.current = null;
       setProvisionalSubtotal("0");
       setProvisionalTax("0");
       setProvisionalTotal("0");
@@ -368,6 +370,20 @@ export default function PosPage() {
         pricingItems.push({ id: item.id });
       }
     });
+
+    const payloadKey = JSON.stringify({
+      customerId,
+      assetIds: pricingItems.map((item) => item.id),
+      discount: discNum,
+      makingCharge: mcNum,
+      stoneValue: svNum,
+    });
+
+    if (lastPricingPayloadKeyRef.current === payloadKey) {
+      return;
+    }
+
+    lastPricingPayloadKeyRef.current = payloadKey;
 
     calculatePricing(customerId, pricingItems, discNum, mcNum, svNum)
       .then((res) => {
