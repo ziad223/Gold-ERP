@@ -454,6 +454,12 @@
     "standard": "عادي",
     "gold": "ذهبي",
     "noBalance": "بدون رصيد مستحق",
+    "referenceBalance": "الرصيد المرجعي",
+    "totalReferenceBalance": "إجمالي الرصيد المرجعي",
+    "hasReferenceBalance": "له رصيد مرجعي",
+    "noReferenceBalance": "بدون رصيد مرجعي",
+    "referenceBadge": "مرجعي",
+    "referenceBalanceHint": "هذا الرقم مرجعي وقد لا يعكس كل الحركات المحسوبة. راجع كشف حساب العميل للرصيد المحسوب.",
     "loyaltyAndSegments": "الولاء والشرائح"
   },
   "Sales": {

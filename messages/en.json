@@ -454,6 +454,12 @@
     "standard": "Standard",
     "gold": "Gold",
     "noBalance": "No outstanding balance",
+    "referenceBalance": "Reference balance",
+    "totalReferenceBalance": "Total reference balance",
+    "hasReferenceBalance": "Has reference balance",
+    "noReferenceBalance": "No reference balance",
+    "referenceBadge": "Reference",
+    "referenceBalanceHint": "This value is a reference only and may not reflect all computed movements. Use the customer statement for the computed balance.",
     "loyaltyAndSegments": "Loyalty & Segments"
   },
   "Sales": {

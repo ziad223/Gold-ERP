@@ -17,6 +17,14 @@ import { apiClient } from "@/lib/api/client";
 import type { Invoice } from "@/lib/types";
 import { queryKeys } from "@/lib/query-keys";
 import { toEnglishDigits } from "@/lib/formatters/numbers";
+import { usePermissions } from "@/hooks/use-permissions";
+
+type InvoiceListLookupResponse = {
+  items?: Invoice[];
+  data?: {
+    items?: Invoice[];
+  };
+};
 
 export default function ReturnsPage() {
   const t = useTranslations("Sales");
@@ -27,9 +35,14 @@ export default function ReturnsPage() {
   const { company, activeBranch, user } = useAuth();
   const { invoices, addInvoice, updateAssetWithEvent } = useErp();
   const { settings } = useAppSettings();
+  const { hasPermission } = usePermissions();
 
   const dataSource = process.env.NEXT_PUBLIC_DATA_SOURCE || "mock";
   const apiMode = dataSource === "api";
+  const canCreateSales = hasPermission("sales.create");
+  const submitPermissionMessage = rtl
+    ? "تنفيذ مرتجع المبيعات يحتاج صلاحية إنشاء مبيعات."
+    : "Sales return submission requires the sales create permission.";
 
   const [invoiceId, setInvoiceId] = useState("");
   const [searchedInvoice, setSearchedInvoice] = useState<Invoice | null>(null);
@@ -58,18 +71,50 @@ export default function ReturnsPage() {
     loadCreditNotes();
   }, [loadCreditNotes]);
 
+  const resolveInvoiceForLookup = async (input: string) => {
+    try {
+      const directRes = await apiClient<{ data?: Invoice }>(`/invoices/${encodeURIComponent(input)}`, { locale });
+      if (directRes.data) return directRes.data;
+    } catch (err: any) {
+      if (err?.status && ![404, 422].includes(err.status)) throw err;
+    }
+
+    const params = new URLSearchParams({
+      page: "1",
+      pageSize: "10",
+      search: input,
+    });
+    const searchRes = await apiClient<InvoiceListLookupResponse>(`/invoices?${params.toString()}`, { locale });
+    const matches = searchRes.items ?? searchRes.data?.items ?? [];
+    const normalizedInput = input.toLowerCase();
+    const exactMatch = matches.find((invoice) =>
+      [invoice.invoiceNumber, invoice.id].some((value) => String(value || "").toLowerCase() === normalizedInput)
+    );
+    if (!exactMatch && matches.length > 1) {
+      throw new Error(rtl ? "يوجد أكثر من فاتورة مطابقة، استخدم رقم الفاتورة الكامل." : "More than one invoice matched. Use the full invoice number.");
+    }
+    const resolved = exactMatch ?? (matches.length === 1 ? matches[0] : null);
+
+    if (!resolved) {
+      return null;
+    }
+
+    const detailRes = await apiClient<{ data?: Invoice }>(`/invoices/${encodeURIComponent(resolved.id)}`, { locale });
+    return detailRes.data ?? resolved;
+  };
+
   // Search invoice handler
   const handleSearch = async () => {
     setErrorMsg("");
     setSuccessMsg("");
-    if (!invoiceId.trim()) return;
+    const lookupValue = invoiceId.trim();
+    if (!lookupValue) return;
 
     try {
       if (apiMode) {
-        const res = await apiClient<any>(`/invoices/${invoiceId.trim()}`, { locale });
-        const found = res.data;
+        const found = await resolveInvoiceForLookup(lookupValue);
         if (!found) {
-          setErrorMsg(rtl ? "لم يتم العثور على الفاتورة المطلوبة." : "Invoice not found.");
+          setErrorMsg(rtl ? "لم يتم العثور على فاتورة بهذا الرقم." : "No invoice was found with this number.");
           setSearchedInvoice(null);
           return;
         }
@@ -102,7 +147,7 @@ export default function ReturnsPage() {
         setSelectedItems([]);
       }
     } catch (err: any) {
-      setErrorMsg(rtl ? "لم يتم العثور على الفاتورة المطلوبة." : "Invoice not found.");
+      setErrorMsg(err?.message || (rtl ? "تعذر تحميل الفاتورة المطلوبة." : "Unable to load the requested invoice."));
       setSearchedInvoice(null);
     }
   };
@@ -115,6 +160,11 @@ export default function ReturnsPage() {
 
   const handlePostReturn = async () => {
     if (!searchedInvoice || selectedItems.length === 0) return;
+    if (!canCreateSales) {
+      setSuccessMsg("");
+      setErrorMsg(submitPermissionMessage);
+      return;
+    }
 
     try {
       if (apiMode) {
@@ -338,8 +388,13 @@ export default function ReturnsPage() {
                             .reduce((sum, item) => sum + item.price, 0)
                         )}
                       </p>
+                      {!canCreateSales && (
+                        <p className="mt-2 max-w-sm text-xs font-bold text-destructive">
+                          {submitPermissionMessage}
+                        </p>
+                      )}
                     </div>
-                    <Button onClick={handlePostReturn}>
+                    <Button onClick={handlePostReturn} disabled={!canCreateSales} title={!canCreateSales ? submitPermissionMessage : undefined}>
                       <RotateCcw className="h-4 w-4" />
                       {rtl ? "اعتماد المرتجع وإصدار سند دائن" : "Post Return & Credit Note"}
                     </Button>

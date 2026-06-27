@@ -334,11 +334,15 @@ export default function CustomersPage() {
 
       {error && <ErrorState message={error} onRetry={() => refresh()} />}
 
+      <p className="rounded-2xl border border-amber-300 bg-amber-50 p-3 text-[11px] font-bold text-amber-700 dark:border-amber-900/50 dark:bg-amber-500/10 dark:text-amber-300">
+        {t("referenceBalanceHint")}
+      </p>
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
           [t("totalCustomers"), customers.length],
           [t("vipCustomers"), customers.filter((item) => item.tier === "VIP").length],
-          [t("dueBalances"), money(customers.reduce((sum, item) => sum + (Number(item.balance) || 0), 0))],
+          [t("totalReferenceBalance"), money(customers.reduce((sum, item) => sum + (Number(item.balance) || 0), 0))],
           [locale === "ar" ? "عملاء نشطون" : "Active Customers", customers.filter((item) => item.status !== "inactive").length],
         ].map(([label, value]) => (
           <Card key={String(label)} className="p-5">
@@ -373,13 +377,13 @@ export default function CustomersPage() {
             },
             {
               id: "balance",
-              label: t("balance"),
+              label: t("referenceBalance"),
               value: balanceFilter,
               onChange: handleBalanceChange,
               options: [
                 { value: "all", label: common("all") },
-                { value: "due", label: t("dueBalances") },
-                { value: "clear", label: t("noBalance") },
+                { value: "due", label: t("hasReferenceBalance") },
+                { value: "clear", label: t("noReferenceBalance") },
               ],
             },
             {
@@ -407,7 +411,7 @@ export default function CustomersPage() {
                   <th className="px-5 py-4 text-start">{t("tier")}</th>
                   <th className="px-5 py-4 text-start">{t("contact")}</th>
                   <th className="px-5 py-4 text-start">{t("purchases")}</th>
-                  <th className="px-5 py-4 text-start">{t("balance")}</th>
+                  <th className="px-5 py-4 text-start">{t("referenceBalance")} <span className="ms-1 rounded bg-slate-200 px-1 text-[8px] font-bold text-slate-500 dark:bg-slate-700 dark:text-slate-300">{t("referenceBadge")}</span></th>
                   <th className="px-5 py-4 text-start">{common("status")}</th>
                   <th className="px-5 py-4 text-end">{common("actions")}</th>
                 </tr>
@@ -461,9 +465,7 @@ export default function CustomersPage() {
                     </td>
                     <td className="px-5 py-4 font-extrabold">{money(customer.purchases)}</td>
                     <td className="px-5 py-4">
-                      <span
-                        className={customer.balance ? "font-bold text-rose-600" : "text-slate-400"}
-                      >
+                      <span className={customer.balance ? "font-bold text-slate-600 dark:text-slate-300" : "text-slate-400"}>
                         {money(customer.balance)}
                       </span>
                     </td>

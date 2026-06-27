@@ -37,6 +37,13 @@ export default function SupplierPurchasesPage() {
   const [useReverseCharge, setUseReverseCharge] = useState(false);
   const [drcVerified, setDrcVerified] = useState(false);
 
+  // Phase 12J — purchase VAT UI. VAT is opt-in (default off) so the existing
+  // no-VAT receive path is unchanged. Defaults come from company settings (12E).
+  const [applyVat, setApplyVat] = useState(false);
+  const [vatRate, setVatRate] = useState("5");
+  const [taxIncluded, setTaxIncluded] = useState(false);
+  const [isRecoverable, setIsRecoverable] = useState(true);
+
   // New quantity-based product fields
   const [isQuantityBased, setIsQuantityBased] = useState(true);
   const [productCode, setProductCode] = useState("");
@@ -52,6 +59,23 @@ export default function SupplierPurchasesPage() {
     },
     enabled: isApi,
   });
+
+  // Phase 12J — company settings supply purchase-VAT defaults (12E keys).
+  const { data: vatSettings } = useQuery<any>({
+    queryKey: ["settings", "purchase-vat"],
+    queryFn: async () => {
+      const res = await apiClient<any>("/settings", { locale });
+      return res.data || res;
+    },
+    enabled: isApi,
+  });
+  useEffect(() => {
+    if (!vatSettings) return;
+    const rate = vatSettings.purchaseVatRate ?? vatSettings.vatRate;
+    if (rate !== undefined && rate !== null) setVatRate(String(rate));
+    if (typeof vatSettings.purchaseTaxIncludedDefault === "boolean") setTaxIncluded(vatSettings.purchaseTaxIncludedDefault);
+    if (typeof vatSettings.purchaseVatRecoverableDefault === "boolean") setIsRecoverable(vatSettings.purchaseVatRecoverableDefault);
+  }, [vatSettings]);
 
   const handleProductCodeChange = (code: string) => {
     const cleanCode = code.toUpperCase();
@@ -100,6 +124,30 @@ export default function SupplierPurchasesPage() {
   const remainingAmount = Math.max(0, Math.round((totalCost - paidAmountNum) * 100) / 100);
   const paymentStatus = remainingAmount <= 0 && totalCost > 0 ? "paid" : paidAmountNum > 0 ? "partial" : "unpaid";
 
+  // Phase 12J — purchase VAT preview (display only; the backend recomputes and
+  // is the source of truth). Mirrors the 12I equations on the goods total. RCM
+  // takes precedence when DRC is enabled.
+  const vatRateNum = parseDecimal(vatRate);
+  const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+  const vatRateValid = Number.isFinite(vatRateNum) && vatRateNum >= 0 && vatRateNum <= 100;
+  const vatPreview = useMemo(() => {
+    const goods = totalCost;
+    if (useReverseCharge) {
+      const rcmVatAmount = r2(goods * vatRateNum / 100);
+      return { mode: "rcm" as const, taxBase: goods, inputVatAmount: 0, rcmVatAmount, payable: goods };
+    }
+    if (applyVat && vatRateNum > 0) {
+      if (taxIncluded) {
+        const taxBase = r2(goods / (1 + vatRateNum / 100));
+        const inputVatAmount = r2(goods - taxBase);
+        return { mode: (isRecoverable ? "inclusive" as const : "nonRecoverable" as const), taxBase, inputVatAmount, rcmVatAmount: 0, payable: goods };
+      }
+      const inputVatAmount = r2(goods * vatRateNum / 100);
+      return { mode: (isRecoverable ? "exclusive" as const : "nonRecoverable" as const), taxBase: goods, inputVatAmount, rcmVatAmount: 0, payable: r2(goods + inputVatAmount) };
+    }
+    return { mode: "none" as const, taxBase: goods, inputVatAmount: 0, rcmVatAmount: 0, payable: goods };
+  }, [totalCost, useReverseCharge, applyVat, vatRateNum, taxIncluded, isRecoverable]);
+
   const activeSuppliers = useMemo(() => {
     return suppliers.filter((supplier) => supplier.status !== "inactive");
   }, [suppliers]);
@@ -141,6 +189,12 @@ export default function SupplierPurchasesPage() {
 
     if (useReverseCharge && !drcVerified) {
       setErrorMsg(rtl ? "يجب استيفاء جميع شروط التدقيق الضريبي للاحتساب العكسي." : "Reverse charge checks must be fully compliant.");
+      return;
+    }
+
+    // Phase 12J — VAT rate must be valid when VAT (or RCM) is applied.
+    if ((applyVat || useReverseCharge) && !vatRateValid) {
+      setErrorMsg(rtl ? "نسبة الضريبة يجب أن تكون رقماً بين 0 و 100." : "VAT rate must be a number between 0 and 100.");
       return;
     }
 
@@ -205,8 +259,13 @@ export default function SupplierPurchasesPage() {
             remainingAmount,
             paymentStatus,
             paymentMethod,
-            isDRC: useReverseCharge,
-            reverseVat: useReverseCharge,
+            // Phase 12J — purchase VAT / RCM. RCM (DRC) takes precedence; else
+            // ordinary VAT when applyVat; else no VAT (default path unchanged).
+            ...(useReverseCharge
+              ? { applyVat: true, isRcm: true, isDRC: true, reverseVat: true, useReverseCharge: true, rcmRate: vatRateNum, taxIncluded: false, isRecoverable: true }
+              : applyVat
+              ? { applyVat: true, vatRate: vatRateNum, taxIncluded, isRecoverable, isRcm: false }
+              : { applyVat: false }),
             notes: [notes.trim(), `${rtl ? "توريد أصل" : "Asset purchase"}: ${assetName}. ${rtl ? "الاحتساب العكسي: " : "DRC: "} ${useReverseCharge ? (rtl ? "نعم" : "Yes") : (rtl ? "لا" : "No")}`].filter(Boolean).join(" | "),
             isConsignment: Boolean(selectedSupplier.isConsignment),
             items: [
@@ -590,6 +649,75 @@ export default function SupplierPurchasesPage() {
                 <p className="mt-1 text-[10px] font-bold text-slate-500">
                   {paymentStatus === "paid" ? (rtl ? "مدفوعة" : "Paid") : paymentStatus === "partial" ? (rtl ? "جزئية" : "Partial") : (rtl ? "غير مدفوعة" : "Unpaid")}
                 </p>
+              </div>
+            </div>
+
+            {/* Phase 12J — Purchase VAT */}
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-3 space-y-3">
+              <h4 className="text-xs font-black text-navy-900 dark:text-slate-100">{rtl ? "ضريبة المشتريات" : "Purchase VAT"}</h4>
+
+              <label className={`flex items-center gap-2 ${useReverseCharge ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}>
+                <input
+                  type="checkbox"
+                  checked={applyVat}
+                  disabled={useReverseCharge}
+                  onChange={(e) => setApplyVat(e.target.checked)}
+                  className="rounded border-slate-300 text-brand-600 focus:ring-brand-500 h-4 w-4"
+                />
+                <span className="text-xs font-bold text-navy-800 dark:text-slate-200">{rtl ? "تطبيق ضريبة على هذا الشراء" : "Apply VAT to this purchase"}</span>
+              </label>
+
+              {applyVat && !useReverseCharge && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] font-bold text-slate-500">{rtl ? "نسبة الضريبة %" : "VAT rate %"}</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={toEnglishDigits(vatRate)}
+                      onChange={(e) => setVatRate(normalizeDecimalValue(e.target.value))}
+                      className={`rounded-xl border px-3 py-2 text-sm ${vatRateValid ? "border-slate-300 dark:border-slate-700" : "border-rose-400"}`}
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer pt-5">
+                    <input type="checkbox" checked={taxIncluded} onChange={(e) => setTaxIncluded(e.target.checked)} className="rounded border-slate-300 text-brand-600 focus:ring-brand-500 h-4 w-4" />
+                    <span className="text-xs font-bold text-navy-800 dark:text-slate-200">{rtl ? "السعر شامل الضريبة" : "Tax-inclusive price"}</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer pt-5">
+                    <input type="checkbox" checked={isRecoverable} onChange={(e) => setIsRecoverable(e.target.checked)} className="rounded border-slate-300 text-brand-600 focus:ring-brand-500 h-4 w-4" />
+                    <span className="text-xs font-bold text-navy-800 dark:text-slate-200">{rtl ? "ضريبة قابلة للخصم" : "Recoverable VAT"}</span>
+                  </label>
+                </div>
+              )}
+
+              {/* Preview (display only — backend is the source of truth) */}
+              <div className="rounded-xl bg-slate-50/70 dark:bg-navy-950/30 p-3 text-[11px] space-y-1">
+                {vatPreview.mode === "none" && (
+                  <p className="font-bold text-slate-500">{rtl ? "بدون ضريبة: سيتم تسجيل الشراء كما هو." : "No VAT: the purchase is recorded as-is."}</p>
+                )}
+                {(vatPreview.mode === "inclusive" || vatPreview.mode === "exclusive") && (
+                  <>
+                    <div className="flex justify-between"><span className="text-slate-500">{rtl ? "أساس الضريبة" : "Tax base"}</span><span className="font-bold">{money(vatPreview.taxBase)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">{rtl ? "ضريبة المدخلات" : "Input VAT"}</span><span className="font-bold">{money(vatPreview.inputVatAmount)}</span></div>
+                    <div className="flex justify-between border-t border-dashed pt-1"><span className="font-bold">{rtl ? "المستحق للمورد" : "Payable to supplier"}</span><span className="font-black">{money(vatPreview.payable)}</span></div>
+                  </>
+                )}
+                {vatPreview.mode === "nonRecoverable" && (
+                  <>
+                    <div className="flex justify-between"><span className="text-slate-500">{rtl ? "أساس الضريبة" : "Tax base"}</span><span className="font-bold">{money(vatPreview.taxBase)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">{rtl ? "الضريبة" : "VAT"}</span><span className="font-bold">{money(vatPreview.inputVatAmount)}</span></div>
+                    <div className="flex justify-between border-t border-dashed pt-1"><span className="font-bold">{rtl ? "المستحق للمورد" : "Payable to supplier"}</span><span className="font-black">{money(vatPreview.payable)}</span></div>
+                    <p className="font-bold text-amber-600">{rtl ? "هذه الضريبة غير قابلة للخصم وستدخل ضمن تكلفة المخزون." : "Non-recoverable VAT — capitalised into inventory cost."}</p>
+                  </>
+                )}
+                {vatPreview.mode === "rcm" && (
+                  <>
+                    <p className="font-bold text-brand-600">{rtl ? "احتساب عكسي (RCM): المورد لا يحصل على الضريبة." : "Reverse charge (RCM): the supplier is not paid VAT."}</p>
+                    <div className="flex justify-between"><span className="text-slate-500">{rtl ? "أساس الضريبة" : "Tax base"}</span><span className="font-bold">{money(vatPreview.taxBase)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">{rtl ? "ضريبة RCM" : "RCM VAT"}</span><span className="font-bold">{money(vatPreview.rcmVatAmount)}</span></div>
+                    <div className="flex justify-between border-t border-dashed pt-1"><span className="font-bold">{rtl ? "المستحق للمورد" : "Payable to supplier"}</span><span className="font-black">{money(vatPreview.payable)}</span></div>
+                  </>
+                )}
               </div>
             </div>
 

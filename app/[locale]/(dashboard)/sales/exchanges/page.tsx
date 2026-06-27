@@ -17,6 +17,14 @@ import { apiClient } from "@/lib/api/client";
 import type { Invoice, Asset } from "@/lib/types";
 import { queryKeys } from "@/lib/query-keys";
 import { toEnglishDigits } from "@/lib/formatters/numbers";
+import { usePermissions } from "@/hooks/use-permissions";
+
+type InvoiceListLookupResponse = {
+  items?: Invoice[];
+  data?: {
+    items?: Invoice[];
+  };
+};
 
 export default function ExchangesPage() {
   const t = useTranslations("Sales");
@@ -26,9 +34,14 @@ export default function ExchangesPage() {
   const { company, activeBranch, user } = useAuth();
   const { invoices, assets, addInvoice, updateAssetWithEvent } = useErp();
   const { settings } = useAppSettings();
+  const { hasPermission } = usePermissions();
 
   const dataSource = process.env.NEXT_PUBLIC_DATA_SOURCE || "mock";
   const apiMode = dataSource === "api";
+  const canCreateSales = hasPermission("sales.create");
+  const submitPermissionMessage = rtl
+    ? "تنفيذ استبدال القطع يحتاج صلاحية إنشاء مبيعات."
+    : "Sales exchange submission requires the sales create permission.";
 
   const [invoiceId, setInvoiceId] = useState("");
   const [returnInvoice, setReturnInvoice] = useState<Invoice | null>(null);
@@ -44,18 +57,50 @@ export default function ExchangesPage() {
   const money = (value: number) => toEnglishDigits(formatCurrency(value, currency, locale));
   const BackIcon = rtl ? ArrowRight : ArrowLeft;
 
+  const resolveInvoiceForLookup = async (input: string) => {
+    try {
+      const directRes = await apiClient<{ data?: Invoice }>(`/invoices/${encodeURIComponent(input)}`, { locale });
+      if (directRes.data) return directRes.data;
+    } catch (err: any) {
+      if (err?.status && ![404, 422].includes(err.status)) throw err;
+    }
+
+    const params = new URLSearchParams({
+      page: "1",
+      pageSize: "10",
+      search: input,
+    });
+    const searchRes = await apiClient<InvoiceListLookupResponse>(`/invoices?${params.toString()}`, { locale });
+    const matches = searchRes.items ?? searchRes.data?.items ?? [];
+    const normalizedInput = input.toLowerCase();
+    const exactMatch = matches.find((invoice) =>
+      [invoice.invoiceNumber, invoice.id].some((value) => String(value || "").toLowerCase() === normalizedInput)
+    );
+    if (!exactMatch && matches.length > 1) {
+      throw new Error(rtl ? "يوجد أكثر من فاتورة مطابقة، استخدم رقم الفاتورة الكامل." : "More than one invoice matched. Use the full invoice number.");
+    }
+    const resolved = exactMatch ?? (matches.length === 1 ? matches[0] : null);
+
+    if (!resolved) {
+      return null;
+    }
+
+    const detailRes = await apiClient<{ data?: Invoice }>(`/invoices/${encodeURIComponent(resolved.id)}`, { locale });
+    return detailRes.data ?? resolved;
+  };
+
   // Find invoice to return from
   const handleSearchInvoice = async () => {
     setErrorMsg("");
     setSuccessMsg("");
-    if (!invoiceId.trim()) return;
+    const lookupValue = invoiceId.trim();
+    if (!lookupValue) return;
 
     try {
       if (apiMode) {
-        const res = await apiClient<any>(`/invoices/${invoiceId.trim()}`, { locale });
-        const found = res.data;
+        const found = await resolveInvoiceForLookup(lookupValue);
         if (!found) {
-          setErrorMsg(rtl ? "لم يتم العثور على الفاتورة." : "Invoice not found.");
+          setErrorMsg(rtl ? "لم يتم العثور على فاتورة بهذا الرقم." : "No invoice was found with this number.");
           setReturnInvoice(null);
           return;
         }
@@ -74,7 +119,7 @@ export default function ExchangesPage() {
         setSelectedReturnAssetId("");
       }
     } catch (err: any) {
-      setErrorMsg(rtl ? "لم يتم العثور على الفاتورة." : "Invoice not found.");
+      setErrorMsg(err?.message || (rtl ? "تعذر تحميل الفاتورة المطلوبة." : "Unable to load the requested invoice."));
       setReturnInvoice(null);
     }
   };
@@ -132,6 +177,11 @@ export default function ExchangesPage() {
 
   const handlePostExchange = async () => {
     if (!returnInvoice || !selectedReturnAssetId || cart.length === 0) return;
+    if (!canCreateSales) {
+      setSuccessMsg("");
+      setErrorMsg(submitPermissionMessage);
+      return;
+    }
 
     try {
       if (apiMode) {
@@ -430,8 +480,13 @@ export default function ExchangesPage() {
                     <p className="text-lg font-black text-brand-700 dark:text-brand-300">
                       {money(Math.abs(difference))}
                     </p>
+                    {!canCreateSales && (
+                      <p className="mt-2 max-w-sm text-xs font-bold text-destructive">
+                        {submitPermissionMessage}
+                      </p>
+                    )}
                   </div>
-                  <Button onClick={handlePostExchange}>
+                  <Button onClick={handlePostExchange} disabled={!canCreateSales} title={!canCreateSales ? submitPermissionMessage : undefined}>
                     <RefreshCw className="h-4 w-4" />
                     {rtl ? "تأكيد واستكمال الاستبدال" : "Confirm Exchange"}
                   </Button>

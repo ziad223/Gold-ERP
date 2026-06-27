@@ -312,6 +312,21 @@ export interface SupplierStatementQuery {
   pageSize?: number;
 }
 
+export interface SupplierPaymentInput {
+  amount: number;
+  account?: string;
+  date?: string;
+  reference?: string;
+  note?: string;
+}
+
+export interface SupplierPaymentResult {
+  success: boolean;
+  data?: any;
+  meta?: { idempotentReplay?: boolean; readBySupplierStatement?: boolean; supplierDueUpdated?: boolean };
+  error?: { code: string; message: string };
+}
+
 export interface AccountingRepository {
   listAccounts(): Promise<any[]>;
   // Phase 9C — read-only GL account statement. Hits GET
@@ -329,6 +344,10 @@ export interface AccountingRepository {
   // Phase 10F — read-only supplier sub-ledger statement. Hits GET
   // /suppliers/:id/statement. Mock/local mode does not support it.
   getSupplierStatement(supplierId: string, query?: SupplierStatementQuery): Promise<SupplierStatement>;
+  // Phase 10K — pay a received purchase order. Hits POST
+  // /purchase-orders/:id/pay with an Idempotency-Key. Mock/local does not
+  // support it. Never touches Supplier.due.
+  payPurchaseOrder(purchaseOrderId: string, input: SupplierPaymentInput, idempotencyKey: string): Promise<SupplierPaymentResult>;
   listJournalEntries(query: ListQuery): Promise<PaginatedResult<JournalEntry>>;
   createJournalEntry(entry: JournalEntry): Promise<MutationResult<JournalEntry>>;
   // Phase 8D3 — create a balanced manual journal entry as a DRAFT only.

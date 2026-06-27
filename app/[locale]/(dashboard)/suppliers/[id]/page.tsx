@@ -33,7 +33,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { useAppSettings } from "@/contexts/settings-context";
 import { useErp } from "@/contexts/erp-context";
 import { DATA_SOURCE } from "@/lib/data-source";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { SupplierDocument, SupplierConsignment } from "@/lib/types";
 import type { SupplierStatement } from "@/lib/repositories/interfaces";
@@ -65,6 +65,81 @@ export default function SupplierProfilePage({ params }: PageProps) {
     queryFn: () => accountingRepository.getSupplierStatement(id, {}),
     enabled: DATA_SOURCE === "api" && !!id && activeTab === "rcm",
   });
+
+  // Phase 10K — supplier purchase payment (received POs only). Read-only on
+  // Supplier.due; the server enforces eligibility/overpayment/idempotency.
+  const isApiMode = DATA_SOURCE === "api";
+  const queryClient = useQueryClient();
+  const [payPo, setPayPo] = useState<any>(null);
+  const [payAmount, setPayAmount] = useState("");
+  const [payAccount, setPayAccount] = useState<"cash" | "bank">("cash");
+  const [payDate, setPayDate] = useState("");
+  const [payReference, setPayReference] = useState("");
+  const [payNote, setPayNote] = useState("");
+  const [payKey, setPayKey] = useState("");
+  const [paying, setPaying] = useState(false);
+
+  const newIdemKey = () => {
+    try {
+      return window.crypto.randomUUID();
+    } catch {
+      return `IDEM-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    }
+  };
+
+  const openPay = (po: any) => {
+    setPayPo(po);
+    setPayAmount("");
+    setPayAccount("cash");
+    setPayDate(new Date().toISOString().slice(0, 10));
+    setPayReference("");
+    setPayNote("");
+    setPayKey(newIdemKey()); // one key per payment session (reused on retry)
+  };
+  const closePay = () => setPayPo(null);
+
+  const canPayPo = (po: any) => isApiMode && po && po.status === "received" && po.isConsignment !== true;
+
+  const submitPay = async () => {
+    if (!payPo) return;
+    const amount = Number(payAmount);
+    if (!(amount > 0)) {
+      toast.error(rtl ? "أدخل مبلغاً أكبر من صفر" : "Enter an amount greater than zero");
+      return;
+    }
+    setPaying(true);
+    try {
+      const res = await accountingRepository.payPurchaseOrder(
+        payPo.id,
+        { amount, account: payAccount, date: payDate || undefined, reference: payReference.trim() || undefined, note: payNote.trim() || undefined },
+        payKey,
+      );
+      if (res.success) {
+        toast.success(
+          res.meta?.idempotentReplay
+            ? (rtl ? "هذه الدفعة مسجّلة مسبقاً" : "This payment was already recorded")
+            : (rtl ? "تم تسجيل سداد المورد" : "Supplier payment recorded"),
+        );
+        setPayPo(null);
+        await refresh(); // supplier + purchase orders
+        queryClient.invalidateQueries({ queryKey: ["supplier-statement"] });
+        queryClient.invalidateQueries({ queryKey: ["supplier-statement-rcm"] });
+      } else {
+        toast.error(res.error?.message || (rtl ? "تعذّر تسجيل الدفعة" : "Failed to record the payment"));
+      }
+    } catch (err: any) {
+      const status = err?.status;
+      const msg =
+        status === 409
+          ? (rtl ? "حدث تعارض في مفتاح العملية. أعد المحاولة." : "Operation key conflict. Please retry.")
+          : status === 404
+            ? (rtl ? "أمر الشراء غير موجود أو خارج الشركة." : "Purchase order not found or outside the company.")
+            : (err?.message || (rtl ? "تعذّر تسجيل الدفعة" : "Failed to record the payment"));
+      toast.error(msg);
+    } finally {
+      setPaying(false);
+    }
+  };
 
   // New mock document form state
   const [docName, setDocName] = useState("");
@@ -412,6 +487,7 @@ export default function SupplierProfilePage({ params }: PageProps) {
                     <th className="px-4 py-3 text-start">{rtl ? "الفرع" : "Branch"}</th>
                     <th className="px-4 py-3 text-start">{rtl ? "الإجمالي" : "Total"}</th>
                     <th className="px-4 py-3 text-start">{common("status")}</th>
+                    <th className="px-4 py-3 text-start">{rtl ? "إجراء" : "Action"}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -433,6 +509,26 @@ export default function SupplierProfilePage({ params }: PageProps) {
                         >
                           {po.status}
                         </Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        {canPayPo(po) ? (
+                          <Button type="button" size="sm" variant="secondary" onClick={() => openPay(po)}>
+                            {rtl ? "سداد" : "Pay"}
+                          </Button>
+                        ) : (
+                          <span
+                            className="text-slate-400"
+                            title={
+                              !isApiMode
+                                ? (rtl ? "سداد الموردين متاح في وضع API فقط." : "Supplier payments are available in API mode only.")
+                                : po.isConsignment
+                                  ? (rtl ? "لا يمكن سداد بضاعة الأمانة." : "Consignment cannot be paid.")
+                                  : (rtl ? "يتاح السداد فقط للأوامر المستلمة." : "Only received orders can be paid.")
+                            }
+                          >
+                            —
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -1034,6 +1130,64 @@ export default function SupplierProfilePage({ params }: PageProps) {
                   {rtl ? "إغلاق" : "Close"}
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Phase 10K — supplier payment modal (received POs only). */}
+      {payPo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={closePay}>
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl dark:bg-navy-900" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
+              <h3 className="font-black text-navy-950 dark:text-white">{rtl ? "سداد أمر شراء" : "Pay purchase order"}</h3>
+              <button onClick={closePay} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-navy-950" aria-label="close">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-1 rounded-2xl bg-slate-50 p-3 text-xs dark:bg-navy-950">
+              <div className="flex justify-between"><span className="text-slate-400">{rtl ? "أمر الشراء" : "PO"}</span><span className="font-mono font-bold text-brand-600">{payPo.id}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">{rtl ? "المورد" : "Supplier"}</span><span className="font-bold">{supplier.name}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">{rtl ? "إجمالي الأمر" : "PO total"}</span><span className="font-bold">{money(Number(payPo.total) || 0)}</span></div>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span className="mb-1 block">{rtl ? "المبلغ" : "Amount"}</span>
+                <input type="number" min="0" step="0.01" className="input-base" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} autoFocus />
+              </label>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span className="mb-1 block">{rtl ? "الحساب" : "Account"}</span>
+                <select className="input-base" value={payAccount} onChange={(e) => setPayAccount(e.target.value === "bank" ? "bank" : "cash")}>
+                  <option value="cash">{rtl ? "نقدًا" : "Cash"}</option>
+                  <option value="bank">{rtl ? "بنك" : "Bank"}</option>
+                </select>
+              </label>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span className="mb-1 block">{rtl ? "التاريخ" : "Date"}</span>
+                <input type="date" className="input-base" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
+              </label>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span className="mb-1 block">{rtl ? "مرجع (اختياري)" : "Reference (optional)"}</span>
+                <input className="input-base" value={payReference} onChange={(e) => setPayReference(e.target.value)} />
+              </label>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span className="mb-1 block">{rtl ? "ملاحظة (اختياري)" : "Note (optional)"}</span>
+                <input className="input-base" value={payNote} onChange={(e) => setPayNote(e.target.value)} />
+              </label>
+              <p className="text-[10px] text-slate-400">
+                {rtl
+                  ? "سيتم التحقق من المتبقي ومنع السداد الزائد على الخادم. لا يتم تعديل رصيد المورد المرجعي."
+                  : "The remaining amount and overpayment are validated on the server. The reference supplier balance is not modified."}
+              </p>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={closePay} disabled={paying}>{rtl ? "إلغاء" : "Cancel"}</Button>
+              <Button type="button" onClick={submitPay} disabled={paying || !(Number(payAmount) > 0)}>
+                {paying ? (rtl ? "جارٍ السداد..." : "Paying...") : (rtl ? "تأكيد السداد" : "Confirm payment")}
+              </Button>
             </div>
           </div>
         </div>

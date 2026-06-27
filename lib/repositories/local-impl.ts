@@ -18,6 +18,7 @@ import type {
   LedgerReconciliation,
   CustomerStatement,
   SupplierStatement,
+  SupplierPaymentResult,
 } from "./interfaces";
 import type {
   Customer,
@@ -823,6 +824,13 @@ export class LocalAccountingRepository implements AccountingRepository {
   async getSupplierStatement(): Promise<SupplierStatement> {
     // Supplier sub-ledger statements require the API; unsupported in mock/local.
     throw new Error("Supplier statement is only available in API mode.");
+  }
+  async payPurchaseOrder(): Promise<SupplierPaymentResult> {
+    // Supplier payments require the API; unsupported in mock/local.
+    return {
+      success: false,
+      error: { code: "not-supported", message: "Supplier payments are only available in API mode." },
+    };
   }
   async listJournalEntries(query: ListQuery): Promise<PaginatedResult<JournalEntry>> {
     return { items: [], page: 1, pageSize: 10, total: 0, totalPages: 0 };

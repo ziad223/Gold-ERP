@@ -24,6 +24,8 @@ import type {
   CustomerStatementQuery,
   SupplierStatement,
   SupplierStatementQuery,
+  SupplierPaymentInput,
+  SupplierPaymentResult,
 } from "./interfaces";
 import type {
   Customer,
@@ -353,6 +355,17 @@ export class ApiAccountingRepository implements AccountingRepository {
       auth(),
     );
     return (res?.data ?? res) as SupplierStatement;
+  }
+
+  async payPurchaseOrder(
+    purchaseOrderId: string,
+    input: SupplierPaymentInput,
+    idempotencyKey: string,
+  ): Promise<SupplierPaymentResult> {
+    return apiClient<SupplierPaymentResult>(
+      `/purchase-orders/${encodeURIComponent(purchaseOrderId)}/pay`,
+      { method: "POST", body: JSON.stringify(input), idempotencyKey, ...auth() },
+    );
   }
 
   async listJournalEntries(query: ListQuery): Promise<PaginatedResult<JournalEntry>> {
