@@ -12,6 +12,7 @@ import { LoadingState } from "@/components/ui/loading-state";
 import { useAuth } from "@/contexts/auth-context";
 import { useInstallments } from "@/hooks/use-installments";
 import { formatCurrency } from "@/lib/utils";
+import type { Installment } from "@/lib/types";
 
 export default function InstallmentsPage() {
   const t = useTranslations("Installments");
@@ -21,8 +22,15 @@ export default function InstallmentsPage() {
   const currency = company?.currency ?? "AED";
   const money = (v: number | string) => formatCurrency(Number(v), currency, locale);
 
+  const rtl = locale === "ar";
   const { items, loading, payInstallment } = useInstallments();
   const [payingId, setPayingId] = useState<string | null>(null);
+  const [payError, setPayError] = useState<string | null>(null);
+
+  // Remaining = installment amount minus what has been paid (no remaining field
+  // on the model). Avoids `||` that would hide a real 0.
+  const remainingOf = (inst: Installment) =>
+    Math.round((Number(inst.amount) - Number(inst.paidAmount || 0)) * 100) / 100;
 
   const statusTone: Record<string, "green" | "amber" | "rose" | "blue"> = {
     paid: "green",
@@ -31,10 +39,18 @@ export default function InstallmentsPage() {
     partial: "blue",
   };
 
-  const handlePay = async (id: string) => {
-    setPayingId(id);
+  const handlePay = async (inst: Installment) => {
+    const remaining = remainingOf(inst);
+    if (!Number.isFinite(remaining) || remaining <= 0) {
+      setPayError(rtl ? "لا يوجد مبلغ متبقٍ صالح للتحصيل" : "No valid remaining amount to collect");
+      return;
+    }
+    setPayError(null);
+    setPayingId(inst.id);
     try {
-      await payInstallment(id, "Cash");
+      await payInstallment(inst.id, "Cash", remaining);
+    } catch (e: any) {
+      setPayError(e?.message || (rtl ? "فشل تحصيل القسط" : "Failed to collect installment"));
     } finally {
       setPayingId(null);
     }
@@ -57,6 +73,12 @@ export default function InstallmentsPage() {
   return (
     <div className="space-y-6">
       <PageHeader title={t("title")} description={t("description")} />
+
+      {payError && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700 dark:border-rose-900/40 dark:bg-rose-500/10 dark:text-rose-300">
+          {payError}
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Card className="p-5">
@@ -98,7 +120,7 @@ export default function InstallmentsPage() {
                     <td className="px-5 py-4"><Badge tone={statusTone[inst.status] ?? "amber"}>{t(inst.status)}</Badge></td>
                     <td className="px-5 py-4 text-end">
                       {inst.status !== "paid" && (
-                        <Button size="sm" disabled={payingId === inst.id} onClick={() => handlePay(inst.id)}>
+                        <Button size="sm" disabled={payingId === inst.id || remainingOf(inst) <= 0} onClick={() => handlePay(inst)}>
                           {payingId === inst.id ? common("loading") : t("collect")}
                         </Button>
                       )}

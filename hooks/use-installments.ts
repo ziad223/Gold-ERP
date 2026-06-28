@@ -36,9 +36,14 @@ export function useInstallments() {
 
   const payInstallment = useCallback(
     async (id: string, paymentMethod = "Cash", amount?: number) => {
+      // Send `amount` whenever it is a finite number (backend requires amount > 0
+      // and no longer treats a missing amount as a full payment). Only omit it
+      // when the caller genuinely passed nothing.
+      const payload: { paymentMethod: string; amount?: number } = { paymentMethod };
+      if (Number.isFinite(amount as number)) payload.amount = amount;
       const res = await apiClient<Installment>(`/installments/${id}/pay`, {
         method: "POST",
-        body: JSON.stringify({ paymentMethod, ...(amount ? { amount } : {}) }),
+        body: JSON.stringify(payload),
         locale,
       });
       await refresh();
