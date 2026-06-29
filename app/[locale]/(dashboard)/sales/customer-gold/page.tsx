@@ -13,7 +13,7 @@ import { useErp } from "@/contexts/erp-context";
 import { Link } from "@/i18n/navigation";
 import { formatCurrency } from "@/lib/utils";
 import { apiClient } from "@/lib/api/client";
-import type { Customer, Asset, Invoice } from "@/lib/types";
+import type { Customer, Asset, Invoice, CustomerGoldDepositRequest } from "@/lib/types";
 
 export default function CustomerGoldPage() {
   const t = useTranslations("Sales");
@@ -93,16 +93,19 @@ export default function CustomerGoldPage() {
 
     try {
       if (apiMode) {
+        // Intent only: server computes value = weight × ratePerGram and ignores
+        // any client cost/price/total (see CustomerGoldDepositRequest).
+        const depositRequest: CustomerGoldDepositRequest = {
+          description,
+          karat: Number(karat),
+          weight: weightNum,
+          ratePerGram: Number(ratePerGram),
+          payout: true,
+          payMethod,
+        };
         await apiClient(`/customers/${customerId}/gold/deposit`, {
           method: "POST",
-          body: JSON.stringify({
-            description,
-            karat: Number(karat),
-            weight: weightNum,
-            ratePerGram: Number(ratePerGram),
-            payout: true,
-            payMethod,
-          }),
+          body: JSON.stringify(depositRequest),
           locale,
         });
 
@@ -179,8 +182,8 @@ export default function CustomerGoldPage() {
       // Reset
       setDescription("");
       setWeight("");
-    } catch (err: any) {
-      setErrorMsg(err.message || "Failed to register scrap gold purchase.");
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Failed to register scrap gold purchase.");
     }
   };
 

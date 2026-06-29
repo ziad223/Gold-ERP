@@ -87,9 +87,23 @@ export default function SupplierProfilePage({ params }: PageProps) {
     }
   };
 
+  // Phase 17C — payment state from the backend (17B), with a safe fallback for
+  // local/mock mode that never marks a fully-paid PO as payable.
+  const poState = (po: any) => {
+    const payable = Number(po?.payableAmount ?? po?.total ?? 0);
+    const paid = Number(po?.paidAmount ?? 0);
+    const remaining = po?.remainingAmount != null ? Number(po.remainingAmount) : Math.max(0, Math.round((payable - paid) * 100) / 100);
+    const paymentStatus = po?.paymentStatus ?? (paid <= 0.01 ? "unpaid" : remaining > 0.01 ? "partial" : "paid");
+    const canPay = po?.canPay != null
+      ? po.canPay === true
+      : (po?.status === "received" && po?.isConsignment !== true && remaining > 0.01);
+    return { payable, paid, remaining, paymentStatus, canPay };
+  };
+
   const openPay = (po: any) => {
+    if (!poState(po).canPay) return; // never open for a fully-paid / ineligible PO
     setPayPo(po);
-    setPayAmount("");
+    setPayAmount(String(poState(po).remaining)); // default = remaining
     setPayAccount("cash");
     setPayDate(new Date().toISOString().slice(0, 10));
     setPayReference("");
@@ -98,13 +112,23 @@ export default function SupplierProfilePage({ params }: PageProps) {
   };
   const closePay = () => setPayPo(null);
 
-  const canPayPo = (po: any) => isApiMode && po && po.status === "received" && po.isConsignment !== true;
+  // Phase 17C — gate on the backend-computed canPay (fully-paid POs are excluded).
+  const canPayPo = (po: any) => isApiMode && !!po && poState(po).canPay;
 
   const submitPay = async () => {
     if (!payPo) return;
+    const { remaining, canPay } = poState(payPo);
     const amount = Number(payAmount);
+    if (!canPay || remaining <= 0.01) {
+      toast.error(rtl ? "لا يوجد مبلغ متبقٍ للسداد" : "No remaining amount to pay");
+      return;
+    }
     if (!(amount > 0)) {
       toast.error(rtl ? "أدخل مبلغاً أكبر من صفر" : "Enter an amount greater than zero");
+      return;
+    }
+    if (amount > remaining + 0.01) {
+      toast.error(rtl ? "مبلغ السداد أكبر من المتبقي" : "Amount exceeds the remaining balance");
       return;
     }
     setPaying(true);
@@ -486,17 +510,31 @@ export default function SupplierProfilePage({ params }: PageProps) {
                     <th className="px-4 py-3 text-start">{rtl ? "التاريخ" : "Date"}</th>
                     <th className="px-4 py-3 text-start">{rtl ? "الفرع" : "Branch"}</th>
                     <th className="px-4 py-3 text-start">{rtl ? "الإجمالي" : "Total"}</th>
+                    <th className="px-4 py-3 text-start">{rtl ? "المدفوع" : "Paid"}</th>
+                    <th className="px-4 py-3 text-start">{rtl ? "المتبقي" : "Remaining"}</th>
+                    <th className="px-4 py-3 text-start">{rtl ? "حالة السداد" : "Payment"}</th>
                     <th className="px-4 py-3 text-start">{common("status")}</th>
                     <th className="px-4 py-3 text-start">{rtl ? "إجراء" : "Action"}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {purchaseOrders.map((po) => (
+                  {purchaseOrders.map((po) => {
+                    const st = poState(po);
+                    const payTone = st.paymentStatus === "paid" ? "green" : st.paymentStatus === "partial" ? "amber" : "slate";
+                    const payLabel = st.paymentStatus === "paid"
+                      ? (rtl ? "مدفوع بالكامل" : "Paid")
+                      : st.paymentStatus === "partial"
+                        ? (rtl ? "مدفوع جزئياً" : "Partial")
+                        : (rtl ? "غير مدفوع" : "Unpaid");
+                    return (
                     <tr key={po.id} className="hover:bg-slate-50/50">
                       <td className="px-4 py-3 font-bold text-brand-600">{po.id}</td>
                       <td className="px-4 py-3 text-slate-500">{po.date}</td>
                       <td className="px-4 py-3 text-slate-500">{po.branch}</td>
                       <td className="px-4 py-3 font-bold">{money(po.total)}</td>
+                      <td className="px-4 py-3">{money(st.paid)}</td>
+                      <td className="px-4 py-3 font-bold">{money(st.remaining)}</td>
+                      <td className="px-4 py-3"><Badge tone={payTone}>{payLabel}</Badge></td>
                       <td className="px-4 py-3">
                         <Badge
                           tone={
@@ -523,15 +561,20 @@ export default function SupplierProfilePage({ params }: PageProps) {
                                 ? (rtl ? "سداد الموردين متاح في وضع API فقط." : "Supplier payments are available in API mode only.")
                                 : po.isConsignment
                                   ? (rtl ? "لا يمكن سداد بضاعة الأمانة." : "Consignment cannot be paid.")
-                                  : (rtl ? "يتاح السداد فقط للأوامر المستلمة." : "Only received orders can be paid.")
+                                  : st.remaining <= 0.01 && po.status === "received"
+                                    ? (rtl ? "مدفوع بالكامل" : "Fully paid")
+                                    : (rtl ? "يتاح السداد فقط للأوامر المستلمة." : "Only received orders can be paid.")
                             }
                           >
-                            —
+                            {st.remaining <= 0.01 && po.status === "received" && po.isConsignment !== true
+                              ? (rtl ? "مدفوع بالكامل" : "Paid")
+                              : "—"}
                           </span>
                         )}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1149,13 +1192,16 @@ export default function SupplierProfilePage({ params }: PageProps) {
             <div className="mt-4 space-y-1 rounded-2xl bg-slate-50 p-3 text-xs dark:bg-navy-950">
               <div className="flex justify-between"><span className="text-slate-400">{rtl ? "أمر الشراء" : "PO"}</span><span className="font-mono font-bold text-brand-600">{payPo.id}</span></div>
               <div className="flex justify-between"><span className="text-slate-400">{rtl ? "المورد" : "Supplier"}</span><span className="font-bold">{supplier.name}</span></div>
-              <div className="flex justify-between"><span className="text-slate-400">{rtl ? "إجمالي الأمر" : "PO total"}</span><span className="font-bold">{money(Number(payPo.total) || 0)}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">{rtl ? "إجمالي المستحق" : "Payable"}</span><span className="font-bold">{money(poState(payPo).payable)}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">{rtl ? "المدفوع سابقاً" : "Paid so far"}</span><span className="font-bold">{money(poState(payPo).paid)}</span></div>
+              <div className="flex justify-between border-t border-dashed pt-1"><span className="font-bold">{rtl ? "المتبقي الحالي" : "Remaining"}</span><span className="font-black text-brand-600">{money(poState(payPo).remaining)}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">{rtl ? "المتبقي بعد السداد" : "Remaining after"}</span><span className="font-bold">{money(Math.max(0, Math.round((poState(payPo).remaining - (Number(payAmount) || 0)) * 100) / 100))}</span></div>
             </div>
 
             <div className="mt-4 space-y-3">
               <label className="block text-xs font-bold text-slate-600 dark:text-slate-300">
                 <span className="mb-1 block">{rtl ? "المبلغ" : "Amount"}</span>
-                <input type="number" min="0" step="0.01" className="input-base" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} autoFocus />
+                <input type="number" min="0.01" max={poState(payPo).remaining} step="0.01" className="input-base" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} autoFocus />
               </label>
               <label className="block text-xs font-bold text-slate-600 dark:text-slate-300">
                 <span className="mb-1 block">{rtl ? "الحساب" : "Account"}</span>
@@ -1298,9 +1344,9 @@ function SupplierStatementPanel({ supplierId, money }: { supplierId: string; mon
               <p className="mt-1 text-lg font-black text-brand-700 dark:text-brand-300">{money(data.closingBalance)}</p>
             </div>
             <div className="rounded-2xl bg-slate-50 p-4 dark:bg-navy-950">
-              <p className="text-[10px] text-slate-400">{rtl ? "رصيد المورد (مرجعي)" : "Supplier Due (reference)"}</p>
-              <p className="mt-1 text-lg font-black text-slate-600 dark:text-slate-300">{money(data.supplierDueReference)}</p>
-              <p className="mt-1 text-[10px] text-slate-400">{rtl ? "للمقارنة فقط — ليس الرصيد الختامي" : "Reference only — not the closing balance"}</p>
+              <p className="text-[10px] text-slate-400">{rtl ? "رصيد مرجعي قديم (Supplier.due)" : "Legacy reference (Supplier.due)"}</p>
+              <p className="mt-1 text-lg font-black text-slate-400 dark:text-slate-500">{money(data.supplierDueReference)}</p>
+              <p className="mt-1 text-[10px] text-slate-400">{rtl ? "مرجع قديم — ليس مبلغاً مستحقاً. الرصيد المحاسبي أعلاه هو الحقيقة." : "Legacy reference — not an amount owed. The computed balance above is the source of truth."}</p>
             </div>
             <div className="rounded-2xl bg-slate-50 p-4 dark:bg-navy-950">
               <p className="text-[10px] text-slate-400">{rtl ? "الفرق" : "Difference"}</p>

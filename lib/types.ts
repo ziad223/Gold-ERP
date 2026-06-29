@@ -372,6 +372,12 @@ export interface PurchaseOrder {
   branch: string;
   notes?: string;
   isConsignment?: boolean;
+  // Phase 17B/17C — computed payment state from GET /suppliers/:id/purchase-orders.
+  payableAmount?: number;
+  paidAmount?: number;
+  remainingAmount?: number;
+  paymentStatus?: "unpaid" | "partial" | "paid";
+  canPay?: boolean;
 }
 
 export interface PurchaseOrderItem {
@@ -744,4 +750,34 @@ export interface StockMovement {
   createdBy?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+// ── Financial request DTOs (API mode) ─────────────────────────────────────────
+// Explicit request shapes for the money-moving endpoints. The frontend only
+// expresses *intent* (which row, how much, which negotiated rate); the backend
+// is the source of financial truth — it recomputes/validates amounts, COGS, VAT
+// and totals server-side and ignores any client-supplied cost/subtotal/tax/total.
+// Field names here mirror exactly what each route reads. Supplier payments use
+// `SupplierPaymentInput` and treasury transactions use `NewCashTransaction`.
+
+/** POST /installments/:id/pay — backend requires amount > 0 when present. */
+export interface InstallmentPaymentRequest {
+  paymentMethod?: string;
+  /** Omit only when paying with no explicit amount; backend rejects 0/negative. */
+  amount?: number;
+}
+
+/**
+ * POST /customers/:id/gold/deposit — buy scrap/used gold from a customer.
+ * The asset cost and GL value are computed server-side as weight × ratePerGram;
+ * any client `cost`/`price`/`total` is ignored. `ratePerGram` is the manually
+ * negotiated buy rate.
+ */
+export interface CustomerGoldDepositRequest {
+  description: string;
+  karat: number;
+  weight: number;
+  ratePerGram: number;
+  payout?: boolean;
+  payMethod?: string;
 }
