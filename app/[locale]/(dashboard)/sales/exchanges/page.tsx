@@ -14,7 +14,7 @@ import { useAppSettings } from "@/contexts/settings-context";
 import { Link } from "@/i18n/navigation";
 import { formatCurrency } from "@/lib/utils";
 import { apiClient } from "@/lib/api/client";
-import type { Invoice, Asset } from "@/lib/types";
+import type { Invoice, InvoiceItem, Asset, Product, CreateExchangePayload, ExchangeNewItem } from "@/lib/types";
 import { queryKeys } from "@/lib/query-keys";
 import { toEnglishDigits } from "@/lib/formatters/numbers";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -25,6 +25,13 @@ type InvoiceListLookupResponse = {
     items?: Invoice[];
   };
 };
+
+// New replacement item held in the exchange cart. Asset is always qty 1; product
+// carries an editable quantity (1..available). Display fields only — the backend
+// computes the authoritative price/cost.
+type ExchangeCartItem =
+  | { type: "asset"; id: string; name: string; price: number; quantity: 1 }
+  | { type: "product"; id: string; name: string; price: number; quantity: number; available: number };
 
 export default function ExchangesPage() {
   const t = useTranslations("Sales");
@@ -45,17 +52,34 @@ export default function ExchangesPage() {
 
   const [invoiceId, setInvoiceId] = useState("");
   const [returnInvoice, setReturnInvoice] = useState<Invoice | null>(null);
-  const [selectedReturnAssetId, setSelectedReturnAssetId] = useState<string>("");
-  
+  // Track the returned line by a unique line key (so duplicate product lines are
+  // distinguishable); selectedReturnAssetId/Item are derived from it below.
+  const [selectedReturnLineKey, setSelectedReturnLineKey] = useState<string>("");
+
   const [searchQuery, setSearchQuery] = useState("");
-  const [cart, setCart] = useState<Asset[]>([]);
+  const [newItemKind, setNewItemKind] = useState<"asset" | "product">("asset");
+  const [cart, setCart] = useState<ExchangeCartItem[]>([]);
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [apiAssets, setApiAssets] = useState<Asset[]>([]);
+  const [apiProducts, setApiProducts] = useState<Product[]>([]);
 
   const currency = company?.currency ?? "AED";
   const money = (value: number) => toEnglishDigits(formatCurrency(value, currency, locale));
   const BackIcon = rtl ? ArrowRight : ArrowLeft;
+
+  // Display-only: an invoice line whose stored id starts with PRD-ID is a product
+  // (its full quantity is exchanged); anything else is a unique asset.
+  const isProductItem = (id: string) => String(id || "").startsWith("PRD-ID");
+
+  // Returned line is selected by a unique key (line id when present, else index),
+  // so the second of two same-product lines can be targeted precisely.
+  const lineKey = (item: InvoiceItem, index: number) => (item.id != null ? `id:${item.id}` : `idx:${index}`);
+  const selectedReturnItem = useMemo(
+    () => (returnInvoice?.items ?? []).find((item, index) => lineKey(item, index) === selectedReturnLineKey) ?? null,
+    [returnInvoice, selectedReturnLineKey]
+  );
+  const selectedReturnAssetId = selectedReturnItem?.assetId ?? "";
 
   const resolveInvoiceForLookup = async (input: string) => {
     try {
@@ -105,7 +129,7 @@ export default function ExchangesPage() {
           return;
         }
         setReturnInvoice(found);
-        setSelectedReturnAssetId("");
+        setSelectedReturnLineKey("");
       } else {
         const found = invoices.find(
           (inv) => inv.id.toLowerCase() === invoiceId.trim().toLowerCase()
@@ -116,7 +140,7 @@ export default function ExchangesPage() {
           return;
         }
         setReturnInvoice(found);
-        setSelectedReturnAssetId("");
+        setSelectedReturnLineKey("");
       }
     } catch (err: any) {
       setErrorMsg(err?.message || (rtl ? "تعذر تحميل الفاتورة المطلوبة." : "Unable to load the requested invoice."));
@@ -140,6 +164,16 @@ export default function ExchangesPage() {
     }
   }, [apiMode, searchQuery, locale]);
 
+  // Fetch available products in API mode (reuses the existing /products endpoint)
+  useEffect(() => {
+    if (apiMode) {
+      const queryParams = new URLSearchParams({ search: searchQuery, pageSize: "50" });
+      apiClient<{ items: Product[] }>(`/products?${queryParams.toString()}`, { locale })
+        .then((res) => setApiProducts((res.items || []).filter((p) => Number(p.quantityAvailable) > 0)))
+        .catch(() => {});
+    }
+  }, [apiMode, searchQuery, locale]);
+
   // Available new assets list
   const availableNewAssets = useMemo(() => {
     if (apiMode) return apiAssets;
@@ -153,52 +187,89 @@ export default function ExchangesPage() {
     );
   }, [apiMode, apiAssets, assets, searchQuery]);
 
-  const handleToggleCart = (asset: Asset) => {
-    setCart((current) =>
-      current.some((item) => item.id === asset.id)
-        ? current.filter((item) => item.id !== asset.id)
-        : [...current, asset]
-    );
+  // Available new products list (API mode only; mock has no product inventory)
+  const availableNewProducts = useMemo(() => (apiMode ? apiProducts : []), [apiMode, apiProducts]);
+
+  const inCart = (id: string) => cart.some((item) => item.id === id);
+  const dupMessage = rtl ? "لا يمكن إضافة نفس العنصر مرتين." : "Cannot add the same item twice.";
+
+  const addAssetToCart = (asset: Asset) => {
+    setErrorMsg("");
+    if (inCart(asset.id)) { setErrorMsg(dupMessage); return; }
+    setCart((c) => [...c, { type: "asset", id: asset.id, name: asset.name, price: Number(asset.price) || 0, quantity: 1 }]);
   };
 
-  const returnAssetVal = useMemo(() => {
-    if (!returnInvoice || !selectedReturnAssetId) return 0;
-    const item = returnInvoice.items.find((i) => i.assetId === selectedReturnAssetId);
-    return item ? item.price : 0;
-  }, [returnInvoice, selectedReturnAssetId]);
+  const addProductToCart = (product: Product) => {
+    setErrorMsg("");
+    if (inCart(product.id)) { setErrorMsg(dupMessage); return; }
+    if (Number(product.quantityAvailable) < 1) {
+      setErrorMsg(rtl ? "لا توجد كمية متاحة لهذا المنتج." : "No available quantity for this product.");
+      return;
+    }
+    setCart((c) => [...c, { type: "product", id: product.id, name: product.productName, price: Number(product.salePrice) || 0, quantity: 1, available: Number(product.quantityAvailable) }]);
+  };
+
+  const removeFromCart = (id: string) => setCart((c) => c.filter((item) => item.id !== id));
+
+  const setProductQty = (id: string, value: number) => {
+    setCart((c) => c.map((item) => (item.id === id && item.type === "product") ? { ...item, quantity: value } : item));
+  };
+
+  const returnAssetVal = useMemo(() => (selectedReturnItem ? selectedReturnItem.price : 0), [selectedReturnItem]);
 
   const newAssetsVal = useMemo(() => {
-    return cart.reduce((sum, item) => sum + item.price, 0);
+    return cart.reduce((sum, item) => sum + item.price * (item.type === "product" ? item.quantity : 1), 0);
   }, [cart]);
+
+  const cartHasInvalidProduct = cart.some(
+    (i) => i.type === "product" && (!Number.isInteger(i.quantity) || i.quantity <= 0 || i.quantity > i.available)
+  );
 
   const difference = useMemo(() => {
     return newAssetsVal - returnAssetVal;
   }, [newAssetsVal, returnAssetVal]);
 
   const handlePostExchange = async () => {
-    if (!returnInvoice || !selectedReturnAssetId || cart.length === 0) return;
+    setErrorMsg("");
+    if (!returnInvoice || !selectedReturnItem) {
+      setErrorMsg(rtl ? "اختر الفاتورة والعنصر المرتجع." : "Select an invoice and the returned item.");
+      return;
+    }
+    if (cart.length === 0) {
+      setErrorMsg(rtl ? "أضف عنصرًا بديلًا واحدًا على الأقل." : "Add at least one replacement item.");
+      return;
+    }
+    if (cartHasInvalidProduct) {
+      setErrorMsg(rtl ? "تحقق من كميات المنتجات (عدد صحيح موجب لا يتجاوز المتاح)." : "Check product quantities (positive integer within available stock).");
+      return;
+    }
     if (!canCreateSales) {
       setSuccessMsg("");
       setErrorMsg(submitPermissionMessage);
       return;
     }
 
+    // Only intent is sent — the backend computes price/cost/tax/diff server-side.
+    const newItems: ExchangeNewItem[] = cart.map((item) =>
+      item.type === "asset" ? { type: "asset", id: item.id } : { type: "product", id: item.id, quantity: item.quantity }
+    );
+
     try {
       if (apiMode) {
-        await apiClient("/sales/exchanges", {
-          method: "POST",
-          body: JSON.stringify({
-            originalInvoiceId: returnInvoice.id,
-            returnedAssetId: selectedReturnAssetId,
-            newAssetIds: cart.map((item) => item.id),
-            paymentMethod: "Exchange"
-          }),
-          locale
-        });
+        const payload: CreateExchangePayload = {
+          originalInvoiceId: returnInvoice.id,
+          returnedAssetId: selectedReturnAssetId, // fallback / compatibility + backend validation
+          newItems,
+          paymentMethod: "Exchange",
+        };
+        // Send the exact returned line id when available (mock items may lack one).
+        if (selectedReturnItem?.id != null) {
+          payload.returnedInvoiceItemId = selectedReturnItem.id;
+        }
+        await apiClient("/sales/exchanges", { method: "POST", body: JSON.stringify(payload), locale });
 
         const customerId = returnInvoice.customerId;
-        const returnedAssetId = selectedReturnAssetId;
-        const newAssetIds = cart.map((item) => item.id);
+        const assetIds = cart.filter((i) => i.type === "asset").map((i) => i.id);
 
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: queryKeys.invoices }),
@@ -209,18 +280,17 @@ export default function ExchangesPage() {
           queryClient.invalidateQueries({ queryKey: queryKeys.reports }),
           queryClient.invalidateQueries({ queryKey: queryKeys.treasury }),
           queryClient.invalidateQueries({ queryKey: queryKeys.accounting }),
-          queryClient.invalidateQueries({ queryKey: queryKeys.asset(returnedAssetId) }),
-          queryClient.invalidateQueries({ queryKey: queryKeys.assetTimeline(returnedAssetId) }),
-          ...newAssetIds.map((assetId) => queryClient.invalidateQueries({ queryKey: queryKeys.asset(assetId) })),
-          ...newAssetIds.map((assetId) => queryClient.invalidateQueries({ queryKey: queryKeys.assetTimeline(assetId) })),
+          queryClient.invalidateQueries({ queryKey: queryKeys.asset(selectedReturnAssetId) }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.assetTimeline(selectedReturnAssetId) }),
+          ...assetIds.map((id) => queryClient.invalidateQueries({ queryKey: queryKeys.asset(id) })),
+          ...assetIds.map((id) => queryClient.invalidateQueries({ queryKey: queryKeys.assetTimeline(id) })),
         ]);
 
-        setSuccessMsg(
-          rtl
-            ? `تم تنفيذ عملية الاستبدال بنجاح!`
-            : `Exchange executed successfully!`
-        );
+        setSuccessMsg(rtl ? "تم تنفيذ عملية الاستبدال بنجاح!" : "Exchange executed successfully!");
       } else {
+        // Local/mock: simulate asset status changes only (mock has no product
+        // inventory). Product replacement items are shown on the mock invoice for
+        // display, but their stock is not simulated locally.
         const exchangeTimestamp = new Date().toISOString().slice(0, 16).replace("T", " ");
         const returnedAsset = assets.find((a) => a.id === selectedReturnAssetId);
         updateAssetWithEvent(
@@ -240,9 +310,9 @@ export default function ExchangesPage() {
           },
         );
 
-        cart.forEach((asset) => {
+        cart.filter((i) => i.type === "asset").forEach((item) => {
           updateAssetWithEvent(
-            asset.id,
+            item.id,
             { status: "sold" },
             {
               id: `EV-EXCH-IN-${Date.now()}`,
@@ -281,7 +351,7 @@ export default function ExchangesPage() {
             ...cart.map((item) => ({
               assetId: item.id,
               name: item.name,
-              quantity: 1,
+              quantity: item.type === "product" ? item.quantity : 1,
               price: item.price,
             })),
           ],
@@ -297,10 +367,10 @@ export default function ExchangesPage() {
       }
       setReturnInvoice(null);
       setInvoiceId("");
-      setSelectedReturnAssetId("");
+      setSelectedReturnLineKey("");
       setCart([]);
-    } catch (err: any) {
-      setErrorMsg(err.message || "Failed to process exchange.");
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Failed to process exchange.");
     }
   };
 
@@ -359,16 +429,27 @@ export default function ExchangesPage() {
             </div>
 
             {returnInvoice && (
+              (!returnInvoice.items || returnInvoice.items.length === 0) ? (
+                <div className="flex items-center gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-xs font-bold text-amber-700 dark:text-amber-300">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{rtl
+                    ? "هذه الفاتورة لا تحتوي على بنود محفوظة، لذلك لا يمكن تنفيذ استبدال عليها. استخدم فاتورة تحتوي على بنود."
+                    : "This invoice has no saved line items, so an exchange cannot be processed. Use an invoice that has items."}</span>
+                </div>
+              ) : (
               <div className="space-y-3 pt-3">
                 <p className="text-xs text-muted">
-                  {rtl ? "اختر القطعة المراد إرجاعها:" : "Choose the piece to return:"}
+                  {rtl ? "اختر العنصر المراد إرجاعه:" : "Choose the item to return:"}
                 </p>
                 <div className="space-y-2">
-                  {returnInvoice.items.map((item) => (
+                  {returnInvoice.items.map((item, index) => {
+                    const product = isProductItem(item.assetId);
+                    const key = lineKey(item, index);
+                    return (
                     <label
-                      key={item.assetId}
+                      key={`${item.assetId || "item"}-${index}`}
                       className={`flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition ${
-                        selectedReturnAssetId === item.assetId
+                        selectedReturnLineKey === key
                           ? "border-brand-500 bg-brand-500/5"
                           : "border-border"
                       }`}
@@ -377,22 +458,31 @@ export default function ExchangesPage() {
                         <input
                           type="radio"
                           name="return-asset"
-                          checked={selectedReturnAssetId === item.assetId}
-                          onChange={() => setSelectedReturnAssetId(item.assetId)}
+                          checked={selectedReturnLineKey === key}
+                          onChange={() => setSelectedReturnLineKey(key)}
                           className="text-brand-600 focus:ring-brand-500"
                         />
                         <div className="text-xs">
-                          <p className="font-bold">{item.name}</p>
-                          <p className="text-[10px] text-muted">{toEnglishDigits(item.assetId)}</p>
+                          <p className="font-bold flex items-center gap-2">{item.name}<Badge tone={product ? "violet" : "blue"}>{product ? (rtl ? "منتج" : "Product") : (rtl ? "أصل" : "Asset")}</Badge></p>
+                          <p className="text-[10px] text-muted">{toEnglishDigits(item.assetId)}{product ? ` · ${rtl ? "الكمية:" : "Qty:"} ${toEnglishDigits(item.quantity ?? 1)}` : ""}</p>
                         </div>
                       </div>
                       <span className="font-extrabold text-xs text-rose-600">
                         -{money(item.price)}
                       </span>
                     </label>
-                  ))}
+                    );
+                  })}
                 </div>
+                {selectedReturnAssetId && isProductItem(selectedReturnAssetId) && (
+                  <p className="text-[11px] font-bold text-muted">
+                    {rtl
+                      ? "ملاحظة: سيتم استبدال كامل كمية المنتج المحدد في الفاتورة الأصلية."
+                      : "Note: the selected product is exchanged at its full original quantity."}
+                  </p>
+                )}
               </div>
+              )
             )}
           </Card>
         </div>
@@ -403,8 +493,23 @@ export default function ExchangesPage() {
             <div className="flex items-center gap-3">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-white font-bold text-xs">2</span>
               <h3 className="text-sm font-black text-foreground">
-                {rtl ? "الأصل البديل المراد شراؤه" : "Alternate Asset(s) to Purchase"}
+                {rtl ? "العناصر البديلة المراد شراؤها" : "Replacement Item(s) to Purchase"}
               </h3>
+            </div>
+
+            <p className="text-[11px] text-muted">
+              {rtl
+                ? "السعر والتكلفة والضريبة تُحسب من السيرفر. الأصل يُضاف بكمية 1، والمنتج بالكمية المحددة."
+                : "Price, cost and tax are computed by the server. Assets add as qty 1; products use the selected quantity."}
+            </p>
+
+            <div className="flex gap-2">
+              <Button size="sm" variant={newItemKind === "asset" ? "primary" : "secondary"} onClick={() => setNewItemKind("asset")}>
+                {rtl ? "أصول" : "Assets"}
+              </Button>
+              <Button size="sm" variant={newItemKind === "product" ? "primary" : "secondary"} onClick={() => setNewItemKind("product")}>
+                {rtl ? "منتجات" : "Products"}
+              </Button>
             </div>
 
             <input
@@ -416,40 +521,78 @@ export default function ExchangesPage() {
             />
 
             <div className="max-h-[200px] overflow-y-auto divide-y divide-border border border-border rounded-2xl">
-              {availableNewAssets.length === 0 ? (
-                <p className="p-4 text-center text-xs text-muted">
-                  {rtl ? "لا توجد أصول متاحة تطابق البحث." : "No available assets match the search."}
-                </p>
-              ) : (
-                availableNewAssets.map((asset) => {
-                  const inCart = cart.some((c) => c.id === asset.id);
-                  return (
-                    <div key={asset.id} className="flex items-center justify-between p-3 text-xs hover:bg-table-row-hover">
+              {newItemKind === "asset" ? (
+                availableNewAssets.length === 0 ? (
+                  <p className="p-4 text-center text-xs text-muted">{rtl ? "لا توجد أصول متاحة تطابق البحث." : "No available assets match the search."}</p>
+                ) : (
+                  availableNewAssets.map((asset, index) => (
+                    <div key={`asset-${asset.id || index}`} className="flex items-center justify-between p-3 text-xs hover:bg-table-row-hover">
                       <div>
-                        <p className="font-bold">{asset.name}</p>
+                        <p className="font-bold flex items-center gap-2">{asset.name}<Badge tone="blue">{rtl ? "أصل" : "Asset"}</Badge></p>
                         <p className="text-[10px] text-muted">{toEnglishDigits(asset.id)} · {toEnglishDigits(asset.grossWeight)}g · {toEnglishDigits(asset.karat)}K</p>
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="font-black text-brand-600">{money(asset.price)}</span>
-                        <Button size="sm" variant={inCart ? "secondary" : "primary"} onClick={() => handleToggleCart(asset)}>
-                          {inCart ? (rtl ? "إزالة" : "Remove") : (rtl ? "إضافة" : "Add")}
+                        <Button size="sm" variant={inCart(asset.id) ? "secondary" : "primary"} disabled={inCart(asset.id)} onClick={() => addAssetToCart(asset)}>
+                          {inCart(asset.id) ? (rtl ? "مضاف" : "Added") : (rtl ? "إضافة" : "Add")}
                         </Button>
                       </div>
                     </div>
-                  );
-                })
+                  ))
+                )
+              ) : (
+                availableNewProducts.length === 0 ? (
+                  <p className="p-4 text-center text-xs text-muted">
+                    {apiMode
+                      ? (rtl ? "لا توجد منتجات متاحة تطابق البحث." : "No available products match the search.")
+                      : (rtl ? "المنتجات غير متاحة في وضع العرض المحلي." : "Products are not available in local/mock mode.")}
+                  </p>
+                ) : (
+                  availableNewProducts.map((product, index) => (
+                    <div key={`product-${product.id || index}`} className="flex items-center justify-between p-3 text-xs hover:bg-table-row-hover">
+                      <div>
+                        <p className="font-bold flex items-center gap-2">{product.productName}<Badge tone="violet">{rtl ? "منتج" : "Product"}</Badge></p>
+                        <p className="text-[10px] text-muted">{toEnglishDigits(product.id)} · {rtl ? "المتاح:" : "Available:"} {toEnglishDigits(product.quantityAvailable)}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-black text-brand-600">{money(product.salePrice)}</span>
+                        <Button size="sm" variant={inCart(product.id) ? "secondary" : "primary"} disabled={inCart(product.id)} onClick={() => addProductToCart(product)}>
+                          {inCart(product.id) ? (rtl ? "مضاف" : "Added") : (rtl ? "إضافة" : "Add")}
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )
               )}
             </div>
 
             {/* Cart overview */}
             {cart.length > 0 && (
               <div className="space-y-3 pt-3 border-t border-dashed border-border">
-                <p className="text-xs font-bold">{rtl ? "الأصول المضافة للاستبدال:" : "Selected new assets:"}</p>
+                <p className="text-xs font-bold">{rtl ? "العناصر المضافة للاستبدال:" : "Selected replacement items:"}</p>
                 <div className="space-y-2">
-                  {cart.map((c) => (
-                    <div key={c.id} className="flex justify-between items-center bg-background p-2.5 rounded-xl text-xs">
-                      <span>{c.name}</span>
-                      <span className="font-black text-brand-700 dark:text-brand-300">{money(c.price)}</span>
+                  {cart.map((item) => (
+                    <div key={`${item.type}-${item.id}`} className="flex justify-between items-center gap-2 bg-background p-2.5 rounded-xl text-xs">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Badge tone={item.type === "product" ? "violet" : "blue"}>{item.type === "product" ? (rtl ? "منتج" : "Product") : (rtl ? "أصل" : "Asset")}</Badge>
+                        <span className="truncate">{item.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {item.type === "product" && (
+                          <input
+                            type="number"
+                            min={1}
+                            max={item.available}
+                            step={1}
+                            value={item.quantity}
+                            onChange={(e) => setProductQty(item.id, Math.floor(Number(e.target.value) || 0))}
+                            className="input-base w-16 py-1 text-center"
+                            aria-label={rtl ? "الكمية" : "Quantity"}
+                          />
+                        )}
+                        <span className="font-black text-brand-700 dark:text-brand-300">{money(item.price * (item.type === "product" ? item.quantity : 1))}</span>
+                        <Button size="sm" variant="ghost" onClick={() => removeFromCart(item.id)}>{rtl ? "حذف" : "Remove"}</Button>
+                      </div>
                     </div>
                   ))}
                 </div>

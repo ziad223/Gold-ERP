@@ -191,6 +191,9 @@ export interface Customer {
 // ─── Sales Domain ─────────────────────────────────────────────────────────────
 
 export interface InvoiceItem {
+  /** Backend line PK (autoincrement). Lets the UI target an exact line when the
+   *  same product appears on more than one line. May be absent in mock/local. */
+  id?: number;
   assetId: string;
   name: string;
   quantity: number;
@@ -780,4 +783,43 @@ export interface CustomerGoldDepositRequest {
   ratePerGram: number;
   payout?: boolean;
   payMethod?: string;
+}
+
+/**
+ * POST /sales/exchanges — a new replacement item. `asset` is always qty 1;
+ * `product` needs an integer quantity > 0 (≤ available). price/cost are taken
+ * from the server (Asset / Product), never sent by the client.
+ */
+export type ExchangeNewItem =
+  | { type: "asset"; id: string }
+  | { type: "product"; id: string; quantity: number };
+
+/**
+ * POST /sales/returns request. `returnedInvoiceItemIds` targets exact lines by
+ * InvoiceItem.id (needed when a product is on >1 line); `returnedAssetIds` (by
+ * assetId, first matching line) is the backward-compatible fallback. No financial
+ * fields — the backend computes credit-note totals/COGS/VAT server-side.
+ */
+export interface CreateReturnPayload {
+  originalInvoiceId: string;
+  returnedInvoiceItemIds?: number[];
+  returnedAssetIds?: string[];
+  reason?: string;
+}
+
+/**
+ * POST /sales/exchanges request. `newItems` (asset+product mix) takes priority;
+ * the legacy `newAssetIds` (assets only) stays as a backward-compatible fallback.
+ * `returnedInvoiceItemId` targets the exact returned line by InvoiceItem.id;
+ * `returnedAssetId` is the fallback (and is validated against the line when both
+ * are sent). No financial fields — the backend computes diff/VAT/COGS server-side.
+ */
+export interface CreateExchangePayload {
+  originalInvoiceId: string;
+  returnedAssetId?: string;
+  returnedInvoiceItemId?: number;
+  newItems?: ExchangeNewItem[];
+  newAssetIds?: string[];
+  paymentMethod?: string;
+  notes?: string;
 }

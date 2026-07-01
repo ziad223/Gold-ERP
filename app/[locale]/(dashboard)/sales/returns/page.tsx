@@ -14,7 +14,7 @@ import { useAppSettings } from "@/contexts/settings-context";
 import { Link } from "@/i18n/navigation";
 import { formatCurrency } from "@/lib/utils";
 import { apiClient } from "@/lib/api/client";
-import type { Invoice } from "@/lib/types";
+import type { Invoice, InvoiceItem, CreateReturnPayload } from "@/lib/types";
 import { queryKeys } from "@/lib/query-keys";
 import { toEnglishDigits } from "@/lib/formatters/numbers";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -55,6 +55,19 @@ export default function ReturnsPage() {
   const currency = company?.currency ?? "AED";
   const money = (value: number) => toEnglishDigits(formatCurrency(value, currency, locale));
   const BackIcon = rtl ? ArrowRight : ArrowLeft;
+
+  // Display-only: an invoice line whose stored id starts with PRD-ID is a product
+  // (its quantity is returned in full); anything else is a unique asset.
+  const isProductItem = (id: string) => String(id || "").startsWith("PRD-ID");
+
+  // selectedItems holds unique LINE keys (not assetIds) so duplicate product
+  // lines are selected independently. Prefer the backend line id; fall back to
+  // the row index for mock/local items that have no id.
+  const lineKey = (item: InvoiceItem, index: number) => (item.id != null ? `id:${item.id}` : `idx:${index}`);
+  const selectedLineItems = useMemo(
+    () => (searchedInvoice?.items ?? []).filter((item, index) => selectedItems.includes(lineKey(item, index))),
+    [searchedInvoice, selectedItems]
+  );
 
   // Load credit notes list from API
   const loadCreditNotes = useCallback(() => {
@@ -152,14 +165,28 @@ export default function ReturnsPage() {
     }
   };
 
-  const handleToggleItem = (assetId: string) => {
+  const handleToggleItem = (key: string) => {
     setSelectedItems((current) =>
-      current.includes(assetId) ? current.filter((id) => id !== assetId) : [...current, assetId]
+      current.includes(key) ? current.filter((k) => k !== key) : [...current, key]
     );
   };
 
   const handlePostReturn = async () => {
-    if (!searchedInvoice || selectedItems.length === 0) return;
+    setErrorMsg("");
+    if (!searchedInvoice) {
+      setErrorMsg(rtl ? "ابحث عن فاتورة أولاً." : "Search for an invoice first.");
+      return;
+    }
+    if (!searchedInvoice.items || searchedInvoice.items.length === 0) {
+      setErrorMsg(rtl
+        ? "هذه الفاتورة لا تحتوي على بنود محفوظة، لذلك لا يمكن تنفيذ مرتجع عليها."
+        : "This invoice has no saved line items, so a return cannot be processed.");
+      return;
+    }
+    if (selectedItems.length === 0) {
+      setErrorMsg(rtl ? "اختر بندًا واحدًا على الأقل للإرجاع." : "Select at least one item to return.");
+      return;
+    }
     if (!canCreateSales) {
       setSuccessMsg("");
       setErrorMsg(submitPermissionMessage);
@@ -168,15 +195,19 @@ export default function ReturnsPage() {
 
     try {
       if (apiMode) {
-        await apiClient("/sales/returns", {
-          method: "POST",
-          body: JSON.stringify({
-            originalInvoiceId: searchedInvoice.id,
-            returnedAssetIds: selectedItems,
-            reason
-          }),
-          locale
-        });
+        // Intent only — the backend computes credit-note totals/COGS/VAT.
+        const lineIds = selectedLineItems.map((it) => it.id).filter((id): id is number => id != null);
+        const assetIds = selectedLineItems.map((it) => it.assetId);
+        const payload: CreateReturnPayload = {
+          originalInvoiceId: searchedInvoice.id,
+          returnedAssetIds: assetIds, // fallback / compatibility
+          reason,
+        };
+        // Send exact line ids only when every selected line has one (mock items may not).
+        if (lineIds.length > 0 && lineIds.length === selectedLineItems.length) {
+          payload.returnedInvoiceItemIds = lineIds;
+        }
+        await apiClient("/sales/returns", { method: "POST", body: JSON.stringify(payload), locale });
 
         const customerId = searchedInvoice.customerId;
         await Promise.all([
@@ -188,8 +219,8 @@ export default function ReturnsPage() {
           queryClient.invalidateQueries({ queryKey: queryKeys.reports }),
           queryClient.invalidateQueries({ queryKey: queryKeys.treasury }),
           queryClient.invalidateQueries({ queryKey: queryKeys.accounting }),
-          ...selectedItems.map((assetId) => queryClient.invalidateQueries({ queryKey: queryKeys.asset(assetId) })),
-          ...selectedItems.map((assetId) => queryClient.invalidateQueries({ queryKey: queryKeys.assetTimeline(assetId) })),
+          ...assetIds.map((assetId) => queryClient.invalidateQueries({ queryKey: queryKeys.asset(assetId) })),
+          ...assetIds.map((assetId) => queryClient.invalidateQueries({ queryKey: queryKeys.assetTimeline(assetId) })),
         ]);
 
         setSuccessMsg(
@@ -201,12 +232,12 @@ export default function ReturnsPage() {
       } else {
         const returnTimestamp = new Date().toISOString().slice(0, 16).replace("T", " ");
 
-        selectedItems.forEach((assetId) => {
+        selectedLineItems.forEach((item) => {
           updateAssetWithEvent(
-            assetId,
+            item.assetId,
             { status: "available" },
             {
-              id: `EV-RET-${Date.now()}-${assetId}`,
+              id: `EV-RET-${Date.now()}-${item.assetId}`,
               action: rtl ? "تم الإرجاع" : "RETURNED",
               date: returnTimestamp,
               user: user?.firstName || "System",
@@ -220,11 +251,8 @@ export default function ReturnsPage() {
           );
         });
 
-        const allItemsReturned = selectedItems.length === searchedInvoice.items.length;
         const returnInvoiceId = `CN-${10000 + Math.floor(Math.random() * 9000)}`;
-        const returnedValue = searchedInvoice.items
-          .filter((item) => selectedItems.includes(item.assetId))
-          .reduce((sum, item) => sum + item.price, 0);
+        const returnedValue = selectedLineItems.reduce((sum, item) => sum + item.price, 0);
 
         const creditNote: Invoice = {
           id: returnInvoiceId,
@@ -237,7 +265,7 @@ export default function ReturnsPage() {
           status: "returned",
           paymentMethod: searchedInvoice.paymentMethod,
           branch: activeBranch,
-          items: searchedInvoice.items.filter((item) => selectedItems.includes(item.assetId)),
+          items: selectedLineItems,
           relatedInvoiceId: searchedInvoice.id,
         };
 
@@ -253,8 +281,11 @@ export default function ReturnsPage() {
       setInvoiceId("");
       setSelectedItems([]);
       setReason("");
-    } catch (err: any) {
-      setErrorMsg(err.message || "Failed to post return.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      setErrorMsg(msg || (rtl
+        ? "تعذر تنفيذ المرتجع. راجع اختيار البنود ثم حاول مرة أخرى."
+        : "Could not process the return. Review the selected items and try again."));
     }
   };
 
@@ -332,31 +363,46 @@ export default function ReturnsPage() {
                 </Badge>
               </div>
  
+              {(!searchedInvoice.items || searchedInvoice.items.length === 0) ? (
+                <div className="flex items-center gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-xs font-bold text-amber-700 dark:text-amber-300">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{rtl
+                    ? "هذه الفاتورة لا تحتوي على بنود محفوظة، لذلك لا يمكن تنفيذ مرتجع عليها. استخدم فاتورة تحتوي على بنود."
+                    : "This invoice has no saved line items, so a return cannot be processed. Use an invoice that has items."}</span>
+                </div>
+              ) : (
               <div className="border border-border rounded-2xl overflow-hidden">
                 <table className="w-full text-start text-xs">
                   <thead className="bg-table-header text-muted">
                     <tr>
                       <th className="px-4 py-3 text-start w-12">{rtl ? "تحديد" : "Select"}</th>
                       <th className="px-4 py-3 text-start">{rtl ? "الأصل / العنصر" : "Asset / Item"}</th>
-                      <th className="px-4 py-3 text-start">{rtl ? "رقم الأصل" : "Asset ID"}</th>
+                      <th className="px-4 py-3 text-start">{rtl ? "النوع" : "Type"}</th>
+                      <th className="px-4 py-3 text-end">{rtl ? "الكمية" : "Qty"}</th>
                       <th className="px-4 py-3 text-end">{rtl ? "سعر البيع" : "Sale Price"}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {searchedInvoice.items.map((item) => {
-                      const selected = selectedItems.includes(item.assetId);
+                    {searchedInvoice.items.map((item, index) => {
+                      const key = lineKey(item, index);
+                      const selected = selectedItems.includes(key);
+                      const product = isProductItem(item.assetId);
                       return (
-                        <tr key={item.assetId} className="hover:bg-table-row-hover">
+                        <tr key={`${item.assetId || "item"}-${index}`} className="hover:bg-table-row-hover">
                           <td className="px-4 py-3 text-center">
                             <input
                               type="checkbox"
                               checked={selected}
-                              onChange={() => handleToggleItem(item.assetId)}
+                              onChange={() => handleToggleItem(key)}
                               className="rounded border-border bg-input text-brand-600 focus:ring-brand-500 h-4 w-4"
                             />
                           </td>
-                          <td className="px-4 py-3 font-bold text-foreground">{item.name}</td>
-                          <td className="px-4 py-3 font-mono text-muted">{toEnglishDigits(item.assetId)}</td>
+                          <td className="px-4 py-3 font-bold text-foreground">
+                            {item.name}
+                            <span className="block font-mono text-[10px] text-muted">{toEnglishDigits(item.assetId)}</span>
+                          </td>
+                          <td className="px-4 py-3"><Badge tone={product ? "violet" : "blue"}>{product ? (rtl ? "منتج" : "Product") : (rtl ? "أصل" : "Asset")}</Badge></td>
+                          <td className="px-4 py-3 text-end">{toEnglishDigits(item.quantity ?? 1)}</td>
                           <td className="px-4 py-3 text-end font-black">{money(item.price)}</td>
                         </tr>
                       );
@@ -364,6 +410,15 @@ export default function ReturnsPage() {
                   </tbody>
                 </table>
               </div>
+              )}
+
+              {selectedLineItems.some((it) => isProductItem(it.assetId)) && (
+                <p className="text-[11px] font-bold text-muted">
+                  {rtl
+                    ? "ملاحظة: سيتم إرجاع كامل كمية البنود من نوع «منتج» المحددة."
+                    : "Note: selected product line(s) are returned in full quantity."}
+                </p>
+              )}
  
               {selectedItems.length > 0 && (
                 <div className="space-y-4 pt-4 border-t border-dashed border-border">
@@ -382,11 +437,7 @@ export default function ReturnsPage() {
                     <div>
                       <p className="text-xs text-muted">{rtl ? "قيمة المستردات المتوقعة" : "Expected Refund Total"}</p>
                       <p className="text-lg font-black text-brand-700 dark:text-brand-300">
-                        {money(
-                          searchedInvoice.items
-                            .filter((item) => selectedItems.includes(item.assetId))
-                            .reduce((sum, item) => sum + item.price, 0)
-                        )}
+                        {money(selectedLineItems.reduce((sum, item) => sum + item.price, 0))}
                       </p>
                       {!canCreateSales && (
                         <p className="mt-2 max-w-sm text-xs font-bold text-destructive">
