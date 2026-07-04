@@ -4,6 +4,13 @@ import { X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
+// Reference-counted body scroll lock shared across all open modals. Nested or
+// stacked modals must not leave `document.body` overflow stuck on "hidden":
+// the body is locked only when the first modal opens and restored only when the
+// last one closes. Module-level so every Modal instance coordinates.
+let activeModalCount = 0;
+let previousBodyOverflow: string | null = null;
+
 export function Modal({
   open,
   onClose,
@@ -18,18 +25,32 @@ export function Modal({
   children: React.ReactNode;
 }) {
   const portalRootRef = useRef<Element | null>(null);
+  // Keep the latest onClose for the Escape handler without re-running the
+  // scroll-lock effect when a parent passes a new inline callback each render
+  // (that churn is what previously restored body overflow to "hidden").
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const close = (event: KeyboardEvent) => event.key === "Escape" && onClose();
+    if (activeModalCount === 0) {
+      previousBodyOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+    }
+    activeModalCount += 1;
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onCloseRef.current();
+    };
     window.addEventListener("keydown", close);
     return () => {
-      document.body.style.overflow = previous;
       window.removeEventListener("keydown", close);
+      activeModalCount = Math.max(0, activeModalCount - 1);
+      if (activeModalCount === 0) {
+        document.body.style.overflow = previousBodyOverflow ?? "";
+        previousBodyOverflow = null;
+      }
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open || typeof document === "undefined") return null;
 

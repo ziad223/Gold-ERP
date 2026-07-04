@@ -34,6 +34,17 @@ import { PageHeader } from "@/components/ui/page-header";
 import { useAuth } from "@/contexts/auth-context";
 import { useErp } from "@/contexts/erp-context";
 import { useAppSettings, type Branch, type AppSettings } from "@/contexts/settings-context";
+import { usePrintTemplateDefaults } from "@/hooks/use-print-template-defaults";
+import { useInvoicePrintBuilderConfig } from "@/hooks/use-invoice-print-builder-config";
+import type { InvoicePrintOptions, InvoicePrintTemplateId } from "@/features/printing/lib/invoice-print-options";
+import type { InvoicePrintBuilderConfig } from "@/features/printing/lib/print-builder-config";
+import { InvoiceDocument } from "@/features/printing/components/InvoiceDocument";
+import {
+  FIXTURE_INVOICE,
+  FIXTURE_COMPANY,
+  FIXTURE_LABELS,
+  FIXTURE_SETTINGS,
+} from "@/features/printing/lib/invoice-print-fixture";
 import { usePermissions } from "@/hooks/use-permissions";
 import { toast } from "sonner";
 import { getPublicFileUrl } from "@/lib/api/files";
@@ -80,7 +91,7 @@ export default function SettingsPage() {
   const canDeactivateBranches = hasPermission("branches.deactivate");
   const canReactivateBranches = hasPermission("branches.reactivate");
 
-  const [activeTab, setActiveTab] = useState<"company" | "branches" | "payments" | "receipt" | "system" | "barcode">("company");
+  const [activeTab, setActiveTab] = useState<"company" | "branches" | "payments" | "receipt" | "printBuilder" | "system" | "barcode">("company");
   const [message, setMessage] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -160,6 +171,86 @@ export default function SettingsPage() {
   });
   const [savingReceipt, setSavingReceipt] = useState(false);
 
+  // Phase 19G — company default invoice print options (display-only).
+  const { defaults: savedPrintDefaults, save: savePrintTemplateDefaults } = usePrintTemplateDefaults();
+  const [printDefaultsForm, setPrintDefaultsForm] = useState<InvoicePrintOptions>(savedPrintDefaults);
+  const [savingPrintDefaults, setSavingPrintDefaults] = useState(false);
+
+  // Phase 19R — Print Builder MVP UI toggles and hooks
+  const { config: savedBuilderConfig, save: saveBuilderConfig } = useInvoicePrintBuilderConfig();
+  const [selectedTemplateId, setSelectedTemplateId] = useState<InvoicePrintTemplateId>("luxuryGold");
+  const [builderForm, setBuilderForm] = useState<InvoicePrintBuilderConfig>(savedBuilderConfig);
+  const [savingBuilder, setSavingBuilder] = useState(false);
+  const [previewLanguage, setPreviewLanguage] = useState<"bilingual" | "ar" | "en">("bilingual");
+
+  // Rehydrate the local builder form from the saved config. Guard against
+  // redundant updates (compare by content signature) so an unstable
+  // `savedBuilderConfig` reference can never cause an update loop.
+  const savedBuilderConfigSignature = useMemo(() => JSON.stringify(savedBuilderConfig), [savedBuilderConfig]);
+  useEffect(() => {
+    setBuilderForm((prev) => (JSON.stringify(prev) === savedBuilderConfigSignature ? prev : savedBuilderConfig));
+  }, [savedBuilderConfig, savedBuilderConfigSignature]);
+
+  const handleToggleSection = (sectionKey: string, checked: boolean) => {
+    setBuilderForm(prev => {
+      const templates = { ...prev.templates };
+      const currentTemplate = templates[selectedTemplateId] || {};
+      const sections = { ...currentTemplate.sections, [sectionKey]: checked };
+      templates[selectedTemplateId] = { ...currentTemplate, sections };
+      return { ...prev, templates };
+    });
+  };
+
+  const handleToggleField = (fieldKey: string, checked: boolean) => {
+    setBuilderForm(prev => {
+      const templates = { ...prev.templates };
+      const currentTemplate = templates[selectedTemplateId] || {};
+      const fields = { ...currentTemplate.fields, [fieldKey]: checked };
+      templates[selectedTemplateId] = { ...currentTemplate, fields };
+      return { ...prev, templates };
+    });
+  };
+
+  const handleThemePresetChange = (preset: string) => {
+    setBuilderForm(prev => {
+      const templates = { ...prev.templates };
+      const currentTemplate = templates[selectedTemplateId] || {};
+      templates[selectedTemplateId] = {
+        ...currentTemplate,
+        themePreset: (preset || undefined) as any,
+      };
+      return { ...prev, templates };
+    });
+  };
+
+  const handleSaveBuilder = async () => {
+    setSavingBuilder(true);
+    try {
+      const ok = await saveBuilderConfig(builderForm);
+      if (ok) {
+        toast.success(rtl ? "تم حفظ إعدادات مصمم الطباعة بنجاح" : "Print Builder settings saved successfully");
+      } else {
+        toast.error(rtl ? "فشل حفظ إعدادات مصمم الطباعة" : "Failed to save Print Builder settings");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Error saving Print Builder settings");
+    } finally {
+      setSavingBuilder(false);
+    }
+  };
+
+  const handleResetTemplateBuilder = () => {
+    if (!window.confirm(rtl ? "هل أنت متأكد من إعادة تعيين خيارات هذا القالب إلى الافتراضي؟" : "Are you sure you want to reset this template customization to default?")) {
+      return;
+    }
+    setBuilderForm(prev => {
+      const templates = { ...prev.templates };
+      delete templates[selectedTemplateId];
+      return { ...prev, templates };
+    });
+    toast.success(rtl ? "تمت إعادة التعيين للوضع الافتراضي (يرجى حفظ التغييرات)" : "Customization reset to default (please save changes)");
+  };
+
   // --- Branches CRUD State ---
   const [branchQuery, setBranchQuery] = useState("");
   const [editingBranch, setEditingBranch] = useState<Partial<Branch> | null>(null);
@@ -217,6 +308,28 @@ export default function SettingsPage() {
   useEffect(() => {
     setLogoFailed(false);
   }, [logo]);
+
+  // Keep the print-defaults form in sync with the company-saved value.
+  useEffect(() => {
+    setPrintDefaultsForm({
+      documentMode: savedPrintDefaults.documentMode,
+      templateId: savedPrintDefaults.templateId,
+      languageMode: savedPrintDefaults.languageMode,
+    });
+  }, [savedPrintDefaults.documentMode, savedPrintDefaults.templateId, savedPrintDefaults.languageMode]);
+
+  const handleSavePrintDefaults = async () => {
+    setSavingPrintDefaults(true);
+    try {
+      const ok = await savePrintTemplateDefaults(printDefaultsForm);
+      if (ok) toast.success(rtl ? "تم حفظ إعدادات طباعة الفاتورة الافتراضية" : "Invoice print defaults saved");
+      else toast.error(rtl ? "فشل حفظ إعدادات الطباعة" : "Failed to save print defaults");
+    } catch {
+      toast.error(rtl ? "فشل حفظ إعدادات الطباعة" : "Failed to save print defaults");
+    } finally {
+      setSavingPrintDefaults(false);
+    }
+  };
 
   // Handle logo upload
   const handleLogoUpload = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -624,6 +737,7 @@ export default function SettingsPage() {
           { id: "branches", label: rtl ? "إدارة الفروع" : "Branches Manager", icon: Warehouse },
           { id: "payments", label: rtl ? "طرق الدفع" : "Payment Methods", icon: CreditCard },
           { id: "receipt", label: rtl ? "تصميم الفاتورة" : "Receipt Layout", icon: Receipt },
+          { id: "printBuilder", label: rtl ? "مُصمّم الطباعة" : "Print Builder", icon: Settings2 },
           { id: "system", label: rtl ? "إعدادات النظام" : "System Settings", icon: Sliders },
           { id: "barcode", label: rtl ? "إعدادات الباركود" : "Barcode Settings", icon: Tag }
         ].map((tab) => {
@@ -1124,6 +1238,318 @@ export default function SettingsPage() {
             <Button onClick={handleSaveReceipt} disabled={savingReceipt}>
               <Save className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
               {savingReceipt ? common("saving") : t("saveReceipt")}
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* 4b. INVOICE PRINT DEFAULTS (Phase 19G) */}
+      {activeTab === "receipt" && (
+        <Card className="p-5 lg:p-6 space-y-6 animate-in fade-in duration-200">
+          <div className="flex items-center gap-3">
+            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
+              <Receipt className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="font-black text-navy-950 dark:text-white">{rtl ? "طباعة الفاتورة الافتراضية" : "Invoice Print Defaults"}</h2>
+              <p className="text-xs text-slate-500">
+                {rtl
+                  ? "الخيارات الافتراضية لنافذة طباعة الفاتورة. للعرض فقط ولا تغيّر بيانات الفاتورة."
+                  : "Defaults for the invoice print dialog. Display-only — they never change invoice data."}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            <label className="block">
+              <span className="label-base">{rtl ? "نوع المستند" : "Document Type"}</span>
+              <select
+                className="input-base mt-1 bg-input text-foreground border-border"
+                value={printDefaultsForm.documentMode}
+                onChange={(e) => setPrintDefaultsForm(prev => ({ ...prev, documentMode: e.target.value as InvoicePrintOptions["documentMode"] }))}
+              >
+                <option value="auto" className="bg-panel text-foreground">{rtl ? "تلقائي حسب الفاتورة" : "Auto (from invoice)"}</option>
+                <option value="taxInvoice" className="bg-panel text-foreground">{rtl ? "فاتورة ضريبية" : "Tax Invoice"}</option>
+                <option value="salesInvoice" className="bg-panel text-foreground">{rtl ? "فاتورة مبيعات" : "Sales Invoice"}</option>
+                <option value="returnInvoice" className="bg-panel text-foreground">{rtl ? "فاتورة مرتجع" : "Return Invoice"}</option>
+                <option value="exchangeInvoice" className="bg-panel text-foreground">{rtl ? "فاتورة استبدال" : "Exchange Invoice"}</option>
+                <option value="installmentInvoice" className="bg-panel text-foreground">{rtl ? "فاتورة أقساط" : "Installment Invoice"}</option>
+                <option value="depositInvoice" className="bg-panel text-foreground">{rtl ? "فاتورة عربون" : "Deposit Invoice"}</option>
+                <option value="giftVoucher" className="bg-panel text-foreground">{rtl ? "قسيمة هدية" : "Gift Voucher"}</option>
+                <option value="customerGoldPurchase" className="bg-panel text-foreground">{rtl ? "شراء ذهب من عميل" : "Customer Gold Purchase"}</option>
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="label-base">{rtl ? "قالب الطباعة" : "Template"}</span>
+              <select
+                className="input-base mt-1 bg-input text-foreground border-border"
+                value={printDefaultsForm.templateId}
+                onChange={(e) => setPrintDefaultsForm(prev => ({ ...prev, templateId: e.target.value as InvoicePrintOptions["templateId"] }))}
+              >
+                <option value="luxuryGold" className="bg-panel text-foreground">{rtl ? "الذهبي الفاخر A4" : "Luxury Gold A4"}</option>
+                <option value="compactA4" className="bg-panel text-foreground">{rtl ? "مضغوط A4" : "Compact A4"}</option>
+                <option value="minimal" className="bg-panel text-foreground">{rtl ? "بسيط A4" : "Minimal A4"}</option>
+                <option value="thermal" className="bg-panel text-foreground">{rtl ? "إيصال حراري" : "Thermal Receipt"}</option>
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="label-base">{rtl ? "اللغة" : "Language"}</span>
+              <select
+                className="input-base mt-1 bg-input text-foreground border-border"
+                value={printDefaultsForm.languageMode}
+                onChange={(e) => setPrintDefaultsForm(prev => ({ ...prev, languageMode: e.target.value as InvoicePrintOptions["languageMode"] }))}
+              >
+                <option value="bilingual" className="bg-panel text-foreground">{rtl ? "ثنائي اللغة" : "Bilingual (AR + EN)"}</option>
+                <option value="ar" className="bg-panel text-foreground">{rtl ? "العربية" : "Arabic"}</option>
+                <option value="en" className="bg-panel text-foreground">{rtl ? "الإنجليزية" : "English"}</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="pt-2">
+            <Button onClick={handleSavePrintDefaults} disabled={savingPrintDefaults}>
+              <Save className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
+              {savingPrintDefaults ? common("saving") : (rtl ? "حفظ إعدادات الطباعة" : "Save Print Defaults")}
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* 4c. INVOICE PRINT BUILDER (Phase 19R) */}
+      {activeTab === "printBuilder" && (
+        <Card className="p-5 lg:p-6 space-y-6 animate-in fade-in duration-200">
+          <div className="flex items-center gap-3">
+            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
+              <Settings2 className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="font-black text-navy-950 dark:text-white">
+                {rtl ? "مُصمّم طباعة الفاتورة" : "Invoice Print Builder"}
+              </h2>
+              <p className="text-xs text-slate-500">
+                {rtl
+                  ? "تخصيص ظهور الأقسام والحقول المطبوعة في كل قالب. للعرض فقط ولا تغيّر بيانات الفاتورة الحسابية."
+                  : "Customize sections and fields visibility on print outputs per template. Display-only — does not affect financial data."}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-2 md:grid-cols-3 max-w-3xl">
+            <label className="block">
+              <span className="label-base">{rtl ? "قالب الطباعة النشط للتعديل" : "Active Template to Customize"}</span>
+              <select
+                className="input-base mt-1 bg-input text-foreground border-border animate-none"
+                value={selectedTemplateId}
+                onChange={(e) => setSelectedTemplateId(e.target.value as InvoicePrintTemplateId)}
+              >
+                <option value="luxuryGold" className="bg-panel text-foreground">{rtl ? "الذهبي الفاخر A4" : "Luxury Gold A4"}</option>
+                <option value="compactA4" className="bg-panel text-foreground">{rtl ? "مضغوط A4" : "Compact A4"}</option>
+                <option value="minimal" className="bg-panel text-foreground">{rtl ? "بسيط A4" : "Minimal A4"}</option>
+                <option value="thermal" className="bg-panel text-foreground">{rtl ? "إيصال حراري" : "Thermal Receipt"}</option>
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="label-base">{rtl ? "نمط السمة (اللون)" : "Theme Preset"}</span>
+              <select
+                className="input-base mt-1 bg-input text-foreground border-border animate-none"
+                value={builderForm.templates[selectedTemplateId]?.themePreset || "classicGold"}
+                onChange={(e) => handleThemePresetChange(e.target.value)}
+              >
+                <option value="classicGold" className="bg-panel text-foreground">{rtl ? "ذهبي كلاسيكي" : "Classic Gold"}</option>
+                <option value="modernDark" className="bg-panel text-foreground">{rtl ? "داكن حديث" : "Modern Dark"}</option>
+                <option value="softGold" className="bg-panel text-foreground">{rtl ? "ذهبي ناعم" : "Soft Gold"}</option>
+                <option value="minimalGray" className="bg-panel text-foreground">{rtl ? "رمادي بسيط" : "Minimal Gray"}</option>
+                <option value="thermalMono" className="bg-panel text-foreground">{rtl ? "حراري أحادي اللون" : "Thermal Mono"}</option>
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="label-base">{rtl ? "لغة المعاينة" : "Preview Language"}</span>
+              <select
+                className="input-base mt-1 bg-input text-foreground border-border animate-none"
+                value={previewLanguage}
+                onChange={(e) => setPreviewLanguage(e.target.value as "bilingual" | "ar" | "en")}
+              >
+                <option value="bilingual" className="bg-panel text-foreground">{rtl ? "ثنائي اللغة (AR + EN)" : "Bilingual (AR + EN)"}</option>
+                <option value="ar" className="bg-panel text-foreground">{rtl ? "العربية فقط" : "Arabic Only"}</option>
+                <option value="en" className="bg-panel text-foreground">{rtl ? "الإنجليزية فقط" : "English Only"}</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-navy-950/40 border border-slate-200 dark:border-slate-800/80 text-xs text-slate-500 max-w-3xl">
+            {rtl
+              ? "💡 أنماط السمات تؤثر على مظهر الطباعة فقط، ولا تغيّر قيم الفاتورة، أو الضرائب، أو القيود الحسابية في النظام."
+              : "💡 Theme presets affect print appearance only. They do not change invoice data, totals, VAT, or accounting entries."}
+          </div>
+
+          <hr className="border-slate-200 dark:border-slate-800" />
+
+          {/* Responsive Layout Grid: Left Toggles (lg:col-span-5), Right Live Preview (lg:col-span-7) */}
+          <div className="grid gap-6 lg:grid-cols-12">
+            
+            {/* Toggles Column */}
+            <div className="lg:col-span-5 space-y-6">
+              {/* Sections Toggles */}
+              <div className="space-y-4">
+                <h3 className="font-bold text-navy-950 dark:text-white text-xs border-b border-slate-100 dark:border-slate-800 pb-2">
+                  {rtl ? "ظهور الأقسام" : "Section Visibility"}
+                </h3>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[
+                    { key: "header", labelAr: "ترويسة الشركة", labelEn: "Company Header" },
+                    { key: "clientDetails", labelAr: "بيانات العميل", labelEn: "Customer Details" },
+                    { key: "invoiceDetails", labelAr: "بيانات الفاتورة", labelEn: "Invoice Metadata" },
+                    { key: "itemsTable", labelAr: "جدول الأصناف", labelEn: "Items Table" },
+                    { key: "specialSummary", labelAr: "بيانات الاستبدال والأقساط", labelEn: "Special Summary Blocks" },
+                    { key: "paymentMethod", labelAr: "طريقة الدفع", labelEn: "Payment Method List" },
+                    { key: "amountDetails", labelAr: "تفاصيل المبالغ والإجماليات", labelEn: "Amount Details / Totals", warning: true },
+                    { key: "notes", labelAr: "ملاحظات الفاتورة", labelEn: "Invoice Notes" },
+                    { key: "terms", labelAr: "الشروط والأحكام", labelEn: "Terms & Conditions" },
+                    { key: "signatures", labelAr: "حقول التوقيع والختم", labelEn: "Signature Boxes" },
+                    { key: "footer", labelAr: "تذييل الاتصال", labelEn: "Footer Contact Info" },
+                  ].map((sec) => (
+                    <div key={sec.key} className="space-y-1">
+                      {renderToggle(
+                        rtl ? sec.labelAr : sec.labelEn,
+                        (builderForm.templates[selectedTemplateId]?.sections as any)?.[sec.key] ?? true,
+                        (v) => handleToggleSection(sec.key, v)
+                      )}
+                      {sec.warning && !((builderForm.templates[selectedTemplateId]?.sections as any)?.[sec.key] ?? true) && (
+                        <p className="text-[10px] text-amber-600 dark:text-amber-400 font-bold px-2">
+                          {rtl
+                            ? "⚠️ إخفاء الإجماليات قد يجعل الفاتورة غير مستوفية للشروط النظامية."
+                            : "⚠️ Hiding totals breakdown may make the invoice invalid for formal use."}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Fields Toggles */}
+              <div className="space-y-4">
+                <h3 className="font-bold text-navy-950 dark:text-white text-xs border-b border-slate-100 dark:border-slate-800 pb-2">
+                  {rtl ? "ظهور الحقول الفردية" : "Field Visibility"}
+                </h3>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[
+                    { key: "companyLogo", labelAr: "شعار الشركة", labelEn: "Company Logo" },
+                    { key: "companyTrn", labelAr: "الرقم الضريبي للشركة", labelEn: "Company TRN", warning: true },
+                    { key: "watermark", labelAr: "العلامة المائية الخلفية", labelEn: "Watermark Background" },
+                    { key: "customerPhone", labelAr: "هاتف العميل", labelEn: "Customer Phone" },
+                    { key: "customerTrn", labelAr: "الرقم الضريبي للعميل", labelEn: "Customer TRN", warning: true },
+                    { key: "customerAddress", labelAr: "عنوان العميل", labelEn: "Customer Address" },
+                    { key: "itemKarat", labelAr: "عيار الذهب", labelEn: "Karat Column" },
+                    { key: "itemWeight", labelAr: "وزن الأصناف", labelEn: "Weight Column" },
+                    { key: "itemAssetId", labelAr: "رقم القطعة (الباركود)", labelEn: "Asset ID / Barcode" },
+                    { key: "salesperson", labelAr: "اسم البائع", labelEn: "Salesperson Name" },
+                    { key: "originalInvoiceRef", labelAr: "مرجع الفاتورة الأصلية", labelEn: "Original Invoice Ref" },
+                    { key: "footerPhone", labelAr: "هاتف الشركة بالتذييل", labelEn: "Footer Phone" },
+                    { key: "footerEmail", labelAr: "بريد الشركة بالتذييل", labelEn: "Footer Email" },
+                    { key: "footerAddress", labelAr: "عنوان الشركة بالتذييل", labelEn: "Footer Address" },
+                  ].map((fld) => (
+                    <div key={fld.key} className="space-y-1">
+                      {renderToggle(
+                        rtl ? fld.labelAr : fld.labelEn,
+                        (builderForm.templates[selectedTemplateId]?.fields as any)?.[fld.key] ?? true,
+                        (v) => handleToggleField(fld.key, v)
+                      )}
+                      {fld.warning && !((builderForm.templates[selectedTemplateId]?.fields as any)?.[fld.key] ?? true) && (
+                        <p className="text-[10px] text-amber-600 dark:text-amber-400 font-bold px-2">
+                          {rtl
+                            ? "⚠️ إخفاء الأرقام الضريبية قد يؤثر على الفواتير الضريبية."
+                            : "⚠️ Hiding tax registration details may affect compliance."}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Live Preview Column */}
+            <div className="lg:col-span-7 space-y-4">
+              <h3 className="font-bold text-navy-950 dark:text-white text-xs border-b border-slate-100 dark:border-slate-800 pb-2">
+                {rtl ? "معاينة مباشرة للفاتورة" : "Live Print Preview"}
+              </h3>
+              
+              <div className="relative w-full overflow-hidden border border-slate-200 dark:border-slate-800 rounded-3xl bg-slate-100 dark:bg-slate-900/50 shadow-inner h-[620px] flex flex-col animate-in fade-in duration-300">
+                {/* Header bar indicating it is a mock sample */}
+                <div className="bg-slate-200/50 dark:bg-navy-950/80 px-4 py-2 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center text-[10px] font-bold text-slate-500 dark:text-slate-400 shrink-0">
+                  <span>{rtl ? "معاينة مباشرة — فاتورة افتراضية" : "Live Preview — Sample Invoice Data"}</span>
+                  <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-brand-500 text-white">
+                    {rtl ? "تجريبي" : "Mock"}
+                  </span>
+                </div>
+
+                {/* Main Scrollable Canvas */}
+                <div className="flex-grow overflow-auto p-4 flex justify-center items-start">
+                  {selectedTemplateId === "thermal" ? (
+                    <div className="w-[80mm] min-w-[80mm] max-w-[80mm] bg-white text-black p-4 shadow-xl border border-slate-300 rounded-xl print-preview-content">
+                      <InvoiceDocument
+                        templateId={selectedTemplateId}
+                        invoice={FIXTURE_INVOICE}
+                        company={FIXTURE_COMPANY}
+                        labels={FIXTURE_LABELS}
+                        settings={{
+                          ...settings,
+                          invoicePrintBuilderConfig: builderForm,
+                        } as any}
+                        locale={locale}
+                        templateConfig={{
+                          languageMode: previewLanguage,
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="origin-top scale-[0.55] sm:scale-[0.6] md:scale-[0.65] lg:scale-[0.55] xl:scale-[0.62] shadow-xl border border-slate-300 bg-white text-black p-6 rounded-xl w-[210mm] min-w-[210mm] max-w-[210mm] mb-[-250px] print-preview-content">
+                      <InvoiceDocument
+                        templateId={selectedTemplateId}
+                        invoice={FIXTURE_INVOICE}
+                        company={FIXTURE_COMPANY}
+                        labels={FIXTURE_LABELS}
+                        settings={{
+                          ...settings,
+                          invoicePrintBuilderConfig: builderForm,
+                        } as any}
+                        locale={locale}
+                        templateConfig={{
+                          languageMode: previewLanguage,
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {selectedTemplateId === "thermal" ? (
+                <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                  {rtl
+                    ? "💡 معاينة القالب الحراري تظهر بعرض 80 مم لتمثيل شريط الطابعة الحرارية."
+                    : "💡 Thermal layout preview is constrained to 80mm width to represent physical receipt rolls."}
+                </p>
+              ) : (
+                <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                  {rtl
+                    ? "💡 معاينة قوالب A4 تظهر مصغرة لتناسب الشاشة. وتتسق تلقائياً كصفحة كاملة عند الطباعة."
+                    : "💡 A4 layout previews are scaled down to fit your view. They render at full 210mm width when printed."}
+                </p>
+              )}
+            </div>
+
+          </div>
+
+          <div className="flex flex-wrap justify-between gap-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <Button variant="secondary" onClick={handleResetTemplateBuilder}>
+              {rtl ? "إعادة تعيين القالب الحالي" : "Reset Current Template"}
+            </Button>
+            <Button onClick={handleSaveBuilder} disabled={savingBuilder}>
+              <Save className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
+              {savingBuilder ? common("saving") : (rtl ? "حفظ التغييرات" : "Save Changes")}
             </Button>
           </div>
         </Card>

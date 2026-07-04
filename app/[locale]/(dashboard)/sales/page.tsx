@@ -14,7 +14,14 @@ import { PageHeader } from "@/components/ui/page-header";
 import { useAuth } from "@/contexts/auth-context";
 import { useAppSettings } from "@/contexts/settings-context";
 import { useInvoices } from "@/features/sales/hooks/use-invoices";
-import { InvoicePrintTemplate } from "@/features/printing/components/InvoicePrintTemplate";
+import { usePrintTemplateDefaults } from "@/hooks/use-print-template-defaults";
+import { InvoiceDocument } from "@/features/printing/components/InvoiceDocument";
+import { InvoicePrintOptionsDialog } from "@/features/printing/components/InvoicePrintOptionsDialog";
+import {
+  buildTemplateConfigFromPrintOptions,
+  getPrintDocumentTitleOverride,
+  type InvoicePrintOptions,
+} from "@/features/printing/lib/invoice-print-options";
 import { renderPrintDocument } from "@/features/printing/components/render-print-document";
 import { Link } from "@/i18n/navigation";
 import { exportData } from "@/lib/export/export-service";
@@ -36,6 +43,7 @@ export default function SalesPage() {
   const rtl = locale === "ar";
   const { company, user } = useAuth();
   const { settings, branches: configuredBranches } = useAppSettings();
+  const { defaults: savedPrintDefaults } = usePrintTemplateDefaults();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
   const [branch, setBranch] = useState("all");
@@ -43,6 +51,7 @@ export default function SalesPage() {
   const [pageSize, setPageSize] = useState(20);
   const [isExporting, setIsExporting] = useState(false);
   const [selected, setSelected] = useState<Invoice | null>(null);
+  const [printTarget, setPrintTarget] = useState<Invoice | null>(null);
   const {
     invoices,
     page: currentPage,
@@ -108,13 +117,17 @@ export default function SalesPage() {
     setPage(1);
   };
 
-  const printInvoice = (invoice: Invoice) => {
-    const rawPaperSize = settings?.receipt?.paperSize || "A4";
-    const mappedPaperSize = rawPaperSize === "thermal" ? "80mm" : rawPaperSize === "A5" ? "A5" : "A4";
+  // Direct-print compatible: calling without options prints with the company
+  // saved defaults (or the 19F defaults). Options are display-only.
+  const printInvoice = (invoice: Invoice, options: InvoicePrintOptions = savedPrintDefaults) => {
+    const mappedPaperSize = options.templateId === "thermal" ? "80mm" : "A4";
 
     const html = renderPrintDocument(
-      <InvoicePrintTemplate
+      <InvoiceDocument
+        templateId={options.templateId}
         invoice={invoice}
+        templateConfig={buildTemplateConfigFromPrintOptions(options)}
+        documentTitleOverride={getPrintDocumentTitleOverride(options.documentMode)}
         company={{
           name: company?.businessName ?? settings?.businessName ?? common("appName"),
           logo: company?.logo || settings?.logo,
@@ -288,8 +301,20 @@ export default function SalesPage() {
       </Card>
 
       <Modal open={Boolean(selected)} onClose={() => setSelected(null)} title={selected?.id ?? ""} description={selected?.customerName}>
-        {selected && <div className="space-y-5"><div className="grid gap-3 sm:grid-cols-3"><Info label={t("date")} value={selected.date} /><Info label={t("payment")} value={selected.paymentMethod} /><Info label={t("status")} value={statusLabel(selected.status)} /></div><div className="rounded-3xl border border-slate-200 dark:border-slate-800"><div className="border-b border-slate-200 p-4 text-xs font-extrabold dark:border-slate-800">{t("invoiceItems")}</div>{selected.items.map((item) => <div key={item.assetId} className="flex items-center justify-between gap-4 border-b border-slate-100 p-4 last:border-0 dark:border-slate-800"><div><p className="text-xs font-extrabold">{item.name}</p><p className="mt-1 text-[10px] text-slate-400">{item.assetId}</p></div><p className="text-sm font-black">{money(item.price)}</p></div>)}</div><div className="flex items-center justify-between rounded-2xl bg-brand-50 p-4 text-brand-800 dark:bg-brand-500/10 dark:text-brand-200"><span className="text-sm font-bold">{t("total")}</span><span className="text-xl font-black">{money(selected.total)}</span></div><Button className="w-full" onClick={() => printInvoice(selected)}><Printer className="h-4 w-4" />{printT("printInvoice")}</Button></div>}
+        {selected && <div className="space-y-5"><div className="grid gap-3 sm:grid-cols-3"><Info label={t("date")} value={selected.date} /><Info label={t("payment")} value={selected.paymentMethod} /><Info label={t("status")} value={statusLabel(selected.status)} /></div><div className="rounded-3xl border border-slate-200 dark:border-slate-800"><div className="border-b border-slate-200 p-4 text-xs font-extrabold dark:border-slate-800">{t("invoiceItems")}</div>{selected.items.map((item) => <div key={item.assetId} className="flex items-center justify-between gap-4 border-b border-slate-100 p-4 last:border-0 dark:border-slate-800"><div><p className="text-xs font-extrabold">{item.name}</p><p className="mt-1 text-[10px] text-slate-400">{item.assetId}</p></div><p className="text-sm font-black">{money(item.price)}</p></div>)}</div><div className="flex items-center justify-between rounded-2xl bg-brand-50 p-4 text-brand-800 dark:bg-brand-500/10 dark:text-brand-200"><span className="text-sm font-bold">{t("total")}</span><span className="text-xl font-black">{money(selected.total)}</span></div><Button className="w-full" onClick={() => setPrintTarget(selected)}><Printer className="h-4 w-4" />{printT("printInvoice")}</Button></div>}
       </Modal>
+
+      <InvoicePrintOptionsDialog
+        open={Boolean(printTarget)}
+        invoice={printTarget}
+        locale={locale}
+        initialOptions={savedPrintDefaults}
+        onClose={() => setPrintTarget(null)}
+        onPrint={(invoice, options) => {
+          printInvoice(invoice, options);
+          setPrintTarget(null);
+        }}
+      />
     </div>
   );
 }

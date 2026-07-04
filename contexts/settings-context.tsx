@@ -40,6 +40,12 @@ export interface AppSettings {
   installmentMinDownPaymentPercent?: number;
   receipt?: any;
   barcode?: any;
+  /** Company default invoice print options (Phase 19G). Display-only; validated
+   *  against the print dialog enums by the print layer before use. */
+  printTemplateDefaults?: { documentMode: string; templateId: string; languageMode: string };
+  /** Company Print Builder config (Phase 19Q). Safely sanitized and parsed
+   *  via the Zod schema in features/printing/lib/print-builder-config.ts. */
+  invoicePrintBuilderConfig?: any;
   /** Pricing mode foundation (default manual_sale_price; dynamic modes are not yet wired into POS). */
   goldPricingMode?: "manual_sale_price" | "dynamic_by_karat" | "dynamic_by_karat_plus_making";
   /** P5.1 foundation flag (default false). Split-by-karat posting is NOT enabled yet. */
@@ -200,7 +206,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         const parsed: Partial<AppSettings> = {};
 
         // Parse JSON strings from settings table
-        const keys: (keyof AppSettings)[] = ["paymentMethods", "receipt", "barcode"];
+        const keys: (keyof AppSettings)[] = ["paymentMethods", "receipt", "barcode", "printTemplateDefaults", "invoicePrintBuilderConfig"];
         keys.forEach(k => {
           if (raw[k]) {
             try {

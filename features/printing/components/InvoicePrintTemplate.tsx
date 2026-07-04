@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { Invoice } from "@/lib/types";
 import { getPublicFileUrl } from "@/lib/api/files";
 import { formatAppMoney } from "@/lib/formatters/currency";
@@ -6,6 +7,16 @@ import {
   buildInvoicePrintViewModel,
   type InvoicePrintViewModel,
 } from "@/features/printing/lib/invoice-print-view-model";
+import {
+  resolveInvoicePrintTemplateConfig,
+  shouldShowArabic,
+  shouldShowEnglish,
+  type PrintTemplateConfigOverrides,
+} from "@/features/printing/lib/print-template-config";
+import {
+  formatLocalizedText,
+  LocalizedPrintLabel,
+} from "@/features/printing/components/LocalizedPrintLabel";
 
 export interface PrintCompany {
   name: string;
@@ -43,7 +54,7 @@ export interface InvoicePrintLabels {
   qr: string;
 }
 
-interface InvoicePrintTemplateProps {
+export interface InvoicePrintTemplateProps {
   invoice: Invoice;
   company: PrintCompany;
   cashierName?: string;
@@ -55,6 +66,12 @@ interface InvoicePrintTemplateProps {
     receipt?: any;
   };
   viewModel?: InvoicePrintViewModel;
+  templateConfig?: PrintTemplateConfigOverrides;
+  /**
+   * Display-only document title override (Phase 19F print dialog). Replaces the
+   * printed title wording only — never the invoice type, items, or totals.
+   */
+  documentTitleOverride?: { titleAr: string; titleEn: string };
 }
 
 const luxuryInvoiceStyles = `
@@ -79,8 +96,7 @@ const luxuryInvoiceStyles = `
     --invoice-title-font: "Times New Roman", "Noto Naskh Arabic", "Arial", serif;
     position: relative;
     width: 210mm;
-    height: 297mm;
-    max-height: 297mm;
+    min-height: 297mm;
     margin: 0 auto;
     padding: 6mm;
     background:
@@ -90,7 +106,6 @@ const luxuryInvoiceStyles = `
     color: var(--invoice-text);
     font-family: var(--invoice-font);
     direction: ltr;
-    overflow: hidden;
     page-break-after: avoid;
     break-after: avoid;
   }
@@ -129,7 +144,7 @@ const luxuryInvoiceStyles = `
     inset-inline-start: 12mm;
     width: 64mm;
     max-height: 74mm;
-    opacity: 0.04;
+    opacity: var(--invoice-watermark-opacity, 0.04);
     object-fit: contain;
     pointer-events: none;
     z-index: 0;
@@ -461,11 +476,27 @@ export function InvoicePrintTemplate({
   company,
   cashierName,
   locale,
-  labels,
   settings,
   viewModel,
+  templateConfig,
+  documentTitleOverride,
 }: InvoicePrintTemplateProps) {
   const receiptConfig = settings?.receipt || {};
+  const settingsConfig = (settings as { printTemplateConfig?: PrintTemplateConfigOverrides } | undefined)?.printTemplateConfig;
+  const tpl = resolveInvoicePrintTemplateConfig(templateConfig ?? settingsConfig);
+  const showAr = shouldShowArabic(tpl);
+  const showEn = shouldShowEnglish(tpl);
+  const themeVars = {
+    "--invoice-gold": tpl.theme.gold,
+    "--invoice-gold-dark": tpl.theme.goldDark,
+    "--invoice-gold-soft": tpl.theme.goldSoft,
+    "--invoice-text": tpl.theme.text,
+    "--invoice-muted": tpl.theme.muted,
+    "--invoice-ivory": tpl.theme.ivory,
+    "--invoice-font": tpl.theme.fontFamily,
+    "--invoice-title-font": tpl.theme.titleFontFamily,
+    "--invoice-watermark-opacity": String(tpl.theme.watermarkOpacity),
+  } as CSSProperties;
   const precision = settings?.decimalPrecision ?? 2;
   const currency = settings?.currency ?? company.currency ?? "AED";
   const vm = viewModel ?? buildInvoicePrintViewModel(invoice, {
@@ -494,25 +525,38 @@ export function InvoicePrintTemplate({
   const companyNameAr = vm.company.nameAr ?? vm.company.displayName ?? vm.company.nameEn ?? company.name ?? "—";
   const companyInitials = getCompanyInitials(companyNameEn);
   const brand = getBrandDisplay(companyNameEn);
+  // Display-only titles: the dialog override wins; ViewModel remains the default.
+  const documentTitleAr = documentTitleOverride?.titleAr ?? vm.document.titleAr;
+  const documentTitleEn = documentTitleOverride?.titleEn ?? vm.document.titleEn;
+  const documentTypeLabel = formatLocalizedText({
+    en: documentTitleEn,
+    ar: documentTitleAr,
+    showEnglish: showEn,
+    showArabic: showAr,
+    separator: " / ",
+  });
+  const trnLabel = formatLocalizedText({ en: "TRN", ar: "الرقم الضريبي", showEnglish: showEn, showArabic: showAr });
+  const assetIdLabel = formatLocalizedText({ en: "Asset ID", ar: "رقم القطعة", showEnglish: showEn, showArabic: showAr });
   const footerItems = [
-    { icon: "☎", value: vm.company.phone },
-    { icon: "⌖", value: vm.company.address },
-    { icon: "✉", value: vm.company.email },
+    { icon: "☎", value: tpl.fields.footerPhone ? vm.company.phone : undefined },
+    { icon: "⌖", value: tpl.fields.footerAddress ? vm.company.address : undefined },
+    { icon: "✉", value: tpl.fields.footerEmail ? vm.company.email : undefined },
   ].filter((item): item is { icon: string; value: string } => Boolean(item.value));
 
   return (
-    <article className="print-document print-page luxury-invoice" data-print-root>
+    <article className="print-document print-page luxury-invoice" data-print-root style={themeVars}>
       <style>{luxuryInvoiceStyles}</style>
       <span className="luxury-corner luxury-corner-top-start" />
       <span className="luxury-corner luxury-corner-top-end" />
       <span className="luxury-corner luxury-corner-bottom-start" />
       <span className="luxury-corner luxury-corner-bottom-end" />
-      {vm.company.watermarkUrl && <img className="luxury-watermark" src={vm.company.watermarkUrl} alt="" />}
+      {tpl.fields.watermark && vm.company.watermarkUrl && <img className="luxury-watermark" src={vm.company.watermarkUrl} alt="" />}
 
       <div className="luxury-content">
+        {tpl.sections.header && (
         <section className="luxury-brand-header" aria-label="Invoice header">
           <div className="luxury-logo-wrap">
-            {vm.company.logoUrl ? (
+            {tpl.fields.companyLogo && vm.company.logoUrl ? (
               <img className="luxury-logo" src={vm.company.logoUrl} alt={companyNameEn} />
             ) : (
               <span className="luxury-initials">{companyInitials}</span>
@@ -522,56 +566,68 @@ export function InvoicePrintTemplate({
           <div className="luxury-brand-center">
             <h1 className="luxury-brand-name">{brand.primary}</h1>
             {brand.secondary && <p className="luxury-brand-subtitle">{brand.secondary}</p>}
-            {companyNameEn !== brand.primary && companyNameEn !== brand.secondary && <p className="luxury-brand-en">{companyNameEn}</p>}
-            <p className="luxury-brand-ar">{companyNameAr}</p>
+            {showEn && companyNameEn !== brand.primary && companyNameEn !== brand.secondary && <p className="luxury-brand-en">{companyNameEn}</p>}
+            {showAr && <p className="luxury-brand-ar">{companyNameAr}</p>}
             <div className="luxury-ornament" aria-hidden="true"><span className="luxury-diamond" /></div>
             <div className="luxury-document-title">
-              <h3 className="luxury-ar">{vm.document.titleAr}</h3>
-              <h2 className="luxury-en">{vm.document.titleEn}</h2>
+              {showAr && <h3 className="luxury-ar">{documentTitleAr}</h3>}
+              {showEn && <h2 className="luxury-en">{documentTitleEn}</h2>}
             </div>
-            <p className="luxury-trn">{labels.trn}: {text(vm.company.trn)}</p>
+            {tpl.fields.companyTrn && <p className="luxury-trn">{trnLabel}: {text(vm.company.trn)}</p>}
           </div>
 
           <div aria-hidden="true" />
         </section>
+        )}
 
+        {(tpl.sections.clientDetails || tpl.sections.invoiceDetails) && (
         <section className="luxury-details-row">
+          {tpl.sections.clientDetails && (
           <div className="luxury-box client-box">
-            <BoxTitle en="CLIENT DETAILS" ar="بيانات العميل" />
-            <DetailRow labelAr="اسم العميل" labelEn="Customer Name" value={text(vm.customer.name)} />
-            <DetailRow labelAr="رقم الهاتف" labelEn="Mobile Number" value={text(vm.customer.phone)} />
-            <DetailRow labelAr="الرقم الضريبي" labelEn="Customer TRN" value={text(vm.customer.trn)} />
-            <DetailRow labelAr="العنوان" labelEn="Address" value={text(vm.customer.address)} />
+            <BoxTitle en="CLIENT DETAILS" ar="بيانات العميل" showEnglish={showEn} showArabic={showAr} />
+            <DetailRow labelAr="اسم العميل" labelEn="Customer Name" value={text(vm.customer.name)} showEnglish={showEn} showArabic={showAr} />
+            {tpl.fields.customerPhone && <DetailRow labelAr="رقم الهاتف" labelEn="Mobile Number" value={text(vm.customer.phone)} showEnglish={showEn} showArabic={showAr} />}
+            {tpl.fields.customerTrn && <DetailRow labelAr="الرقم الضريبي" labelEn="Customer TRN" value={text(vm.customer.trn)} showEnglish={showEn} showArabic={showAr} />}
+            {tpl.fields.customerAddress && <DetailRow labelAr="العنوان" labelEn="Address" value={text(vm.customer.address)} showEnglish={showEn} showArabic={showAr} />}
           </div>
+          )}
 
+          {tpl.sections.invoiceDetails && (
           <div className="luxury-box invoice-box">
-            <BoxTitle en="INVOICE DETAILS" ar="بيانات الفاتورة" />
-            <DetailRow labelAr="رقم الفاتورة" labelEn="Invoice No." value={text(vm.document.number)} />
-            <DetailRow labelAr="تاريخ الفاتورة" labelEn="Invoice Date" value={text(vm.document.date)} />
-            <DetailRow labelAr="نوع الفاتورة" labelEn="Invoice Type" value={`${vm.document.titleEn} / ${vm.document.titleAr}`} />
-            <DetailRow labelAr="الحالة" labelEn="Status" value={text(vm.document.status)} />
-            <DetailRow labelAr="حالة الاعتماد" labelEn="Post Status" value={text(vm.document.postingStatus)} />
-            <DetailRow
-              labelAr="الفاتورة الأصلية"
-              labelEn="Original Invoice Ref"
-              value={text(vm.document.originalInvoiceNumber ?? vm.document.originalInvoiceId)}
-            />
-            {cashierName && <DetailRow labelAr="البائع" labelEn="Salesperson" value={text(cashierName)} />}
+            <BoxTitle en="INVOICE DETAILS" ar="بيانات الفاتورة" showEnglish={showEn} showArabic={showAr} />
+            <DetailRow labelAr="رقم الفاتورة" labelEn="Invoice No." value={text(vm.document.number)} showEnglish={showEn} showArabic={showAr} />
+            <DetailRow labelAr="تاريخ الفاتورة" labelEn="Invoice Date" value={text(vm.document.date)} showEnglish={showEn} showArabic={showAr} />
+            <DetailRow labelAr="نوع الفاتورة" labelEn="Invoice Type" value={documentTypeLabel} showEnglish={showEn} showArabic={showAr} />
+            <DetailRow labelAr="الحالة" labelEn="Status" value={text(vm.document.status)} showEnglish={showEn} showArabic={showAr} />
+            <DetailRow labelAr="حالة الاعتماد" labelEn="Post Status" value={text(vm.document.postingStatus)} showEnglish={showEn} showArabic={showAr} />
+            {tpl.fields.originalInvoiceRef && (vm.document.originalInvoiceNumber || vm.document.originalInvoiceId) && (
+              <DetailRow
+                labelAr="الفاتورة الأصلية"
+                labelEn="Original Invoice Ref"
+                value={text(vm.document.originalInvoiceNumber ?? vm.document.originalInvoiceId)}
+                showEnglish={showEn}
+                showArabic={showAr}
+              />
+            )}
+            {cashierName && tpl.fields.salesperson && <DetailRow labelAr="البائع" labelEn="Salesperson" value={text(cashierName)} showEnglish={showEn} showArabic={showAr} />}
           </div>
+          )}
         </section>
+        )}
 
+        {tpl.sections.itemsTable && (
         <section className="luxury-table-wrap">
           <table className="luxury-table">
             <thead>
               <tr>
-                <th style={{ width: "10mm" }}><span className="luxury-en">Sr No.</span><br /><span className="luxury-ar">الرقم</span></th>
-                <th><span className="luxury-en">Item Description</span><br /><span className="luxury-ar">وصف القطعة</span></th>
-                <th style={{ width: "21mm" }}><span className="luxury-en">Gold Karat</span><br /><span className="luxury-ar">عيار الذهب</span></th>
-                <th style={{ width: "21mm" }}><span className="luxury-en">Weight (g)</span><br /><span className="luxury-ar">الوزن (جرام)</span></th>
-                <th style={{ width: "13mm" }}><span className="luxury-en">Qty</span><br /><span className="luxury-ar">الكمية</span></th>
-                <th style={{ width: "25mm" }}><span className="luxury-en">Net Amount</span><br /><span className="luxury-ar">المبلغ الصافي</span></th>
-                <th style={{ width: "25mm" }}><span className="luxury-en">VAT</span><br /><span className="luxury-ar">ضريبة القيمة المضافة</span></th>
-                <th style={{ width: "27mm" }}><span className="luxury-en">Total Amount</span><br /><span className="luxury-ar">المبلغ الإجمالي</span></th>
+                <th style={{ width: "10mm" }}><LocalizedPrintLabel en="Sr No." ar="الرقم" showEnglish={showEn} showArabic={showAr} separator={<br />} englishClassName="luxury-en" arabicClassName="luxury-ar" /></th>
+                <th><LocalizedPrintLabel en="Item Description" ar="وصف القطعة" showEnglish={showEn} showArabic={showAr} separator={<br />} englishClassName="luxury-en" arabicClassName="luxury-ar" /></th>
+                <th style={{ width: "21mm" }}><LocalizedPrintLabel en="Gold Karat" ar="عيار الذهب" showEnglish={showEn} showArabic={showAr} separator={<br />} englishClassName="luxury-en" arabicClassName="luxury-ar" /></th>
+                <th style={{ width: "21mm" }}><LocalizedPrintLabel en="Weight (g)" ar="الوزن (جرام)" showEnglish={showEn} showArabic={showAr} separator={<br />} englishClassName="luxury-en" arabicClassName="luxury-ar" /></th>
+                <th style={{ width: "13mm" }}><LocalizedPrintLabel en="Qty" ar="الكمية" showEnglish={showEn} showArabic={showAr} separator={<br />} englishClassName="luxury-en" arabicClassName="luxury-ar" /></th>
+                <th style={{ width: "25mm" }}><LocalizedPrintLabel en="Net Amount" ar="المبلغ الصافي" showEnglish={showEn} showArabic={showAr} separator={<br />} englishClassName="luxury-en" arabicClassName="luxury-ar" /></th>
+                <th style={{ width: "25mm" }}><LocalizedPrintLabel en="VAT" ar="ضريبة القيمة المضافة" showEnglish={showEn} showArabic={showAr} separator={<br />} englishClassName="luxury-en" arabicClassName="luxury-ar" /></th>
+                <th style={{ width: "27mm" }}><LocalizedPrintLabel en="Total Amount" ar="المبلغ الإجمالي" showEnglish={showEn} showArabic={showAr} separator={<br />} englishClassName="luxury-en" arabicClassName="luxury-ar" /></th>
               </tr>
             </thead>
             <tbody>
@@ -580,7 +636,7 @@ export function InvoicePrintTemplate({
                   <td>{text(item.index)}</td>
                   <td className="description-cell">
                     <strong>{text(item.description)}</strong>
-                    {item.assetId && <div className="luxury-asset-line">{labels.assetId}: {text(item.assetId)}</div>}
+                    {item.assetId && tpl.fields.itemAssetId && <div className="luxury-asset-line">{assetIdLabel}: {text(item.assetId)}</div>}
                   </td>
                   <td>{text(item.karat)}</td>
                   <td>{text(item.weight)}</td>
@@ -593,56 +649,67 @@ export function InvoicePrintTemplate({
             </tbody>
           </table>
         </section>
+        )}
 
-        {vm.special && <SpecialSections special={vm.special} money={money} text={text} />}
+        {tpl.sections.specialSummary && vm.special && <SpecialSections special={vm.special} money={money} text={text} showEnglish={showEn} showArabic={showAr} />}
 
+        {(tpl.sections.paymentMethod || tpl.sections.amountDetails) && (
         <section className="luxury-summary-row">
+          {tpl.sections.paymentMethod && (
           <div className="luxury-box payment-box">
-            <BoxTitle en="PAYMENT METHOD" ar="طريقة الدفع" />
+            <BoxTitle en="PAYMENT METHOD" ar="طريقة الدفع" showEnglish={showEn} showArabic={showAr} />
             <ul className="luxury-payment-list">
               {vm.payments.map((payment, index) => (
                 <li key={`${payment.method}-${index}`}>
-                  <span>{payment.methodLabelEn} / {payment.methodLabelAr}</span>
+                  <span>{formatLocalizedText({ en: payment.methodLabelEn, ar: payment.methodLabelAr, showEnglish: showEn, showArabic: showAr, separator: " / " })}</span>
                   <strong>{payment.amount === undefined ? "—" : money(payment.amount)}</strong>
                 </li>
               ))}
             </ul>
           </div>
+          )}
 
+          {tpl.sections.amountDetails && (
           <div className="luxury-box amount-box">
-            <BoxTitle en="AMOUNT DETAILS" ar="تفاصيل المبلغ" />
-            <DetailRow labelAr="الصافي" labelEn="Net / Subtotal" value={money(vm.totals.subtotal)} />
-            <DetailRow labelAr="الخصم" labelEn="Discount" value={money(vm.totals.discount)} />
-            <DetailRow labelAr="نسبة الضريبة" labelEn="VAT Rate" value={percent(vm.totals.vatRate)} />
-            <DetailRow labelAr="قيمة الضريبة" labelEn="VAT Amount" value={money(vm.totals.vatAmount)} />
-            <DetailRow labelAr="المبلغ الإجمالي" labelEn="Total Amount" value={money(vm.totals.totalAmount)} isTotal />
-            <DetailRow labelAr="المدفوع" labelEn="Paid Amount" value={money(vm.totals.paidAmount)} />
-            <DetailRow labelAr="المتبقي" labelEn="Remaining Amount" value={money(vm.totals.remainingAmount)} />
+            <BoxTitle en="AMOUNT DETAILS" ar="تفاصيل المبلغ" showEnglish={showEn} showArabic={showAr} />
+            <DetailRow labelAr="الصافي" labelEn="Net / Subtotal" value={money(vm.totals.subtotal)} showEnglish={showEn} showArabic={showAr} />
+            <DetailRow labelAr="الخصم" labelEn="Discount" value={money(vm.totals.discount)} showEnglish={showEn} showArabic={showAr} />
+            <DetailRow labelAr="نسبة الضريبة" labelEn="VAT Rate" value={percent(vm.totals.vatRate)} showEnglish={showEn} showArabic={showAr} />
+            <DetailRow labelAr="قيمة الضريبة" labelEn="VAT Amount" value={money(vm.totals.vatAmount)} showEnglish={showEn} showArabic={showAr} />
+            <DetailRow labelAr="المبلغ الإجمالي" labelEn="Total Amount" value={money(vm.totals.totalAmount)} isTotal showEnglish={showEn} showArabic={showAr} />
+            <DetailRow labelAr="المدفوع" labelEn="Paid Amount" value={money(vm.totals.paidAmount)} showEnglish={showEn} showArabic={showAr} />
+            <DetailRow labelAr="المتبقي" labelEn="Remaining Amount" value={money(vm.totals.remainingAmount)} showEnglish={showEn} showArabic={showAr} />
           </div>
+          )}
         </section>
+        )}
 
         <div className="luxury-tail">
+          {tpl.sections.notes && (
           <section className="luxury-box luxury-notes-box">
-            <BoxTitle en="NOTES" ar="ملاحظات" />
+            <BoxTitle en="NOTES" ar="ملاحظات" showEnglish={showEn} showArabic={showAr} />
             <div className="luxury-notes-lines">
               {vm.notes ? vm.notes : <div className="luxury-notes-empty" />}
             </div>
           </section>
+          )}
 
-          {receiptConfig.termsMessage && (
+          {tpl.sections.terms && receiptConfig.termsMessage && (
             <section className="luxury-box luxury-notes-box">
-              <BoxTitle en="TERMS" ar="الشروط والأحكام" />
+              <BoxTitle en="TERMS" ar="الشروط والأحكام" showEnglish={showEn} showArabic={showAr} />
               <div className="luxury-notes-lines">{receiptConfig.termsMessage}</div>
             </section>
           )}
 
+          {tpl.sections.signatures && (
           <section className="luxury-signatures">
-            <div className="luxury-signature"><span className="luxury-en">Customer Signature</span> | <span className="luxury-ar">توقيع العميل</span></div>
-            <div className="luxury-signature"><span className="luxury-en">Company Stamp</span> | <span className="luxury-ar">ختم الشركة</span></div>
-            <div className="luxury-signature"><span className="luxury-en">Salesperson Signature</span> | <span className="luxury-ar">توقيع المبيعات</span></div>
+            <div className="luxury-signature"><LocalizedPrintLabel en="Customer Signature" ar="توقيع العميل" showEnglish={showEn} showArabic={showAr} englishClassName="luxury-en" arabicClassName="luxury-ar" /></div>
+            <div className="luxury-signature"><LocalizedPrintLabel en="Company Stamp" ar="ختم الشركة" showEnglish={showEn} showArabic={showAr} englishClassName="luxury-en" arabicClassName="luxury-ar" /></div>
+            <div className="luxury-signature"><LocalizedPrintLabel en="Salesperson Signature" ar="توقيع المبيعات" showEnglish={showEn} showArabic={showAr} englishClassName="luxury-en" arabicClassName="luxury-ar" /></div>
           </section>
+          )}
 
-          {footerItems.length > 0 && (
+          {tpl.sections.footer && footerItems.length > 0 && (
             <footer className="luxury-footer">
               {footerItems.map((item) => (
                 <span className="luxury-footer-item" key={`${item.icon}-${item.value}`}>
@@ -658,11 +725,28 @@ export function InvoicePrintTemplate({
   );
 }
 
-function BoxTitle({ en, ar }: { en: string; ar: string }) {
+function BoxTitle({
+  en,
+  ar,
+  showEnglish,
+  showArabic,
+}: {
+  en: string;
+  ar: string;
+  showEnglish: boolean;
+  showArabic: boolean;
+}) {
   return (
     <div className="luxury-box-title">
-      <span className="luxury-en">{en}</span>
-      <span className="luxury-ar">{ar}</span>
+      <LocalizedPrintLabel
+        en={en}
+        ar={ar}
+        showEnglish={showEnglish}
+        showArabic={showArabic}
+        separator=""
+        englishClassName="luxury-en"
+        arabicClassName="luxury-ar"
+      />
     </div>
   );
 }
@@ -671,16 +755,28 @@ function DetailRow({
   labelAr,
   labelEn,
   value,
+  showEnglish,
+  showArabic,
   isTotal = false,
 }: {
   labelAr: string;
   labelEn: string;
   value: string;
+  showEnglish: boolean;
+  showArabic: boolean;
   isTotal?: boolean;
 }) {
   return (
     <div className={`luxury-field${isTotal ? " luxury-total-row" : ""}`}>
-      <span className="luxury-label"><span className="luxury-en">{labelEn}</span> | <span className="luxury-ar">{labelAr}</span></span>
+      <LocalizedPrintLabel
+        en={labelEn}
+        ar={labelAr}
+        showEnglish={showEnglish}
+        showArabic={showArabic}
+        className="luxury-label"
+        englishClassName="luxury-en"
+        arabicClassName="luxury-ar"
+      />
       <span className="luxury-value">{value}</span>
     </div>
   );
@@ -690,55 +786,59 @@ function SpecialSections({
   special,
   money,
   text,
+  showEnglish,
+  showArabic,
 }: {
   special: NonNullable<InvoicePrintViewModel["special"]>;
   money: (value: number | undefined) => string;
   text: (value: string | number | undefined | null) => string;
+  showEnglish: boolean;
+  showArabic: boolean;
 }) {
   return (
     <section className="luxury-special">
       {special.exchange && (
         <div className="luxury-box">
-          <BoxTitle en="EXCHANGE SUMMARY" ar="ملخص الاستبدال" />
-          <DetailRow labelAr="الفرق" labelEn="Difference" value={money(special.exchange.difference)} />
+          <BoxTitle en="EXCHANGE SUMMARY" ar="ملخص الاستبدال" showEnglish={showEnglish} showArabic={showArabic} />
+          <DetailRow labelAr="الفرق" labelEn="Difference" value={money(special.exchange.difference)} showEnglish={showEnglish} showArabic={showArabic} />
         </div>
       )}
 
       {special.installments && (
         <div className="luxury-box">
-          <BoxTitle en="INSTALLMENT SUMMARY" ar="ملخص الأقساط" />
-          <DetailRow labelAr="الدفعة المقدمة" labelEn="Down Payment" value={money(special.installments.downPayment)} />
-          <DetailRow labelAr="الرصيد المتبقي" labelEn="Remaining Balance" value={money(special.installments.remainingBalance)} />
-          <DetailRow labelAr="عدد الأقساط" labelEn="Installment Count" value={text(special.installments.installmentCount)} />
+          <BoxTitle en="INSTALLMENT SUMMARY" ar="ملخص الأقساط" showEnglish={showEnglish} showArabic={showArabic} />
+          <DetailRow labelAr="الدفعة المقدمة" labelEn="Down Payment" value={money(special.installments.downPayment)} showEnglish={showEnglish} showArabic={showArabic} />
+          <DetailRow labelAr="الرصيد المتبقي" labelEn="Remaining Balance" value={money(special.installments.remainingBalance)} showEnglish={showEnglish} showArabic={showArabic} />
+          <DetailRow labelAr="عدد الأقساط" labelEn="Installment Count" value={text(special.installments.installmentCount)} showEnglish={showEnglish} showArabic={showArabic} />
         </div>
       )}
 
       {special.deposit && (
         <div className="luxury-box">
-          <BoxTitle en="DEPOSIT SUMMARY" ar="ملخص العربون" />
-          <DetailRow labelAr="قيمة العربون" labelEn="Deposit Amount" value={money(special.deposit.depositAmount)} />
-          <DetailRow labelAr="حالة العربون" labelEn="Deposit Status" value={text(special.deposit.depositStatus)} />
-          <DetailRow labelAr={special.deposit.liabilityNoteAr ?? "العربون التزام على الشركة"} labelEn={special.deposit.liabilityNoteEn ?? "Deposit is a customer liability"} value="—" />
+          <BoxTitle en="DEPOSIT SUMMARY" ar="ملخص العربون" showEnglish={showEnglish} showArabic={showArabic} />
+          <DetailRow labelAr="قيمة العربون" labelEn="Deposit Amount" value={money(special.deposit.depositAmount)} showEnglish={showEnglish} showArabic={showArabic} />
+          <DetailRow labelAr="حالة العربون" labelEn="Deposit Status" value={text(special.deposit.depositStatus)} showEnglish={showEnglish} showArabic={showArabic} />
+          <DetailRow labelAr={special.deposit.liabilityNoteAr ?? "العربون التزام على الشركة"} labelEn={special.deposit.liabilityNoteEn ?? "Deposit is a customer liability"} value="—" showEnglish={showEnglish} showArabic={showArabic} />
         </div>
       )}
 
       {special.giftVoucher && (
         <div className="luxury-box">
-          <BoxTitle en="GIFT VOUCHER SUMMARY" ar="ملخص قسيمة الهدية" />
-          <DetailRow labelAr="رقم القسيمة" labelEn="Voucher Number" value={text(special.giftVoucher.voucherNumber)} />
-          <DetailRow labelAr="قيمة القسيمة" labelEn="Voucher Value" value={money(special.giftVoucher.voucherValue)} />
-          <DetailRow labelAr="تاريخ الانتهاء" labelEn="Expiry Date" value={text(special.giftVoucher.expiryDate)} />
-          <DetailRow labelAr={special.giftVoucher.redemptionPolicyAr ?? "الاستخدام الكامل فقط"} labelEn={special.giftVoucher.redemptionPolicyEn ?? "Full redemption only"} value="—" />
+          <BoxTitle en="GIFT VOUCHER SUMMARY" ar="ملخص قسيمة الهدية" showEnglish={showEnglish} showArabic={showArabic} />
+          <DetailRow labelAr="رقم القسيمة" labelEn="Voucher Number" value={text(special.giftVoucher.voucherNumber)} showEnglish={showEnglish} showArabic={showArabic} />
+          <DetailRow labelAr="قيمة القسيمة" labelEn="Voucher Value" value={money(special.giftVoucher.voucherValue)} showEnglish={showEnglish} showArabic={showArabic} />
+          <DetailRow labelAr="تاريخ الانتهاء" labelEn="Expiry Date" value={text(special.giftVoucher.expiryDate)} showEnglish={showEnglish} showArabic={showArabic} />
+          <DetailRow labelAr={special.giftVoucher.redemptionPolicyAr ?? "الاستخدام الكامل فقط"} labelEn={special.giftVoucher.redemptionPolicyEn ?? "Full redemption only"} value="—" showEnglish={showEnglish} showArabic={showArabic} />
         </div>
       )}
 
       {special.customerGoldPurchase && (
         <div className="luxury-box">
-          <BoxTitle en="CUSTOMER GOLD PURCHASE" ar="شراء ذهب من عميل" />
-          <DetailRow labelAr="الوزن" labelEn="Gold Weight" value={text(special.customerGoldPurchase.goldWeight)} />
-          <DetailRow labelAr="العيار" labelEn="Karat" value={text(special.customerGoldPurchase.karat)} />
-          <DetailRow labelAr="سعر الشراء" labelEn="Purchase Rate" value={money(special.customerGoldPurchase.purchaseRate)} />
-          <DetailRow labelAr={special.customerGoldPurchase.reversePurchaseNoteAr ?? "النظام هو المشتري"} labelEn={special.customerGoldPurchase.reversePurchaseNoteEn ?? "The system is the buyer"} value="—" />
+          <BoxTitle en="CUSTOMER GOLD PURCHASE" ar="شراء ذهب من عميل" showEnglish={showEnglish} showArabic={showArabic} />
+          <DetailRow labelAr="الوزن" labelEn="Gold Weight" value={text(special.customerGoldPurchase.goldWeight)} showEnglish={showEnglish} showArabic={showArabic} />
+          <DetailRow labelAr="العيار" labelEn="Karat" value={text(special.customerGoldPurchase.karat)} showEnglish={showEnglish} showArabic={showArabic} />
+          <DetailRow labelAr="سعر الشراء" labelEn="Purchase Rate" value={money(special.customerGoldPurchase.purchaseRate)} showEnglish={showEnglish} showArabic={showArabic} />
+          <DetailRow labelAr={special.customerGoldPurchase.reversePurchaseNoteAr ?? "النظام هو المشتري"} labelEn={special.customerGoldPurchase.reversePurchaseNoteEn ?? "The system is the buyer"} value="—" showEnglish={showEnglish} showArabic={showArabic} />
         </div>
       )}
     </section>
@@ -756,8 +856,8 @@ function getCompanyInitials(name: string) {
   return compact || "—";
 }
 
-function getBrandDisplay(displayName: string, englishName?: string) {
-  const source = (englishName || displayName).trim();
+function getBrandDisplay(displayName: string) {
+  const source = displayName.trim();
   const parts = source.split(/\s+/).filter(Boolean);
 
   if (parts.length <= 1) {
