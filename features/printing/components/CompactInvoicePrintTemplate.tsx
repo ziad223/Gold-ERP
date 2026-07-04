@@ -171,7 +171,6 @@ export function CompactInvoicePrintTemplate({
   templateConfig,
   documentTitleOverride,
 }: InvoicePrintTemplateProps) {
-  const receiptConfig = settings?.receipt || {};
   const precision = settings?.decimalPrecision ?? 2;
   const currency = settings?.currency ?? company.currency ?? "AED";
   const vm = viewModel ?? buildInvoicePrintViewModel(invoice, {
@@ -179,8 +178,15 @@ export function CompactInvoicePrintTemplate({
       businessName: company.name,
       logo: company.logo,
       taxNumber: company.trn,
-      phone: receiptConfig.phone,
-      address: receiptConfig.address,
+      phone: company.phone,
+      email: company.email,
+      website: company.website,
+      country: company.country,
+      city: company.city,
+      region: company.region,
+      address1: company.address1,
+      address2: company.address2,
+      postalCode: company.postalCode,
     },
     settings,
     locale,

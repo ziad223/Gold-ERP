@@ -12,7 +12,8 @@
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,css,md}\"",
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,css,md}\"",
     "test:e2e": "playwright test",
-    "test:print-export": "playwright test tests/export-print.spec.ts --project=\"Desktop Large\""
+    "test:print-export": "playwright test tests/export-print.spec.ts --project=\"Desktop Large\"",
+    "verify:print-company-info": "node scripts/verify-print-company-info.js"
   },
   "dependencies": {
     "@tanstack/react-query": "5.66.0",

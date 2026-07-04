@@ -31,6 +31,9 @@ export interface DarfusCompany {
   postalCode: string;
   commercialRegister?: string;
   taxNumber?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
   logo?: string;
   branchName: string;
 }

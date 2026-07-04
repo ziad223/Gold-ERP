@@ -24,6 +24,19 @@ export interface AppSettings {
   businessName: string;
   logo: string;
   currency: string;
+  /** Company master fields persisted to the companies table via PATCH /settings
+   *  (backend whitelist). Optional here; the Company Profile form sends them. */
+  taxNumber?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  country?: string;
+  city?: string;
+  region?: string;
+  address1?: string;
+  address2?: string;
+  postalCode?: string;
+  commercialRegister?: string;
   vatRate: number;
   lowStockThreshold: number;
   decimalPrecision: number;
@@ -46,6 +59,10 @@ export interface AppSettings {
   /** Company Print Builder config (Phase 19Q). Safely sanitized and parsed
    *  via the Zod schema in features/printing/lib/print-builder-config.ts. */
   invoicePrintBuilderConfig?: any;
+  /** Company print info (Phase 19X-Fix). Display-only contact/branding data for
+   *  invoice print; sanitized via features/printing/lib/print-company-info-config.ts.
+   *  Written through PUT /settings/by-key/printCompanyInfo (never the PATCH whitelist). */
+  printCompanyInfo?: any;
   /** Pricing mode foundation (default manual_sale_price; dynamic modes are not yet wired into POS). */
   goldPricingMode?: "manual_sale_price" | "dynamic_by_karat" | "dynamic_by_karat_plus_making";
   /** P5.1 foundation flag (default false). Split-by-karat posting is NOT enabled yet. */
@@ -206,7 +223,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         const parsed: Partial<AppSettings> = {};
 
         // Parse JSON strings from settings table
-        const keys: (keyof AppSettings)[] = ["paymentMethods", "receipt", "barcode", "printTemplateDefaults", "invoicePrintBuilderConfig"];
+        const keys: (keyof AppSettings)[] = ["paymentMethods", "receipt", "barcode", "printTemplateDefaults", "invoicePrintBuilderConfig", "printCompanyInfo"];
         keys.forEach(k => {
           if (raw[k]) {
             try {
@@ -319,10 +336,23 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     try {
       const payload: Record<string, any> = {};
       
-      // Separate company properties from settings properties
+      // Separate company properties from settings properties. taxNumber/phone/
+      // email/website are DB-backed company columns accepted by the PATCH /settings
+      // whitelist (Phase 19X.2-B); forward them so Company Profile persists them.
       if (updates.businessName !== undefined) payload.businessName = updates.businessName;
       if (updates.logo !== undefined) payload.logo = updates.logo;
       if (updates.currency !== undefined) payload.currency = updates.currency;
+      if (updates.taxNumber !== undefined) payload.taxNumber = updates.taxNumber;
+      if (updates.phone !== undefined) payload.phone = updates.phone;
+      if (updates.email !== undefined) payload.email = updates.email;
+      if (updates.website !== undefined) payload.website = updates.website;
+      if (updates.country !== undefined) payload.country = updates.country;
+      if (updates.city !== undefined) payload.city = updates.city;
+      if (updates.region !== undefined) payload.region = updates.region;
+      if (updates.address1 !== undefined) payload.address1 = updates.address1;
+      if (updates.address2 !== undefined) payload.address2 = updates.address2;
+      if (updates.postalCode !== undefined) payload.postalCode = updates.postalCode;
+      if (updates.commercialRegister !== undefined) payload.commercialRegister = updates.commercialRegister;
 
       const keys: (keyof AppSettings)[] = [
         "language", "theme", "vatRate", "invoicePrefix", "invoiceNumbering",

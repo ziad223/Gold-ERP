@@ -43,10 +43,12 @@ export type InvoicePrintViewModel = {
     nameAr?: string;
     nameEn?: string;
     displayName?: string;
+    subtitle?: string;
     logoUrl?: string;
     watermarkUrl?: string;
     phone?: string;
     email?: string;
+    website?: string;
     address?: string;
     trn?: string;
   };
@@ -138,7 +140,14 @@ export type InvoicePrintViewModelOptions = {
     taxNumber?: string | null;
     phone?: string | null;
     email?: string | null;
+    website?: string | null;
     address?: string | null;
+    country?: string | null;
+    city?: string | null;
+    region?: string | null;
+    address1?: string | null;
+    address2?: string | null;
+    postalCode?: string | null;
   };
   settings?: unknown;
   locale?: string;
@@ -201,11 +210,34 @@ export function buildInvoicePrintViewModel(
   const documentTitle = getInvoicePrintDocumentTitle(invoice);
   const settings = asRecord(options.settings);
   const receiptSettings = asRecord(settings.receipt);
+  // Phase 19X.2-D: company master data is the source of truth. Precedence:
+  //  - Identity fields (displayName, trn): company master only — old
+  //    `printCompanyInfo.displayName/taxNumber` are intentionally NOT used as
+  //    overrides (kept in schema for backward compat, ignored here) so a hidden
+  //    saved value can never override the Company Profile.
+  //  - Contact fields: company DB first, then `printCompanyInfo` fallback, then
+  //    legacy `receipt` fallback.
+  // Display-only; never touches totals, VAT, payments, stock, or accounting.
+  const printInfo = asRecord(settings.printCompanyInfo);
   const company = options.company ?? {};
   const logoUrl = company.logo && options.getPublicFileUrl ? options.getPublicFileUrl(company.logo) : asString(company.logo);
   const trn = asString(company.taxNumber) ?? asString(receiptSettings.vatNumber);
-  const address = asString(company.address) ?? asString(receiptSettings.address);
-  const phone = asString(company.phone) ?? asString(receiptSettings.phone);
+  // Phase 19X.2-F: official company address is formatted from structured company
+  // master fields; falls back to printCompanyInfo.address then receipt.address.
+  // Display-only concatenation — no financial impact.
+  const companyAddressFormatted = [
+    asString(company.address1),
+    asString(company.address2),
+    asString(company.city),
+    asString(company.region),
+    asString(company.country),
+    asString(company.postalCode),
+  ].filter((part): part is string => Boolean(part)).join(", ") || undefined;
+  const address = companyAddressFormatted ?? asString(company.address) ?? asString(printInfo.address) ?? asString(receiptSettings.address);
+  const phone = asString(company.phone) ?? asString(printInfo.phone) ?? asString(receiptSettings.phone);
+  const email = asString(company.email) ?? asString(printInfo.email);
+  const website = asString(company.website) ?? asString(printInfo.website);
+  const subtitle = asString(printInfo.subtitle);
   const displayName = asString(company.businessName) ?? asString(company.nameEn) ?? asString(company.nameAr);
   const currency = options.currency ?? asString(settings.currency);
 
@@ -239,10 +271,12 @@ export function buildInvoicePrintViewModel(
       nameAr: company.nameAr,
       nameEn: company.nameEn,
       displayName,
+      subtitle,
       logoUrl,
       watermarkUrl: logoUrl,
       phone,
-      email: asString(company.email),
+      email,
+      website,
       address,
       trn,
     },

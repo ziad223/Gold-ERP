@@ -1352,6 +1352,218 @@ Remaining gaps:
 
 ---
 
+### Phase 19X.2-G — Live Company Data in Invoice Preview
+
+Status:
+
+* Completed. Frontend/preview-only fix. The Settings → Print & Invoice Design builder preview no longer shows stale fixture company data.
+* No backend/DB/migration/API changes; no financial/business logic; no invoice messages; no custom text blocks.
+
+Root cause:
+
+* Both preview `InvoiceDocument` instances passed the static `company={FIXTURE_COMPANY}` ("Test Jewellery Co", fixture TRN), so the preview reflected the demo fixture rather than the live/edited company data.
+
+Fix (`app/[locale]/(dashboard)/settings/page.tsx` only):
+
+* Added a memoized `livePreviewCompany` (useMemo — no setState, no loop) derived with precedence **Company Profile form state > auth company/session > FIXTURE_COMPANY (demo fallback)**, covering name/logo/branch/currency/TRN/phone/email/website + address (country/city/region/address1/address2/postalCode). Both previews now pass `company={livePreviewCompany}`.
+* Demo invoice/items/customer/totals still come from `FIXTURE_INVOICE`. Preview `settings` still spreads real `settings` + unsaved `invoicePrintBuilderConfig: builderForm`, so builder toggles/theme/template/language stay live. `receipt`/`printCompanyInfo` remain contact/address fallback via the VM; identity stays company-first (printInfo.displayName/taxNumber cannot override).
+
+Verification:
+
+* typecheck clean; lint 0 errors (pre-existing `<img>` warnings); build succeeded; `next-env.d.ts` clean.
+* print verifies (VM / template-config / builder-config / company-info) all ok; grep-safety clean.
+* `npm run test:print-export` not run to completion (known headless Playwright limitation; the settings preview isn't covered by the fixture spec anyway). No artifacts tracked. Native browser QA recommended.
+
+Remaining gaps: invoice message expansion / custom text blocks not started; native print QA recommended; advanced controls / drag-drop / PDF / Search & Print not started.
+
+---
+
+### Phase 19X.2-F — Company Address Wiring
+
+Status:
+
+* Completed. Wires the official company address (existing DB columns) into Company Profile and invoice print.
+* No new DB columns, no migration, no data deletion, no settings-key rename, no custom text blocks, no invoice-message expansion, no financial/business logic.
+
+Audit outcome (no surprises):
+
+* `companies` already has `country, city, region, address1, address2, postal_code, commercial_register`; `serializeCompany` already returns them; `DarfusCompany` already types them. The only gap was the `PATCH /settings` company whitelist (omitted them) and the missing Company Profile UI + VM formatting. `EGYPT` seen in output is `company.country`, not a full address.
+
+Changes:
+
+* **Backend (existing columns only):** extended the `PATCH /settings` company whitelist (erp.routes.js) with `country, city, region, address1, address2, postalCode, commercialRegister`. No model/migration change; `/settings/by-key` untouched.
+* **settings-context:** `AppSettings` + `updateSettings` payload forward the seven address fields.
+* **Company Profile UI:** new "Official Company Address / العنوان الرسمي للشركة" section (country, city, region, postalCode, address1, address2, commercialRegister) with helper text; `handleSaveCompany` sends them via `updateSettings` (→ PATCH /settings) + `updateCompany` (session). Load effect populates from the auth company. No company-address input remains in Print & Invoice Design.
+* **ViewModel address:** formats `[address1, address2, city, region, country, postalCode].filter(Boolean).join(", ")`; precedence = formatted company address > `printCompanyInfo.address` > `receipt.address`. Country-only still yields a location string (acceptable). Display-only.
+* **PrintCompany + templates + sales caller:** `PrintCompany` and the VM `options.company` gained the six structured address fields; all four templates forward them; the sales print caller passes them from the auth company.
+
+Verification:
+
+* typecheck clean; lint 0 errors (pre-existing `<img>` warnings); build succeeded; `next-env.d.ts` clean; `node -c` on erp.routes.js ok.
+* `verify-invoice-print-view-model.js` extended + ok (structured address formats and wins; country-only; printInfo fallback; receipt fallback; prior identity/contact precedence still holds). print-company-info / template-config / builder-config verifies ok. grep-safety clean.
+* `npm run test:print-export` not run to completion (known headless Playwright limitation; force-terminated). No artifacts tracked. Native browser QA recommended.
+
+Preserved keys: `receipt`, `printTemplateDefaults`, `invoicePrintBuilderConfig`, `printCompanyInfo` (address fallback). `printCompanyInfo.address` / `receipt.address` remain hidden fallback/backward-compat.
+
+Remaining gaps:
+
+* Invoice message expansion / custom text blocks not started.
+* Native print QA recommended.
+* Advanced controls / drag-drop / PDF / Search & Print not started.
+
+---
+
+### Phase 19X.2-C/D/E — Company Profile Contact Wiring + Print Source Cleanup
+
+Status:
+
+* Completed (frontend-only; the 19X.2-B dev migration was run: `20260704000000-add-company-contact-fields: migrated`). Finishes the company-data consolidation.
+* No backend/DB/migration/API changes; no data deletion; no settings-key rename; no custom text blocks; no invoice-message expansion; no financial/business logic.
+
+Changes:
+
+* **Types (C):** `DarfusCompany` (auth-context) + `PrintCompany` (InvoicePrintTemplate) + `AppSettings` (settings-context) gained `phone/email/website`. `serializeCompany` already returns them (19X.2-B).
+* **Company Profile UI (C):** added phone/email/website inputs alongside name/logo/currency/TRN; one Save button. `handleSaveCompany` now sends `taxNumber` (TRN persistence fix) + `phone/email/website` through `updateSettings` (→ `PATCH /settings`) and mirrors them into `updateCompany` (session). Load effect prefills contact fields from the DB company, falling back to legacy `printCompanyInfo` when the DB field is empty (frontend-assisted migration; no DB backfill). Address intentionally NOT added to Company Profile this phase — still served by `printCompanyInfo`/`receipt` fallback (reported).
+* **settings-context (C):** `updateSettings` payload now forwards `taxNumber/phone/email/website` as company props (backend whitelist accepts them). PATCH whitelist on the frontend list unchanged for settings keys; `/settings/by-key` untouched.
+* **Remove duplicate card (E):** deleted the "Company Print Info / بيانات الشركة للطباعة" card from Print & Invoice Design (and its state/handlers/preview wiring). `printCompanyInfo` key/schema/hook **kept** as fallback/backward-compat.
+* **ViewModel precedence (D):** identity (`displayName`, `trn`) is now company-master-only — `printCompanyInfo.displayName/taxNumber` are ignored as overrides (kept in schema, no deletion). Contact fields resolve company → `printCompanyInfo` → `receipt`.
+* **Print path wiring (required, reported):** to actually deliver DB company contact into print, `PrintCompany` gained phone/email/website, the sales print caller passes them from the auth company, and all four templates now build the VM `company` from the real company props (removing the old `receiptConfig.phone/address` injection into `options.company`; the VM still applies the `receipt` fallback internally, so no regression). `receiptConfig` retained only where still used (Luxury terms).
+
+Verification:
+
+* typecheck clean; lint 0 errors (pre-existing `<img>` warnings); build succeeded; `next-env.d.ts` clean.
+* `verify-invoice-print-view-model.js` rewritten + ok: company businessName/taxNumber/phone/email/website win over old `printCompanyInfo`; empty company → printInfo fallback; empty both → receipt fallback; email undefined when no source. `verify-print-company-info.js` still ok (schema unchanged). template/builder verifies ok. grep-safety clean.
+* `npm run test:print-export` not run to completion (known headless Playwright limitation; force-terminated). No artifacts tracked. Native browser QA recommended.
+
+Preserved keys: `receipt`, `printTemplateDefaults`, `invoicePrintBuilderConfig`, `printCompanyInfo` (fallback).
+
+Remaining gaps:
+
+* True DB address wiring (address1/2/postalCode → print) optional/not started.
+* Invoice message expansion / custom text blocks not started.
+* Native print QA recommended.
+* Advanced controls / drag-drop / PDF / Search & Print not started.
+
+---
+
+### Phase 19X.2-B — DB-Backed Company Contact Fields (backend/DB foundation)
+
+Status:
+
+* Completed (code). Backend/DB-only foundation for making Company Profile the master source of company contact data. **Migration NOT executed here** (requires a real DB; see below). No frontend/print/ViewModel/template changes.
+* From the Phase 19X.1 + 19X.2 audits (Option B, staged). This is phase **B** (backend + migration + serializer). Frontend wiring / precedence cleanup / duplicate-card removal are later phases C/D/E — NOT started.
+
+Changes:
+
+* Migration `backend/migrations/20260704000000-add-company-contact-fields.js` (new): additive, idempotent (`columnExists` guard), adds nullable columns to `companies` — `phone STRING(40)`, `email STRING(160)`, `website STRING(200)`. No defaults, no index, no backfill, no data rewrite. `down` removes the three columns if present. Mirrors the established pattern (e.g. `20260627010000-add-purchase-vat-fields.js`).
+* `backend/src/models/company.model.js`: added `phone`/`email`/`website` attributes (nullable; single-word names map cleanly under `underscored: true`).
+* `backend/src/routes/erp.routes.js` (`PATCH /settings`): extended the company whitelist loop to `["businessName","logo","currency","branchName","taxNumber","phone","email","website"]`. Existing fields unchanged; settings JSONB behavior and `/settings/by-key` untouched; permission (`settings.update`) unchanged.
+* `backend/src/controllers/auth.controller.js` (`serializeCompany`): added `email` and `website` (empty-string fallback); `phone` (already listed) now resolves from the real DB column. Flows through login/refresh/me/register/logout responses (single serialization point).
+
+Migration execution:
+
+* **Not run.** Command for a safe/dev DB: `cd backend && npm run db:migrate` (never against production). Columns are additive + nullable, so pre-migration the code is safe: existing rows serialize the new fields as `""` and the whitelist simply no-ops for absent values.
+
+Safety / compatibility:
+
+* `taxNumber` already backend-supported (unchanged). `printCompanyInfo` schema/key and the current print fallback remain the source for print contact data until the frontend phase (C). Existing frontend + print output unchanged. No financial/business logic; grep-safety clean on changed files. typecheck/lint/build green; syntax checks (`node -c`) pass on all changed backend files + migration; print verifies all ok.
+
+Remaining next phases:
+
+* 19X.2-C — frontend Company Profile wiring (send phone/email/website + fix TRN send; prefill from `printCompanyInfo`).
+* 19X.2-D — print ViewModel precedence cleanup (company-first identity; company→printInfo→receipt contact).
+* 19X.2-E — remove the duplicate Company Print Info card from Print & Invoice Design.
+* Invoice messages / custom text blocks / advanced features — not started.
+
+---
+
+### Phase 19X-Fix — Print Company Info Source + Email End-to-End
+
+Status:
+
+* Completed. Frontend-only. Added a new settings JSONB key `printCompanyInfo` (display-only company print contact/branding), saved via the generic `PUT /settings/by-key/printCompanyInfo`.
+* No backend/DB/migrations/API/new-endpoint changes; no company model columns; no `PATCH /settings` whitelist change; no localStorage; no custom text blocks; no financial/business logic; no ViewModel calculation changes.
+
+Problem addressed (from the Phase 19X audit):
+
+* Company `email` had no end-to-end source: the company DB model has no email/phone/website columns; templates never passed email into the ViewModel; `vm.company.email` was always empty even though the `footerEmail` toggle/slot exists.
+
+Storage / schema:
+
+* `features/printing/lib/print-company-info-config.ts` (new): `PrintCompanyInfoConfig` type + `DEFAULT_PRINT_COMPANY_INFO_CONFIG` + `sanitizePrintCompanyInfoConfig` (Zod-based; never throws; strips unknown keys; trims + caps lengths; clears invalid email/website rather than rejecting the payload; input `version` ignored, output normalized to 1). Fields: displayName, subtitle, phone, email, website, address, taxNumber.
+* `hooks/use-print-company-info.ts` (new): reads `settings.printCompanyInfo` (memoized-sanitized to avoid render loops), exposes `config / isSaving / error / saveConfig`; saves via by-key then `refreshSettings()`.
+* `scripts/verify-print-company-info.js` (new) + `package.json` script `verify:print-company-info`.
+
+ViewModel merge (`features/printing/lib/invoice-print-view-model.ts`):
+
+* Added display-only `subtitle` + `website` to the VM company type (and optional `website` to the options.company input type).
+* Layering (display-only): `printCompanyInfo` > company master > legacy `receipt` fallback, for displayName/subtitle/phone/email/website/address/trn. Existing `receipt` fallbacks preserved. No totals/VAT/item/payment changes. Import-free (keeps the plain-`require` VM verify script working).
+
+Settings context (`contexts/settings-context.tsx`):
+
+* Added `printCompanyInfo?: any` to `AppSettings` and to the JSON parse-keys list. PATCH whitelist NOT touched (writes go through by-key only).
+
+Settings UI (`app/[locale]/(dashboard)/settings/page.tsx`):
+
+* New "Company Print Info / بيانات الشركة للطباعة" card in the unified Print & Invoice Design tab, between Invoice Print Defaults and the Print Builder. Fields displayName/subtitle/phone/email/website/address/taxNumber, Save + Reset, helper text ("print display only; does not modify company master data; leave blank to use fallback"). Signature-guarded rehydrate effect (Phase 19U-Hotfix pattern) to avoid update loops. Builder live preview now merges the sanitized in-progress company info (`printCompanyInfo: previewCompanyInfo`).
+
+Rendering:
+
+* Email now flows end-to-end into all four templates' footer via the existing `footerEmail` field/slot — no template file changes needed. `website` and `subtitle` are stored (and merged into the VM) but NOT yet rendered in templates (reported as stored-but-not-rendered; future phase).
+
+Verification:
+
+* typecheck clean; lint 0 errors (pre-existing `<img>` warnings only); build succeeded; `next-env.d.ts` clean.
+* `verify-print-company-info.js` ok (default/fallback/unknown-key-strip/invalid-email+website-clear/length-cap/version-normalize); `verify-invoice-print-view-model.js` extended + ok (email sourced from printCompanyInfo; precedence; receipt fallback still works); template-config + builder-config verifies ok; financial-safety grep on changed files clean.
+* `npm run test:print-export` not run to completion (known headless Playwright `webServer`/browser limitation; run force-terminated). Added one smoke assertion (configured email renders in footer) + `printCompanyInfo` in the fixture; no artifacts tracked (gitignored). Native browser QA recommended.
+
+Preserved keys (unchanged): `receipt`, `printTemplateDefaults`, `invoicePrintBuilderConfig`.
+
+Remaining gaps:
+
+* Invoice message fields expansion (greeting/closing/footer/terms into A4 invoice templates) not started (Phase 19Y).
+* Custom text blocks not started (Phase 19Z).
+* `website`/`subtitle` stored but not rendered in templates yet.
+* Native/manual browser print QA still recommended.
+* Advanced controls / drag-drop / PDF / Search & Print not started.
+
+---
+
+### Phase 19W — Settings Print Tabs Consolidation
+
+Status:
+
+* Completed. UI-only Settings page consolidation (`app/[locale]/(dashboard)/settings/page.tsx`).
+* No backend/DB/migrations/API changes; no settings-key rename; no data migration; no deletion of saved settings; no localStorage; no new Builder controls; no company email/custom-text additions; no financial/business logic; no ViewModel/template output change.
+
+Problem:
+
+* Settings previously showed two competing tabs that both sounded like invoice design: `receipt` (تصميم الفاتورة / Receipt Layout) and `printBuilder` (مُصمّم الطباعة / Print Builder).
+
+Change (Option A — single visible tab, multiple existing keys):
+
+* Merged the `receipt` and `printBuilder` tabs into one tab `printDesign`, labelled **تصميم الطباعة والفواتير / Print & Invoice Design**. The `activeTab` union dropped `receipt` and `printBuilder` and gained `printDesign`; the two tab-list entries collapsed into one.
+* All three cards now render under the single `printDesign` tab, each still saving to its own existing key:
+  * POS / Receipt Print Options → `receipt` (relabelled heading + description to make clear it is POS/thermal receipt + messages, not A4 invoice design; card body/toggles/save unchanged).
+  * Invoice Print Defaults → `printTemplateDefaults` (unchanged).
+  * Invoice Print Builder → `invoicePrintBuilderConfig` (unchanged; toggles, theme presets, live preview, reset, save all intact).
+* Card physical order was intentionally preserved (POS/Receipt, then Invoice Print Defaults directly above the Print Builder) to avoid a risky large block relocation; the POS/Receipt description points to the invoice templates below it. Invoice Print Defaults and Print Builder remain adjacent/grouped.
+* No external deep-links referenced the old `receipt`/`printBuilder` tab ids (grep-verified), so no navigation callers needed updating.
+
+Verification:
+
+* typecheck clean; lint 0 errors (pre-existing `<img>` warnings only); build succeeded; `next-env.d.ts` clean.
+* `verify-invoice-print-view-model.js`, `verify-print-template-config.js`, `verify-print-builder-config.js` → all ok; financial-safety grep on the changed file clean (only pre-existing payment-method *settings* labels, no calculation logic).
+* `npm run test:print-export` not run to completion in this headless environment (Playwright `webServer`/browser dependent; the run was force-terminated). No artifacts tracked (gitignored). Native browser QA recommended: one clear print/invoice design tab; Invoice Print Defaults sits with the Builder; Builder toggles + preview work; POS/receipt settings still accessible and clearly labelled; save + refresh persists `receipt`, `printTemplateDefaults`, and `invoicePrintBuilderConfig`.
+
+Remaining gaps:
+
+* Company print info + messages (incl. missing company email) / custom text blocks not started (Phase 19X).
+* Native/manual browser print QA still recommended.
+* Builder advanced controls / drag-drop / PDF / Search & Print not started.
+
+---
+
 ### Phase 19V-Fix — CSP Upload Image Origin
 
 Status:
@@ -1616,10 +1828,37 @@ For print work, future verification should include:
 Updated by AI during:
 
 ```text
-Phase 19V-Fix — CSP Upload Image Origin
-(follows 19U-Hotfix + 19V audit; latest feature phase: 19T — Print Builder Theme Presets.
-verify checks pass: VM + template + builder configs; build ok. print-export E2E not run in
-this headless environment — server/browser dependent. Next: 19W tab consolidation.)
+Phase 19X.2-G — Live Company Data in Invoice Preview
+(follows 19X.2-F. Fixed the Settings builder preview to use LIVE company data via a memoized
+livePreviewCompany — precedence Company Profile form state > auth company > FIXTURE_COMPANY demo
+fallback — instead of the static FIXTURE_COMPANY. Fixture still supplies demo invoice/items/totals;
+builder toggles/theme/template stay live; identity company-first (printInfo cannot override).
+Single-file frontend fix (settings/page.tsx); no backend/DB/API; no financial logic.
+typecheck/lint/build ok; print verifies pass. print-export E2E not run (headless limitation).
+Next: 19Y invoice messages — not started.)
+
+Previous marker:
+Phase 19X.2-F — Company Address Wiring
+(follows 19X.2-C/D/E. Wired official company address (existing DB columns country/city/region/
+address1/address2/postalCode/commercialRegister) into Company Profile + print. Extended the
+PATCH /settings whitelist with those existing columns (no migration); settings-context forwards them;
+new Official Company Address UI section; VM formats company address (structured DB > printCompanyInfo.address
+> receipt.address); PrintCompany + 4 templates + sales caller pass structured address. EGYPT = country,
+not full address. Frontend + 1-line backend whitelist; no new columns/migration/data deletion.
+typecheck/lint/build ok; node -c ok; VM verify extended + all print verifies pass. print-export E2E
+not run (headless limitation). Next: 19Y invoice messages — not started.)
+
+Previous marker:
+Phase 19X.2-C/D/E — Company Profile Contact Wiring + Print Source Cleanup
+(follows 19X.2-B; dev migration applied. Company Profile now edits/saves phone/email/website + TRN
+persistence fix via PATCH /settings; auth/PrintCompany/AppSettings types gained phone/email/website;
+sales print caller + all four templates pass DB company contact into the VM (removed receiptConfig
+injection). ViewModel precedence: identity company-only (printCompanyInfo.displayName/taxNumber
+ignored), contact company→printCompanyInfo→receipt. Removed the duplicate Company Print Info card;
+printCompanyInfo key/schema kept as fallback. Frontend-only; no backend/DB/API changes; no data
+deletion. typecheck/lint/build ok; VM verify rewritten (company-wins + fallbacks) + all print
+verifies pass. print-export E2E not run (headless limitation). Next: optional DB address wiring /
+19Y invoice messages — not started.)
 ```
 
 After this file is committed, future agents must update this section when they complete a phase.

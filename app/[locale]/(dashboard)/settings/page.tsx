@@ -36,6 +36,7 @@ import { useErp } from "@/contexts/erp-context";
 import { useAppSettings, type Branch, type AppSettings } from "@/contexts/settings-context";
 import { usePrintTemplateDefaults } from "@/hooks/use-print-template-defaults";
 import { useInvoicePrintBuilderConfig } from "@/hooks/use-invoice-print-builder-config";
+import { usePrintCompanyInfo } from "@/hooks/use-print-company-info";
 import type { InvoicePrintOptions, InvoicePrintTemplateId } from "@/features/printing/lib/invoice-print-options";
 import type { InvoicePrintBuilderConfig } from "@/features/printing/lib/print-builder-config";
 import { InvoiceDocument } from "@/features/printing/components/InvoiceDocument";
@@ -91,7 +92,7 @@ export default function SettingsPage() {
   const canDeactivateBranches = hasPermission("branches.deactivate");
   const canReactivateBranches = hasPermission("branches.reactivate");
 
-  const [activeTab, setActiveTab] = useState<"company" | "branches" | "payments" | "receipt" | "printBuilder" | "system" | "barcode">("company");
+  const [activeTab, setActiveTab] = useState<"company" | "branches" | "payments" | "printDesign" | "system" | "barcode">("company");
   const [message, setMessage] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -101,6 +102,18 @@ export default function SettingsPage() {
   const [logoFailed, setLogoFailed] = useState(false);
   const [currency, setCurrency] = useState("AED");
   const [taxNumber, setTaxNumber] = useState("");
+  // Phase 19X.2-C — DB-backed company contact fields.
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [website, setWebsite] = useState("");
+  // Phase 19X.2-F — official company address fields (existing DB columns).
+  const [country, setCountry] = useState("");
+  const [city, setCity] = useState("");
+  const [region, setRegion] = useState("");
+  const [address1, setAddress1] = useState("");
+  const [address2, setAddress2] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  const [commercialRegister, setCommercialRegister] = useState("");
   const [savingCompany, setSavingCompany] = useState(false);
 
   // --- System Settings State ---
@@ -176,6 +189,10 @@ export default function SettingsPage() {
   const [printDefaultsForm, setPrintDefaultsForm] = useState<InvoicePrintOptions>(savedPrintDefaults);
   const [savingPrintDefaults, setSavingPrintDefaults] = useState(false);
 
+  // Phase 19X.2-C — company contact fields now live on the company master (DB).
+  // printCompanyInfo is read only as a legacy prefill fallback (see load effect).
+  const { config: savedCompanyInfo } = usePrintCompanyInfo();
+
   // Phase 19R — Print Builder MVP UI toggles and hooks
   const { config: savedBuilderConfig, save: saveBuilderConfig } = useInvoicePrintBuilderConfig();
   const [selectedTemplateId, setSelectedTemplateId] = useState<InvoicePrintTemplateId>("luxuryGold");
@@ -190,6 +207,32 @@ export default function SettingsPage() {
   useEffect(() => {
     setBuilderForm((prev) => (JSON.stringify(prev) === savedBuilderConfigSignature ? prev : savedBuilderConfig));
   }, [savedBuilderConfig, savedBuilderConfigSignature]);
+
+  // Phase 19X.2-G — LIVE company data for the print preview. Precedence:
+  // Company Profile form state (user may be editing) > auth company/session >
+  // static fixture (demo fallback only). Derived via useMemo (no setState) so the
+  // preview reflects the current company without stale fixture data or render loops.
+  // The demo invoice/items/customer/totals stay from FIXTURE_INVOICE.
+  const livePreviewCompany = useMemo(() => ({
+    ...FIXTURE_COMPANY,
+    name: businessName || company?.businessName || FIXTURE_COMPANY.name,
+    logo: logo || company?.logo || FIXTURE_COMPANY.logo,
+    branch: company?.branchName || FIXTURE_COMPANY.branch,
+    currency: currency || company?.currency || FIXTURE_COMPANY.currency,
+    trn: taxNumber || company?.taxNumber || FIXTURE_COMPANY.trn,
+    phone: phone || company?.phone || undefined,
+    email: email || company?.email || undefined,
+    website: website || company?.website || undefined,
+    country: country || company?.country || undefined,
+    city: city || company?.city || undefined,
+    region: region || company?.region || undefined,
+    address1: address1 || company?.address1 || undefined,
+    address2: address2 || company?.address2 || undefined,
+    postalCode: postalCode || company?.postalCode || undefined,
+  }), [
+    businessName, logo, currency, taxNumber, phone, email, website,
+    country, city, region, address1, address2, postalCode, company,
+  ]);
 
   const handleToggleSection = (sectionKey: string, checked: boolean) => {
     setBuilderForm(prev => {
@@ -272,6 +315,19 @@ export default function SettingsPage() {
       setLogo(settings.logo || company?.logo || "");
       setCurrency(normalizeCurrencyCode(settings.currency || company?.currency || "AED"));
       setTaxNumber(toEnglishDigits(company?.taxNumber || ""));
+      // Contact fields: DB company master first; prefill from legacy printCompanyInfo
+      // when the DB field is empty (frontend-assisted migration — no DB backfill).
+      setPhone(toEnglishDigits(company?.phone || savedCompanyInfo.phone || ""));
+      setEmail(company?.email || savedCompanyInfo.email || "");
+      setWebsite(company?.website || savedCompanyInfo.website || "");
+      // Official address fields (existing DB columns via the auth company).
+      setCountry(company?.country || "");
+      setCity(company?.city || "");
+      setRegion(company?.region || "");
+      setAddress1(company?.address1 || "");
+      setAddress2(company?.address2 || "");
+      setPostalCode(toEnglishDigits(company?.postalCode || ""));
+      setCommercialRegister(toEnglishDigits(company?.commercialRegister || ""));
       setVatRate(toEnglishDigits(settings.vatRate ?? 5));
       setDecimalPrecision(toEnglishDigits(settings.decimalPrecision ?? 2));
       setLowStockThreshold(toEnglishDigits(settings.lowStockThreshold ?? 3));
@@ -303,7 +359,7 @@ export default function SettingsPage() {
         }));
       }
     }
-  }, [settings, company]);
+  }, [settings, company, savedCompanyInfo]);
 
   useEffect(() => {
     setLogoFailed(false);
@@ -413,19 +469,29 @@ export default function SettingsPage() {
   const handleSaveCompany = async () => {
     setSavingCompany(true);
     try {
-      const success = await updateSettings({
-        businessName: businessName.trim(),
-        logo,
-        currency: normalizeCurrencyCode(currency.trim())
-      });
-
-      // Update auth context company info as well
-      updateCompany({
+      // taxNumber/phone/email/website + address fields are DB-backed company
+      // columns; send them through PATCH /settings (backend whitelist —
+      // Phase 19X.2-B/F).
+      const companyFields = {
         businessName: businessName.trim(),
         logo,
         currency: normalizeCurrencyCode(currency.trim()),
-        taxNumber: taxNumber.trim()
-      });
+        taxNumber: taxNumber.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
+        website: website.trim(),
+        country: country.trim(),
+        city: city.trim(),
+        region: region.trim(),
+        address1: address1.trim(),
+        address2: address2.trim(),
+        postalCode: postalCode.trim(),
+        commercialRegister: commercialRegister.trim()
+      };
+      const success = await updateSettings(companyFields);
+
+      // Update auth context company info as well (immediate session refresh).
+      updateCompany(companyFields);
 
       if (success) {
         toast.success(rtl ? "تم حفظ بيانات الشركة بنجاح" : "Company profile saved successfully");
@@ -736,8 +802,7 @@ export default function SettingsPage() {
           { id: "company", label: rtl ? "بيانات الشركة" : "Company Profile", icon: Building2 },
           { id: "branches", label: rtl ? "إدارة الفروع" : "Branches Manager", icon: Warehouse },
           { id: "payments", label: rtl ? "طرق الدفع" : "Payment Methods", icon: CreditCard },
-          { id: "receipt", label: rtl ? "تصميم الفاتورة" : "Receipt Layout", icon: Receipt },
-          { id: "printBuilder", label: rtl ? "مُصمّم الطباعة" : "Print Builder", icon: Settings2 },
+          { id: "printDesign", label: rtl ? "تصميم الطباعة والفواتير" : "Print & Invoice Design", icon: Receipt },
           { id: "system", label: rtl ? "إعدادات النظام" : "System Settings", icon: Sliders },
           { id: "barcode", label: rtl ? "إعدادات الباركود" : "Barcode Settings", icon: Tag }
         ].map((tab) => {
@@ -843,6 +908,117 @@ export default function SettingsPage() {
                   </option>
                 ))}
               </select>
+            </label>
+
+            <label className="block">
+              <span className="label-base">{rtl ? "رقم الهاتف" : "Phone"}</span>
+              <input
+                className="input-base mt-1"
+                dir="ltr"
+                inputMode="tel"
+                value={toEnglishDigits(phone)}
+                onChange={(e) => setPhone(toEnglishDigits(e.target.value))}
+              />
+            </label>
+
+            <label className="block">
+              <span className="label-base">{rtl ? "البريد الإلكتروني" : "Email"}</span>
+              <input
+                className="input-base mt-1"
+                dir="ltr"
+                type="email"
+                value={email}
+                placeholder="name@company.com"
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </label>
+
+            <label className="block">
+              <span className="label-base">{rtl ? "الموقع الإلكتروني" : "Website"}</span>
+              <input
+                className="input-base mt-1"
+                dir="ltr"
+                value={website}
+                placeholder="https://example.com"
+                onChange={(e) => setWebsite(e.target.value)}
+              />
+            </label>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-navy-950/40 border border-slate-200 dark:border-slate-800/80 text-xs text-slate-500">
+            {rtl
+              ? "💡 بيانات الشركة هذه تُستخدم في طباعة الفواتير والعرض. لا تؤثر على أي مبالغ أو حسابات مالية."
+              : "💡 These company details are used for invoice printing and display. They do not affect any totals or financial data."}
+          </div>
+
+          {/* Phase 19X.2-F — official company address (existing DB columns) */}
+          <div className="border-t border-slate-100 dark:border-white/5 pt-4">
+            <h3 className="text-xs font-black text-navy-950 dark:text-white">{rtl ? "العنوان الرسمي للشركة" : "Official Company Address"}</h3>
+            <p className="mt-1 text-[10px] text-slate-400">
+              {rtl
+                ? "هذه البيانات هي العنوان الرسمي للشركة وتظهر في الطباعة والفواتير."
+                : "These fields are the official company address and appear in invoice/print output."}
+            </p>
+          </div>
+
+          <div className="grid gap-5 lg:grid-cols-2">
+            <label className="block">
+              <span className="label-base">{rtl ? "الدولة" : "Country"}</span>
+              <input
+                className="input-base mt-1"
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+              />
+            </label>
+            <label className="block">
+              <span className="label-base">{rtl ? "المدينة" : "City"}</span>
+              <input
+                className="input-base mt-1"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+              />
+            </label>
+            <label className="block">
+              <span className="label-base">{rtl ? "المنطقة" : "Region"}</span>
+              <input
+                className="input-base mt-1"
+                value={region}
+                onChange={(e) => setRegion(e.target.value)}
+              />
+            </label>
+            <label className="block">
+              <span className="label-base">{rtl ? "الرمز البريدي" : "Postal Code"}</span>
+              <input
+                className="input-base mt-1"
+                dir="ltr"
+                value={toEnglishDigits(postalCode)}
+                onChange={(e) => setPostalCode(toEnglishDigits(e.target.value))}
+              />
+            </label>
+            <label className="block lg:col-span-2">
+              <span className="label-base">{rtl ? "العنوان الأول" : "Address Line 1"}</span>
+              <input
+                className="input-base mt-1"
+                value={address1}
+                onChange={(e) => setAddress1(e.target.value)}
+              />
+            </label>
+            <label className="block lg:col-span-2">
+              <span className="label-base">{rtl ? "العنوان الثاني" : "Address Line 2"}</span>
+              <input
+                className="input-base mt-1"
+                value={address2}
+                onChange={(e) => setAddress2(e.target.value)}
+              />
+            </label>
+            <label className="block">
+              <span className="label-base">{rtl ? "السجل التجاري" : "Commercial Register"}</span>
+              <input
+                className="input-base mt-1"
+                dir="ltr"
+                value={toEnglishDigits(commercialRegister)}
+                onChange={(e) => setCommercialRegister(toEnglishDigits(e.target.value))}
+              />
             </label>
           </div>
 
@@ -1115,16 +1291,16 @@ export default function SettingsPage() {
         </Card>
       )}
 
-      {/* 4. RECEIPT CUSTOMIZATION */}
-      {activeTab === "receipt" && (
+      {/* 4a. POS / RECEIPT PRINT OPTIONS (receipt key) — Phase 19W */}
+      {activeTab === "printDesign" && (
         <Card className="p-5 lg:p-6 space-y-6 animate-in fade-in duration-200">
           <div className="flex items-center gap-3">
             <div className="grid h-10 w-10 place-items-center rounded-2xl bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
               <Receipt className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="font-black text-navy-950 dark:text-white">{t("receiptTitle")}</h2>
-              <p className="text-xs text-slate-500">{t("receiptDesc")}</p>
+              <h2 className="font-black text-navy-950 dark:text-white">{rtl ? "إعدادات إيصال البيع / الكاشير" : "POS / Receipt Print Options"}</h2>
+              <p className="text-xs text-slate-500">{rtl ? "رسائل وإعدادات إيصال نقطة البيع الحراري (منفصلة عن قوالب طباعة الفاتورة A4 أدناه)." : "Messages and POS/thermal sale-receipt options (separate from the A4 invoice print templates below)."}</p>
             </div>
           </div>
 
@@ -1244,7 +1420,7 @@ export default function SettingsPage() {
       )}
 
       {/* 4b. INVOICE PRINT DEFAULTS (Phase 19G) */}
-      {activeTab === "receipt" && (
+      {activeTab === "printDesign" && (
         <Card className="p-5 lg:p-6 space-y-6 animate-in fade-in duration-200">
           <div className="flex items-center gap-3">
             <div className="grid h-10 w-10 place-items-center rounded-2xl bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
@@ -1318,7 +1494,7 @@ export default function SettingsPage() {
       )}
 
       {/* 4c. INVOICE PRINT BUILDER (Phase 19R) */}
-      {activeTab === "printBuilder" && (
+      {activeTab === "printDesign" && (
         <Card className="p-5 lg:p-6 space-y-6 animate-in fade-in duration-200">
           <div className="flex items-center gap-3">
             <div className="grid h-10 w-10 place-items-center rounded-2xl bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
@@ -1493,7 +1669,7 @@ export default function SettingsPage() {
                       <InvoiceDocument
                         templateId={selectedTemplateId}
                         invoice={FIXTURE_INVOICE}
-                        company={FIXTURE_COMPANY}
+                        company={livePreviewCompany}
                         labels={FIXTURE_LABELS}
                         settings={{
                           ...settings,
@@ -1510,7 +1686,7 @@ export default function SettingsPage() {
                       <InvoiceDocument
                         templateId={selectedTemplateId}
                         invoice={FIXTURE_INVOICE}
-                        company={FIXTURE_COMPANY}
+                        company={livePreviewCompany}
                         labels={FIXTURE_LABELS}
                         settings={{
                           ...settings,

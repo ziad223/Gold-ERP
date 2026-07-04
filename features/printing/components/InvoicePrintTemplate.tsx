@@ -24,6 +24,15 @@ export interface PrintCompany {
   branch?: string;
   trn?: string;
   currency: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  country?: string;
+  city?: string;
+  region?: string;
+  address1?: string;
+  address2?: string;
+  postalCode?: string;
 }
 
 export interface InvoicePrintLabels {
@@ -504,8 +513,15 @@ export function InvoicePrintTemplate({
       businessName: company.name,
       logo: company.logo,
       taxNumber: company.trn,
-      phone: receiptConfig.phone,
-      address: receiptConfig.address,
+      phone: company.phone,
+      email: company.email,
+      website: company.website,
+      country: company.country,
+      city: company.city,
+      region: company.region,
+      address1: company.address1,
+      address2: company.address2,
+      postalCode: company.postalCode,
     },
     settings,
     locale,

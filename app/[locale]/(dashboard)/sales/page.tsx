@@ -134,6 +134,15 @@ export default function SalesPage() {
           branch: company?.branchName,
           trn: company?.taxNumber,
           currency,
+          phone: company?.phone,
+          email: company?.email,
+          website: company?.website,
+          country: company?.country,
+          city: company?.city,
+          region: company?.region,
+          address1: company?.address1,
+          address2: company?.address2,
+          postalCode: company?.postalCode,
         }}
         cashierName={[user?.firstName, user?.lastName].filter(Boolean).join(" ")}
         locale={locale}

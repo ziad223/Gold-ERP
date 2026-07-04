@@ -79,4 +79,13 @@ export const FIXTURE_LABELS: InvoicePrintTemplateProps["labels"] = {
 export const FIXTURE_SETTINGS = {
   currency: "AED",
   decimalPrecision: 2,
+  // Phase 19X-Fix: display-only company print info (notably the previously
+  // unsourced company email) merged into the print ViewModel.
+  printCompanyInfo: {
+    version: 1,
+    email: "print@fixture.example",
+    phone: "+971500000000",
+    address: "Fixture Street, Dubai",
+    taxNumber: "999888777",
+  },
 };

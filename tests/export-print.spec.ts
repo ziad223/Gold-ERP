@@ -187,6 +187,24 @@ test.describe("Language mode smoke", () => {
   });
 });
 
+/* ---------- 2b. Company print info (Phase 19X-Fix) ---------- */
+
+test.describe("Company print info", () => {
+  test("configured company email renders in the invoice footer", async ({
+    page,
+  }) => {
+    await page.goto(FIXTURE_PAGE, { waitUntil: "domcontentloaded" });
+    const section = page.locator(
+      '[data-testid="print-fixture-luxuryGold-bilingual"]',
+    );
+    await expect(section).toBeVisible();
+    const text = await section.textContent();
+    // Email is sourced from settings.printCompanyInfo (previously unsourced) and
+    // rendered because the footerEmail field defaults to visible.
+    expect(text).toContain("print@fixture.example");
+  });
+});
+
 /* ---------- 3. Invalid template fallback ---------- */
 
 test.describe("Invalid template fallback", () => {
