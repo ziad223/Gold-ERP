@@ -20,13 +20,32 @@ import { useCoreErpData } from "@/hooks/use-core-erp-data";
 import { formatCurrency } from "@/lib/utils";
 import { toEnglishDigits } from "@/lib/formatters/numbers";
 import { JournalPreview } from "@/features/accounting/components/JournalPreview";
-import { ReceiptPreview } from "@/features/sales/components/ReceiptPreview";
+import { toast } from "sonner";
+import { InvoiceDocument } from "@/features/printing/components/InvoiceDocument";
+import { InvoicePrintOptionsDialog } from "@/features/printing/components/InvoicePrintOptionsDialog";
+import { renderPrintDocument } from "@/features/printing/components/render-print-document";
+import { printHtmlDocument } from "@/lib/print/print-service";
+import {
+  buildTemplateConfigFromPrintOptions,
+  getPrintDocumentTitleOverride,
+  type InvoicePrintOptions,
+} from "@/features/printing/lib/invoice-print-options";
+
+// Phase 19Y.3 — POS print dialog defaults to the Thermal template (runtime only;
+// not persisted). Module-level constant so the dialog's reseed effect has a
+// stable reference and never resets the user's in-dialog template choice.
+const POS_PRINT_DEFAULTS: InvoicePrintOptions = {
+  documentMode: "auto",
+  templateId: "thermal",
+  languageMode: "bilingual",
+};
 
 export default function PosPage() {
   const t = useTranslations("POS");
   const filtersT = useTranslations("Filters");
   const common = useTranslations("Common");
   const inventoryT = useTranslations("Inventory");
+  const printT = useTranslations("PrintExport");
   const locale = useLocale();
   const rtl = locale === "ar";
   const { company, activeBranch, activeBranchId, user } = useAuth();
@@ -51,6 +70,77 @@ export default function PosPage() {
   const [method, setMethod] = useState("card");
   const [completed, setCompleted] = useState<string | null>(null);
   const [completedInvoice, setCompletedInvoice] = useState<Invoice | null>(null);
+
+  // Phase 19Y.3 — POS print dialog. Company data is built from the auth company
+  // (Company Profile), same source as the Sales print. Display-only: printing
+  // uses the server-returned invoice totals via the ViewModel and never
+  // re-submits the order or recalculates anything.
+  const printCompany = useMemo(() => ({
+    name: company?.businessName ?? settings?.businessName ?? common("appName"),
+    logo: company?.logo || settings?.logo,
+    branch: company?.branchName,
+    trn: company?.taxNumber,
+    currency: company?.currency ?? settings?.currency ?? "AED",
+    phone: company?.phone,
+    email: company?.email,
+    website: company?.website,
+    country: company?.country,
+    city: company?.city,
+    region: company?.region,
+    address1: company?.address1,
+    address2: company?.address2,
+    postalCode: company?.postalCode,
+  }), [company, settings]);
+
+  const printLabels = {
+    invoice: printT("invoice"),
+    invoiceNo: t("invoiceNo"),
+    uuid: printT("uuid"),
+    date: t("date"),
+    branch: t("branch"),
+    trn: printT("trn"),
+    customer: t("customer"),
+    cashier: t("cashier"),
+    item: t("item"),
+    assetId: printT("id"),
+    description: t("item"),
+    weight: t("weight"),
+    karat: printT("karat"),
+    qty: t("qty"),
+    price: t("rate"),
+    makingCharge: t("makingCharge"),
+    stoneValue: t("stoneValue"),
+    discount: t("discount"),
+    subtotal: t("subtotal"),
+    vat: t("vatAmount"),
+    total: t("total"),
+    payment: t("payment"),
+    remaining: printT("remaining"),
+    notes: printT("notes"),
+    qr: printT("qr"),
+  };
+
+  const printInvoice = (invoice: Invoice, options: InvoicePrintOptions) => {
+    const mappedPaperSize = options.templateId === "thermal" ? "80mm" : "A4";
+    const html = renderPrintDocument(
+      <InvoiceDocument
+        templateId={options.templateId}
+        invoice={invoice}
+        templateConfig={buildTemplateConfigFromPrintOptions(options)}
+        documentTitleOverride={getPrintDocumentTitleOverride(options.documentMode)}
+        company={printCompany}
+        cashierName={[user?.firstName, user?.lastName].filter(Boolean).join(" ")}
+        locale={locale}
+        labels={printLabels}
+        settings={settings}
+      />,
+      { documentType: "invoice", paperSize: mappedPaperSize, title: `${printT("printInvoice")} ${invoice.invoiceNumber || invoice.id}`, locale },
+    );
+    const result = printHtmlDocument(html, { documentType: "invoice", paperSize: mappedPaperSize, title: invoice.invoiceNumber || invoice.id, locale });
+    if (!result.ok) {
+      toast.error(result.errorCode === "popup-blocked" ? printT("popupBlocked") : printT("printFailed"));
+    }
+  };
 
   // Qty selector states
   const [selectedProductForQty, setSelectedProductForQty] = useState<Product | null>(null);
@@ -1294,20 +1384,22 @@ export default function PosPage() {
         </Card>
       </div>
 
+      {/* Phase 19Y.3 — POS post-checkout print dialog: template selector + live
+          preview, Thermal by default. Opens only after postInvoice succeeded and
+          completedInvoice is set; print/close never re-submit or mutate the order. */}
       {completedInvoice && (
-        <Modal
+        <InvoicePrintOptionsDialog
           open={!!completedInvoice}
+          invoice={completedInvoice}
+          locale={locale}
+          initialOptions={POS_PRINT_DEFAULTS}
           onClose={() => setCompletedInvoice(null)}
-          title={t("receiptPreview")}
-          description=""
-        >
-          <ReceiptPreview
-            invoice={completedInvoice}
-            companyName={company?.businessName || "DARFUS Jewellery"}
-            cashierName={user?.firstName ? `${user.firstName} ${user.lastName}` : "Cashier Admin"}
-            onClose={() => setCompletedInvoice(null)}
-          />
-        </Modal>
+          onPrint={printInvoice}
+          showPreview
+          previewCompany={printCompany}
+          previewSettings={settings}
+          previewLabels={printLabels}
+        />
       )}
 
       {/* Save Draft Modal */}

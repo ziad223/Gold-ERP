@@ -1310,36 +1310,44 @@ export default function SettingsPage() {
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <label className="block">
+            <label className="block" htmlFor="receipt-welcome-message">
               <span className="label-base">{t("welcomeMessage")}</span>
               <input
+                id="receipt-welcome-message"
+                name="receipt-welcome-message"
                 className="input-base mt-1"
                 value={receiptForm.welcomeMessage}
                 placeholder={t("welcomeMessagePh")}
                 onChange={(e) => setReceiptForm(prev => ({ ...prev, welcomeMessage: e.target.value }))}
               />
             </label>
-            <label className="block">
+            <label className="block" htmlFor="receipt-header-note">
               <span className="label-base">{t("headerNote")}</span>
               <input
+                id="receipt-header-note"
+                name="receipt-header-note"
                 className="input-base mt-1"
                 value={receiptForm.headerNote}
                 placeholder={t("headerNotePh")}
                 onChange={(e) => setReceiptForm(prev => ({ ...prev, headerNote: e.target.value }))}
               />
             </label>
-            <label className="block">
+            <label className="block" htmlFor="receipt-footer-message">
               <span className="label-base">{t("footerMessage")}</span>
               <input
+                id="receipt-footer-message"
+                name="receipt-footer-message"
                 className="input-base mt-1"
                 value={receiptForm.footerMessage}
                 placeholder={t("footerMessagePh")}
                 onChange={(e) => setReceiptForm(prev => ({ ...prev, footerMessage: e.target.value }))}
               />
             </label>
-            <label className="block">
+            <label className="block" htmlFor="receipt-terms-message">
               <span className="label-base">{t("termsMessage")}</span>
               <input
+                id="receipt-terms-message"
+                name="receipt-terms-message"
                 className="input-base mt-1"
                 value={receiptForm.termsMessage}
                 placeholder={t("termsMessagePh")}
@@ -1350,40 +1358,15 @@ export default function SettingsPage() {
 
           <div className="border-t border-slate-100 dark:border-white/5 pt-4">
             <h3 className="text-xs font-black text-navy-950 dark:text-white">{rtl ? "خيارات إيصال نقطة البيع" : "POS Receipt-specific Options"}</h3>
+            <p className="mt-1 text-[10px] text-slate-400">{rtl ? "اسم الشركة والشعار ورقم الهاتف والرقم الضريبي والعنوان يتم إدارتهم من بيانات الشركة." : "Company name, logo, phone, TRN, and address are managed from Company Profile."}</p>
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <label className="block">
-              <span className="label-base">{t("receiptPhone")}</span>
-              <input
-                className="input-base mt-1"
-                inputMode="tel"
-                dir="ltr"
-                value={toEnglishDigits(receiptForm.phone)}
-                onChange={(e) => setReceiptForm(prev => ({ ...prev, phone: toEnglishDigits(e.target.value) }))}
-              />
-            </label>
-            <label className="block">
-              <span className="label-base">{t("vatNumber")}</span>
-              <input
-                className="input-base mt-1"
-                inputMode="numeric"
-                dir="ltr"
-                value={toEnglishDigits(receiptForm.vatNumber)}
-                onChange={(e) => setReceiptForm(prev => ({ ...prev, vatNumber: toEnglishDigits(e.target.value) }))}
-              />
-            </label>
-            <label className="block lg:col-span-2">
-              <span className="label-base">{t("receiptAddress")}</span>
-              <input
-                className="input-base mt-1"
-                value={receiptForm.address}
-                onChange={(e) => setReceiptForm(prev => ({ ...prev, address: e.target.value }))}
-              />
-            </label>
-            <label className="block">
+            <label className="block" htmlFor="receipt-paper-size">
               <span className="label-base">{rtl ? "حجم الورق" : "Paper Size"}</span>
               <select
+                id="receipt-paper-size"
+                name="receipt-paper-size"
                 className="input-base mt-1 bg-input text-foreground border-border"
                 value={receiptForm.paperSize}
                 onChange={(e) => setReceiptForm(prev => ({ ...prev, paperSize: e.target.value as any }))}
@@ -1393,9 +1376,11 @@ export default function SettingsPage() {
                 <option value="A5" className="bg-panel text-foreground">A5</option>
               </select>
             </label>
-            <label className="block">
+            <label className="block" htmlFor="receipt-layout">
               <span className="label-base">{rtl ? "تنسيق الطباعة" : "Print Layout"}</span>
               <select
+                id="receipt-layout"
+                name="receipt-layout"
                 className="input-base mt-1 bg-input text-foreground border-border"
                 value={receiptForm.layout}
                 onChange={(e) => setReceiptForm(prev => ({ ...prev, layout: e.target.value as any }))}
@@ -1411,7 +1396,6 @@ export default function SettingsPage() {
             {renderToggle(t("showLogo"), receiptForm.showLogo, (v) => setReceiptForm(prev => ({ ...prev, showLogo: v })))}
             {renderToggle(t("showCashier"), receiptForm.showCashier, (v) => setReceiptForm(prev => ({ ...prev, showCashier: v })))}
             {renderToggle(t("showBarcode"), receiptForm.showBarcode, (v) => setReceiptForm(prev => ({ ...prev, showBarcode: v })))}
-            {renderToggle(t("showVatNumber"), receiptForm.showVatNumber, (v) => setReceiptForm(prev => ({ ...prev, showVatNumber: v })))}
             {renderToggle(rtl ? "عرض اسم الشركة" : "Show Company Name", receiptForm.showCompanyName ?? true, (v) => setReceiptForm(prev => ({ ...prev, showCompanyName: v })))}
             {renderToggle(rtl ? "عرض الرقم الضريبي" : "Show Tax Number", receiptForm.showTaxNumber ?? true, (v) => setReceiptForm(prev => ({ ...prev, showTaxNumber: v })))}
             {renderToggle(rtl ? "عرض عنوان الشركة" : "Show Company Address", receiptForm.showAddress ?? true, (v) => setReceiptForm(prev => ({ ...prev, showAddress: v })))}

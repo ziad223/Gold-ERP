@@ -54,6 +54,13 @@ export function ReceiptPrintTemplate({ invoice, company, cashierName, locale, la
   const currency = settings?.currency ?? company.currency ?? "AED";
   const money = (value: number | undefined) => formatAppMoney(Number(value ?? 0), currency, precision);
 
+  // Phase 19Y.2: company master data (from Company Profile) first; the legacy
+  // receipt.phone/address/vatNumber values are used only as a fallback.
+  const companyAddress = [company.address1, company.address2, company.city, company.region, company.country, company.postalCode]
+    .filter(Boolean).join(", ") || receiptConfig.address;
+  const companyPhone = company.phone || receiptConfig.phone;
+  const companyTrn = company.trn || receiptConfig.vatNumber;
+
   const subtotal = invoice.subtotal ?? invoice.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const paid = invoice.paidAmount ?? invoice.paymentSplits?.reduce((sum, payment) => sum + payment.amount, 0) ?? invoice.total;
   const remaining = invoice.remainingAmount ?? Math.max(invoice.total - paid, 0);
@@ -87,15 +94,15 @@ export function ReceiptPrintTemplate({ invoice, company, cashierName, locale, la
           <p className="print-subtitle">{labels.branch}: {toEnglishDigits(invoice.branch || company.branch || "-")}</p>
         )}
         <p className="print-subtitle">{labels.date}: {formattedDate}</p>
-        {showAddress && receiptConfig.address && (
-          <p className="print-subtitle" style={{ fontSize: "0.8rem" }}>{receiptConfig.address}</p>
+        {showAddress && companyAddress && (
+          <p className="print-subtitle" style={{ fontSize: "0.8rem" }}>{companyAddress}</p>
         )}
-        {showPhone && receiptConfig.phone && (
-          <p className="print-subtitle" style={{ fontSize: "0.8rem" }}>{toEnglishDigits(receiptConfig.phone)}</p>
+        {showPhone && companyPhone && (
+          <p className="print-subtitle" style={{ fontSize: "0.8rem" }}>{toEnglishDigits(companyPhone)}</p>
         )}
-        {receiptConfig.showVatNumber && receiptConfig.vatNumber && (
+        {showTaxNumber && companyTrn && (
           <p className="print-subtitle" style={{ fontSize: "0.8rem" }}>
-            {locale === "ar" ? "الرقم الضريبي" : "VAT No."}: {toEnglishDigits(receiptConfig.vatNumber)}
+            {locale === "ar" ? "الرقم الضريبي" : "VAT No."}: {toEnglishDigits(companyTrn)}
           </p>
         )}
       </header>

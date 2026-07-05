@@ -39,6 +39,13 @@ export function ReceiptPreview({
   const currency = company?.currency ?? settings?.currency ?? "AED"; // dynamic — from company settings
   const money = (val: number) => formatCurrency(val, currency, locale);
 
+  // Phase 19Y.2: company master data (Company Profile) first; the legacy
+  // receipt.phone/address/vatNumber values are only a fallback.
+  const companyAddress = [company?.address1, company?.address2, company?.city, company?.region, company?.country, company?.postalCode]
+    .filter(Boolean).join(", ") || config.address;
+  const companyPhone = company?.phone || config.phone;
+  const companyTrn = company?.taxNumber || config.vatNumber;
+
   const isInstallment = invoice.paymentMethod === "installment" || invoice.type === "installment";
 
   const handlePrint = () => {
@@ -48,7 +55,20 @@ export function ReceiptPreview({
     const html = renderPrintDocument(
       <ReceiptPrintTemplate
         invoice={invoice}
-        company={{ name: companyName, currency, logo: company?.logo || settings?.logo }}
+        company={{
+          name: companyName,
+          currency,
+          logo: company?.logo || settings?.logo,
+          branch: company?.branchName,
+          trn: company?.taxNumber,
+          phone: company?.phone,
+          address1: company?.address1,
+          address2: company?.address2,
+          city: company?.city,
+          region: company?.region,
+          country: company?.country,
+          postalCode: company?.postalCode,
+        }}
         cashierName={cashierName}
         locale={locale}
         labels={{
@@ -124,10 +144,10 @@ export function ReceiptPreview({
           <h2 className="text-lg font-black tracking-tight">{companyName}</h2>
           {config.headerNote && <p className="text-[11px] text-slate-500 mt-0.5">{config.headerNote}</p>}
           {config.welcomeMessage && <p className="text-xs font-semibold text-slate-700 mt-1">{config.welcomeMessage}</p>}
-          {config.address && <p className="text-[10px] text-slate-400 mt-1">{config.address}</p>}
-          {config.phone && <p className="text-[10px] text-slate-400">{config.phone}</p>}
-          {config.showVatNumber && config.vatNumber && (
-            <p className="text-[10px] text-slate-400">{rtl ? "الرقم الضريبي" : "VAT No."}: {config.vatNumber}</p>
+          {(config.showAddress !== false) && companyAddress && <p className="text-[10px] text-slate-400 mt-1">{companyAddress}</p>}
+          {(config.showPhone !== false) && companyPhone && <p className="text-[10px] text-slate-400">{companyPhone}</p>}
+          {(config.showTaxNumber !== false) && companyTrn && (
+            <p className="text-[10px] text-slate-400">{rtl ? "الرقم الضريبي" : "VAT No."}: {companyTrn}</p>
           )}
           <p className="text-xs text-slate-500 mt-1">
             {t("branch")}: {invoice.branch}

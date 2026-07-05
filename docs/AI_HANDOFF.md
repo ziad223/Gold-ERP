@@ -1352,6 +1352,56 @@ Remaining gaps:
 
 ---
 
+### Phase 19Y.3 — POS Print Dialog with Template Selector & Live Preview
+
+Status:
+
+* Completed. Frontend-only. After a successful POS checkout, a print dialog now opens with a template selector + live preview (Thermal default), reusing the existing print system.
+* No backend/DB/migration/API; no new settings key; no autoPrint/copies; no `defaultPosTemplate` persistence; no custom text blocks; no favicon; no POS submit/payment/stock/accounting/treasury changes; no totals recalculation. `ReceiptPrintTemplate`/`ReceiptPreview` files retained.
+
+Changes:
+
+* **`InvoicePrintOptionsDialog.tsx` (extended, backward-compatible):** added optional props `showPreview` / `previewCompany` / `previewSettings` / `previewLabels`. When `showPreview` is set, it renders a live `InvoiceDocument` (scaled: thermal at 80mm, A4 via `zoom:0.5`) reacting to the selected template/language/document-type. Sales passes none of these, so its behavior is unchanged (selectors + Print only). Added `id`/`name` to the three selects (`print-document-type` / `print-template` / `print-language`).
+* **`pos/page.tsx`:** replaced the post-checkout `ReceiptPreview` modal (Option 1) with `InvoicePrintOptionsDialog` opened on `completedInvoice` (set by the existing `postInvoice` success). `initialOptions = POS_PRINT_DEFAULTS` (module const: documentMode auto / templateId **thermal** / bilingual — stable ref so the dialog's reseed effect never resets the user's choice). Added a POS `printInvoice(invoice, options)` mirroring Sales (`InvoiceDocument` → `renderPrintDocument` → `printHtmlDocument`), a memoized `printCompany` (`PrintCompany` from the auth company / Company Profile), and `printLabels` (POS + PrintExport namespaces; all keys verified present in en/ar). `onPrint={printInvoice}`, `onClose` just clears `completedInvoice`.
+
+Behavior / safety:
+
+* Dialog opens only after `postInvoice` succeeded. `printInvoice` and the dialog **never call `postInvoice`** (verified: `postInvoice` only at the checkout handler line 814). Print/close do not mutate cart/order/payment/stock/accounting; no invoice is re-created. Preview + print render the server-returned `completedInvoice` via the ViewModel — no totals recalculation. Company data comes from the auth company (not `receipt.*`). Receipt messages still flow via the templates. `ReceiptPreview`/`ReceiptPrintTemplate` remain in the codebase (POS no longer mounts `ReceiptPreview`, but the files are intact for reuse/rollback).
+
+Verification:
+
+* typecheck clean; lint 0 errors (pre-existing `<img>` warnings; none in the two changed files); build succeeded; `next-env.d.ts` clean.
+* All print verifies pass (VM / template-config / builder-config / company-info); grep-safety clean (no new financial logic; the pre-existing display-only subtotal `reduce` in `ReceiptPrintTemplate`/`ReceiptPreview` was not touched); translation keys for the POS labels confirmed present in `messages/en.json` + `ar.json`.
+* Playwright not run (POS dialog isn't covered by the `/test/print-export` fixture spec; known headless limitation). Native POS print QA recommended.
+
+Remaining gaps: default POS template persistence not added; autoPrint/copies not added; `ReceiptPreview`/`ReceiptPrintTemplate` consolidation/removal deferred; custom text blocks not started; favicon deferred; closing/thank-you not added; native POS print QA recommended.
+
+---
+
+### Phase 19Y.2 — Receipt Settings Cleanup & POS Company Data Source
+
+Status:
+
+* Completed. Frontend-only. Removed the duplicate company-data inputs from the POS/Receipt settings card and made the POS receipt render company data from Company Profile first (receipt = legacy fallback).
+* No backend/DB/migration/API; no settings-key rename; no data deletion; no POS print dialog; no custom text blocks; no favicon; no POS submit/payment/stock/accounting changes; no totals recalculation.
+
+Changes:
+
+* **Settings UI** (`settings/page.tsx`): removed the `receipt.phone` / `receipt.vatNumber` / `receipt.address` inputs from the "POS Receipt-specific Options" area and the now-duplicate `showVatNumber` toggle (`showTaxNumber` already governs TRN visibility). Added helper text: "Company name, logo, phone, TRN, and address are managed from Company Profile." Kept messages (welcome/header/footer/terms), paperSize/layout, and all POS visibility toggles. `receiptForm` still holds phone/address/vatNumber/showVatNumber and `handleSaveReceipt` still persists them → **legacy values preserved, not deleted**.
+* **POS receipt data source** (`ReceiptPrintTemplate.tsx` + `ReceiptPreview.tsx`): both now resolve company **address / phone / TRN** as `company (Company Profile) → receipt.* fallback`. Address is formatted from structured company fields (`[address1, address2, city, region, country, postalCode].filter(Boolean).join(", ")`). `ReceiptPreview.handlePrint` passes the structured company fields into `ReceiptPrintTemplate`. TRN visibility now gated by `showTaxNumber` (was `showVatNumber`). Visibility toggles control visibility only, not the data source. Messages still from `receipt`.
+
+Not changed (reported): pre-existing display-only subtotal `reduce` in `ReceiptPrintTemplate` (`invoice.subtotal ?? items.reduce(...)`) and `ReceiptPreview` (`baseSubtotal = items.reduce(...)`) were left intact — totals/tax/total still come from the server `invoice`. Invoice-print VM precedence unchanged (already company-first from 19X.2). `receipt.phone/address/vatNumber` schema/parse untouched; `receipt` key not renamed; `ReceiptPrintTemplate` kept.
+
+Verification:
+
+* typecheck clean; lint 0 errors (pre-existing `<img>` warnings); build succeeded; `next-env.d.ts` clean.
+* All print verifies pass (VM / template-config / builder-config / company-info); grep-safety clean (only the pre-existing subtotal `reduce` + a helper-text string).
+* Playwright not run (POS receipt not covered by the fixture spec; known headless limitation). Native POS print QA recommended.
+
+Remaining gaps: POS print dialog (template selection + live preview) not started (19Y.3); custom text blocks not started; favicon deferred; closing/thank-you not added; native POS print QA recommended.
+
+---
+
 ### Phase 19Y-Fix — Invoice Message Fields Across Templates
 
 Status:
@@ -1855,6 +1905,27 @@ For print work, future verification should include:
 Updated by AI during:
 
 ```text
+Phase 19Y.3 — POS Print Dialog with Template Selector & Live Preview
+(follows 19Y.2 + receipt-form-field id/name a11y fix e038e44. POS post-checkout now opens
+InvoicePrintOptionsDialog (extended with optional showPreview/previewCompany/previewSettings/previewLabels
+— Sales unchanged) with a live InvoiceDocument preview, Thermal default; replaced the ReceiptPreview
+modal (files retained). POS printInvoice mirrors Sales (InvoiceDocument → renderPrintDocument →
+printHtmlDocument); company from auth/Company Profile; server totals only, no recalculation; print/close
+never call postInvoice or mutate order/payment/stock/accounting. Frontend-only; no backend/DB/API; no
+new settings key. typecheck/lint/build ok; all print verifies pass; POS label keys verified in en/ar.
+Next: custom text blocks / favicon / default-template persistence — not started.)
+
+Previous marker:
+Phase 19Y.2 — Receipt Settings Cleanup & POS Company Data Source
+(follows 19Y-Fix. Removed duplicate receipt.phone/vatNumber/address inputs + showVatNumber toggle
+from the POS/Receipt settings card (values kept as legacy fallback, not deleted); added a "managed from
+Company Profile" helper. ReceiptPrintTemplate + ReceiptPreview now use company (Company Profile) data
+first for address/phone/TRN, receipt.* only as fallback; address formatted from structured company
+fields; TRN gated by showTaxNumber. Pre-existing display-only subtotal reduce left intact; no totals
+recalculation. Frontend-only; no backend/DB/API; receipt key/schema preserved; ReceiptPrintTemplate kept.
+typecheck/lint/build ok; all print verifies pass. Next: 19Y.3 POS print dialog — not started.)
+
+Previous marker:
 Phase 19Y-Fix — Invoice Message Fields Across Templates
 (follows 19X.2-G. Added vm.messages (welcomeMessage/headerNote/footerMessage/termsMessage) from the
 existing receipt key; rendered across all four invoice templates gated by builder section toggles
