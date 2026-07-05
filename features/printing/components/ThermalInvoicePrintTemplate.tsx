@@ -171,6 +171,13 @@ export function ThermalInvoicePrintTemplate({
         </section>
       )}
 
+      {tpl.sections.welcomeMessage && vm.messages.welcomeMessage && (
+        <p style={{ textAlign: "center", whiteSpace: "pre-line", fontSize: "8.6px", fontWeight: 700, margin: "1mm 0" }}>{vm.messages.welcomeMessage}</p>
+      )}
+      {tpl.sections.headerNote && vm.messages.headerNote && (
+        <p style={{ textAlign: "center", whiteSpace: "pre-line", fontSize: "8.2px", margin: "0 0 1mm" }}>{vm.messages.headerNote}</p>
+      )}
+
       {tpl.sections.invoiceDetails && (
         <>
           <hr className="thermal-rule" />
@@ -263,6 +270,18 @@ export function ThermalInvoicePrintTemplate({
           <SectionTitle en="Notes" ar="ملاحظات" showEnglish={showEn} showArabic={showAr} />
           <div style={{ whiteSpace: "pre-line", fontSize: "8.6px" }}>{vm.notes}</div>
         </>
+      )}
+
+      {tpl.sections.terms && vm.messages.termsMessage && (
+        <>
+          <hr className="thermal-rule" />
+          <SectionTitle en="Terms" ar="الشروط والأحكام" showEnglish={showEn} showArabic={showAr} />
+          <div style={{ whiteSpace: "pre-line", fontSize: "8.6px" }}>{vm.messages.termsMessage}</div>
+        </>
+      )}
+
+      {tpl.sections.footerMessage && vm.messages.footerMessage && (
+        <p style={{ textAlign: "center", whiteSpace: "pre-line", fontSize: "8.2px", margin: "1mm 0" }}>{vm.messages.footerMessage}</p>
       )}
 
       {tpl.sections.signatures && (

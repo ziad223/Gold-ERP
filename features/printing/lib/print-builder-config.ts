@@ -39,6 +39,9 @@ const SectionConfigSchema = z.object({
   amountDetails: z.boolean().optional(),
   notes: z.boolean().optional(),
   terms: z.boolean().optional(),
+  welcomeMessage: z.boolean().optional(),
+  headerNote: z.boolean().optional(),
+  footerMessage: z.boolean().optional(),
   signatures: z.boolean().optional(),
   footer: z.boolean().optional(),
 });

@@ -1300,8 +1300,13 @@ export default function SettingsPage() {
             </div>
             <div>
               <h2 className="font-black text-navy-950 dark:text-white">{rtl ? "إعدادات إيصال البيع / الكاشير" : "POS / Receipt Print Options"}</h2>
-              <p className="text-xs text-slate-500">{rtl ? "رسائل وإعدادات إيصال نقطة البيع الحراري (منفصلة عن قوالب طباعة الفاتورة A4 أدناه)." : "Messages and POS/thermal sale-receipt options (separate from the A4 invoice print templates below)."}</p>
+              <p className="text-xs text-slate-500">{rtl ? "رسائل مشتركة تظهر في الفواتير وإيصالات البيع، بالإضافة إلى خيارات إيصال نقطة البيع الحراري." : "Shared messages (shown on invoices and POS receipts) plus POS/thermal receipt-specific options."}</p>
             </div>
+          </div>
+
+          <div>
+            <h3 className="text-xs font-black text-navy-950 dark:text-white">{rtl ? "رسائل الفواتير والإيصالات" : "Invoice & Receipt Messages"}</h3>
+            <p className="mt-1 text-[10px] text-slate-400">{rtl ? "تظهر هذه الرسائل في طباعة الفواتير وإيصالات البيع. نص عادي فقط ولا تؤثر على الإجماليات." : "These messages appear on printed invoices and POS receipts. Plain text only; they do not affect totals."}</p>
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
@@ -1341,6 +1346,13 @@ export default function SettingsPage() {
                 onChange={(e) => setReceiptForm(prev => ({ ...prev, termsMessage: e.target.value }))}
               />
             </label>
+          </div>
+
+          <div className="border-t border-slate-100 dark:border-white/5 pt-4">
+            <h3 className="text-xs font-black text-navy-950 dark:text-white">{rtl ? "خيارات إيصال نقطة البيع" : "POS Receipt-specific Options"}</h3>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
             <label className="block">
               <span className="label-base">{t("receiptPhone")}</span>
               <input
@@ -1584,6 +1596,9 @@ export default function SettingsPage() {
                     { key: "paymentMethod", labelAr: "طريقة الدفع", labelEn: "Payment Method List" },
                     { key: "amountDetails", labelAr: "تفاصيل المبالغ والإجماليات", labelEn: "Amount Details / Totals", warning: true },
                     { key: "notes", labelAr: "ملاحظات الفاتورة", labelEn: "Invoice Notes" },
+                    { key: "welcomeMessage", labelAr: "رسالة الترحيب", labelEn: "Welcome Message" },
+                    { key: "headerNote", labelAr: "ملاحظة أعلى الفاتورة", labelEn: "Header Note" },
+                    { key: "footerMessage", labelAr: "رسالة أسفل الفاتورة", labelEn: "Footer Message" },
                     { key: "terms", labelAr: "الشروط والأحكام", labelEn: "Terms & Conditions" },
                     { key: "signatures", labelAr: "حقول التوقيع والختم", labelEn: "Signature Boxes" },
                     { key: "footer", labelAr: "تذييل الاتصال", labelEn: "Footer Contact Info" },

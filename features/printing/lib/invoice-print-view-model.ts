@@ -95,6 +95,17 @@ export type InvoicePrintViewModel = {
     currency?: string;
   };
   notes?: string;
+  /**
+   * Company-wide print messages (Phase 19Y). Display-only, plain text, sourced
+   * from `settings.receipt`. Distinct from `notes` (which is the per-invoice
+   * `invoice.notes`). Empty values are omitted so blocks collapse.
+   */
+  messages: {
+    welcomeMessage?: string;
+    headerNote?: string;
+    footerMessage?: string;
+    termsMessage?: string;
+  };
   warnings: InvoicePrintWarning[];
   special?: {
     exchange?: {
@@ -297,6 +308,14 @@ export function buildInvoicePrintViewModel(
       currency,
     },
     notes: invoice.notes,
+    // Company-wide print messages from settings.receipt (display-only, plain text;
+    // empty → undefined so blocks collapse). Kept separate from invoice.notes.
+    messages: {
+      welcomeMessage: asString(receiptSettings.welcomeMessage)?.trim(),
+      headerNote: asString(receiptSettings.headerNote)?.trim(),
+      footerMessage: asString(receiptSettings.footerMessage)?.trim(),
+      termsMessage: asString(receiptSettings.termsMessage)?.trim(),
+    },
     warnings,
     special,
   };

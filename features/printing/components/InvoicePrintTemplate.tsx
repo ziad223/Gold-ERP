@@ -490,7 +490,6 @@ export function InvoicePrintTemplate({
   templateConfig,
   documentTitleOverride,
 }: InvoicePrintTemplateProps) {
-  const receiptConfig = settings?.receipt || {};
   const settingsConfig = (settings as { printTemplateConfig?: PrintTemplateConfigOverrides } | undefined)?.printTemplateConfig;
   const tpl = resolveInvoicePrintTemplateConfig(templateConfig ?? settingsConfig);
   const showAr = shouldShowArabic(tpl);
@@ -594,6 +593,13 @@ export function InvoicePrintTemplate({
 
           <div aria-hidden="true" />
         </section>
+        )}
+
+        {tpl.sections.welcomeMessage && vm.messages.welcomeMessage && (
+          <p className="luxury-print-message" style={{ textAlign: "center", whiteSpace: "pre-line", margin: "2mm 0 3mm", fontWeight: 600, color: "var(--invoice-gold-dark)" }}>{vm.messages.welcomeMessage}</p>
+        )}
+        {tpl.sections.headerNote && vm.messages.headerNote && (
+          <p className="luxury-print-message" style={{ textAlign: "center", whiteSpace: "pre-line", margin: "0 0 3mm", color: "var(--invoice-muted)" }}>{vm.messages.headerNote}</p>
         )}
 
         {(tpl.sections.clientDetails || tpl.sections.invoiceDetails) && (
@@ -710,11 +716,15 @@ export function InvoicePrintTemplate({
           </section>
           )}
 
-          {tpl.sections.terms && receiptConfig.termsMessage && (
+          {tpl.sections.terms && vm.messages.termsMessage && (
             <section className="luxury-box luxury-notes-box">
               <BoxTitle en="TERMS" ar="الشروط والأحكام" showEnglish={showEn} showArabic={showAr} />
-              <div className="luxury-notes-lines">{receiptConfig.termsMessage}</div>
+              <div className="luxury-notes-lines" style={{ whiteSpace: "pre-line" }}>{vm.messages.termsMessage}</div>
             </section>
+          )}
+
+          {tpl.sections.footerMessage && vm.messages.footerMessage && (
+            <p className="luxury-print-message" style={{ textAlign: "center", whiteSpace: "pre-line", margin: "3mm 0 0", color: "var(--invoice-muted)" }}>{vm.messages.footerMessage}</p>
           )}
 
           {tpl.sections.signatures && (

@@ -1352,6 +1352,33 @@ Remaining gaps:
 
 ---
 
+### Phase 19Y-Fix — Invoice Message Fields Across Templates
+
+Status:
+
+* Completed. Configurable invoice/print messages now render across all four invoice templates, using the **existing `receipt` settings key** (welcomeMessage / headerNote / footerMessage / termsMessage).
+* No new settings key; no backend/DB/migration/API; no custom text blocks; no closing/thank-you field; no financial/business logic.
+
+Changes:
+
+* **ViewModel** (`invoice-print-view-model.ts`): added display-only `vm.messages = { welcomeMessage?, headerNote?, footerMessage?, termsMessage? }` sourced from `settings.receipt` (trimmed; empty → undefined). Kept **separate** from `vm.notes` (= per-invoice `invoice.notes`).
+* **Builder config:** added section toggles `welcomeMessage`, `headerNote`, `footerMessage` (default `true`) to `PrintTemplateSectionConfig` + defaults (print-template-config.ts), the Zod `SectionConfigSchema` (print-builder-config.ts), and the Settings Print Builder section-toggle list. Reused existing `sections.terms` for `termsMessage`. Old saved builder configs sanitize safely (missing keys default true).
+* **Templates (all four):** render messages from `vm.messages`, gated by the section toggles — welcome + header note near the header; terms in the terms section; footer message near the footer. **Luxury no longer reads `receiptConfig.termsMessage` directly** (removed the unused `receiptConfig`); all four now use `vm.messages.termsMessage`, so terms appears in Compact/Minimal/Thermal too (previously Luxury-only). Plain text, React-escaped, `white-space: pre-line`, no `dangerouslySetInnerHTML`; Thermal uses compact sizing; empty messages auto-collapse.
+* **Settings UI:** the POS/Receipt card's message inputs are now under an **"Invoice & Receipt Messages / رسائل الفواتير والإيصالات"** sub-heading with helper text ("appear on printed invoices and POS receipts; plain text; do not affect totals"); POS-specific fields split under a "POS Receipt-specific Options" sub-heading. Same `receipt` save path; POS receipt behavior preserved.
+* **Fixture/tests:** `FIXTURE_SETTINGS.receipt` messages added; `verify-invoice-print-view-model.js` asserts messages source/trim/empty→undefined + notes separation + totals unchanged; `verify-print-builder-config.js` asserts new section defaults + toggle round-trip; one export smoke test (terms in Compact/Minimal/Thermal, footer message in Luxury).
+
+Verification:
+
+* typecheck clean; lint 0 errors (pre-existing `<img>` warnings); build succeeded; `next-env.d.ts` clean.
+* All print verifies pass (VM / template-config / builder-config / company-info); grep-safety clean.
+* `npm run test:print-export` not run to completion (known headless Playwright limitation; force-terminated). No artifacts tracked. Native browser QA recommended.
+
+Preserved: `receipt` / `printTemplateDefaults` / `invoicePrintBuilderConfig` / `printCompanyInfo`; invoice `notes` stays separate; POS `ReceiptPrintTemplate` unchanged.
+
+Remaining gaps: closing/thank-you message not added; custom text blocks not started; native print QA recommended; advanced controls / drag-drop / PDF / Search & Print not started.
+
+---
+
 ### Phase 19X.2-G — Live Company Data in Invoice Preview
 
 Status:
@@ -1828,6 +1855,17 @@ For print work, future verification should include:
 Updated by AI during:
 
 ```text
+Phase 19Y-Fix — Invoice Message Fields Across Templates
+(follows 19X.2-G. Added vm.messages (welcomeMessage/headerNote/footerMessage/termsMessage) from the
+existing receipt key; rendered across all four invoice templates gated by builder section toggles
+(reused sections.terms; added welcomeMessage/headerNote/footerMessage toggles, default true).
+Luxury no longer reads receiptConfig.termsMessage directly; terms now shows in Compact/Minimal/Thermal.
+Relabeled the Settings messages area "Invoice & Receipt Messages". Plain text, escaped; invoice.notes
+stays separate; POS receipt unchanged. No new key/backend/DB/migration; no custom text blocks.
+typecheck/lint/build ok; VM + builder verifies extended and all print verifies pass. print-export E2E
+not run (headless limitation). Next: 19Z custom text blocks / closing message — not started.)
+
+Previous marker:
 Phase 19X.2-G — Live Company Data in Invoice Preview
 (follows 19X.2-F. Fixed the Settings builder preview to use LIVE company data via a memoized
 livePreviewCompany — precedence Company Profile form state > auth company > FIXTURE_COMPANY demo

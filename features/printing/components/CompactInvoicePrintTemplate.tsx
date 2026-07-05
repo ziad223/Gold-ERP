@@ -260,6 +260,13 @@ export function CompactInvoicePrintTemplate({
         </section>
       )}
 
+      {tpl.sections.welcomeMessage && vm.messages.welcomeMessage && (
+        <p style={{ textAlign: "center", whiteSpace: "pre-line", margin: "1mm 0", fontWeight: 600 }}>{vm.messages.welcomeMessage}</p>
+      )}
+      {tpl.sections.headerNote && vm.messages.headerNote && (
+        <p style={{ textAlign: "center", whiteSpace: "pre-line", margin: "0 0 1mm", fontSize: "0.9em", color: "#555" }}>{vm.messages.headerNote}</p>
+      )}
+
       {(tpl.sections.clientDetails || tpl.sections.invoiceDetails) && (
         <section className="compact-meta">
           {tpl.sections.clientDetails && (
@@ -365,6 +372,17 @@ export function CompactInvoicePrintTemplate({
           <BoxTitle en="NOTES" ar="ملاحظات" showEnglish={showEn} showArabic={showAr} />
           <div className="compact-notes-lines">{vm.notes}</div>
         </section>
+      )}
+
+      {tpl.sections.terms && vm.messages.termsMessage && (
+        <section className="compact-notes compact-box">
+          <BoxTitle en="TERMS" ar="الشروط والأحكام" showEnglish={showEn} showArabic={showAr} />
+          <div className="compact-notes-lines" style={{ whiteSpace: "pre-line" }}>{vm.messages.termsMessage}</div>
+        </section>
+      )}
+
+      {tpl.sections.footerMessage && vm.messages.footerMessage && (
+        <p style={{ textAlign: "center", whiteSpace: "pre-line", margin: "1mm 0", fontSize: "0.9em", color: "#555" }}>{vm.messages.footerMessage}</p>
       )}
 
       {tpl.sections.signatures && (

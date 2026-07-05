@@ -88,4 +88,11 @@ export const FIXTURE_SETTINGS = {
     address: "Fixture Street, Dubai",
     taxNumber: "999888777",
   },
+  // Phase 19Y: company-wide print messages (shared invoice + POS receipt).
+  receipt: {
+    welcomeMessage: "Welcome to our store",
+    headerNote: "Fine Jewellery & Gemstones",
+    footerMessage: "Thank you for your business",
+    termsMessage: "All sales are final. Goods once sold are not returnable.",
+  },
 };

@@ -55,6 +55,10 @@ export interface PrintTemplateSectionConfig {
   amountDetails: boolean;
   notes: boolean;
   terms: boolean;
+  /** Phase 19Y — company-wide print message sections (from settings.receipt). */
+  welcomeMessage: boolean;
+  headerNote: boolean;
+  footerMessage: boolean;
   signatures: boolean;
   footer: boolean;
 }
@@ -105,6 +109,9 @@ export const DEFAULT_PRINT_TEMPLATE_SECTIONS: PrintTemplateSectionConfig = {
   amountDetails: true,
   notes: true,
   terms: true,
+  welcomeMessage: true,
+  headerNote: true,
+  footerMessage: true,
   signatures: true,
   footer: true,
 };

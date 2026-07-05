@@ -98,6 +98,19 @@ const merged = mergeBuilderConfigWithTemplateDefaults("compactA4", builderConfig
 assert.equal(merged.languageMode, "ar");
 assert.equal(merged.sections.header, false);
 assert.equal(merged.sections.footer, true, "unmentioned sections fall back to default (true)");
+// Phase 19Y: new message section toggles default true when unmentioned.
+assert.equal(merged.sections.welcomeMessage, true, "welcomeMessage section defaults true");
+assert.equal(merged.sections.headerNote, true, "headerNote section defaults true");
+assert.equal(merged.sections.footerMessage, true, "footerMessage section defaults true");
+
+// Phase 19Y: a saved message-section toggle sanitizes and round-trips.
+const msgSectionConfig = sanitizeInvoicePrintBuilderConfig({
+  version: 1,
+  templates: { luxuryGold: { sections: { welcomeMessage: false, headerNote: false, footerMessage: false } } },
+});
+assert.equal(msgSectionConfig.templates.luxuryGold.sections.welcomeMessage, false, "welcomeMessage toggle preserved");
+assert.equal(msgSectionConfig.templates.luxuryGold.sections.headerNote, false, "headerNote toggle preserved");
+assert.equal(msgSectionConfig.templates.luxuryGold.sections.footerMessage, false, "footerMessage toggle preserved");
 
 // 5. Theme preset validation & sanitization
 const themePresetConfig = {

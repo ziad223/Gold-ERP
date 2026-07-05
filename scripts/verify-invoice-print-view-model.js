@@ -217,6 +217,40 @@ const addrReceiptFallback = buildInvoicePrintViewModel(invoice(), {
 });
 assert.equal(addrReceiptFallback.company.address, "RCPT-ADDR", "address falls back to receipt when company + printInfo empty");
 
+// Phase 19Y: company-wide print messages come from settings.receipt into
+// vm.messages (display-only), kept separate from invoice.notes.
+const msgModel = buildInvoicePrintViewModel(invoice({ notes: "Per-invoice note only" }), {
+  currency: "AED",
+  company: { businessName: "Master Co" },
+  settings: {
+    receipt: {
+      welcomeMessage: "  Welcome  ",
+      headerNote: "Header note",
+      footerMessage: "Thank you",
+      termsMessage: "Terms text",
+    },
+  },
+});
+assert.equal(msgModel.messages.welcomeMessage, "Welcome", "welcomeMessage from receipt (trimmed)");
+assert.equal(msgModel.messages.headerNote, "Header note", "headerNote from receipt");
+assert.equal(msgModel.messages.footerMessage, "Thank you", "footerMessage from receipt");
+assert.equal(msgModel.messages.termsMessage, "Terms text", "termsMessage from receipt");
+assert.equal(msgModel.notes, "Per-invoice note only", "invoice.notes stays separate from messages");
+
+// Empty/whitespace message strings become undefined (blocks collapse).
+const emptyMsgModel = buildInvoicePrintViewModel(invoice(), {
+  currency: "AED",
+  company: { businessName: "Master Co" },
+  settings: { receipt: { welcomeMessage: "   ", termsMessage: "" } },
+});
+assert.equal(emptyMsgModel.messages.welcomeMessage, undefined, "whitespace welcomeMessage → undefined");
+assert.equal(emptyMsgModel.messages.termsMessage, undefined, "empty termsMessage → undefined");
+assert.equal(emptyMsgModel.messages.headerNote, undefined, "missing headerNote → undefined");
+
+// Messages do not affect totals/items.
+assert.equal(msgModel.totals.subtotal, 100, "totals unchanged by messages");
+assert.equal(msgModel.items.length, 1, "items unchanged by messages");
+
 const sourceHasForbiddenTruthReduce = /reduce\s*\([^)]*(subtotal|total|tax|vat)/i.test(source);
 assert.equal(sourceHasForbiddenTruthReduce, false);
 

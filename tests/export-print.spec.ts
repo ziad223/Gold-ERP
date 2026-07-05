@@ -187,6 +187,30 @@ test.describe("Language mode smoke", () => {
   });
 });
 
+/* ---------- 2c. Invoice messages (Phase 19Y) ---------- */
+
+test.describe("Invoice messages", () => {
+  test("termsMessage renders in Compact/Minimal/Thermal (previously Luxury-only)", async ({
+    page,
+  }) => {
+    await page.goto(FIXTURE_PAGE, { waitUntil: "domcontentloaded" });
+    for (const id of ["compactA4", "minimal", "thermal"]) {
+      const section = page.locator(`[data-testid="print-fixture-${id}-bilingual"]`);
+      await expect(section).toBeVisible();
+      const text = await section.textContent();
+      expect(text).toContain("All sales are final");
+    }
+  });
+
+  test("footer message renders in the Luxury invoice", async ({ page }) => {
+    await page.goto(FIXTURE_PAGE, { waitUntil: "domcontentloaded" });
+    const section = page.locator('[data-testid="print-fixture-luxuryGold-bilingual"]');
+    await expect(section).toBeVisible();
+    const text = await section.textContent();
+    expect(text).toContain("Thank you for your business");
+  });
+});
+
 /* ---------- 2b. Company print info (Phase 19X-Fix) ---------- */
 
 test.describe("Company print info", () => {
