@@ -1995,6 +1995,18 @@ For print work, future verification should include:
 Updated by AI during:
 
 ```text
+Phase 19Z-Fix — Static Favicon + Company Logo Favicon
+(follows 19Z audit. Added a static public/favicon.ico fallback so /favicon.ico no longer
+404s before auth loads. Added a client-side CompanyFaviconUpdater mounted once in AppShell;
+it uses company.logo from Company Profile via getPublicFileUrl and falls back to /favicon.ico
+when no company logo is available or after logout/no company. Future custom favicon precedence
+is left as a code comment only; no custom favicon upload/settings key added. No backend/DB/API/
+migration changes; no print/POS/business logic changes. Remaining gaps: custom favicon upload
+not added; favicon shape/quality depends on the company logo; browser favicon caching may require
+hard refresh; custom text blocks not started; autoPrint/copies deferred; legacy receipt cleanup
+deferred; broader a11y cleanup deferred.)
+
+Previous marker:
 Phase 19Y.8 — Duplicate POS Receipt Controls Cleanup
 (follows 19Y.7 audit. Hid duplicate legacy POS/Receipt visibility controls plus
 paperSize/layout from Settings -> Print & Invoice Design; kept visible shared messages

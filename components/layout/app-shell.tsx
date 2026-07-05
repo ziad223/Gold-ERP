@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useLocale } from "next-intl";
+import { CompanyFaviconUpdater } from "./company-favicon-updater";
 import { Header } from "./header";
 import { Sidebar } from "./sidebar";
 import { cn } from "@/lib/utils";
@@ -28,6 +29,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="app-shell min-h-screen bg-background" data-app-shell="true">
+      <CompanyFaviconUpdater />
       <Sidebar open={open} onClose={() => setOpen(false)} collapsed={collapsed} onToggle={toggle} />
       <div
         className={cn(
