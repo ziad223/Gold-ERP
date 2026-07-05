@@ -26,6 +26,7 @@ export interface ReceiptConfig {
   showBranchInfo: boolean;
   paperSize: "A4" | "A5" | "thermal";
   layout: "standard" | "compact" | "detailed";
+  defaultPosTemplate: "thermal" | "luxuryGold" | "compactA4" | "minimal";
 }
 
 export const DEFAULT_RECEIPT_CONFIG: ReceiptConfig = {
@@ -50,6 +51,7 @@ export const DEFAULT_RECEIPT_CONFIG: ReceiptConfig = {
   showBranchInfo: true,
   paperSize: "thermal",
   layout: "standard",
+  defaultPosTemplate: "thermal",
 };
 
 /**

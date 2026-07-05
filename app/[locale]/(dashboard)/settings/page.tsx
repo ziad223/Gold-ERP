@@ -65,6 +65,24 @@ const currencyOptions = [
   { code: "OMR", ar: "ريال عماني", en: "Omani Rial" }
 ];
 
+const DEFAULT_POS_PRINT_TEMPLATE: InvoicePrintTemplateId = "thermal";
+
+const POS_PRINT_TEMPLATE_OPTIONS: Array<{ value: InvoicePrintTemplateId; labelEn: string; labelAr: string }> = [
+  { value: "thermal", labelEn: "Thermal", labelAr: "حراري" },
+  { value: "luxuryGold", labelEn: "Luxury Gold", labelAr: "الذهبي الفاخر" },
+  { value: "compactA4", labelEn: "Compact A4", labelAr: "مضغوط A4" },
+  { value: "minimal", labelEn: "Minimal A4", labelAr: "بسيط A4" },
+];
+
+function sanitizeDefaultPosTemplate(value: unknown): InvoicePrintTemplateId {
+  if (value === "thermal" || value === "luxuryGold" || value === "compactA4" || value === "minimal") {
+    return value;
+  }
+  if (value === "luxury") return "luxuryGold";
+  if (value === "compact") return "compactA4";
+  return DEFAULT_POS_PRINT_TEMPLATE;
+}
+
 export default function SettingsPage() {
   const t = useTranslations("Settings");
   const common = useTranslations("Common");
@@ -180,7 +198,8 @@ export default function SettingsPage() {
     showCustomerInfo: true,
     showBranchInfo: true,
     paperSize: "thermal" as "thermal" | "A4" | "A5",
-    layout: "standard" as "standard" | "compact" | "detailed"
+    layout: "standard" as "standard" | "compact" | "detailed",
+    defaultPosTemplate: DEFAULT_POS_PRINT_TEMPLATE
   });
   const [savingReceipt, setSavingReceipt] = useState(false);
 
@@ -343,7 +362,8 @@ export default function SettingsPage() {
           ...prev,
           ...settings.receipt,
           phone: toEnglishDigits(settings.receipt?.phone || ""),
-          vatNumber: toEnglishDigits(settings.receipt?.vatNumber || "")
+          vatNumber: toEnglishDigits(settings.receipt?.vatNumber || ""),
+          defaultPosTemplate: sanitizeDefaultPosTemplate(settings.receipt?.defaultPosTemplate)
         }));
       }
       if (settings.barcode) {
@@ -1356,54 +1376,39 @@ export default function SettingsPage() {
             </label>
           </div>
 
-          <div className="border-t border-slate-100 dark:border-white/5 pt-4">
-            <h3 className="text-xs font-black text-navy-950 dark:text-white">{rtl ? "خيارات إيصال نقطة البيع" : "POS Receipt-specific Options"}</h3>
-            <p className="mt-1 text-[10px] text-slate-400">{rtl ? "اسم الشركة والشعار ورقم الهاتف والرقم الضريبي والعنوان يتم إدارتهم من بيانات الشركة." : "Company name, logo, phone, TRN, and address are managed from Company Profile."}</p>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <label className="block" htmlFor="receipt-paper-size">
-              <span className="label-base">{rtl ? "حجم الورق" : "Paper Size"}</span>
+          <div className="rounded-2xl border border-slate-100 bg-white/60 p-4 dark:border-white/10 dark:bg-white/[0.02]">
+            <h3 className="text-xs font-black text-navy-950 dark:text-white">{rtl ? "سلوك طباعة نقطة البيع" : "POS Print Behavior"}</h3>
+            <p className="mt-1 text-[10px] text-slate-400">
+              {rtl
+                ? "يُستخدم كقالب افتراضي بعد إتمام بيع من نقطة البيع، ويمكن تغييره من نافذة الطباعة."
+                : "Used as the default template after completing a POS sale. You can still change the template in the print dialog."}
+            </p>
+            <p className="mt-1 text-[10px] text-slate-400">
+              {rtl
+                ? "التحكم في إظهار وإخفاء الحقول يتم من مصمم طباعة الفاتورة بالأسفل."
+                : "Field visibility is controlled from Invoice Print Builder below."}
+            </p>
+            <p className="mt-1 text-[10px] text-slate-400">
+              {rtl
+                ? "يتم الاحتفاظ بإعدادات الإيصال القديمة داخليًا للتوافق فقط."
+                : "Legacy POS receipt options are preserved internally for backward compatibility."}
+            </p>
+            <label className="mt-3 block" htmlFor="receipt-default-pos-template">
+              <span className="label-base">{rtl ? "قالب الطباعة الافتراضي لنقطة البيع" : "Default POS template"}</span>
               <select
-                id="receipt-paper-size"
-                name="receipt-paper-size"
+                id="receipt-default-pos-template"
+                name="receipt-default-pos-template"
                 className="input-base mt-1 bg-input text-foreground border-border"
-                value={receiptForm.paperSize}
-                onChange={(e) => setReceiptForm(prev => ({ ...prev, paperSize: e.target.value as any }))}
+                value={receiptForm.defaultPosTemplate}
+                onChange={(e) => setReceiptForm(prev => ({ ...prev, defaultPosTemplate: sanitizeDefaultPosTemplate(e.target.value) }))}
               >
-                <option value="thermal" className="bg-panel text-foreground">{rtl ? "حراري (80مم)" : "Thermal (80mm)"}</option>
-                <option value="A4" className="bg-panel text-foreground">A4</option>
-                <option value="A5" className="bg-panel text-foreground">A5</option>
+                {POS_PRINT_TEMPLATE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value} className="bg-panel text-foreground">
+                    {rtl ? option.labelAr : option.labelEn}
+                  </option>
+                ))}
               </select>
             </label>
-            <label className="block" htmlFor="receipt-layout">
-              <span className="label-base">{rtl ? "تنسيق الطباعة" : "Print Layout"}</span>
-              <select
-                id="receipt-layout"
-                name="receipt-layout"
-                className="input-base mt-1 bg-input text-foreground border-border"
-                value={receiptForm.layout}
-                onChange={(e) => setReceiptForm(prev => ({ ...prev, layout: e.target.value as any }))}
-              >
-                <option value="standard" className="bg-panel text-foreground">{rtl ? "قياسي" : "Standard"}</option>
-                <option value="compact" className="bg-panel text-foreground">{rtl ? "مدمج" : "Compact"}</option>
-                <option value="detailed" className="bg-panel text-foreground">{rtl ? "تفصيلي" : "Detailed"}</option>
-              </select>
-            </label>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {renderToggle(t("showLogo"), receiptForm.showLogo, (v) => setReceiptForm(prev => ({ ...prev, showLogo: v })))}
-            {renderToggle(t("showCashier"), receiptForm.showCashier, (v) => setReceiptForm(prev => ({ ...prev, showCashier: v })))}
-            {renderToggle(t("showBarcode"), receiptForm.showBarcode, (v) => setReceiptForm(prev => ({ ...prev, showBarcode: v })))}
-            {renderToggle(rtl ? "عرض اسم الشركة" : "Show Company Name", receiptForm.showCompanyName ?? true, (v) => setReceiptForm(prev => ({ ...prev, showCompanyName: v })))}
-            {renderToggle(rtl ? "عرض الرقم الضريبي" : "Show Tax Number", receiptForm.showTaxNumber ?? true, (v) => setReceiptForm(prev => ({ ...prev, showTaxNumber: v })))}
-            {renderToggle(rtl ? "عرض عنوان الشركة" : "Show Company Address", receiptForm.showAddress ?? true, (v) => setReceiptForm(prev => ({ ...prev, showAddress: v })))}
-            {renderToggle(rtl ? "عرض هاتف الشركة" : "Show Company Phone", receiptForm.showPhone ?? true, (v) => setReceiptForm(prev => ({ ...prev, showPhone: v })))}
-            {renderToggle(rtl ? "عرض رمز الاستجابة السريعة (QR)" : "Show QR Code", receiptForm.showQrCode ?? true, (v) => setReceiptForm(prev => ({ ...prev, showQrCode: v })))}
-            {renderToggle(rtl ? "عرض تفصيل الضريبة" : "Show VAT Breakdown", receiptForm.showVatBreakdown ?? true, (v) => setReceiptForm(prev => ({ ...prev, showVatBreakdown: v })))}
-            {renderToggle(rtl ? "عرض بيانات العميل" : "Show Customer Info", receiptForm.showCustomerInfo ?? true, (v) => setReceiptForm(prev => ({ ...prev, showCustomerInfo: v })))}
-            {renderToggle(rtl ? "عرض بيانات الفرع" : "Show Branch Info", receiptForm.showBranchInfo ?? true, (v) => setReceiptForm(prev => ({ ...prev, showBranchInfo: v })))}
           </div>
 
           <div className="pt-2">

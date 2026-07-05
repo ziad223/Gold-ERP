@@ -29,16 +29,26 @@ import {
   buildTemplateConfigFromPrintOptions,
   getPrintDocumentTitleOverride,
   type InvoicePrintOptions,
+  type InvoicePrintTemplateId,
 } from "@/features/printing/lib/invoice-print-options";
 
-// Phase 19Y.3 — POS print dialog defaults to the Thermal template (runtime only;
-// not persisted). Module-level constant so the dialog's reseed effect has a
-// stable reference and never resets the user's in-dialog template choice.
-const POS_PRINT_DEFAULTS: InvoicePrintOptions = {
+const DEFAULT_POS_PRINT_TEMPLATE: InvoicePrintTemplateId = "thermal";
+
+function sanitizeDefaultPosTemplate(value: unknown): InvoicePrintTemplateId {
+  if (value === "thermal" || value === "luxuryGold" || value === "compactA4" || value === "minimal") {
+    return value;
+  }
+  if (value === "luxury") return "luxuryGold";
+  if (value === "compact") return "compactA4";
+  return DEFAULT_POS_PRINT_TEMPLATE;
+}
+
+// Phase 19Y.6 — POS print dialog keeps Auto/Bilingual as fixed display defaults;
+// the template comes from settings.receipt.defaultPosTemplate with Thermal fallback.
+const POS_PRINT_DEFAULTS = {
   documentMode: "auto",
-  templateId: "thermal",
   languageMode: "bilingual",
-};
+} satisfies Pick<InvoicePrintOptions, "documentMode" | "languageMode">;
 
 export default function PosPage() {
   const t = useTranslations("POS");
@@ -119,6 +129,12 @@ export default function PosPage() {
     notes: printT("notes"),
     qr: printT("qr"),
   };
+
+  const defaultPosTemplate = sanitizeDefaultPosTemplate(settings?.receipt?.defaultPosTemplate);
+  const posPrintInitialOptions = useMemo<InvoicePrintOptions>(() => ({
+    ...POS_PRINT_DEFAULTS,
+    templateId: defaultPosTemplate,
+  }), [defaultPosTemplate]);
 
   const printInvoice = (invoice: Invoice, options: InvoicePrintOptions) => {
     const mappedPaperSize = options.templateId === "thermal" ? "80mm" : "A4";
@@ -1392,7 +1408,7 @@ export default function PosPage() {
           open={!!completedInvoice}
           invoice={completedInvoice}
           locale={locale}
-          initialOptions={POS_PRINT_DEFAULTS}
+          initialOptions={posPrintInitialOptions}
           onClose={() => setCompletedInvoice(null)}
           onPrint={printInvoice}
           showPreview

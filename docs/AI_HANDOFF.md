@@ -1374,7 +1374,97 @@ Verification:
 * All print verifies pass (VM / template-config / builder-config / company-info); grep-safety clean (no new financial logic; the pre-existing display-only subtotal `reduce` in `ReceiptPrintTemplate`/`ReceiptPreview` was not touched); translation keys for the POS labels confirmed present in `messages/en.json` + `ar.json`.
 * Playwright not run (POS dialog isn't covered by the `/test/print-export` fixture spec; known headless limitation). Native POS print QA recommended.
 
-Remaining gaps: default POS template persistence not added; autoPrint/copies not added; `ReceiptPreview`/`ReceiptPrintTemplate` consolidation/removal deferred; custom text blocks not started; favicon deferred; closing/thank-you not added; native POS print QA recommended.
+Remaining gaps: autoPrint/copies not added; `ReceiptPreview`/`ReceiptPrintTemplate` consolidation/removal deferred; custom text blocks not started; favicon deferred; closing/thank-you not added; native POS print QA recommended.
+
+---
+
+### Phase 19Y.6 — Persist POS Default Print Template
+
+Status:
+
+* Completed. Frontend/settings-only POS print default persistence.
+* No backend/DB/migration/API changes; no new settings key; no `posPrint` key.
+* No autoPrint/copies; no legacy receipt component deletion; no custom text blocks; no favicon.
+* No POS submit/payment/stock/accounting/treasury changes; no totals recalculation.
+
+Changes:
+
+* Added `receipt.defaultPosTemplate` under the existing `receipt` settings document, using the current template IDs (`thermal`, `luxuryGold`, `compactA4`, `minimal`) with Thermal fallback.
+* Added a Settings -> Print & Invoice Design -> POS Print Behavior field for the default POS template.
+* POS print dialog now seeds `initialOptions.templateId` from `settings.receipt.defaultPosTemplate || "thermal"` while keeping `documentMode: "auto"` and `languageMode: "bilingual"`.
+* Added guard logic that accepts current template IDs and normalizes short legacy/prompt aliases (`luxury` -> `luxuryGold`, `compact` -> `compactA4`); invalid/missing values fall back to `thermal`.
+* Temporary template changes inside the POS print dialog remain temporary and are not auto-saved.
+
+Preserved:
+
+* Existing `receipt` key and existing receipt fields.
+* Sales invoice print defaults (`printTemplateDefaults`) and Sales print behavior.
+* POS dialog opens only after successful invoice creation and still prints the server-returned invoice through `InvoiceDocument`.
+* `ReceiptPreview` and `ReceiptPrintTemplate` remain in place for deferred legacy cleanup.
+
+Verification:
+
+* `npm run typecheck` clean.
+* `npm run lint` passed with existing warnings only.
+* `npm run build` succeeded.
+* `verify-invoice-print-view-model.js`, `verify-print-template-config.js`, `verify-print-builder-config.js`, `verify-print-company-info.js` all ok.
+
+Remaining gaps:
+
+* autoPrint/copies deferred.
+* legacy `ReceiptPreview`/`ReceiptPrintTemplate` cleanup deferred.
+* custom text blocks not started.
+* favicon deferred.
+* closing/thank-you not added.
+* broader accessibility cleanup deferred.
+* native/manual POS print QA still recommended.
+
+---
+
+### Phase 19Y.8 — Duplicate POS Receipt Controls Cleanup
+
+Status:
+
+* Completed. Frontend Settings UI cleanup only.
+* No backend/DB/migration/API changes; no settings key rename; no data deletion.
+* No autoPrint/copies; no legacy `ReceiptPreview`/`ReceiptPrintTemplate` deletion.
+* No POS checkout/payment/stock/accounting/treasury changes; no totals recalculation.
+* No Print Builder schema expansion.
+
+Changes:
+
+* Cleaned duplicate POS/Receipt visibility controls from Settings -> Print & Invoice Design.
+* Kept visible only:
+
+  * Invoice & Receipt Messages (`welcomeMessage`, `headerNote`, `footerMessage`, `termsMessage`).
+  * POS Print Behavior (`receipt.defaultPosTemplate`).
+
+* Added helper text near POS Print Behavior that field visibility is controlled from Invoice Print Builder below.
+* Added a short backward-compatibility note that legacy POS receipt options are preserved internally.
+* Hid the old visible POS/Receipt paper/layout controls and visibility toggles:
+
+  * `paperSize`, `layout`
+  * `showLogo`, `showCashier`, `showBarcode`, `showQrCode`
+  * `showCompanyName`, `showTaxNumber`, `showAddress`, `showPhone`
+  * `showVatBreakdown`, `showCustomerInfo`, `showBranchInfo`
+
+Preserved:
+
+* Existing `receipt` key and `receiptForm` state fields.
+* Existing `handleSaveReceipt` payload, so hidden legacy values are not stripped when saving messages/default template.
+* Active POS printing continues through `InvoicePrintOptionsDialog` -> `InvoiceDocument`.
+* Invoice Print Builder remains the field/section visibility source for active POS/Sales invoice templates.
+
+Remaining gaps:
+
+* Missing builder controls audit optional for barcode/QR/branch/VAT granularity.
+* autoPrint/copies deferred.
+* legacy `ReceiptPreview`/`ReceiptPrintTemplate` deletion deferred.
+* custom text blocks not started.
+* favicon deferred.
+* closing/thank-you not added.
+* broader accessibility cleanup deferred.
+* native/manual POS print QA still recommended.
 
 ---
 
@@ -1905,6 +1995,28 @@ For print work, future verification should include:
 Updated by AI during:
 
 ```text
+Phase 19Y.8 — Duplicate POS Receipt Controls Cleanup
+(follows 19Y.7 audit. Hid duplicate legacy POS/Receipt visibility controls plus
+paperSize/layout from Settings -> Print & Invoice Design; kept visible shared messages
+and receipt.defaultPosTemplate only. Added helper that visibility is controlled from
+Invoice Print Builder below and legacy receipt options are preserved internally.
+receiptForm/save payload still preserve hidden legacy values. Active POS print remains
+InvoicePrintOptionsDialog -> InvoiceDocument; no backend/DB/API/migration; no data
+deletion; no legacy component deletion; no autoPrint/copies; no POS submit/payment/
+stock/accounting changes; no totals recalculation. Next: optional missing builder controls
+audit or autoPrint/copies audit only in separate phase.)
+
+Previous marker:
+Phase 19Y.6 — Persist POS Default Print Template
+(follows 19Y.3 + 19Y.5 audit. Added persisted POS default template under existing
+receipt.defaultPosTemplate; Settings -> Print & Invoice Design now has POS Print Behavior
+default-template select. POS print dialog seeds Auto/Bilingual plus saved template, Thermal
+fallback; in-dialog template changes are temporary and not auto-saved. No new settings key;
+no backend/DB/API/migration; no autoPrint/copies; no legacy receipt deletion; no
+POS submit/payment/stock/accounting changes; no totals recalculation. typecheck/lint/build ok;
+all print verifies pass. Next: autoPrint/copies audit or legacy cleanup only in separate phase.)
+
+Previous marker:
 Phase 19Y.3 — POS Print Dialog with Template Selector & Live Preview
 (follows 19Y.2 + receipt-form-field id/name a11y fix e038e44. POS post-checkout now opens
 InvoicePrintOptionsDialog (extended with optional showPreview/previewCompany/previewSettings/previewLabels

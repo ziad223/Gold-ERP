@@ -127,7 +127,8 @@ const DEFAULT_SETTINGS: AppSettings = {
     showCustomerInfo: true,
     showBranchInfo: true,
     paperSize: "thermal",
-    layout: "standard"
+    layout: "standard",
+    defaultPosTemplate: "thermal"
   },
   barcode: {
     showCompanyName: true,
