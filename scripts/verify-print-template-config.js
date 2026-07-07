@@ -37,12 +37,12 @@ for (const key of ["gold", "goldDark", "goldSoft", "text", "muted", "ivory", "fo
 assert.equal(typeof base.theme.watermarkOpacity, "number", "watermarkOpacity is numeric");
 
 // 3) section defaults present and all visible by default (preserve current look).
-for (const key of ["header", "clientDetails", "invoiceDetails", "itemsTable", "specialSummary", "paymentMethod", "amountDetails", "notes", "terms", "signatures", "footer"]) {
+for (const key of ["header", "clientDetails", "invoiceDetails", "itemsTable", "specialSummary", "paymentMethod", "amountDetails", "notes", "terms", "welcomeMessage", "headerNote", "footerMessage", "customTextBlocks", "signatures", "footer"]) {
   assert.equal(base.sections[key], true, `section ${key} defaults visible`);
 }
 
 // 4) field defaults present and true by default (no fields hidden out of the box).
-for (const key of ["companyLogo", "companyTrn", "watermark", "customerPhone", "customerTrn", "customerAddress", "itemKarat", "itemWeight", "itemAssetId", "salesperson", "originalInvoiceRef", "footerPhone", "footerEmail", "footerAddress"]) {
+for (const key of ["companyLogo", "companyTrn", "watermark", "customerPhone", "customerTrn", "customerAddress", "invoiceBranch", "itemKarat", "itemWeight", "itemAssetId", "salesperson", "originalInvoiceRef", "footerPhone", "footerEmail", "footerAddress"]) {
   assert.equal(base.fields[key], true, `field ${key} defaults visible`);
 }
 
@@ -58,8 +58,10 @@ assert.equal(merged.theme.gold, "#000000", "override theme.gold applied");
 assert.equal(merged.theme.goldDark, DEFAULT_PRINT_TEMPLATE_CONFIG.theme.goldDark, "other theme keys keep defaults");
 assert.equal(merged.sections.footer, false, "override sections.footer applied");
 assert.equal(merged.sections.header, true, "other sections keep defaults");
+assert.equal(merged.sections.customTextBlocks, true, "customTextBlocks keeps default when not overridden");
 assert.equal(merged.fields.customerPhone, false, "override fields.customerPhone applied");
 assert.equal(merged.fields.companyTrn, true, "other fields keep defaults");
+assert.equal(merged.fields.invoiceBranch, true, "invoiceBranch keeps default when not overridden");
 
 // 6) null/undefined overrides never break the resolver.
 assert.deepEqual(resolveInvoicePrintTemplateConfig(null), base, "null overrides -> defaults");

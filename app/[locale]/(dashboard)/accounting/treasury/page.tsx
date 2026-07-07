@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -62,6 +62,18 @@ export default function TreasuryPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Phase 21.4 — stable Idempotency-Key for the treasury transaction. One key per
+  // modal session: generated on open, reused on retry (kept on failure), and
+  // reset on success so the next transaction gets a fresh key.
+  const idemKeyRef = useRef("");
+  const newIdemKey = () => {
+    try {
+      return window.crypto.randomUUID();
+    } catch {
+      return `IDEM-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    }
+  };
+
   // Closing state
   const [closeAccount, setCloseAccount] = useState("cash");
   const [actual, setActual] = useState("");
@@ -71,6 +83,7 @@ export default function TreasuryPage() {
     setTxType(type);
     setForm({ account: "cash", toAccount: "bank", amount: "", category: "", description: "" });
     setFormError(null);
+    idemKeyRef.current = newIdemKey(); // one stable key per transaction session
     setOpen(true);
   };
 
@@ -83,6 +96,8 @@ export default function TreasuryPage() {
       return;
     }
     setSubmitting(true);
+    // Ensure a key exists even if the modal was opened before this field existed.
+    if (!idemKeyRef.current) idemKeyRef.current = newIdemKey();
     try {
       const payload: NewCashTransaction = {
         type: txType,
@@ -92,10 +107,12 @@ export default function TreasuryPage() {
         description: form.description || undefined,
         ...(txType === "transfer" ? { toAccount: form.toAccount } : {}),
       };
-      await addTransaction(payload);
+      await addTransaction(payload, idemKeyRef.current);
+      idemKeyRef.current = ""; // success → next transaction gets a fresh key
       setTxPage(1); // newest transaction is on page 1
       setOpen(false);
     } catch (err: any) {
+      // Keep the same key so a retry of THIS transaction replays, not double-posts.
       setFormError(err?.message || t("submitError"));
     } finally {
       setSubmitting(false);

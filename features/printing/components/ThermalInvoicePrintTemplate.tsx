@@ -13,6 +13,7 @@ import {
   formatLocalizedText,
   LocalizedPrintLabel,
 } from "@/features/printing/components/LocalizedPrintLabel";
+import { CustomPrintTextBlocks } from "@/features/printing/components/CustomPrintTextBlocks";
 
 /**
  * Thermal receipt-style invoice template (Phase 19J).
@@ -108,6 +109,7 @@ export function ThermalInvoicePrintTemplate({
       postalCode: company.postalCode,
     },
     settings,
+    templateId: "thermal",
     locale,
     currency,
     getPublicFileUrl,
@@ -151,6 +153,7 @@ export function ThermalInvoicePrintTemplate({
     tpl.fields.footerAddress ? vm.company.address : undefined,
     tpl.fields.footerEmail ? vm.company.email : undefined,
   ].filter((v): v is string => Boolean(v));
+  const customBlocks = tpl.sections.customTextBlocks ? vm.customTextBlocksByPlacement : {};
 
   return (
     <article className="print-document print-page thermal-invoice" data-print-root style={themeVars}>
@@ -177,6 +180,7 @@ export function ThermalInvoicePrintTemplate({
       {tpl.sections.headerNote && vm.messages.headerNote && (
         <p style={{ textAlign: "center", whiteSpace: "pre-line", fontSize: "8.2px", margin: "0 0 1mm" }}>{vm.messages.headerNote}</p>
       )}
+      <CustomPrintTextBlocks blocks={customBlocks.afterHeader} compact />
 
       {tpl.sections.invoiceDetails && (
         <>
@@ -184,6 +188,9 @@ export function ThermalInvoicePrintTemplate({
           <div>
             <LineRow labelEn="Invoice No." labelAr="رقم الفاتورة" value={text(vm.document.number)} showEnglish={showEn} showArabic={showAr} />
             <LineRow labelEn="Date" labelAr="التاريخ" value={text(vm.document.date)} showEnglish={showEn} showArabic={showAr} />
+            {tpl.fields.invoiceBranch && vm.document.branch && (
+              <LineRow labelEn="Branch" labelAr="الفرع" value={text(vm.document.branch)} showEnglish={showEn} showArabic={showAr} />
+            )}
             <LineRow labelEn="Type" labelAr="النوع" value={documentTypeLabel} showEnglish={showEn} showArabic={showAr} />
             {vm.document.status && <LineRow labelEn="Status" labelAr="الحالة" value={text(vm.document.status)} showEnglish={showEn} showArabic={showAr} />}
             {tpl.fields.originalInvoiceRef && (vm.document.originalInvoiceNumber || vm.document.originalInvoiceId) && (
@@ -193,6 +200,7 @@ export function ThermalInvoicePrintTemplate({
           </div>
         </>
       )}
+      <CustomPrintTextBlocks blocks={customBlocks.afterInvoiceDetails} compact />
 
       {tpl.sections.clientDetails && (
         <>
@@ -205,6 +213,7 @@ export function ThermalInvoicePrintTemplate({
           </div>
         </>
       )}
+      <CustomPrintTextBlocks blocks={customBlocks.beforeItems} compact />
 
       {tpl.sections.itemsTable && (
         <>
@@ -230,6 +239,7 @@ export function ThermalInvoicePrintTemplate({
           </div>
         </>
       )}
+      <CustomPrintTextBlocks blocks={customBlocks.afterItems} compact />
 
       {tpl.sections.specialSummary && vm.special?.exchange && (
         <>
@@ -263,6 +273,7 @@ export function ThermalInvoicePrintTemplate({
           ))}
         </>
       )}
+      <CustomPrintTextBlocks blocks={customBlocks.afterTotals} compact />
 
       {tpl.sections.notes && vm.notes && (
         <>
@@ -280,9 +291,13 @@ export function ThermalInvoicePrintTemplate({
         </>
       )}
 
+      <CustomPrintTextBlocks blocks={customBlocks.beforeFooter} compact />
+
       {tpl.sections.footerMessage && vm.messages.footerMessage && (
         <p style={{ textAlign: "center", whiteSpace: "pre-line", fontSize: "8.2px", margin: "1mm 0" }}>{vm.messages.footerMessage}</p>
       )}
+
+      <CustomPrintTextBlocks blocks={customBlocks.beforeSignatures} compact />
 
       {tpl.sections.signatures && (
         <div className="thermal-signatures">

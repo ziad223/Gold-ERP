@@ -13,6 +13,7 @@ import {
   formatLocalizedText,
   LocalizedPrintLabel,
 } from "@/features/printing/components/LocalizedPrintLabel";
+import { CustomPrintTextBlocks } from "@/features/printing/components/CustomPrintTextBlocks";
 
 /**
  * Minimal A4 invoice template (Phase 19I).
@@ -174,6 +175,7 @@ export function MinimalInvoicePrintTemplate({
       postalCode: company.postalCode,
     },
     settings,
+    templateId: "minimal",
     locale,
     currency,
     getPublicFileUrl,
@@ -219,6 +221,7 @@ export function MinimalInvoicePrintTemplate({
     tpl.fields.footerAddress ? vm.company.address : undefined,
     tpl.fields.footerEmail ? vm.company.email : undefined,
   ].filter((v): v is string => Boolean(v));
+  const customBlocks = tpl.sections.customTextBlocks ? vm.customTextBlocksByPlacement : {};
 
   return (
     <article className="print-document print-page minimal-invoice" data-print-root style={themeVars}>
@@ -251,6 +254,7 @@ export function MinimalInvoicePrintTemplate({
       {tpl.sections.headerNote && vm.messages.headerNote && (
         <p style={{ textAlign: "center", whiteSpace: "pre-line", margin: "0 0 1.5mm", fontSize: "0.9em", color: "#555" }}>{vm.messages.headerNote}</p>
       )}
+      <CustomPrintTextBlocks blocks={customBlocks.afterHeader} />
 
       {(tpl.sections.clientDetails || tpl.sections.invoiceDetails) && (
         <section className="minimal-meta">
@@ -268,6 +272,9 @@ export function MinimalInvoicePrintTemplate({
               <SectionTitle en="Invoice Details" ar="بيانات الفاتورة" showEnglish={showEn} showArabic={showAr} />
               <Row labelEn="Invoice No." labelAr="رقم الفاتورة" value={text(vm.document.number)} showEnglish={showEn} showArabic={showAr} />
               <Row labelEn="Invoice Date" labelAr="تاريخ الفاتورة" value={text(vm.document.date)} showEnglish={showEn} showArabic={showAr} />
+              {tpl.fields.invoiceBranch && vm.document.branch && (
+                <Row labelEn="Branch" labelAr="الفرع" value={text(vm.document.branch)} showEnglish={showEn} showArabic={showAr} />
+              )}
               <Row labelEn="Type" labelAr="النوع" value={documentTypeLabel} showEnglish={showEn} showArabic={showAr} />
               <Row labelEn="Status" labelAr="الحالة" value={text(vm.document.status)} showEnglish={showEn} showArabic={showAr} />
               {tpl.fields.originalInvoiceRef && (vm.document.originalInvoiceNumber || vm.document.originalInvoiceId) && (
@@ -278,6 +285,8 @@ export function MinimalInvoicePrintTemplate({
           )}
         </section>
       )}
+      <CustomPrintTextBlocks blocks={customBlocks.afterInvoiceDetails} />
+      <CustomPrintTextBlocks blocks={customBlocks.beforeItems} />
 
       {tpl.sections.itemsTable && (
         <section className="minimal-table-wrap">
@@ -314,6 +323,7 @@ export function MinimalInvoicePrintTemplate({
           </table>
         </section>
       )}
+      <CustomPrintTextBlocks blocks={customBlocks.afterItems} />
 
       {tpl.sections.specialSummary && vm.special?.exchange && (
         <section className="minimal-special">
@@ -351,6 +361,7 @@ export function MinimalInvoicePrintTemplate({
           )}
         </section>
       )}
+      <CustomPrintTextBlocks blocks={customBlocks.afterTotals} />
 
       {tpl.sections.notes && vm.notes && (
         <section className="minimal-notes">
@@ -366,9 +377,13 @@ export function MinimalInvoicePrintTemplate({
         </section>
       )}
 
+      <CustomPrintTextBlocks blocks={customBlocks.beforeFooter} />
+
       {tpl.sections.footerMessage && vm.messages.footerMessage && (
         <p style={{ textAlign: "center", whiteSpace: "pre-line", margin: "1.5mm 0", fontSize: "0.9em", color: "#555" }}>{vm.messages.footerMessage}</p>
       )}
+
+      <CustomPrintTextBlocks blocks={customBlocks.beforeSignatures} />
 
       {tpl.sections.signatures && (
         <section className="minimal-signatures">

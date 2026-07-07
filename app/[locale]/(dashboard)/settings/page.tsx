@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { isApiDataSource } from "@/lib/data-source";
 import {
   Building2,
   CreditCard,
@@ -36,9 +37,22 @@ import { useErp } from "@/contexts/erp-context";
 import { useAppSettings, type Branch, type AppSettings } from "@/contexts/settings-context";
 import { usePrintTemplateDefaults } from "@/hooks/use-print-template-defaults";
 import { useInvoicePrintBuilderConfig } from "@/hooks/use-invoice-print-builder-config";
+import { useInvoicePrintCustomBlocks } from "@/hooks/use-invoice-print-custom-blocks";
 import { usePrintCompanyInfo } from "@/hooks/use-print-company-info";
 import type { InvoicePrintOptions, InvoicePrintTemplateId } from "@/features/printing/lib/invoice-print-options";
 import type { InvoicePrintBuilderConfig } from "@/features/printing/lib/print-builder-config";
+import {
+  CUSTOM_PRINT_BLOCK_CONTENT_MAX,
+  CUSTOM_PRINT_BLOCK_MAX_BLOCKS,
+  CUSTOM_PRINT_BLOCK_TITLE_MAX,
+  DEFAULT_CUSTOM_PRINT_BLOCK_STYLE,
+  sanitizeInvoicePrintCustomBlocksConfig,
+  type CustomPrintBlockAlignment,
+  type CustomPrintBlockFontSize,
+  type CustomPrintBlockPlacement,
+  type InvoicePrintCustomBlock,
+  type InvoicePrintCustomBlocksConfig,
+} from "@/features/printing/lib/invoice-print-custom-blocks-config";
 import { InvoiceDocument } from "@/features/printing/components/InvoiceDocument";
 import {
   FIXTURE_INVOICE,
@@ -72,6 +86,30 @@ const POS_PRINT_TEMPLATE_OPTIONS: Array<{ value: InvoicePrintTemplateId; labelEn
   { value: "luxuryGold", labelEn: "Luxury Gold", labelAr: "الذهبي الفاخر" },
   { value: "compactA4", labelEn: "Compact A4", labelAr: "مضغوط A4" },
   { value: "minimal", labelEn: "Minimal A4", labelAr: "بسيط A4" },
+];
+
+const CUSTOM_PRINT_BLOCK_PLACEMENT_OPTIONS: Array<{ value: CustomPrintBlockPlacement; labelEn: string; labelAr: string }> = [
+  { value: "afterHeader", labelEn: "After header", labelAr: "بعد الهيدر" },
+  { value: "afterInvoiceDetails", labelEn: "After invoice details", labelAr: "بعد بيانات الفاتورة" },
+  { value: "beforeItems", labelEn: "Before items", labelAr: "قبل جدول الأصناف" },
+  { value: "afterItems", labelEn: "After items", labelAr: "بعد جدول الأصناف" },
+  { value: "afterTotals", labelEn: "After totals", labelAr: "بعد الإجماليات" },
+  { value: "beforeSignatures", labelEn: "Before signatures", labelAr: "قبل التوقيعات" },
+  { value: "beforeFooter", labelEn: "Before footer", labelAr: "قبل الفوتر" },
+];
+
+const CUSTOM_PRINT_BLOCK_FONT_SIZE_OPTIONS: Array<{ value: CustomPrintBlockFontSize; labelEn: string; labelAr: string }> = [
+  { value: "xs", labelEn: "XS", labelAr: "صغير جدًا" },
+  { value: "sm", labelEn: "SM", labelAr: "صغير" },
+  { value: "base", labelEn: "Base", labelAr: "عادي" },
+  { value: "lg", labelEn: "LG", labelAr: "كبير" },
+  { value: "xl", labelEn: "XL", labelAr: "كبير جدًا" },
+];
+
+const CUSTOM_PRINT_BLOCK_ALIGNMENT_OPTIONS: Array<{ value: CustomPrintBlockAlignment; labelEn: string; labelAr: string }> = [
+  { value: "left", labelEn: "Left", labelAr: "شمال" },
+  { value: "center", labelEn: "Center", labelAr: "وسط" },
+  { value: "right", labelEn: "Right", labelAr: "يمين" },
 ];
 
 function sanitizeDefaultPosTemplate(value: unknown): InvoicePrintTemplateId {
@@ -219,6 +257,11 @@ export default function SettingsPage() {
   const [savingBuilder, setSavingBuilder] = useState(false);
   const [previewLanguage, setPreviewLanguage] = useState<"bilingual" | "ar" | "en">("bilingual");
 
+  // Phase 20.2 — custom plain-text print blocks, stored outside receipt.
+  const { config: savedCustomBlocksConfig, save: saveCustomBlocksConfig } = useInvoicePrintCustomBlocks();
+  const [customBlocksForm, setCustomBlocksForm] = useState<InvoicePrintCustomBlocksConfig>(savedCustomBlocksConfig);
+  const [savingCustomBlocks, setSavingCustomBlocks] = useState(false);
+
   // Rehydrate the local builder form from the saved config. Guard against
   // redundant updates (compare by content signature) so an unstable
   // `savedBuilderConfig` reference can never cause an update loop.
@@ -226,6 +269,13 @@ export default function SettingsPage() {
   useEffect(() => {
     setBuilderForm((prev) => (JSON.stringify(prev) === savedBuilderConfigSignature ? prev : savedBuilderConfig));
   }, [savedBuilderConfig, savedBuilderConfigSignature]);
+
+  const savedCustomBlocksConfigSignature = useMemo(() => JSON.stringify(savedCustomBlocksConfig), [savedCustomBlocksConfig]);
+  useEffect(() => {
+    setCustomBlocksForm((prev) => (
+      JSON.stringify(prev) === savedCustomBlocksConfigSignature ? prev : savedCustomBlocksConfig
+    ));
+  }, [savedCustomBlocksConfig, savedCustomBlocksConfigSignature]);
 
   // Phase 19X.2-G — LIVE company data for the print preview. Precedence:
   // Company Profile form state (user may be editing) > auth company/session >
@@ -311,6 +361,86 @@ export default function SettingsPage() {
       return { ...prev, templates };
     });
     toast.success(rtl ? "تمت إعادة التعيين للوضع الافتراضي (يرجى حفظ التغييرات)" : "Customization reset to default (please save changes)");
+  };
+
+  const updateCustomBlock = (id: string, patch: Partial<InvoicePrintCustomBlock>) => {
+    setCustomBlocksForm((prev) => ({
+      version: 1,
+      blocks: prev.blocks.map((block) => (block.id === id ? { ...block, ...patch } : block)),
+    }));
+  };
+
+  const updateCustomBlockStyle = (
+    block: InvoicePrintCustomBlock,
+    patch: Partial<InvoicePrintCustomBlock["style"]>,
+  ) => {
+    updateCustomBlock(block.id, {
+      style: {
+        ...DEFAULT_CUSTOM_PRINT_BLOCK_STYLE,
+        ...(block.style ?? {}),
+        ...patch,
+      },
+    });
+  };
+
+  const handleAddCustomBlock = () => {
+    setCustomBlocksForm((prev) => {
+      if (prev.blocks.length >= CUSTOM_PRINT_BLOCK_MAX_BLOCKS) return prev;
+      const nextSortOrder = prev.blocks.reduce((max, block) => Math.max(max, Number(block.sortOrder) || 0), 0) + 10;
+      return {
+        version: 1,
+        blocks: [
+          ...prev.blocks,
+          {
+            id: `custom-block-${Date.now()}`,
+            enabled: true,
+            title: "",
+            content: "",
+            placement: "afterTotals",
+            sortOrder: nextSortOrder,
+            style: DEFAULT_CUSTOM_PRINT_BLOCK_STYLE,
+          },
+        ],
+      };
+    });
+  };
+
+  const handleRemoveCustomBlock = (id: string) => {
+    if (!window.confirm(rtl ? "حذف هذا النص المخصص؟" : "Delete this custom text block?")) return;
+    setCustomBlocksForm((prev) => ({
+      version: 1,
+      blocks: prev.blocks.filter((block) => block.id !== id),
+    }));
+  };
+
+  const handleToggleCustomBlockTemplate = (block: InvoicePrintCustomBlock, templateId: InvoicePrintTemplateId, checked: boolean) => {
+    const allTemplateIds = POS_PRINT_TEMPLATE_OPTIONS.map((option) => option.value);
+    const currentTemplates = block.templates ?? allTemplateIds;
+    const nextTemplates = checked
+      ? [...currentTemplates, templateId].filter((value, index, arr) => arr.indexOf(value) === index)
+      : currentTemplates.filter((value) => value !== templateId);
+
+    updateCustomBlock(block.id, {
+      templates: nextTemplates.length === 0 || nextTemplates.length === allTemplateIds.length ? undefined : nextTemplates,
+    });
+  };
+
+  const handleSaveCustomBlocks = async () => {
+    setSavingCustomBlocks(true);
+    try {
+      const value = sanitizeInvoicePrintCustomBlocksConfig(customBlocksForm);
+      const ok = await saveCustomBlocksConfig(value);
+      if (ok) {
+        setCustomBlocksForm(value);
+        toast.success(rtl ? "تم حفظ النصوص المخصصة للطباعة" : "Custom print text blocks saved");
+      } else {
+        toast.error(rtl ? "فشل حفظ النصوص المخصصة" : "Failed to save custom print text blocks");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Error saving custom print text blocks");
+    } finally {
+      setSavingCustomBlocks(false);
+    }
   };
 
   // --- Branches CRUD State ---
@@ -422,7 +552,7 @@ export default function SettingsPage() {
       return;
     }
 
-    if (process.env.NEXT_PUBLIC_DATA_SOURCE !== "api") {
+    if (!isApiDataSource()) {
       const reader = new FileReader();
       reader.onload = () => {
         const base64 = String(reader.result ?? "");
@@ -1420,7 +1550,208 @@ export default function SettingsPage() {
         </Card>
       )}
 
-      {/* 4b. INVOICE PRINT DEFAULTS (Phase 19G) */}
+      {/* 4b. CUSTOM PRINT TEXT BLOCKS (Phase 20.2) */}
+      {activeTab === "printDesign" && (
+        <Card className="p-5 lg:p-6 space-y-6 animate-in fade-in duration-200">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="grid h-10 w-10 place-items-center rounded-2xl bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
+                <Edit2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="font-black text-navy-950 dark:text-white">
+                  {rtl ? "نصوص طباعة مخصصة" : "Custom Print Text Blocks"}
+                </h2>
+                <p className="text-xs text-slate-500">
+                  {rtl
+                    ? "نصوص عادية فقط. تظهر في طباعة فواتير البيع/الكاشير ولا تؤثر على الإجماليات أو الحسابات."
+                    : "Plain text only. These blocks appear on printed Sales/POS invoices and do not affect totals or accounting."}
+                </p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleAddCustomBlock}
+              disabled={customBlocksForm.blocks.length >= CUSTOM_PRINT_BLOCK_MAX_BLOCKS}
+            >
+              <Plus className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
+              {rtl ? "إضافة نص" : "Add Block"}
+            </Button>
+          </div>
+
+          <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-3 text-[10px] text-slate-500 dark:border-white/10 dark:bg-white/[0.02]">
+            {rtl
+              ? `الحد الأقصى ${CUSTOM_PRINT_BLOCK_MAX_BLOCKS} نصوص. العنوان حتى ${CUSTOM_PRINT_BLOCK_TITLE_MAX} حرفاً والمحتوى حتى ${CUSTOM_PRINT_BLOCK_CONTENT_MAX} حرفاً. تنسيق النص محدود بخيارات آمنة للطباعة فقط. النص يظل عاديًا ولا يشغّل HTML أو scripts.`
+              : `Maximum ${CUSTOM_PRINT_BLOCK_MAX_BLOCKS} blocks. Title up to ${CUSTOM_PRINT_BLOCK_TITLE_MAX} characters and content up to ${CUSTOM_PRINT_BLOCK_CONTENT_MAX} characters. Styling is limited to safe print options only. Text remains plain text and cannot run HTML or scripts.`}
+          </div>
+
+          {customBlocksForm.blocks.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 p-5 text-center text-xs text-slate-500 dark:border-slate-800">
+              {rtl ? "لا توجد نصوص مخصصة للطباعة حتى الآن." : "No custom print text blocks yet."}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {customBlocksForm.blocks.map((block, index) => {
+                const activeTemplates = block.templates ?? POS_PRINT_TEMPLATE_OPTIONS.map((option) => option.value);
+                return (
+                  <div key={block.id} className="rounded-2xl border border-slate-100 bg-white/70 p-4 dark:border-white/10 dark:bg-white/[0.02]">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      {renderToggle(
+                        rtl ? "تفعيل النص" : "Enabled",
+                        block.enabled,
+                        (checked) => updateCustomBlock(block.id, { enabled: checked }),
+                      )}
+                      <Button type="button" variant="secondary" onClick={() => handleRemoveCustomBlock(block.id)}>
+                        <Trash2 className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
+                        {rtl ? "حذف" : "Delete"}
+                      </Button>
+                    </div>
+
+                    <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                      <label className="block" htmlFor={`custom-print-block-title-${block.id}`}>
+                        <span className="label-base">{rtl ? "العنوان (اختياري)" : "Title (optional)"}</span>
+                        <input
+                          id={`custom-print-block-title-${block.id}`}
+                          name={`custom-print-block-title-${index}`}
+                          className="input-base mt-1"
+                          maxLength={CUSTOM_PRINT_BLOCK_TITLE_MAX}
+                          value={block.title ?? ""}
+                          onChange={(e) => updateCustomBlock(block.id, { title: e.target.value })}
+                        />
+                      </label>
+
+                      <label className="block" htmlFor={`custom-print-block-placement-${block.id}`}>
+                        <span className="label-base">{rtl ? "الموضع" : "Placement"}</span>
+                        <select
+                          id={`custom-print-block-placement-${block.id}`}
+                          name={`custom-print-block-placement-${index}`}
+                          className="input-base mt-1 bg-input text-foreground border-border"
+                          value={block.placement}
+                          onChange={(e) => updateCustomBlock(block.id, { placement: e.target.value as CustomPrintBlockPlacement })}
+                        >
+                          {CUSTOM_PRINT_BLOCK_PLACEMENT_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value} className="bg-panel text-foreground">
+                              {rtl ? option.labelAr : option.labelEn}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="block lg:col-span-2" htmlFor={`custom-print-block-content-${block.id}`}>
+                        <span className="label-base">{rtl ? "المحتوى" : "Content"}</span>
+                        <textarea
+                          id={`custom-print-block-content-${block.id}`}
+                          name={`custom-print-block-content-${index}`}
+                          className="input-base mt-1 min-h-[96px]"
+                          maxLength={CUSTOM_PRINT_BLOCK_CONTENT_MAX}
+                          value={block.content}
+                          onChange={(e) => updateCustomBlock(block.id, { content: e.target.value })}
+                        />
+                      </label>
+
+                      <label className="block" htmlFor={`custom-print-block-sort-${block.id}`}>
+                        <span className="label-base">{rtl ? "ترتيب العرض" : "Sort order"}</span>
+                        <input
+                          id={`custom-print-block-sort-${block.id}`}
+                          name={`custom-print-block-sort-${index}`}
+                          type="number"
+                          className="input-base mt-1"
+                          value={block.sortOrder}
+                          onChange={(e) => updateCustomBlock(block.id, { sortOrder: Number(e.target.value) })}
+                        />
+                      </label>
+
+                      <div className="lg:col-span-2 rounded-2xl border border-slate-100 bg-slate-50/60 p-3 dark:border-white/10 dark:bg-white/[0.02]">
+                        <p className="label-base">{rtl ? "تنسيق الطباعة" : "Print styling"}</p>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                          <label className="block" htmlFor={`custom-print-block-font-size-${block.id}`}>
+                            <span className="label-base">{rtl ? "حجم الخط" : "Font size"}</span>
+                            <select
+                              id={`custom-print-block-font-size-${block.id}`}
+                              name={`custom-print-block-font-size-${index}`}
+                              className="input-base mt-1 bg-input text-foreground border-border"
+                              value={(block.style ?? DEFAULT_CUSTOM_PRINT_BLOCK_STYLE).fontSize}
+                              onChange={(e) => updateCustomBlockStyle(block, { fontSize: e.target.value as CustomPrintBlockFontSize })}
+                            >
+                              {CUSTOM_PRINT_BLOCK_FONT_SIZE_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value} className="bg-panel text-foreground">
+                                  {rtl ? option.labelAr : option.labelEn}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <label className="block" htmlFor={`custom-print-block-align-${block.id}`}>
+                            <span className="label-base">{rtl ? "المحاذاة" : "Alignment"}</span>
+                            <select
+                              id={`custom-print-block-align-${block.id}`}
+                              name={`custom-print-block-align-${index}`}
+                              className="input-base mt-1 bg-input text-foreground border-border"
+                              value={(block.style ?? DEFAULT_CUSTOM_PRINT_BLOCK_STYLE).align}
+                              onChange={(e) => updateCustomBlockStyle(block, { align: e.target.value as CustomPrintBlockAlignment })}
+                            >
+                              {CUSTOM_PRINT_BLOCK_ALIGNMENT_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value} className="bg-panel text-foreground">
+                                  {rtl ? option.labelAr : option.labelEn}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
+
+                        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                          {renderToggle(
+                            rtl ? "تقيل" : "Bold",
+                            (block.style ?? DEFAULT_CUSTOM_PRINT_BLOCK_STYLE).bold,
+                            (checked) => updateCustomBlockStyle(block, { bold: checked }),
+                          )}
+                          {renderToggle(
+                            rtl ? "مائل" : "Italic",
+                            (block.style ?? DEFAULT_CUSTOM_PRINT_BLOCK_STYLE).italic,
+                            (checked) => updateCustomBlockStyle(block, { italic: checked }),
+                          )}
+                          {renderToggle(
+                            rtl ? "تحته خط" : "Underline",
+                            (block.style ?? DEFAULT_CUSTOM_PRINT_BLOCK_STYLE).underline,
+                            (checked) => updateCustomBlockStyle(block, { underline: checked }),
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="label-base">{rtl ? "القوالب" : "Templates"}</p>
+                        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                          {POS_PRINT_TEMPLATE_OPTIONS.map((option) => (
+                            <label key={option.value} className="flex items-center gap-2 rounded-xl border border-slate-100 px-3 py-2 text-xs dark:border-white/10">
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                                checked={activeTemplates.includes(option.value)}
+                                onChange={(e) => handleToggleCustomBlockTemplate(block, option.value, e.target.checked)}
+                              />
+                              <span>{rtl ? option.labelAr : option.labelEn}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="pt-2">
+            <Button onClick={handleSaveCustomBlocks} disabled={savingCustomBlocks}>
+              <Save className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
+              {savingCustomBlocks ? common("saving") : (rtl ? "حفظ النصوص المخصصة" : "Save Custom Blocks")}
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* 4c. INVOICE PRINT DEFAULTS (Phase 19G) */}
       {activeTab === "printDesign" && (
         <Card className="p-5 lg:p-6 space-y-6 animate-in fade-in duration-200">
           <div className="flex items-center gap-3">
@@ -1494,7 +1825,7 @@ export default function SettingsPage() {
         </Card>
       )}
 
-      {/* 4c. INVOICE PRINT BUILDER (Phase 19R) */}
+      {/* 4d. INVOICE PRINT BUILDER (Phase 19R) */}
       {activeTab === "printDesign" && (
         <Card className="p-5 lg:p-6 space-y-6 animate-in fade-in duration-200">
           <div className="flex items-center gap-3">
@@ -1588,6 +1919,7 @@ export default function SettingsPage() {
                     { key: "welcomeMessage", labelAr: "رسالة الترحيب", labelEn: "Welcome Message" },
                     { key: "headerNote", labelAr: "ملاحظة أعلى الفاتورة", labelEn: "Header Note" },
                     { key: "footerMessage", labelAr: "رسالة أسفل الفاتورة", labelEn: "Footer Message" },
+                    { key: "customTextBlocks", labelAr: "نصوص مخصصة", labelEn: "Custom text blocks" },
                     { key: "terms", labelAr: "الشروط والأحكام", labelEn: "Terms & Conditions" },
                     { key: "signatures", labelAr: "حقول التوقيع والختم", labelEn: "Signature Boxes" },
                     { key: "footer", labelAr: "تذييل الاتصال", labelEn: "Footer Contact Info" },
@@ -1623,6 +1955,7 @@ export default function SettingsPage() {
                     { key: "customerPhone", labelAr: "هاتف العميل", labelEn: "Customer Phone" },
                     { key: "customerTrn", labelAr: "الرقم الضريبي للعميل", labelEn: "Customer TRN", warning: true },
                     { key: "customerAddress", labelAr: "عنوان العميل", labelEn: "Customer Address" },
+                    { key: "invoiceBranch", labelAr: "فرع الفاتورة", labelEn: "Invoice branch" },
                     { key: "itemKarat", labelAr: "عيار الذهب", labelEn: "Karat Column" },
                     { key: "itemWeight", labelAr: "وزن الأصناف", labelEn: "Weight Column" },
                     { key: "itemAssetId", labelAr: "رقم القطعة (الباركود)", labelEn: "Asset ID / Barcode" },
@@ -1678,6 +2011,7 @@ export default function SettingsPage() {
                         settings={{
                           ...settings,
                           invoicePrintBuilderConfig: builderForm,
+                          invoicePrintCustomBlocks: customBlocksForm,
                         } as any}
                         locale={locale}
                         templateConfig={{
@@ -1695,6 +2029,7 @@ export default function SettingsPage() {
                         settings={{
                           ...settings,
                           invoicePrintBuilderConfig: builderForm,
+                          invoicePrintCustomBlocks: customBlocksForm,
                         } as any}
                         locale={locale}
                         templateConfig={{

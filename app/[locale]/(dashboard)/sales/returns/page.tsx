@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import { getDataSourceMode } from "@/lib/data-source";
 import { ArrowLeft, ArrowRight, Search, RotateCcw, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
@@ -13,7 +14,7 @@ import { useErp } from "@/contexts/erp-context";
 import { useAppSettings } from "@/contexts/settings-context";
 import { Link } from "@/i18n/navigation";
 import { formatCurrency } from "@/lib/utils";
-import { apiClient } from "@/lib/api/client";
+import { apiClient, generateUUID } from "@/lib/api/client";
 import type { Invoice, InvoiceItem, CreateReturnPayload } from "@/lib/types";
 import { queryKeys } from "@/lib/query-keys";
 import { toEnglishDigits } from "@/lib/formatters/numbers";
@@ -37,7 +38,7 @@ export default function ReturnsPage() {
   const { settings } = useAppSettings();
   const { hasPermission } = usePermissions();
 
-  const dataSource = process.env.NEXT_PUBLIC_DATA_SOURCE || "mock";
+  const dataSource = getDataSourceMode();
   const apiMode = dataSource === "api";
   const canCreateSales = hasPermission("sales.create");
   const submitPermissionMessage = rtl
@@ -120,6 +121,7 @@ export default function ReturnsPage() {
   const handleSearch = async () => {
     setErrorMsg("");
     setSuccessMsg("");
+    idempotencyKeyRef.current = ""; // fresh operation → fresh idempotency key
     const lookupValue = invoiceId.trim();
     if (!lookupValue) return;
 
@@ -171,6 +173,11 @@ export default function ReturnsPage() {
     );
   };
 
+  // Phase 21.3 — stable Idempotency-Key: generated once per submit attempt,
+  // reused on retry (so a lost-response retry replays instead of duplicating),
+  // reset on success and when a new invoice search starts a fresh operation.
+  const idempotencyKeyRef = useRef("");
+
   const handlePostReturn = async () => {
     setErrorMsg("");
     if (!searchedInvoice) {
@@ -207,7 +214,9 @@ export default function ReturnsPage() {
         if (lineIds.length > 0 && lineIds.length === selectedLineItems.length) {
           payload.returnedInvoiceItemIds = lineIds;
         }
-        await apiClient("/sales/returns", { method: "POST", body: JSON.stringify(payload), locale });
+        if (!idempotencyKeyRef.current) idempotencyKeyRef.current = generateUUID();
+        await apiClient("/sales/returns", { method: "POST", body: JSON.stringify(payload), idempotencyKey: idempotencyKeyRef.current, locale });
+        idempotencyKeyRef.current = "";
 
         const customerId = searchedInvoice.customerId;
         await Promise.all([

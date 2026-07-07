@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CalendarClock, LogIn, LogOut, Wallet } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +30,18 @@ export default function PayrollPage() {
 
   const [genBusy, setGenBusy] = useState(false);
   const [payingId, setPayingId] = useState<string | null>(null);
+
+  // Phase 21.5 — stable Idempotency-Key per payslip. Generated on the first pay
+  // attempt, reused on retry (kept on failure), cleared on success so a later
+  // payment gets a fresh key.
+  const idemKeysRef = useRef<Record<string, string>>({});
+  const newIdemKey = () => {
+    try {
+      return window.crypto.randomUUID();
+    } catch {
+      return `IDEM-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    }
+  };
   const [employees, setEmployees] = useState<{ id: string; name: string }[]>([]);
   const [selectedEmp, setSelectedEmp] = useState("");
   const [attBusy, setAttBusy] = useState(false);
@@ -53,7 +65,12 @@ export default function PayrollPage() {
 
   const handlePay = async (id: string) => {
     setPayingId(id);
-    try { await payPayslip(id, "Bank"); } finally { setPayingId(null); }
+    // Reuse the same key across retries of THIS payslip (replay, not double-pay).
+    if (!idemKeysRef.current[id]) idemKeysRef.current[id] = newIdemKey();
+    try {
+      await payPayslip(id, "Bank", idemKeysRef.current[id]);
+      delete idemKeysRef.current[id]; // success → a later payment gets a fresh key
+    } finally { setPayingId(null); }
   };
 
   const handleAtt = async (fn: (id: string) => Promise<unknown>) => {

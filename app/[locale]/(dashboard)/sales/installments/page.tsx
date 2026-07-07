@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CalendarClock, CheckCircle2 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,18 @@ export default function InstallmentsPage() {
   const [payingId, setPayingId] = useState<string | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
 
+  // Phase 21.4 — stable Idempotency-Key per installment. Generated on the first
+  // pay attempt for an installment, reused on retry (kept on failure), and
+  // cleared on success so a later collection gets a fresh key.
+  const idemKeysRef = useRef<Record<string, string>>({});
+  const newIdemKey = () => {
+    try {
+      return window.crypto.randomUUID();
+    } catch {
+      return `IDEM-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    }
+  };
+
   // Remaining = installment amount minus what has been paid (no remaining field
   // on the model). Avoids `||` that would hide a real 0.
   const remainingOf = (inst: Installment) =>
@@ -47,8 +59,11 @@ export default function InstallmentsPage() {
     }
     setPayError(null);
     setPayingId(inst.id);
+    // Reuse the same key across retries of THIS installment (replay, not double-charge).
+    if (!idemKeysRef.current[inst.id]) idemKeysRef.current[inst.id] = newIdemKey();
     try {
-      await payInstallment(inst.id, "Cash", remaining);
+      await payInstallment(inst.id, "Cash", remaining, idemKeysRef.current[inst.id]);
+      delete idemKeysRef.current[inst.id]; // success → a later collection gets a fresh key
     } catch (e: any) {
       setPayError(e?.message || (rtl ? "فشل تحصيل القسط" : "Failed to collect installment"));
     } finally {

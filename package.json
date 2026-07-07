@@ -13,7 +13,22 @@
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,css,md}\"",
     "test:e2e": "playwright test",
     "test:print-export": "playwright test tests/export-print.spec.ts --project=\"Desktop Large\"",
-    "verify:print-company-info": "node scripts/verify-print-company-info.js"
+    "verify:print-company-info": "node scripts/verify-print-company-info.js",
+    "verify:invoice-crud-guards": "node scripts/verify-invoice-crud-guards.js",
+    "verify:return-exchange-settlement": "node scripts/verify-return-exchange-settlement.js",
+    "verify:idempotency": "node scripts/verify-idempotency.js",
+    "verify:secondary-idempotency": "node scripts/verify-secondary-idempotency.js",
+    "verify:production-data-source": "node scripts/verify-production-data-source.js",
+    "verify:customer-credit-ledger": "node scripts/verify-customer-credit-ledger.js",
+    "verify:installment-balance-writeback": "node scripts/verify-installment-balance-writeback.js",
+    "verify:installment-reconciliation": "node scripts/verify-installment-reconciliation.js",
+    "verify:ledger-reporting-foundation": "node scripts/verify-ledger-reporting-foundation.js",
+    "verify:customer-credit-gl-bridge": "node scripts/verify-customer-credit-gl-bridge.js",
+    "verify:customer-credit-existing-rows-checker": "node scripts/verify-customer-credit-existing-rows-checker.js",
+    "verify:manual-customer-deposit": "node scripts/verify-manual-customer-deposit.js",
+    "reconcile:installment-balances": "node backend/scripts/reconcile-installment-balances.js",
+    "check:customer-credit-gl-bridge": "node backend/scripts/check-customer-credit-gl-bridge.js",
+    "idempotency:cleanup": "node backend/scripts/idempotency-cleanup.js"
   },
   "dependencies": {
     "@tanstack/react-query": "5.66.0",

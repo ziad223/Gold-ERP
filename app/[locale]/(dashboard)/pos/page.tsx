@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect, useRef } from "react";
+import { isApiDataSource } from "@/lib/data-source";
 import { Barcode, CheckCircle2, CreditCard, Gem, ShoppingCart, Trash2, UserRound, RefreshCw, AlertTriangle, Printer, FolderOpen, Save } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -60,7 +61,7 @@ export default function PosPage() {
   const rtl = locale === "ar";
   const { company, activeBranch, activeBranchId, user } = useAuth();
   const { settings, loading: settingsLoading, loaded: settingsLoaded, error: settingsError } = useAppSettings();
-  const isApi = (process.env.NEXT_PUBLIC_DATA_SOURCE || "mock") === "api";
+  const isApi = isApiDataSource();
 
   // In API mode we must NOT price/checkout against fallback settings (e.g. VAT=5)
   // before the real company settings have loaded. Block until confirmed loaded.

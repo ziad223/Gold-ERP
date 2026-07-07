@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocale } from "next-intl";
 import { useErp } from "@/contexts/erp-context";
 import { apiClient } from "@/lib/api/client";
+import { getDataSourceMode } from "@/lib/data-source";
 import { normalizePage, toFiniteNumber } from "@/lib/api/normalize";
 import { queryKeys } from "@/lib/query-keys";
 import type { Invoice, InvoiceItem } from "@/lib/types";
@@ -97,7 +98,7 @@ function filterLocalInvoices(invoices: Invoice[], query: InvoiceListQuery) {
 export function useInvoices(queryState: InvoiceListQuery = { page: 1, pageSize: 20 }) {
   const { invoices: localInvoices } = useErp();
   const locale = useLocale();
-  const dataSource = process.env.NEXT_PUBLIC_DATA_SOURCE || "mock";
+  const dataSource = getDataSourceMode();
 
   const fetchInvoicePage = async (pageQuery: InvoiceListQuery) => {
     const res = await apiClient<InvoiceListResponse>(`/invoices?${buildInvoiceQueryString(pageQuery)}`, { locale });

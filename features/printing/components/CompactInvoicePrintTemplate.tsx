@@ -13,6 +13,7 @@ import {
   formatLocalizedText,
   LocalizedPrintLabel,
 } from "@/features/printing/components/LocalizedPrintLabel";
+import { CustomPrintTextBlocks } from "@/features/printing/components/CustomPrintTextBlocks";
 
 /**
  * Compact A4 invoice template (Phase 19H).
@@ -189,6 +190,7 @@ export function CompactInvoicePrintTemplate({
       postalCode: company.postalCode,
     },
     settings,
+    templateId: "compactA4",
     locale,
     currency,
     getPublicFileUrl,
@@ -234,6 +236,7 @@ export function CompactInvoicePrintTemplate({
     tpl.fields.footerAddress ? vm.company.address : undefined,
     tpl.fields.footerEmail ? vm.company.email : undefined,
   ].filter((v): v is string => Boolean(v));
+  const customBlocks = tpl.sections.customTextBlocks ? vm.customTextBlocksByPlacement : {};
 
   return (
     <article className="print-document print-page compact-invoice" data-print-root style={themeVars}>
@@ -266,6 +269,7 @@ export function CompactInvoicePrintTemplate({
       {tpl.sections.headerNote && vm.messages.headerNote && (
         <p style={{ textAlign: "center", whiteSpace: "pre-line", margin: "0 0 1mm", fontSize: "0.9em", color: "#555" }}>{vm.messages.headerNote}</p>
       )}
+      <CustomPrintTextBlocks blocks={customBlocks.afterHeader} />
 
       {(tpl.sections.clientDetails || tpl.sections.invoiceDetails) && (
         <section className="compact-meta">
@@ -283,6 +287,9 @@ export function CompactInvoicePrintTemplate({
               <BoxTitle en="INVOICE DETAILS" ar="بيانات الفاتورة" showEnglish={showEn} showArabic={showAr} />
               <Field labelEn="Invoice No." labelAr="رقم الفاتورة" value={text(vm.document.number)} showEnglish={showEn} showArabic={showAr} />
               <Field labelEn="Invoice Date" labelAr="تاريخ الفاتورة" value={text(vm.document.date)} showEnglish={showEn} showArabic={showAr} />
+              {tpl.fields.invoiceBranch && vm.document.branch && (
+                <Field labelEn="Branch" labelAr="الفرع" value={text(vm.document.branch)} showEnglish={showEn} showArabic={showAr} />
+              )}
               <Field labelEn="Type" labelAr="النوع" value={documentTypeLabel} showEnglish={showEn} showArabic={showAr} />
               <Field labelEn="Status" labelAr="الحالة" value={text(vm.document.status)} showEnglish={showEn} showArabic={showAr} />
               {tpl.fields.originalInvoiceRef && (vm.document.originalInvoiceNumber || vm.document.originalInvoiceId) && (
@@ -293,6 +300,8 @@ export function CompactInvoicePrintTemplate({
           )}
         </section>
       )}
+      <CustomPrintTextBlocks blocks={customBlocks.afterInvoiceDetails} />
+      <CustomPrintTextBlocks blocks={customBlocks.beforeItems} />
 
       {tpl.sections.itemsTable && (
         <section className="compact-table-wrap">
@@ -329,6 +338,7 @@ export function CompactInvoicePrintTemplate({
           </table>
         </section>
       )}
+      <CustomPrintTextBlocks blocks={customBlocks.afterItems} />
 
       {tpl.sections.specialSummary && vm.special?.exchange && (
         <section className="compact-special compact-box">
@@ -366,6 +376,7 @@ export function CompactInvoicePrintTemplate({
           )}
         </section>
       )}
+      <CustomPrintTextBlocks blocks={customBlocks.afterTotals} />
 
       {tpl.sections.notes && vm.notes && (
         <section className="compact-notes compact-box">
@@ -381,9 +392,13 @@ export function CompactInvoicePrintTemplate({
         </section>
       )}
 
+      <CustomPrintTextBlocks blocks={customBlocks.beforeFooter} />
+
       {tpl.sections.footerMessage && vm.messages.footerMessage && (
         <p style={{ textAlign: "center", whiteSpace: "pre-line", margin: "1mm 0", fontSize: "0.9em", color: "#555" }}>{vm.messages.footerMessage}</p>
       )}
+
+      <CustomPrintTextBlocks blocks={customBlocks.beforeSignatures} />
 
       {tpl.sections.signatures && (
         <section className="compact-signatures">

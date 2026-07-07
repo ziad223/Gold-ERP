@@ -26,7 +26,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { toast } from "sonner";
 import type { AttachmentMetadata, KYCStatus, AMLStatus, CustomerKycDetails } from "@/lib/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api/client";
+import { apiClient, generateUUID } from "@/lib/api/client";
 import { normalizeEntity, normalizeItems } from "@/lib/api/normalize";
 import { queryKeys } from "@/lib/query-keys";
 import { invalidateAffectedQueries } from "@/lib/realtime/invalidate-affected-queries";
@@ -827,16 +827,48 @@ export default function CustomerProfilePage({ params }: PageProps) {
 // there is no fix/reconcile/write action.
 const STATEMENT_PAGE_SIZES = [20, 50, 100] as const;
 
+type CustomerDepositForm = {
+  amount: string;
+  paymentMethod: "cash" | "bank";
+  date: string;
+  description: string;
+  reference: string;
+};
+
+const getTodayYmd = () => new Date().toISOString().slice(0, 10);
+
+const getCustomerDepositSignature = (form: CustomerDepositForm, customerId: string) =>
+  JSON.stringify({
+    customerId,
+    amount: form.amount.trim(),
+    paymentMethod: form.paymentMethod,
+    accountCode: form.paymentMethod === "bank" ? "1120" : "1110",
+    date: form.date,
+    description: form.description.trim(),
+    reference: form.reference.trim(),
+  });
+
 function CustomerStatementPanel({ customerId, money }: { customerId: string; money: (value: number) => string }) {
   const locale = useLocale();
   const rtl = locale === "ar";
   const { accountingRepository } = useErp();
+  const queryClient = useQueryClient();
   const isApi = DATA_SOURCE === "api";
 
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
+  const [depositOpen, setDepositOpen] = useState(false);
+  const [depositForm, setDepositForm] = useState<CustomerDepositForm>({
+    amount: "",
+    paymentMethod: "cash",
+    date: getTodayYmd(),
+    description: "",
+    reference: "",
+  });
+  const [depositIdempotency, setDepositIdempotency] = useState<{ key: string; signature: string } | null>(null);
+  const [depositSubmitting, setDepositSubmitting] = useState(false);
 
   const dateError = from && to && from > to;
 
@@ -851,6 +883,70 @@ function CustomerStatementPanel({ customerId, money }: { customerId: string; mon
       }),
     enabled: isApi && !!customerId && !dateError,
   });
+
+  const creditQuery = useQuery<{ data: { availableCredit: number; currency: string } }>({
+    queryKey: ["customer-credit", customerId],
+    queryFn: () => apiClient(`/customers/${encodeURIComponent(customerId)}/credit`, { locale }),
+    enabled: isApi && !!customerId,
+  });
+  const availableCredit = creditQuery.data?.data?.availableCredit ?? 0;
+
+  const updateDepositForm = (patch: Partial<CustomerDepositForm>) => {
+    setDepositForm((current) => ({ ...current, ...patch }));
+    setDepositIdempotency(null);
+  };
+
+  const openDepositModal = () => {
+    setDepositForm({
+      amount: "",
+      paymentMethod: "cash",
+      date: getTodayYmd(),
+      description: rtl ? "إيداع رصيد دائن للعميل" : "Customer credit deposit",
+      reference: "",
+    });
+    setDepositIdempotency(null);
+    setDepositOpen(true);
+  };
+
+  const submitDeposit = async () => {
+    const amount = Number(depositForm.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error(rtl ? "مبلغ الإيداع يجب أن يكون أكبر من صفر" : "Deposit amount must be greater than zero");
+      return;
+    }
+    const signature = getCustomerDepositSignature(depositForm, customerId);
+    const idem = depositIdempotency?.signature === signature
+      ? depositIdempotency
+      : { key: generateUUID(), signature };
+    setDepositIdempotency(idem);
+    setDepositSubmitting(true);
+    try {
+      await apiClient(`/customers/${encodeURIComponent(customerId)}/credit/deposit`, {
+        method: "POST",
+        locale,
+        idempotencyKey: idem.key,
+        body: JSON.stringify({
+          amount,
+          paymentMethod: depositForm.paymentMethod,
+          accountCode: depositForm.paymentMethod === "bank" ? "1120" : "1110",
+          date: depositForm.date,
+          description: depositForm.description.trim() || (rtl ? "إيداع رصيد دائن للعميل" : "Customer credit deposit"),
+          reference: depositForm.reference.trim() || undefined,
+        }),
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["customer-credit", customerId] }),
+        queryClient.invalidateQueries({ queryKey: ["customer-statement-v2", customerId] }),
+      ]);
+      setDepositOpen(false);
+      setDepositIdempotency(null);
+      toast.success(rtl ? "تم تسجيل إيداع العميل" : "Customer deposit recorded");
+    } catch (err: any) {
+      toast.error(err?.message || (rtl ? "فشل تسجيل الإيداع" : "Failed to record deposit"));
+    } finally {
+      setDepositSubmitting(false);
+    }
+  };
 
   if (!isApi) {
     return (
@@ -878,6 +974,112 @@ function CustomerStatementPanel({ customerId, money }: { customerId: string; mon
 
   return (
     <div className="space-y-5">
+      <Card className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-[10px] text-slate-400">{rtl ? "الرصيد الدائن المتاح" : "Available Credit"}</p>
+          <p className="mt-1 text-lg font-black text-emerald-600 dark:text-emerald-400">{money(availableCredit)}</p>
+        </div>
+        <div className="flex flex-col items-start gap-3 sm:items-end">
+          <p className="max-w-xs text-start text-[10px] text-slate-400 sm:text-end">
+            {rtl
+              ? "رصيد دائن للعميل. لا يخصم من الفواتير إلا عند تطبيق الرصيد في مرحلة لاحقة."
+              : "Customer store credit. It does not reduce invoices until credit application is added later."}
+          </p>
+          <Button type="button" size="sm" onClick={openDepositModal}>
+            <DollarSign className="h-4 w-4" />
+            {rtl ? "إضافة إيداع" : "Add Deposit"}
+          </Button>
+        </div>
+      </Card>
+
+      {depositOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/60 p-4">
+          <div className="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl dark:bg-navy-900">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-black text-navy-950 dark:text-white">
+                  {rtl ? "إيداع رصيد دائن للعميل" : "Customer Credit Deposit"}
+                </h3>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  {rtl
+                    ? "هذا التزام على الشركة وليس دفعة على فاتورة. لن يغيّر رصيد العميل المستحق أو الفواتير."
+                    : "This is a company liability, not an invoice payment. It will not change AR balance or invoices."}
+                </p>
+              </div>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setDepositOpen(false)} disabled={depositSubmitting}>
+                {rtl ? "إغلاق" : "Close"}
+              </Button>
+            </div>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <label className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span className="mb-1 block">{rtl ? "المبلغ" : "Amount"}</span>
+                <input
+                  className="input-base w-full"
+                  inputMode="decimal"
+                  value={depositForm.amount}
+                  onChange={(e) => updateDepositForm({ amount: toEnglishDigits(e.target.value) })}
+                  placeholder="0.00"
+                />
+              </label>
+              <label className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span className="mb-1 block">{rtl ? "طريقة الدفع" : "Payment Method"}</span>
+                <select
+                  className="input-base w-full"
+                  value={depositForm.paymentMethod}
+                  onChange={(e) => updateDepositForm({ paymentMethod: e.target.value as "cash" | "bank" })}
+                >
+                  <option value="cash">{rtl ? "نقدي — 1110" : "Cash — 1110"}</option>
+                  <option value="bank">{rtl ? "بنك — 1120" : "Bank — 1120"}</option>
+                </select>
+              </label>
+              <label className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span className="mb-1 block">{rtl ? "التاريخ" : "Date"}</span>
+                <input
+                  type="date"
+                  className="input-base w-full"
+                  value={depositForm.date}
+                  onChange={(e) => updateDepositForm({ date: e.target.value })}
+                />
+              </label>
+              <label className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span className="mb-1 block">{rtl ? "مرجع" : "Reference"}</span>
+                <input
+                  className="input-base w-full"
+                  maxLength={120}
+                  value={depositForm.reference}
+                  onChange={(e) => updateDepositForm({ reference: e.target.value })}
+                />
+              </label>
+              <label className="sm:col-span-2 text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span className="mb-1 block">{rtl ? "الوصف" : "Description"}</span>
+                <textarea
+                  className="input-base min-h-24 w-full resize-y"
+                  maxLength={255}
+                  value={depositForm.description}
+                  onChange={(e) => updateDepositForm({ description: e.target.value })}
+                />
+              </label>
+            </div>
+
+            <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold text-amber-700 dark:border-amber-900/50 dark:bg-amber-500/10 dark:text-amber-300">
+              {rtl
+                ? "تنبيه: هذا الإيداع يزيد الرصيد الدائن فقط، ولا يسدد أي فاتورة حتى يتم تنفيذ تطبيق الرصيد لاحقاً."
+                : "Warning: this increases available credit only. It does not settle any invoice until credit application is implemented later."}
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={() => setDepositOpen(false)} disabled={depositSubmitting}>
+                {rtl ? "إلغاء" : "Cancel"}
+              </Button>
+              <Button type="button" onClick={submitDeposit} disabled={depositSubmitting}>
+                {depositSubmitting ? (rtl ? "جارٍ الحفظ..." : "Saving...") : (rtl ? "حفظ الإيداع" : "Save Deposit")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Filters */}
       <Card className="p-5">
         <div className="flex flex-wrap items-end gap-4">

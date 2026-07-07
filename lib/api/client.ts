@@ -1,3 +1,5 @@
+import { getDataSourceMode, assertProductionDataSource } from "@/lib/data-source";
+
 export interface ApiErrorPayload {
   success: boolean;
   message: string;
@@ -67,12 +69,17 @@ function readStoredBranchId(): string | undefined {
 }
 
 export async function apiClient<T>(path: string, options: ApiClientOptions = {}): Promise<T> {
-  const dataSource = process.env.NEXT_PUBLIC_DATA_SOURCE || "mock";
+  // Phase 22-Fix — loud production guard: a misconfigured production deployment
+  // (missing/non-"api" NEXT_PUBLIC_DATA_SOURCE, or missing NEXT_PUBLIC_API_URL)
+  // throws here before any business request, so production never silently uses
+  // mock/localStorage. No-op in development.
+  assertProductionDataSource();
+  const dataSource = getDataSourceMode();
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
 
-  // If mock mode is active, the caller workflow is responsible for using the mock context.
-  // The API client will throw an error if called in mock mode without a real API URL.
-  if (dataSource === "mock" && !process.env.NEXT_PUBLIC_API_URL) {
+  // In non-API (mock/local) mode the caller workflow must use the local
+  // repositories, not this client. Fail loudly instead of hitting a fake base URL.
+  if (dataSource !== "api" && !process.env.NEXT_PUBLIC_API_URL) {
     throw new DarfusApiError(
       500,
       "API client called while in mock mode. Use mock state provider instead.",

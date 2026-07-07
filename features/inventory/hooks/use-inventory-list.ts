@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useLocale } from "next-intl";
 import { apiClient } from "@/lib/api/client";
+import { getDataSourceMode } from "@/lib/data-source";
 import { normalizePage } from "@/lib/api/normalize";
 import type { Asset, Product } from "@/lib/types";
 
@@ -71,7 +72,7 @@ function usePaginatedInventoryList<T>(
   queryState: InventoryListQuery,
 ): PaginatedList<T> {
   const locale = useLocale();
-  const dataSource = process.env.NEXT_PUBLIC_DATA_SOURCE || "mock";
+  const dataSource = getDataSourceMode();
 
   const fetchPage = async (q: InventoryListQuery) => {
     const res = await apiClient<unknown>(`${endpoint}?${buildInventoryQueryString(q)}`, {

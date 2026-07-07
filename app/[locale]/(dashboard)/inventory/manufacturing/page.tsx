@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
+import { getDataSourceMode } from "@/lib/data-source";
 import { ArrowLeft, ArrowRight, Activity, Plus, CheckCircle2, AlertTriangle, ShieldAlert, Cpu } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,7 @@ export default function ManufacturingPage() {
   const { company, activeBranch, user } = useAuth();
   const { assets, addAsset, updateAssetWithEvent } = useErp();
 
-  const dataSource = process.env.NEXT_PUBLIC_DATA_SOURCE || "mock";
+  const dataSource = getDataSourceMode();
   const apiMode = dataSource === "api";
 
   const [apiAssets, setApiAssets] = useState<Asset[]>([]);

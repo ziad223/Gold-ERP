@@ -95,4 +95,40 @@ export const FIXTURE_SETTINGS = {
     footerMessage: "Thank you for your business",
     termsMessage: "All sales are final. Goods once sold are not returnable.",
   },
+  invoicePrintCustomBlocks: {
+    version: 1,
+    blocks: [
+      {
+        id: "fixture-bank-note",
+        enabled: true,
+        title: "Bank Transfer",
+        content: "Please transfer to the approved company account only.",
+        placement: "afterTotals",
+        sortOrder: 10,
+        style: {
+          fontSize: "base",
+          align: "left",
+          bold: true,
+          italic: false,
+          underline: false,
+        },
+      },
+      {
+        id: "fixture-thermal-note",
+        enabled: true,
+        title: "Thermal Only",
+        content: "Thermal receipt note",
+        placement: "beforeFooter",
+        templates: ["thermal"],
+        sortOrder: 20,
+        style: {
+          fontSize: "sm",
+          align: "center",
+          bold: false,
+          italic: true,
+          underline: false,
+        },
+      },
+    ],
+  },
 };

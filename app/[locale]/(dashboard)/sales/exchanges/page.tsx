@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
+import { getDataSourceMode } from "@/lib/data-source";
 import { ArrowLeft, ArrowRight, Search, RefreshCw, AlertCircle, CheckCircle2, ChevronRight, Gem, ShoppingCart } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
@@ -13,7 +14,7 @@ import { useErp } from "@/contexts/erp-context";
 import { useAppSettings } from "@/contexts/settings-context";
 import { Link } from "@/i18n/navigation";
 import { formatCurrency } from "@/lib/utils";
-import { apiClient } from "@/lib/api/client";
+import { apiClient, generateUUID } from "@/lib/api/client";
 import type { Invoice, InvoiceItem, Asset, Product, CreateExchangePayload, ExchangeNewItem } from "@/lib/types";
 import { queryKeys } from "@/lib/query-keys";
 import { toEnglishDigits } from "@/lib/formatters/numbers";
@@ -43,7 +44,7 @@ export default function ExchangesPage() {
   const { settings } = useAppSettings();
   const { hasPermission } = usePermissions();
 
-  const dataSource = process.env.NEXT_PUBLIC_DATA_SOURCE || "mock";
+  const dataSource = getDataSourceMode();
   const apiMode = dataSource === "api";
   const canCreateSales = hasPermission("sales.create");
   const submitPermissionMessage = rtl
@@ -114,9 +115,13 @@ export default function ExchangesPage() {
   };
 
   // Find invoice to return from
+  // Phase 21.3 — stable Idempotency-Key for the exchange submit (see returns).
+  const idempotencyKeyRef = useRef("");
+
   const handleSearchInvoice = async () => {
     setErrorMsg("");
     setSuccessMsg("");
+    idempotencyKeyRef.current = ""; // fresh operation → fresh idempotency key
     const lookupValue = invoiceId.trim();
     if (!lookupValue) return;
 
@@ -266,7 +271,9 @@ export default function ExchangesPage() {
         if (selectedReturnItem?.id != null) {
           payload.returnedInvoiceItemId = selectedReturnItem.id;
         }
-        await apiClient("/sales/exchanges", { method: "POST", body: JSON.stringify(payload), locale });
+        if (!idempotencyKeyRef.current) idempotencyKeyRef.current = generateUUID();
+        await apiClient("/sales/exchanges", { method: "POST", body: JSON.stringify(payload), idempotencyKey: idempotencyKeyRef.current, locale });
+        idempotencyKeyRef.current = "";
 
         const customerId = returnInvoice.customerId;
         const assetIds = cart.filter((i) => i.type === "asset").map((i) => i.id);

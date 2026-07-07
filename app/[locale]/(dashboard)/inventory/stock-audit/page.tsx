@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { isApiDataSource } from "@/lib/data-source";
 import { useLocale } from "next-intl";
 import { Radio, ScanLine, AlertTriangle, CheckCircle, Search, RefreshCw, XCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -17,7 +18,7 @@ export default function StockAuditPage() {
   const { assets, updateAsset, addAuditLog } = useErp();
   const { activeBranch, user } = useAuth();
 
-  const apiMode = (process.env.NEXT_PUBLIC_DATA_SOURCE || "mock") === "api";
+  const apiMode = isApiDataSource();
 
   const [isScanning, setIsScanning] = useState(false);
   const [scannedAssetIds, setScannedAssetIds] = useState<string[]>([]);

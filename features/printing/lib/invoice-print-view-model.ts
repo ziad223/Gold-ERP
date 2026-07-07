@@ -1,4 +1,11 @@
 import type { Invoice, InvoiceItem, PaymentSplit } from "@/lib/types";
+import type { InvoicePrintTemplateId } from "@/features/printing/lib/invoice-print-options";
+import {
+  getCustomPrintBlocksForTemplate,
+  groupCustomPrintBlocksByPlacement,
+  sanitizeInvoicePrintCustomBlocksConfig,
+  type CustomPrintBlocksByPlacement,
+} from "./invoice-print-custom-blocks-config";
 
 export type InvoicePrintDocumentType =
   | "sales"
@@ -34,6 +41,7 @@ export type InvoicePrintViewModel = {
     rawType?: string;
     number: string;
     date: string;
+    branch?: string;
     status?: string;
     postingStatus?: string;
     originalInvoiceNumber?: string;
@@ -106,6 +114,11 @@ export type InvoicePrintViewModel = {
     footerMessage?: string;
     termsMessage?: string;
   };
+  /**
+   * Plain-text custom print blocks (Phase 20.2). Display-only, sanitized from
+   * `settings.invoicePrintCustomBlocks`, grouped by predefined placement slots.
+   */
+  customTextBlocksByPlacement: CustomPrintBlocksByPlacement;
   warnings: InvoicePrintWarning[];
   special?: {
     exchange?: {
@@ -161,6 +174,7 @@ export type InvoicePrintViewModelOptions = {
     postalCode?: string | null;
   };
   settings?: unknown;
+  templateId?: InvoicePrintTemplateId;
   locale?: string;
   currency?: string;
   getPublicFileUrl?: (path?: string | null) => string | undefined;
@@ -221,6 +235,10 @@ export function buildInvoicePrintViewModel(
   const documentTitle = getInvoicePrintDocumentTitle(invoice);
   const settings = asRecord(options.settings);
   const receiptSettings = asRecord(settings.receipt);
+  const customBlocksConfig = sanitizeInvoicePrintCustomBlocksConfig(settings.invoicePrintCustomBlocks);
+  const customBlocksByPlacement = groupCustomPrintBlocksByPlacement(
+    getCustomPrintBlocksForTemplate(customBlocksConfig, options.templateId),
+  );
   // Phase 19X.2-D: company master data is the source of truth. Precedence:
   //  - Identity fields (displayName, trn): company master only — old
   //    `printCompanyInfo.displayName/taxNumber` are intentionally NOT used as
@@ -265,6 +283,7 @@ export function buildInvoicePrintViewModel(
 
   const payments = mapPayments(invoice.paymentMethod, invoice.paymentSplits, invoice.paidAmount, currency, warnings);
   const special = buildSpecialSections(invoice, documentTitle.type, warnings);
+  const branch = asString(invoice.branch)?.trim();
 
   return {
     document: {
@@ -274,6 +293,7 @@ export function buildInvoicePrintViewModel(
       rawType,
       number: invoice.invoiceNumber || invoice.id,
       date: invoice.postedAt || invoice.date,
+      branch,
       status: invoice.status,
       postingStatus: invoice.postingStatus,
       originalInvoiceId: invoice.relatedInvoiceId,
@@ -316,6 +336,7 @@ export function buildInvoicePrintViewModel(
       footerMessage: asString(receiptSettings.footerMessage)?.trim(),
       termsMessage: asString(receiptSettings.termsMessage)?.trim(),
     },
+    customTextBlocksByPlacement: customBlocksByPlacement,
     warnings,
     special,
   };

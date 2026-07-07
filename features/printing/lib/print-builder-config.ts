@@ -42,6 +42,7 @@ const SectionConfigSchema = z.object({
   welcomeMessage: z.boolean().optional(),
   headerNote: z.boolean().optional(),
   footerMessage: z.boolean().optional(),
+  customTextBlocks: z.boolean().optional(),
   signatures: z.boolean().optional(),
   footer: z.boolean().optional(),
 });
@@ -53,6 +54,7 @@ const FieldVisibilitySchema = z.object({
   customerPhone: z.boolean().optional(),
   customerTrn: z.boolean().optional(),
   customerAddress: z.boolean().optional(),
+  invoiceBranch: z.boolean().optional(),
   itemKarat: z.boolean().optional(),
   itemWeight: z.boolean().optional(),
   itemAssetId: z.boolean().optional(),

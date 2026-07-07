@@ -1,0 +1,131 @@
+/**
+ * Phase 25-Fix — verify read-only ledger reporting foundation.
+ *
+ * Static checks only: no DB, no HTTP requests, no mutations.
+ */
+
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const { execFileSync } = require("node:child_process");
+
+const ROOT = path.resolve(__dirname, "..");
+const read = (rel) => fs.readFileSync(path.resolve(ROOT, rel), "utf8");
+
+function assertIncludes(src, needle, message) {
+  assert.ok(src.includes(needle), message);
+}
+
+function assertNotMatches(src, regex, message) {
+  assert.ok(!regex.test(src), message);
+}
+
+function routeBlock(src, route) {
+  const start = src.indexOf(`router.get("${route}"`);
+  assert.ok(start >= 0, `${route} route exists`);
+  const next = src.indexOf("\nrouter.", start + 1);
+  return src.slice(start, next >= 0 ? next : src.length);
+}
+
+function verifyLedgerRoutes() {
+  const routes = read("backend/src/routes/erp.routes.js");
+
+  for (const model of ["JournalEntry", "JournalLine", "Account"]) {
+    assertIncludes(routes, `models.${model}`, `ledger routes read ${model}`);
+  }
+
+  const accountRoute = routeBlock(routes, "/reports/ledger/account");
+  const cashRoute = routeBlock(routes, "/reports/ledger/cash-reconciliation");
+  const arApRoute = routeBlock(routes, "/reports/ledger/ar-ap-reconciliation");
+  const trialRoute = routeBlock(routes, "/reports/trial-balance");
+  const accountStatementRoute = routeBlock(routes, "/accounts/:id/statement");
+
+  for (const block of [accountRoute, cashRoute, arApRoute, trialRoute, accountStatementRoute]) {
+    assert.ok(block.includes("ledgerBased") || block.includes("ledgerMeta"), "ledger report returns ledger metadata");
+    assert.ok(block.includes("journal_lines") || block.includes("ledgerMeta"), "ledger report declares journal line source");
+    assertNotMatches(block, /\.(create|update|destroy|bulkCreate|save|increment|decrement)\s*\(/, "ledger report block contains no ORM write methods");
+    assertNotMatches(block, /sequelize\.query\s*\(\s*["'`](UPDATE|DELETE|INSERT)|TRUNCATE|DROP TABLE|ALTER TABLE/i, "ledger report block contains no destructive SQL");
+  }
+
+  assertIncludes(accountRoute, "accountCode", "account ledger supports accountCode");
+  assertIncludes(accountRoute, "accountId", "account ledger supports accountId");
+  assertIncludes(accountRoute, "openingBalance", "account ledger reports opening balance");
+  assertIncludes(accountRoute, "runningBalance", "account ledger reports running balance");
+  assertIncludes(accountRoute, "sourceType", "account ledger exposes sourceType");
+  assertIncludes(accountRoute, "sourceId", "account ledger exposes sourceId");
+
+  for (const code of ["1110", "1120"]) {
+    assertIncludes(cashRoute, code, `cash reconciliation includes GL account ${code}`);
+  }
+  assertIncludes(cashRoute, "models.CashTransaction.findAll", "cash reconciliation compares CashTransaction");
+  assertIncludes(cashRoute, "glSource: \"journal_lines\"", "cash reconciliation declares GL source");
+  assertIncludes(cashRoute, "operationalSource: \"cash_transactions\"", "cash reconciliation declares operational source");
+
+  for (const code of ["1300", "2100", "2300"]) {
+    assertIncludes(arApRoute, code, `AR/AP reconciliation includes account ${code}`);
+  }
+  assertIncludes(arApRoute, "models.Customer.findAll", "AR reconciliation reads Customer.balance mirror");
+  assertIncludes(arApRoute, "models.Supplier.findAll", "AP reconciliation reads Supplier.due mirror");
+  assertIncludes(arApRoute, "CustomerCreditTransaction", "customer deposits line references credit ledger when available");
+  assertIncludes(arApRoute, "partyLevel: false", "AR/AP route declares account-level limitation");
+  assertIncludes(arApRoute, "Journal lines do not store customerId/supplierId", "AR/AP route explains party-level limitation");
+
+  for (const route of ["/reports/profit-summary", "/reports/financial-summary", "/reports/tax-summary", "/customers/:id/statement-v2", "/suppliers/:id/statement"]) {
+    const block = routeBlock(routes, route);
+    assertIncludes(block, "ledgerBased: false", `${route} is labeled non-ledger when document-based`);
+  }
+}
+
+function verifyScope() {
+  const changed = execFileSync("git", ["status", "--short"], {
+    cwd: ROOT,
+    encoding: "utf8",
+  }).split(/\r?\n/).filter(Boolean).map((line) => line.slice(3).trim());
+  const allowed = new Set([
+    "backend/src/routes/erp.routes.js",
+    "scripts/verify-ledger-reporting-foundation.js",
+    "scripts/verify-installment-reconciliation.js",
+    "backend/src/services/customer-credit.service.js",
+    "scripts/verify-customer-credit-ledger.js",
+    "scripts/verify-customer-credit-gl-bridge.js",
+    "backend/scripts/check-customer-credit-gl-bridge.js",
+    "backend/scripts/reconcile-installment-balances.js",
+    "backend/scripts/idempotency-cleanup.js",
+    "scripts/verify-customer-credit-existing-rows-checker.js",
+    "scripts/verify-secondary-idempotency.js",
+    "scripts/verify-manual-customer-deposit.js",
+    "app/[locale]/(dashboard)/customers/[id]/page.tsx",
+    "backend/src/models/customerCreditTransaction.model.js",
+    "package.json",
+    "docs/AI_HANDOFF.md",
+  ]);
+  for (const file of changed) {
+    assert.ok(allowed.has(file), `unexpected changed file: ${file}`);
+  }
+  assert.ok(!changed.some((file) => file.includes("posting.service.js")), "posting.service was not changed");
+  assert.ok(
+    !changed.some((file) =>
+      (file.startsWith("app/") && file !== "app/[locale]/(dashboard)/customers/[id]/page.tsx") ||
+      file.startsWith("features/dashboard")
+    ),
+    "dashboard/frontend reports were not rewritten",
+  );
+  assert.ok(!changed.some((file) => /features\/printing|CustomPrint|print/i.test(file)), "no print files touched");
+  assert.ok(!changed.some((file) => /migration|migrations/i.test(file)), "no migration added");
+}
+
+function verifyPackageScript() {
+  const pkg = JSON.parse(read("package.json"));
+  assert.equal(
+    pkg.scripts["verify:ledger-reporting-foundation"],
+    "node scripts/verify-ledger-reporting-foundation.js",
+    "package script is registered",
+  );
+}
+
+(function main() {
+  verifyLedgerRoutes();
+  verifyScope();
+  verifyPackageScript();
+  console.log("verify-ledger-reporting-foundation: ok");
+})();

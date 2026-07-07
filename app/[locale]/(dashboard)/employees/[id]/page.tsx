@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useState, useEffect, useMemo } from "react";
+import { isApiDataSource } from "@/lib/data-source";
 import { useLocale, useTranslations } from "next-intl";
 import {
   FileText,
@@ -76,7 +77,7 @@ export default function EmployeeProfilePage({ params }: PageProps) {
   const currency = company?.currency ?? "AED";
   const money = (val: number) => formatCurrency(val, currency, locale);
 
-  const isApi = process.env.NEXT_PUBLIC_DATA_SOURCE === "api";
+  const isApi = isApiDataSource();
   const { data: apiLogs } = useQuery<AuditLog[]>({
     queryKey: ["employee-audit-logs", id],
     queryFn: async () => {

@@ -4,24 +4,53 @@ const path = require("node:path");
 const vm = require("node:vm");
 const ts = require("typescript");
 
+function resolveModulePath(id, fromFile) {
+  let depPath = id.startsWith("@/")
+    ? path.resolve(__dirname, "..", id.replace("@/", ""))
+    : path.resolve(path.dirname(fromFile), id);
+
+  if (fs.existsSync(depPath)) return depPath;
+  if (fs.existsSync(depPath + ".ts")) return depPath + ".ts";
+  if (fs.existsSync(depPath + ".tsx")) return depPath + ".tsx";
+  return depPath;
+}
+
+function loadModule(filePath) {
+  const source = fs.readFileSync(filePath, "utf8");
+  const output = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2020,
+    },
+  }).outputText;
+
+  const sandbox = {
+    exports: {},
+    module: { exports: {} },
+    require: (id) => {
+      if (id.startsWith("@/") || id.startsWith(".")) {
+        return loadModule(resolveModulePath(id, filePath));
+      }
+      return require(id);
+    },
+  };
+  sandbox.exports = sandbox.module.exports;
+  vm.runInNewContext(output, sandbox, { filename: filePath });
+  return sandbox.module.exports;
+}
+
 const sourcePath = path.join(__dirname, "..", "features", "printing", "lib", "invoice-print-view-model.ts");
 const source = fs.readFileSync(sourcePath, "utf8");
-const output = ts.transpileModule(source, {
-  compilerOptions: {
-    module: ts.ModuleKind.CommonJS,
-    target: ts.ScriptTarget.ES2020,
-  },
-}).outputText;
-
-const sandbox = {
-  exports: {},
-  module: { exports: {} },
-  require,
-};
-sandbox.exports = sandbox.module.exports;
-vm.runInNewContext(output, sandbox, { filename: sourcePath });
-
-const { buildInvoicePrintViewModel, getInvoicePrintDocumentTitle } = sandbox.module.exports;
+const { buildInvoicePrintViewModel, getInvoicePrintDocumentTitle } = loadModule(sourcePath);
+const {
+  CUSTOM_PRINT_BLOCK_CONTENT_MAX,
+  CUSTOM_PRINT_BLOCK_MAX_BLOCKS,
+  CUSTOM_PRINT_BLOCK_TITLE_MAX,
+  DEFAULT_CUSTOM_PRINT_BLOCK_STYLE,
+  getCustomPrintBlocksForTemplate,
+  groupCustomPrintBlocksByPlacement,
+  sanitizeInvoicePrintCustomBlocksConfig,
+} = loadModule(path.join(__dirname, "..", "features", "printing", "lib", "invoice-print-custom-blocks-config.ts"));
 
 function invoice(overrides = {}) {
   return {
@@ -58,6 +87,14 @@ function title(overrides) {
   return getInvoicePrintDocumentTitle(invoice(overrides));
 }
 
+function assertStyle(actual, expected, message) {
+  assert.equal(actual.fontSize, expected.fontSize, `${message}: fontSize`);
+  assert.equal(actual.align, expected.align, `${message}: align`);
+  assert.equal(actual.bold, expected.bold, `${message}: bold`);
+  assert.equal(actual.italic, expected.italic, `${message}: italic`);
+  assert.equal(actual.underline, expected.underline, `${message}: underline`);
+}
+
 assert.equal(title({ type: "sale", tax: 5, vatRate: 5 }).titleEn, "TAX INVOICE");
 assert.equal(title({ type: "sale", tax: 0, vatRate: 0 }).titleEn, "SALES INVOICE");
 assert.equal(title({ type: "return" }).titleEn, "RETURN INVOICE");
@@ -66,6 +103,81 @@ assert.equal(title({ type: "installment" }).titleEn, "INSTALLMENT INVOICE");
 assert.equal(title({ type: "deposit" }).titleEn, "DEPOSIT INVOICE");
 assert.equal(title({ type: "giftVoucher" }).titleEn, "GIFT VOUCHER INVOICE");
 assert.equal(title({ type: "customerGoldPurchase" }).titleEn, "CUSTOMER GOLD PURCHASE INVOICE");
+
+// Phase 20.2: custom block config sanitizer is deterministic and bounded.
+const missingCustomBlocksConfig = sanitizeInvoicePrintCustomBlocksConfig(undefined);
+assert.equal(missingCustomBlocksConfig.version, 1, "missing custom blocks config defaults version 1");
+assert.equal(missingCustomBlocksConfig.blocks.length, 0, "missing custom blocks config defaults empty");
+const styleConfig = sanitizeInvoicePrintCustomBlocksConfig({
+  version: 1,
+  blocks: [
+    { id: "old-block", enabled: true, content: "Old block", placement: "afterHeader", sortOrder: 1 },
+    {
+      id: "invalid-style",
+      enabled: true,
+      content: "Invalid style",
+      placement: "afterHeader",
+      sortOrder: 2,
+      style: {
+        fontSize: "giant",
+        align: "justify",
+        bold: "yes",
+        italic: 1,
+        underline: "true",
+        color: "red",
+        css: "font-size:999px",
+      },
+    },
+    {
+      id: "valid-style",
+      enabled: true,
+      content: "Valid style",
+      placement: "afterHeader",
+      sortOrder: 3,
+      style: {
+        fontSize: "xl",
+        align: "center",
+        bold: true,
+        italic: true,
+        underline: true,
+      },
+    },
+  ],
+});
+assertStyle(styleConfig.blocks[0].style, DEFAULT_CUSTOM_PRINT_BLOCK_STYLE, "old blocks without style get default style");
+assertStyle(styleConfig.blocks[1].style, DEFAULT_CUSTOM_PRINT_BLOCK_STYLE, "invalid/arbitrary style input falls back to defaults");
+assertStyle(
+  styleConfig.blocks[2].style,
+  { fontSize: "xl", align: "center", bold: true, italic: true, underline: true },
+  "valid style enums/booleans are preserved",
+);
+const longTitle = "T".repeat(CUSTOM_PRINT_BLOCK_TITLE_MAX + 20);
+const longContent = "C".repeat(CUSTOM_PRINT_BLOCK_CONTENT_MAX + 20);
+const sanitizedCustomBlocks = sanitizeInvoicePrintCustomBlocksConfig({
+  version: 1,
+  blocks: [
+    { id: "long", enabled: true, title: longTitle, content: longContent, placement: "afterTotals", templates: ["luxuryGold", "bad", "luxuryGold"], sortOrder: 2 },
+    { id: "disabled", enabled: false, content: "Disabled text", placement: "beforeFooter", sortOrder: 3 },
+    { id: "bad-placement", enabled: true, content: "Bad", placement: "notAPlace", sortOrder: 4 },
+    { id: "empty-content", enabled: true, content: "   ", placement: "afterItems", sortOrder: 5 },
+    { id: "b1", content: "One", placement: "afterHeader", sortOrder: 10 },
+    { id: "b2", content: "Two", placement: "afterHeader", sortOrder: 20 },
+    { id: "b3", content: "Three", placement: "afterHeader", sortOrder: 30 },
+    { id: "b4", content: "Four", placement: "afterHeader", sortOrder: 40 },
+    { id: "b5", content: "Five", placement: "afterHeader", sortOrder: 50 },
+    { id: "b6", content: "Six", placement: "afterHeader", sortOrder: 60 },
+  ],
+});
+assert.equal(sanitizedCustomBlocks.blocks.length, CUSTOM_PRINT_BLOCK_MAX_BLOCKS, "custom blocks capped at max");
+assert.equal(sanitizedCustomBlocks.blocks[0].title.length, CUSTOM_PRINT_BLOCK_TITLE_MAX, "title capped");
+assert.equal(sanitizedCustomBlocks.blocks[0].content.length, CUSTOM_PRINT_BLOCK_CONTENT_MAX, "content capped");
+assert.deepEqual(sanitizedCustomBlocks.blocks[0].templates, ["luxuryGold"], "invalid/duplicate templates removed");
+assert.equal(sanitizedCustomBlocks.blocks.some((block) => block.id === "bad-placement"), false, "invalid placement removed");
+assert.equal(sanitizedCustomBlocks.blocks.some((block) => block.id === "empty-content"), false, "empty content removed");
+assert.equal(sanitizedCustomBlocks.blocks.some((block) => block.id === "disabled"), true, "disabled valid block remains in saved config");
+assert.equal(getCustomPrintBlocksForTemplate(sanitizedCustomBlocks, "thermal").some((block) => block.id === "disabled"), false, "disabled blocks do not render");
+assert.equal(getCustomPrintBlocksForTemplate(sanitizedCustomBlocks, "thermal").some((block) => block.id === "long"), false, "template filter excludes nonmatching template");
+assert.equal(groupCustomPrintBlocksByPlacement(getCustomPrintBlocksForTemplate(sanitizedCustomBlocks, "luxuryGold")).afterTotals[0].id, "long", "blocks group by placement");
 
 const vmModel = buildInvoicePrintViewModel(invoice({
   subtotal: 123.45,
@@ -83,6 +195,7 @@ assert.equal(vmModel.totals.vatAmount, 6.17);
 assert.equal(vmModel.totals.totalAmount, 129.62);
 assert.equal(vmModel.totals.paidAmount, 100);
 assert.equal(vmModel.totals.remainingAmount, 29.62);
+assert.equal(vmModel.document.branch, "Main Branch", "invoice.branch is exposed on the print document");
 assert.equal(vmModel.items[0].unitPrice, 50);
 assert.equal(vmModel.items[0].totalAmount, undefined);
 assert.ok(vmModel.warnings.includes("line_vat_missing"));
@@ -102,6 +215,20 @@ const splitModel = buildInvoicePrintViewModel(invoice({
 assert.equal(splitModel.payments.length, 2);
 assert.equal(splitModel.payments[0].amount, 50);
 assert.equal(splitModel.warnings.includes("payment_rows_not_included_in_invoice_detail"), false);
+
+const emptyBranchModel = buildInvoicePrintViewModel(invoice({ branch: "   " }), {
+  currency: "AED",
+  company: { businessName: "Demo Jewellery", branchName: "Company Branch" },
+});
+assert.equal(emptyBranchModel.document.branch, undefined, "empty invoice.branch becomes undefined");
+
+const noFallbackBranchModel = buildInvoicePrintViewModel(invoice({ branch: undefined }), {
+  currency: "AED",
+  company: { businessName: "Demo Jewellery", branchName: "Company Branch" },
+});
+assert.equal(noFallbackBranchModel.document.branch, undefined, "company branchName is not used as a branch fallback");
+assert.equal(noFallbackBranchModel.totals.totalAmount, 105, "branch fallback rules do not affect totals");
+assert.equal(noFallbackBranchModel.payments[0].amount, 105, "branch fallback rules do not affect payments");
 
 // Phase 19X.2-D: company master data is the source of truth. Precedence:
 //  - identity (displayName, trn): company only (printCompanyInfo identity ignored)
@@ -236,6 +363,69 @@ assert.equal(msgModel.messages.headerNote, "Header note", "headerNote from recei
 assert.equal(msgModel.messages.footerMessage, "Thank you", "footerMessage from receipt");
 assert.equal(msgModel.messages.termsMessage, "Terms text", "termsMessage from receipt");
 assert.equal(msgModel.notes, "Per-invoice note only", "invoice.notes stays separate from messages");
+
+// Phase 20.2: custom blocks are grouped by placement, filtered by enabled and
+// template, and kept as plain string data for React escaping.
+const customBlocksModel = buildInvoicePrintViewModel(invoice({ notes: "Invoice note stays separate" }), {
+  currency: "AED",
+  templateId: "luxuryGold",
+  company: { businessName: "Master Co" },
+  settings: {
+    receipt: {
+      welcomeMessage: "Welcome unchanged",
+      headerNote: "Header unchanged",
+      footerMessage: "Footer unchanged",
+      termsMessage: "Terms unchanged",
+    },
+    invoicePrintCustomBlocks: {
+      version: 1,
+      blocks: [
+        { id: "second", enabled: true, title: "Second", content: "Second text", placement: "afterTotals", sortOrder: 20 },
+        {
+          id: "first",
+          enabled: true,
+          title: "First",
+          content: "<script>alert(\"x\")</script>",
+          placement: "afterTotals",
+          sortOrder: 10,
+          style: { fontSize: "lg", align: "right", bold: true, italic: true, underline: true },
+        },
+        { id: "disabled", enabled: false, content: "Should not render", placement: "afterTotals", sortOrder: 5 },
+        { id: "empty", enabled: true, content: "   ", placement: "afterItems", sortOrder: 1 },
+        { id: "thermal-only", enabled: true, content: "Thermal text", placement: "beforeFooter", templates: ["thermal"], sortOrder: 1 },
+      ],
+    },
+  },
+});
+assert.equal(customBlocksModel.customTextBlocksByPlacement.afterTotals.length, 2, "enabled custom blocks render by placement");
+assert.equal(customBlocksModel.customTextBlocksByPlacement.afterTotals[0].id, "first", "custom blocks sort by sortOrder");
+assert.equal(customBlocksModel.customTextBlocksByPlacement.afterTotals[0].content, "<script>alert(\"x\")</script>", "script-like text remains plain string data");
+assertStyle(
+  customBlocksModel.customTextBlocksByPlacement.afterTotals[0].style,
+  { fontSize: "lg", align: "right", bold: true, italic: true, underline: true },
+  "custom block style reaches VM sanitized",
+);
+assert.equal(customBlocksModel.customTextBlocksByPlacement.beforeFooter, undefined, "template-specific custom block excluded");
+assert.equal(customBlocksModel.messages.welcomeMessage, "Welcome unchanged", "custom blocks do not alter receipt messages");
+assert.equal(customBlocksModel.notes, "Invoice note stays separate", "custom blocks do not alter invoice.notes");
+assert.equal(customBlocksModel.document.branch, "Main Branch", "custom blocks do not alter branch");
+assert.equal(customBlocksModel.totals.totalAmount, 105, "custom blocks do not alter totals");
+assert.equal(customBlocksModel.items.length, 1, "custom blocks do not alter items");
+
+const thermalCustomBlocksModel = buildInvoicePrintViewModel(invoice(), {
+  currency: "AED",
+  templateId: "thermal",
+  company: { businessName: "Master Co" },
+  settings: {
+    invoicePrintCustomBlocks: {
+      version: 1,
+      blocks: [
+        { id: "thermal-only", enabled: true, content: "Thermal text", placement: "beforeFooter", templates: ["thermal"], sortOrder: 1 },
+      ],
+    },
+  },
+});
+assert.equal(thermalCustomBlocksModel.customTextBlocksByPlacement.beforeFooter[0].content, "Thermal text", "matching template-specific custom block renders");
 
 // Empty/whitespace message strings become undefined (blocks collapse).
 const emptyMsgModel = buildInvoicePrintViewModel(invoice(), {

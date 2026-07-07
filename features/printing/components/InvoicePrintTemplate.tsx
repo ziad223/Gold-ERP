@@ -17,6 +17,7 @@ import {
   formatLocalizedText,
   LocalizedPrintLabel,
 } from "@/features/printing/components/LocalizedPrintLabel";
+import { CustomPrintTextBlocks } from "@/features/printing/components/CustomPrintTextBlocks";
 
 export interface PrintCompany {
   name: string;
@@ -73,6 +74,8 @@ export interface InvoicePrintTemplateProps {
     currency: string;
     decimalPrecision: number;
     receipt?: any;
+    invoicePrintBuilderConfig?: any;
+    invoicePrintCustomBlocks?: any;
   };
   viewModel?: InvoicePrintViewModel;
   templateConfig?: PrintTemplateConfigOverrides;
@@ -523,6 +526,7 @@ export function InvoicePrintTemplate({
       postalCode: company.postalCode,
     },
     settings,
+    templateId: "luxuryGold",
     locale,
     currency,
     getPublicFileUrl,
@@ -557,6 +561,7 @@ export function InvoicePrintTemplate({
     { icon: "⌖", value: tpl.fields.footerAddress ? vm.company.address : undefined },
     { icon: "✉", value: tpl.fields.footerEmail ? vm.company.email : undefined },
   ].filter((item): item is { icon: string; value: string } => Boolean(item.value));
+  const customBlocks = tpl.sections.customTextBlocks ? vm.customTextBlocksByPlacement : {};
 
   return (
     <article className="print-document print-page luxury-invoice" data-print-root style={themeVars}>
@@ -601,6 +606,7 @@ export function InvoicePrintTemplate({
         {tpl.sections.headerNote && vm.messages.headerNote && (
           <p className="luxury-print-message" style={{ textAlign: "center", whiteSpace: "pre-line", margin: "0 0 3mm", color: "var(--invoice-muted)" }}>{vm.messages.headerNote}</p>
         )}
+        <CustomPrintTextBlocks blocks={customBlocks.afterHeader} />
 
         {(tpl.sections.clientDetails || tpl.sections.invoiceDetails) && (
         <section className="luxury-details-row">
@@ -619,6 +625,9 @@ export function InvoicePrintTemplate({
             <BoxTitle en="INVOICE DETAILS" ar="بيانات الفاتورة" showEnglish={showEn} showArabic={showAr} />
             <DetailRow labelAr="رقم الفاتورة" labelEn="Invoice No." value={text(vm.document.number)} showEnglish={showEn} showArabic={showAr} />
             <DetailRow labelAr="تاريخ الفاتورة" labelEn="Invoice Date" value={text(vm.document.date)} showEnglish={showEn} showArabic={showAr} />
+            {tpl.fields.invoiceBranch && vm.document.branch && (
+              <DetailRow labelAr="الفرع" labelEn="Branch" value={text(vm.document.branch)} showEnglish={showEn} showArabic={showAr} />
+            )}
             <DetailRow labelAr="نوع الفاتورة" labelEn="Invoice Type" value={documentTypeLabel} showEnglish={showEn} showArabic={showAr} />
             <DetailRow labelAr="الحالة" labelEn="Status" value={text(vm.document.status)} showEnglish={showEn} showArabic={showAr} />
             <DetailRow labelAr="حالة الاعتماد" labelEn="Post Status" value={text(vm.document.postingStatus)} showEnglish={showEn} showArabic={showAr} />
@@ -636,6 +645,8 @@ export function InvoicePrintTemplate({
           )}
         </section>
         )}
+        <CustomPrintTextBlocks blocks={customBlocks.afterInvoiceDetails} />
+        <CustomPrintTextBlocks blocks={customBlocks.beforeItems} />
 
         {tpl.sections.itemsTable && (
         <section className="luxury-table-wrap">
@@ -672,6 +683,7 @@ export function InvoicePrintTemplate({
           </table>
         </section>
         )}
+        <CustomPrintTextBlocks blocks={customBlocks.afterItems} />
 
         {tpl.sections.specialSummary && vm.special && <SpecialSections special={vm.special} money={money} text={text} showEnglish={showEn} showArabic={showAr} />}
 
@@ -705,6 +717,7 @@ export function InvoicePrintTemplate({
           )}
         </section>
         )}
+        <CustomPrintTextBlocks blocks={customBlocks.afterTotals} />
 
         <div className="luxury-tail">
           {tpl.sections.notes && (
@@ -723,9 +736,13 @@ export function InvoicePrintTemplate({
             </section>
           )}
 
+          <CustomPrintTextBlocks blocks={customBlocks.beforeFooter} />
+
           {tpl.sections.footerMessage && vm.messages.footerMessage && (
             <p className="luxury-print-message" style={{ textAlign: "center", whiteSpace: "pre-line", margin: "3mm 0 0", color: "var(--invoice-muted)" }}>{vm.messages.footerMessage}</p>
           )}
+
+          <CustomPrintTextBlocks blocks={customBlocks.beforeSignatures} />
 
           {tpl.sections.signatures && (
           <section className="luxury-signatures">

@@ -74,8 +74,16 @@ export function usePayroll(period = thisMonth()) {
   }, [locale, period, refresh]);
 
   const payPayslip = useCallback(
-    async (id: string, paymentMethod = "Cash") => {
-      const res = await apiClient<Payslip>(`/payslips/${id}/pay`, { method: "POST", body: JSON.stringify({ paymentMethod }), locale });
+    // Phase 21.5 — the backend now REQUIRES a stable Idempotency-Key on this
+    // salary payment; the caller passes one key per pay attempt so a double-click
+    // or retry replays instead of posting the salary twice.
+    async (id: string, paymentMethod = "Cash", idempotencyKey?: string) => {
+      const res = await apiClient<Payslip>(`/payslips/${id}/pay`, {
+        method: "POST",
+        body: JSON.stringify({ paymentMethod }),
+        locale,
+        ...(idempotencyKey ? { idempotencyKey } : {}),
+      });
       await refresh();
       return res;
     },

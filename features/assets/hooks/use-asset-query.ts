@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
+import { getDataSourceMode } from "@/lib/data-source";
 import { useAuth } from "@/contexts/auth-context";
 import { useErp } from "@/contexts/erp-context";
 import { useLocale } from "next-intl";
@@ -16,7 +17,7 @@ export function useAssetQuery(assetId: string) {
   const queryClient = useQueryClient();
   const locale = useLocale();
 
-  const dataSource = process.env.NEXT_PUBLIC_DATA_SOURCE || "mock";
+  const dataSource = getDataSourceMode();
 
   // ── API query (disabled in mock/local mode) ───────────────────────────────
 

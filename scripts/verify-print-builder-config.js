@@ -81,7 +81,10 @@ const builderConfig = {
       languageMode: "ar",
       sections: {
         header: false,
-      }
+      },
+      fields: {
+        invoiceBranch: false,
+      },
     }
   }
 };
@@ -89,6 +92,7 @@ const builderConfig = {
 const overrides = getBuilderOverridesForTemplate("compactA4", builderConfig);
 assert.equal(overrides.languageMode, "ar");
 assert.equal(overrides.sections.header, false);
+assert.equal(overrides.fields.invoiceBranch, false);
 
 const missingOverrides = getBuilderOverridesForTemplate("minimal", builderConfig);
 assert.equal(missingOverrides, undefined);
@@ -98,19 +102,25 @@ const merged = mergeBuilderConfigWithTemplateDefaults("compactA4", builderConfig
 assert.equal(merged.languageMode, "ar");
 assert.equal(merged.sections.header, false);
 assert.equal(merged.sections.footer, true, "unmentioned sections fall back to default (true)");
+assert.equal(merged.fields.invoiceBranch, false, "explicit invoiceBranch false is preserved");
 // Phase 19Y: new message section toggles default true when unmentioned.
 assert.equal(merged.sections.welcomeMessage, true, "welcomeMessage section defaults true");
 assert.equal(merged.sections.headerNote, true, "headerNote section defaults true");
 assert.equal(merged.sections.footerMessage, true, "footerMessage section defaults true");
+assert.equal(merged.sections.customTextBlocks, true, "customTextBlocks section defaults true");
 
 // Phase 19Y: a saved message-section toggle sanitizes and round-trips.
 const msgSectionConfig = sanitizeInvoicePrintBuilderConfig({
   version: 1,
-  templates: { luxuryGold: { sections: { welcomeMessage: false, headerNote: false, footerMessage: false } } },
+  templates: { luxuryGold: { sections: { welcomeMessage: false, headerNote: false, footerMessage: false, customTextBlocks: false } } },
 });
 assert.equal(msgSectionConfig.templates.luxuryGold.sections.welcomeMessage, false, "welcomeMessage toggle preserved");
 assert.equal(msgSectionConfig.templates.luxuryGold.sections.headerNote, false, "headerNote toggle preserved");
 assert.equal(msgSectionConfig.templates.luxuryGold.sections.footerMessage, false, "footerMessage toggle preserved");
+assert.equal(msgSectionConfig.templates.luxuryGold.sections.customTextBlocks, false, "customTextBlocks toggle preserved");
+
+const missingFieldMerged = mergeBuilderConfigWithTemplateDefaults("luxuryGold", DEFAULT_INVOICE_PRINT_BUILDER_CONFIG);
+assert.equal(missingFieldMerged.fields.invoiceBranch, true, "invoiceBranch defaults true for missing saved configs");
 
 // 5. Theme preset validation & sanitization
 const themePresetConfig = {
@@ -143,5 +153,6 @@ assert.equal(mergedPreset.theme.watermarkOpacity, 0.1);
 // other default fields remain intact
 assert.equal(mergedPreset.sections.header, true);
 assert.equal(mergedPreset.fields.companyLogo, true);
+assert.equal(mergedPreset.fields.invoiceBranch, true);
 
 console.log("verify-print-builder-config: ok");

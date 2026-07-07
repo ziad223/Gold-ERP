@@ -98,11 +98,15 @@ export function useTreasury(options: { page?: number; pageSize?: number } = {}) 
   }, [refresh]);
 
   const addTransaction = useCallback(
-    async (payload: NewCashTransaction) => {
+    // Phase 21.4 — the backend now REQUIRES a stable Idempotency-Key on this
+    // financial mutation; the caller passes one key per submit attempt so a
+    // double-click/retry replays instead of recording the cash movement twice.
+    async (payload: NewCashTransaction, idempotencyKey?: string) => {
       const res = await apiClient<CashTransaction>("/treasury/transactions", {
         method: "POST",
         body: JSON.stringify(payload),
         locale,
+        ...(idempotencyKey ? { idempotencyKey } : {}),
       });
       await refresh();
       return res;

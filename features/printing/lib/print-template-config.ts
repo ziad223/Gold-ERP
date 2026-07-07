@@ -31,6 +31,7 @@ export interface PrintTemplateFieldVisibility {
   customerPhone: boolean;
   customerTrn: boolean;
   customerAddress: boolean;
+  invoiceBranch: boolean;
   itemKarat: boolean;
   itemWeight: boolean;
   itemAssetId: boolean;
@@ -59,6 +60,8 @@ export interface PrintTemplateSectionConfig {
   welcomeMessage: boolean;
   headerNote: boolean;
   footerMessage: boolean;
+  /** Phase 20.2 — custom plain-text print blocks (from invoicePrintCustomBlocks). */
+  customTextBlocks: boolean;
   signatures: boolean;
   footer: boolean;
 }
@@ -112,6 +115,7 @@ export const DEFAULT_PRINT_TEMPLATE_SECTIONS: PrintTemplateSectionConfig = {
   welcomeMessage: true,
   headerNote: true,
   footerMessage: true,
+  customTextBlocks: true,
   signatures: true,
   footer: true,
 };
@@ -123,6 +127,7 @@ export const DEFAULT_PRINT_TEMPLATE_FIELDS: PrintTemplateFieldVisibility = {
   customerPhone: true,
   customerTrn: true,
   customerAddress: true,
+  invoiceBranch: true,
   itemKarat: true,
   itemWeight: true,
   itemAssetId: true,

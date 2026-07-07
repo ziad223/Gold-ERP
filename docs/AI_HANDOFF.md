@@ -1352,6 +1352,211 @@ Remaining gaps:
 
 ---
 
+### Phase 21.3-Fix — Central Idempotency Requests + Critical Frontend Keys
+
+Status:
+
+* Completed (code). Added race-safe idempotency for the critical financial/stock mutation endpoints. **Migration NOT executed here** — it must be applied before the wrapped endpoints work (they insert into the new table): `cd backend && npm run db:migrate` on a safe/dev DB.
+* No print work; no accounting/settlement/stock redesign; no POS/purchase calculation changes; no destructive DB command.
+
+Infrastructure (new):
+
+* Migration `backend/migrations/20260707000000-create-idempotency-requests.js` — additive/reversible; creates `idempotency_requests` (id, company_id, scope, key, request_hash, status, status_code, response_body JSONB, expires_at, timestamps) with **UNIQUE (company_id, scope, key)** + helper indexes.
+* Model `backend/src/models/idempotencyRequest.model.js` (registered in `models/index.js`).
+* Service `backend/src/services/idempotency.service.js`: `hashRequest(scope, body)` (sha256 canonical JSON, key excluded), `claim` (insert-first in the caller's transaction → race-safe via the unique index), `resolveExisting` (fresh query → replay/processing/conflict), `succeed` (store response). Existing per-table `idempotency_key` trace columns kept.
+
+Contract & behavior:
+
+* Header `Idempotency-Key`; scopes `pos.checkout`, `sales.return`, `sales.exchange`, `purchase.receive`.
+* Missing key on a wrapped endpoint → **400**. Same key + same request → **replay** the saved 2xx response. Same key + processing → **409**. Same key + different request hash → **409**. On business failure the `processing` row rolls back with the transaction, so a genuine retry can proceed.
+* Race-safe by construction: the `processing` row is claimed in the SAME transaction as the business mutation and updated to `succeeded` before commit; a concurrent duplicate blocks on the unique key then replays, or its insert fails → it rolls back and resolves the committed row.
+
+Endpoints wrapped: **`/pos/checkout`, `/sales/returns`, `/sales/exchanges`, `/purchase-orders/receive`** — each replaces its old lookup-only replay with claim + resolve, and persists the exact success payload via `succeed` before commit (returns/exchanges preserve Phase 21.2 settlement; receive preserves stock/accounting). **Deferred:** `/purchase-orders/:id/pay` (already *requires* a key + has replay/conflict + PO row-lock — strong; central conversion is a follow-up); secondary payment/treasury/installment/draft endpoints keep their existing lookup + row locks.
+
+Frontend keys (mandatory now — backend rejects missing keys): returns / exchanges / purchase-receive pages send a **stable** `Idempotency-Key` (ref-based `generateUUID`, generated once per attempt, reused on retry, reset on success / new-search). POS checkout already sent a stable key (unchanged).
+
+Verification:
+
+* `scripts/verify-idempotency.js` (new, `npm run verify:idempotency`): functional service test with a mock unique store (claim/duplicate/processing/replay/conflict + hash contract), migration/model unique-constraint static checks, route scope+claim+succeed coverage, and frontend key coverage. **Passes.** `node -c` on all changed backend files ok; typecheck/lint/build ok; `verify-invoice-crud-guards` + `verify-return-exchange-settlement` still pass; no print files touched.
+
+Remaining deferred: run the migration; convert `/purchase-orders/:id/pay` + secondary payment/treasury endpoints to the central service; enforce missing-key rejection on secondary endpoints; TTL cleanup job for `expires_at`; customer credit ledger; mock-production-default hardening; ledger-based report reconciliation.
+
+---
+
+### Phase 23-Fix — Customer Credit Ledger MVP (Infrastructure)
+
+Status:
+
+* Completed (code). Added a per-customer **credit ledger** as **infrastructure only** — new table + model + service + one read-only endpoint + a read-only UI display. **No shipped behavior changed**: returns/exchanges still cash-refund excess, overpayment stays prevented/rejected, `Customer.balance` stays AR-only, `Invoice.remainingAmount` unchanged, installments/treasury unchanged, `statement-v2` unchanged (only a read-only credit card added on the page). **No credit is created by any flow** in this phase.
+* **Migration created but NOT run here** — apply before the endpoint returns real data: `cd backend && npm run db:migrate` on a safe/dev DB. No destructive DB command.
+
+Infrastructure (new):
+
+* Migration `backend/migrations/20260707010000-create-customer-credit-transactions.js` — additive/reversible; creates `customer_credit_transactions` (id, company_id, branch_id, customer_id, source_type, source_id, direction, amount, currency, description, status, **journal_entry_id** (GL-bridge, nullable), cash_transaction_id, invoice_id, created_by, metadata, timestamps) + 5 indexes (company+customer+created, company+source, journal, cash, invoice). No CHECK constraints on existing tables.
+* Model `backend/src/models/customerCreditTransaction.model.js` (registered in `models/index.js` with minimal `belongsTo Company`/`Customer` + reverse `hasMany`). `direction ∈ {credit_in, credit_out}`, `status ∈ {active, reversed, void}`, `amount > 0`, `source_type ∈ {opening_balance, return_credit, exchange_credit, overpayment, credit_application, credit_refund, manual_adjustment, migration_seed}` — enforced via model validators.
+* Service `backend/src/services/customer-credit.service.js`: `recordCreditIn`, `recordCreditOut` (rejects if it would drive available credit **negative**), `getCustomerCreditSummary` (availableCredit = Σ active credit_in − Σ active credit_out), `getCustomerCreditTransactions`. Accepts `transaction`; company/customer-scoped. **Never touches `Customer.balance`, `Invoice.remainingAmount`, or the GL** (never requires posting.service). **GL bridge to account 2300 "Customer Deposits" is DEFERRED** — `journalEntryId` is a nullable pass-through.
+
+API (read-only): `GET /customers/:id/credit` (auth + `customers.view`, company-scoped, 404 if not found) → `{ customerId, availableCredit, totalCreditIn, totalCreditOut, currency, page, pageSize, transactions, meta:{ glBridge:"deferred" } }`. **No POST/apply/refund/adjust endpoint.**
+
+Frontend (read-only): a small "Available Credit" card on the customer statement panel (`customers/[id]/page.tsx`), fetched via the existing direct-`apiClient` pattern. No buttons/actions/forms — display only; shows 0 until a future phase enables credit creation.
+
+Verification: `scripts/verify-customer-credit-ledger.js` (`npm run verify:customer-credit-ledger`) — **functional** (mock store: credit_in/out sum, no-negative rule, amount validation, per-customer scoping; the mock exposes only the credit model, so the service can't touch Customer/Invoice) + **static** (migration/model/registration, service surface, service never accesses Customer/Invoice models or posts GL, read-only endpoint exists, **no flow records credit**, return/exchange settlement intact, posting.service not coupled/rewritten). **Passes.** `node -c` on routes/service/model/migration ok; typecheck/lint (0 errors)/build ok; all prior verifiers pass; no print/report files touched; 11 stashes untouched.
+
+Remaining deferred (need a business decision): keep return/exchange excess as credit vs cash refund; overpayment acceptance; credit application to future invoices; credit refund workflow; GL posting bridge to 2300; `Customer.balance` installment drift; ledger-based reports.
+
+---
+
+### Phase 22-Fix — Strict Production Data-Source Hardening
+
+Status:
+
+* Completed (code). Closed the one remaining silent-mock hazard: a production build missing/empty/invalid `NEXT_PUBLIC_DATA_SOURCE` used to default the whole app to `mock`/localStorage, bypassing PostgreSQL. Frontend-only change; **no backend, no DB, no migration, no print/accounting/idempotency changes.**
+
+Central selector ([lib/data-source.ts](../lib/data-source.ts)):
+
+* New helpers: `getDataSourceMode()`, `isApiDataSource()`, `assertProductionDataSource()`. Removed the `(… as DataSourceMode) || "mock"` unsafe-cast default.
+* **Production** (`NODE_ENV === "production"`): `getDataSourceMode()` **always returns "api"** (mock/local can never be returned). The module stays **import-safe** (never throws just from import) so `next build` succeeds; the loud failure is `assertProductionDataSource()`, called by the API client before any request — it throws when `NEXT_PUBLIC_DATA_SOURCE` is missing/≠"api" or `NEXT_PUBLIC_API_URL` is empty.
+* **Development**: validated env value, defaulting to `mock` when unset; an **invalid** value throws loudly. Value is trimmed + lowercased.
+* `DATA_SOURCE` const kept (production-forced "api") so all existing `DATA_SOURCE === "api"` callers keep working; `isMock`/`isLocal`/`shouldPersist`/`isApiReady` now derive from the getter (never mock/persist in production).
+
+API client ([lib/api/client.ts](../lib/api/client.ts)):
+
+* Removed the duplicate `process.env.NEXT_PUBLIC_DATA_SOURCE || "mock"` default; imports and calls `assertProductionDataSource()` + `getDataSourceMode()`. Preserved the existing safe behavior — **API errors throw (`DarfusApiError`), no catch-return-mock, no fallback to local**.
+
+Direct env readers centralized (13 files): removed every direct `process.env.NEXT_PUBLIC_DATA_SOURCE` read from business flows — POS, sales returns/exchanges, customer-gold, invoices, assets (`use-asset-query`, `use-assets`), inventory (`use-inventory-list`, manufacturing, stock-audit), employees, settings — now use `isApiDataSource()` / `getDataSourceMode()`. Only `lib/data-source.ts` reads the raw env.
+
+localStorage / mock (unchanged, preserved): business persistence stays gated — `erp-context` skips persistence and clears demo state in api mode; `settings-context` branch/settings writes are all behind `if (!isApi)`. POS drafts remain a pre-checkout local cache. **No mock files deleted**; the api-mode `Local*` repo cleanup remains deferred.
+
+Env contract: `.env` is **untracked** (local only) — its empty `NEXT_PUBLIC_DATA_SOURCE=` no longer causes silent mock (production forces api + fails loud on real deployments). Tracked `.env.example` / `.env.production.example` already correctly show `NEXT_PUBLIC_DATA_SOURCE=api` — left unchanged; no secrets added.
+
+Verification: new `scripts/verify-production-data-source.js` (`npm run verify:production-data-source`) — **functional** (transpiles the selector and exercises production/dev × missing/mock/api/no-URL/invalid → asserts forced-api, loud throws, dev default/invalid) + **static** (no `|| "mock"`, no unsafe cast, NODE_ENV guard + 3 rules, client imports the guard & still throws with no mock/local fallback, no stray direct env reads, localStorage gates intact, mock files present). **Passes.** typecheck/lint (0 errors)/**build (production) ok**; all prior verifiers still pass; no backend/print files touched; 11 stashes untouched.
+
+Remaining deferred: optional explicit demo-mode flag/banner (`NEXT_PUBLIC_ALLOW_DEMO_MODE`) if ever needed; api-mode `Local*` repository cleanup (inventory/sales/manufacturing/reports/audit/settings still local in api mode); customer credit ledger; ledger-based reports.
+
+---
+
+### Phase 21.5-Fix — Edge Financial Idempotency & Cleanup Script Repair
+
+Status:
+
+* Completed (code). Extended the central `idempotency_requests` service to the two remaining exposed financial mutation endpoints, and repaired the (previously broken) TTL cleanup command. **No new migration** — the 21.3 table/indexes are reused.
+* No print work; no payroll/gold-model/accounting/settlement/stock redesign; no destructive DB command. **Treasury closing intentionally left unchanged** (strong per-account-per-day uniqueness + no cash/journal effect → deferred).
+
+Endpoints converted (each now REQUIRES `Idempotency-Key` → 400 if missing; `req.params.id` folded into the request hash; old lookup-only logic removed):
+
+* **`POST /payslips/:id/pay`** — scope `payroll.payslip_payment`. Replaced the optional-key `slip.idempotencyKey === key` lookup with claim/succeed. **Wrapped in a `sequelize.transaction` for the first time** and moved `postPayrollEntry` INSIDE it (`{ transaction: t }`, which the service already supports) — a posting failure now rolls back the whole payment, ending the old best-effort divergence where a payslip could be marked `paid` with no GL entry. Status guard (`paid` → 409) kept. Payroll calculation unchanged.
+* **`POST /customers/:id/gold/payout`** — scope `customer.gold_payout`. Added the central claim inside the existing transaction (previously it had **zero** idempotency/status guard). Negative `CustomerGoldPool` deduction + Dr 2300 / Cr cash|bank journal unchanged. **No frontend caller exists** (endpoint is API-only) — none was invented; requiring a key makes any future/API caller safe-by-default.
+
+Frontend keys:
+
+* **Payslip** (`hooks/use-payroll.ts` `payPayslip` + `employees/payroll/page.tsx`): per-payslip `useRef` key map, generated on first pay attempt, reused on retry, cleared on success.
+* **Gold payout:** no change (no caller).
+
+Cleanup script repair (Phase 21.4 bug):
+
+* The root `scripts/idempotency-cleanup.js` failed with `MODULE_NOT_FOUND` — `require("dotenv")` cannot resolve from the repo root (`dotenv` is only in `backend/node_modules`), so `npm run idempotency:cleanup` never ran. **Relocated to `backend/scripts/idempotency-cleanup.js`** (backend convention: `require("dotenv").config({ path: ../.env })` + `require("../src/models")` + `require("sequelize").Op`); root copy removed; `package.json` script now `node backend/scripts/idempotency-cleanup.js`. Still deletes ONLY `expires_at < now`, supports `--dry-run`, no truncate/reset/delete-all, closes the connection. **Dry-run verified live** (read-only `SELECT count(*) … WHERE expires_at < now` → 0 rows, no deletion).
+* **Cron:** run manually or via an **external scheduler** (e.g. daily at low-traffic hours: `npm run idempotency:cleanup`). No in-app scheduler (BullMQ/Redis is optional and degrades to in-memory, so it is not relied on for cleanup).
+
+Verification:
+
+* `scripts/verify-secondary-idempotency.js` extended (`npm run verify:secondary-idempotency`): now asserts the two new scopes wired + required-key 400 + `req.params` in hash + old lookup removed (claim/succeed/resolve ≥ 9); treasury closing NOT centralized; payslip frontend sends a stable ref key; **gold payout has no frontend caller** (recursive grep); cleanup relocated + root copy gone + resolves backend deps + package path updated. **Passes.**
+* `node -c` on `erp.routes.js` + `backend/scripts/idempotency-cleanup.js` ok; typecheck/lint (0 errors)/build ok; `verify-idempotency` + `verify-invoice-crud-guards` + `verify-return-exchange-settlement` still pass; no print files touched; 11 stashes untouched.
+
+Remaining deferred: treasury-closing centralization (low risk); a scheduled/automated cleanup job (currently manual/cron); customer credit ledger; mock-production-default hardening; ledger-based report reconciliation.
+
+---
+
+### Phase 21.4-Fix — Secondary Financial Idempotency & TTL Cleanup
+
+Status:
+
+* Completed (code). Extended the Phase 21.3 central `idempotency_requests` service to the three highest-risk secondary financial mutation endpoints, and added a safe manual TTL cleanup script. **No new migration** — the 21.3 `idempotency_requests` table/indexes (already run by the user) are reused as-is.
+* No print work; no accounting/settlement/stock redesign; no POS/return/exchange/generic-CRUD changes; no destructive DB command.
+
+Endpoints converted (each now REQUIRES `Idempotency-Key` → 400 if missing; old lookup-only logic removed; `req.params` folded into the request hash so one key cannot cross records):
+
+* **`POST /treasury/transactions`** — scope `treasury.cash_transaction`. Replaced the optional-key `CashTransaction.findOne` lookup (which admitted a race window) with claim/succeed inside the existing `sequelize.transaction` callback; a concurrent duplicate throws a sentinel → the callback rolls back → `resolveExisting` replays/conflicts. Treasury cash + GL journal behavior unchanged; same response shape saved & replayed.
+* **`POST /purchase-orders/:id/pay`** — scope `purchase.payment`. Replaced the `CashTransaction` lookup/`sameOperation` replay with the central claim inside the write transaction (after opening `t`, before the PO row-lock). PO `FOR UPDATE` lock, overpayment guards and Dr AP / Cr cash|bank posting unchanged. `Supplier.findByPk` reference read moved inside the tx so the saved response includes `supplierDueReference`; `succeed` runs before commit.
+* **`POST /installments/:id/pay`** — scope `installment.payment`. Replaced the optional-key `inst.idempotencyKey === key` lookup with claim/succeed inside the `sequelize.transaction` callback (sentinel-on-duplicate pattern). Payment row + installment status + GL journal + treasury CashTransaction logging unchanged.
+
+Frontend keys:
+
+* **Treasury** (`hooks/use-treasury.ts` `addTransaction` + `accounting/treasury/page.tsx`): stable `useRef` key, generated on modal open, reused on retry (kept on failure), reset to `""` on success.
+* **Installments** (`hooks/use-installments.ts` `payInstallment` + `sales/installments/page.tsx`): per-installment `useRef` key map, generated on first pay attempt, reused on retry, cleared on success.
+* **Purchase payment**: caller already existed (`suppliers/[id]/page.tsx` → `accountingRepository.payPurchaseOrder` → `api-impl.ts`) and already sent a stable `payKey` (`crypto.randomUUID`, one per payment session) — **unchanged**, no invented caller.
+
+TTL cleanup (no migration, no scheduler infra):
+
+* `scripts/idempotency-cleanup.js` (`npm run idempotency:cleanup`): deletes ONLY expired rows via `IdempotencyRequest.destroy({ where: { expiresAt: { [Op.lt]: now } } })` (`expires_at < now`). Supports `--dry-run` (count only). Never truncates/resets/deletes-all; prints the deleted count; closes the DB connection. Intended for manual run or external cron. **Not executed here** (per safety rules).
+
+Verification:
+
+* `scripts/verify-secondary-idempotency.js` (new, `npm run verify:secondary-idempotency`): static checks — the three scopes wired with required key + `req.params` in the hash, old lookup-only patterns removed, claim/succeed/resolve now cover ≥7 endpoints; frontend hooks/pages send stable ref-based keys and reset on success; cleanup deletes only `expiresAt < now` with no truncate/delete-all; the four Phase 21.3 scopes still wired; no print coupling. **Passes.**
+* `node -c` on `erp.routes.js`, `idempotency.service.js`, `idempotency-cleanup.js` ok; typecheck/lint (0 errors)/build ok; `verify-idempotency` + `verify-invoice-crud-guards` + `verify-return-exchange-settlement` still pass; no print files touched; 11 stashes untouched.
+
+Remaining deferred: payslip / customer gold-payout / treasury-closing centralization; a scheduled/automated cleanup job (currently manual/cron); customer credit ledger; mock-production-default hardening; ledger-based report reconciliation.
+
+---
+
+### Phase 21.2-Fix — Receivable-First Return / Exchange Settlement
+
+Status:
+
+* Completed. Backend accounting/treasury fix for the confirmed High-risk Phase 21.2 finding: sales returns/exchanges booked cash movement + receivable changes inconsistently (double compensation, fake cash, GL-vs-balance divergence).
+* No print work; no DB reset/seed/migration; no customer-credit ledger; no idempotency wiring; no generic-invoice-CRUD/POS-checkout/supplier changes; stock/asset reversal unchanged.
+
+Bug (confirmed in the 21.2 audit):
+
+* **Return** — created a `cash_out` for the **full** `returnedTotal` (any paid state) **and separately** reduced receivable; `postReturnEntry` credited **Cash 1110** for the full total (never AR 1300). An unpaid/partial return double-compensated the customer and diverged the GL from `customer.balance`.
+* **Exchange** — created `cash_in`/`cash_out` by diff sign whenever `diffTotal !== 0` (independent of settlement/outstanding); GL money leg always hit Cash 1110/1120, never AR 1300; the receivable branch keyed off `paymentMethod === "credit"` which the UI never sends (`"Exchange"`), so it was dead.
+
+Fix — receivable-first settlement (`erp.routes.js` returns + exchanges, `posting.service.js`):
+
+* **Returns:** `receivableReliefAmount = min(returnedTotal, outstanding)`, `cashRefundAmount = returnedTotal − relief`. Receivable relief applied **once** (`customer.balance` + `invoice.remainingAmount`, clamped ≥ 0); `CashTransaction cash_out` created **only if** `cashRefundAmount > 0`; `postReturnEntry` now splits the money leg **Cr AR 1300** (relief) + **Cr Cash/Bank** (refund). Legacy callers (no split) still get the old full-cash entry (balanced).
+* **Exchanges:** `diff<0` → relieve AR first, cash-refund only the excess. `diff>0` → `settlementMode` (`paid_now`|`credit`); default = **credit** when `paymentMethod:"Exchange"`/unconfirmed (avoids fake `cash_in`), `paid_now` only for a real cash/bank method or explicit flag. GL money leg splits **Cash/Bank + AR 1300**; treasury `CashTransaction` only for real cash (`exchangeCashAmount > 0`); receivable moved once via a single signed `exchangeArDelta` (+`invoice.remainingAmount`, clamped ≥ 0).
+* Examples: unpaid return 3000/out 10000 → AR −3000, cash 0. Partial return 3000/out 2000 → AR −2000, cash 1000. Fully-paid return 3000/out 0 → AR 0, cash 3000. Exchange diff −1000/out 400 → AR −400, cash refund 600. Exchange diff +1000 credit → AR +1000, no cash_in.
+
+Frontend: **unchanged** — the backend safe default (`"Exchange"`+diff>0 → credit) closes the fake-`cash_in` hole without UI changes; an explicit "paid now" toggle is an optional future add. Returns already work via the receivable-first default (no settlement UI needed for MVP).
+
+Verification:
+
+* `scripts/verify-return-exchange-settlement.js` (new, `npm run verify:return-exchange-settlement`): (A) functional — stubs `postEntry`/`resolveAccountingByKarat` and asserts `postReturnEntry`'s AR 1300 / Cash split + legacy fallback + that every entry **balances**; (B) the settlement-formula matrix (all return + exchange scenarios); (C) static route assertions that both routes use receivable-first + gated treasury + AR 1300 and that the **old bug patterns are gone** (`amount: returnedTotal`, `if (diffTotal !== 0)`, `paymentMethod === "credit"`), with stock/asset sections intact. **All pass.**
+* `node -c` on both changed backend files ok; frontend typecheck/lint/build ok; `verify-invoice-crud-guards` still ok; no orphaned refs; grep-safety clean (no print/POS-checkout/supplier logic touched).
+
+Remaining risks (deferred): idempotency on return/exchange submit → Phase 21.3; a proper customer-credit ledger (currently AR only, clamped ≥ 0 — no negative/credit balance) → future; ledger-based report reconciliation.
+
+---
+
+### Phase 21.1-Fix — Generic Invoice CRUD Guards (data integrity)
+
+Status:
+
+* Completed. Backend guard-only fix for the Critical Phase 21 audit finding: the generic `/invoices` CRUD could create/update/delete **posted** financial invoices with no stock/treasury/accounting reversal. Posted invoices are now changed only through the lifecycle-safe routes.
+* No print work; no DB/migration/seed; no accounting/treasury redesign; no returns/exchanges accounting change; no idempotency work; no POS checkout / purchase-receive calculation changes.
+
+Root cause:
+
+* `setupCrud("invoices", …)` (erp.routes.js) wired generic POST/PUT/PATCH/DELETE + deactivate/reactivate through `ErpController`. The only guard was "reject explicit lifecycle fields in the body", but the model default is `postingStatus:"posted"`, so a generic create with items/totals (no lifecycle field) produced a **posted** header with none of the side effects; generic update/delete could mutate/soft-delete posted invoices; `deactivate` even set an invalid `status:"inactive"` enum.
+
+Fix (`backend/src/controllers/erp.controller.js`, all scoped to `model.name === "Invoice"`):
+
+* **create** — blocked entirely (403): invoices are created only via `/pos/checkout` or `/sales/invoices/drafts → /sales/invoices/:id/post`.
+* **update** — 409 when `postingStatus !== "draft"` (posted/cancelled). DRAFT updates remain allowed; the pre-existing lifecycle-field guard (postingStatus/postedAt/cancelledAt/cancelReason) still applies to drafts (403).
+* **delete** — 409 when `postingStatus !== "draft"`; only drafts (no posted side effects) may be soft-deleted; posted docs need a lifecycle cancel/reversal.
+* **deactivate / reactivate** — blocked (409) for invoices (no such lifecycle; also avoids the invalid status enum).
+* Guards are pure `res.status(...)` returns before any DB write; no new financial/DB operations added.
+
+Frontend: unchanged — it never called generic invoice mutations (only `GET /invoices` lists + the `/sales/invoices/*` and `/pos/checkout` lifecycle endpoints). Nothing to remediate.
+
+Verification:
+
+* `scripts/verify-invoice-crud-guards.js` (new, `npm run verify:invoice-crud-guards`) — functionally exercises the guards against a mock Invoice model (no DB): create 403; posted/cancelled update 409; draft update allowed (reaches `item.update`) but draft lifecycle-field 403; posted delete 409 (no destroy) while draft delete allowed; deactivate/reactivate 409; a non-Invoice model is unaffected; and statically confirms the lifecycle routes (`/pos/checkout`, `/sales/invoices/:id/post|cancel`, `/sales/invoices/draft`) + `setupCrud("invoices")` are still wired. **All pass.**
+* `node -c` on the controller ok; frontend typecheck/lint/build ok (backend-only change); grep-safety clean (guards only). Backend has no lint/test scripts (skipped); no destructive DB command run.
+
+Remaining risks (deferred): return/exchange accounting risk → Phase 21.2; broad idempotency → Phase 21.3; any legacy draft route/mock-production default and serialized-asset StockMovement / ledger-report items remain as previously noted.
+
+---
+
 ### Phase 19Y.3 — POS Print Dialog with Template Selector & Live Preview
 
 Status:
@@ -1995,6 +2200,312 @@ For print work, future verification should include:
 Updated by AI during:
 
 ```text
+Phase 27-Fix — Manual Customer Deposit
+(follows Phase 27 audit. Added manual customer deposit workflow. Backend endpoint
+POST /customers/:id/credit/deposit is guarded by treasury.update and requires
+Idempotency-Key with central scope customer.credit_deposit. The endpoint validates
+positive amount, cash/bank method, and 1110/1120 account-code pairing; locks the
+customer row; rejects inactive customers; validates optional branch; creates an
+operational CashTransaction cash_in log; calls recordCreditIn(glPosting) as the
+single GL owner; posts one journal only: Dr 1110/1120 and Cr 2300; links
+cashTransactionId on CustomerCreditTransaction and journalEntryId on both credit
+row and CashTransaction. Customer.balance and invoice balances are not mutated.
+CustomerCreditTransaction sourceType now accepts manual_deposit at model
+validation level only; no DB migration/schema change. Minimal customer detail UI
+adds Available Credit -> Add Deposit modal with amount, cash/bank, date,
+description, reference, stable idempotency key, and warnings that this is a
+customer credit liability and not invoice settlement. Added
+verify-manual-customer-deposit.js and package script. Updated customer-credit
+verifiers to allow deposit only. No refund/apply credit endpoint, no return/
+exchange changes, no dashboard/report rewrite, no print work. Deferred: granular
+customers.credit.deposit permission, refund customer credit, apply credit to
+invoice/POS, return/exchange settlement options, source-aware 2300 reconciliation,
+stronger concurrent credit consume locking.)
+
+Previous marker:
+Phase 26.1-Hotfix-Fix — Backend Script Env Loading Repair
+(follows the Phase 26.1-Hotfix audit. Fixed root-invoked backend maintenance
+scripts to load backend/.env by script path before requiring Sequelize models.
+Root npm run check:customer-credit-gl-bridge now uses the same backend DB env as
+backend migration/status commands; the mismatch was root cwd loading root .env
+and falling back to localhost:5432 while backend migrations used localhost:5433.
+Also normalized reconcile-installment-balances and idempotency-cleanup backend
+scripts to the same explicit env loading pattern. No migration repair was needed;
+no DB writes, no backfill, no route changes, no customer credit business flow
+changes, no return/exchange changes, no apply/refund/manual deposit flows, no
+posting.service redesign, no dashboard/report rewrite, no print work. Updated
+verifiers to require explicit backend env loading. Deferred: manual customer
+deposit, refund customer credit, apply credit to invoice/POS, return/exchange
+settlement options, source-aware 2300 reconciliation, backfill only if ever
+proven safe.)
+
+Previous marker:
+Phase 26.1-Fix — Customer Credit Existing Rows Dry-Run Checker
+(follows Phase 26-Fix. Added backend/scripts/check-customer-credit-gl-bridge.js,
+a dry-run-only checker for existing CustomerCreditTransaction rows and their
+GL bridge state. Root command: npm run check:customer-credit-gl-bridge. Supports
+--company-id, --customer-id, --source-type, --status, --limit, and --json; rejects
+--apply/--write/--fix/--update/--backfill/--confirm. The checker reads only
+CustomerCreditTransaction, JournalEntry, JournalLine, Account, and Customer with
+explicit attributes; it performs no writes and closes the DB connection. It
+classifies rows as OK, Needs GL Bridge Review, Broken Link, Invalid Journal, or
+Ignored / Not Eligible; validates linked journals when present; checks credit_in
+has Cr 2300 and credit_out has Dr 2300; reports amount mismatches, missing/invalid
+journals, missing customer/company, and inactive rows. It warns that GL 2300 can
+include non-CustomerCreditTransaction subledgers (invoice deposits/customer gold),
+so it does not treat total 2300 vs customer-credit total as an error. Added
+verify-customer-credit-existing-rows-checker.js and npm script verify:customer-
+credit-existing-rows-checker. No backfill, no apply mode, no route changes, no
+public customer credit mutation endpoint, no return/exchange changes, no apply/
+refund/manual deposit flows, no migration, no dashboard/report rewrite, no print
+work. Deferred: manual customer deposit, refund customer credit, apply credit to
+invoice/POS, return/exchange settlement options, source-aware 2300 reconciliation,
+full credit backfill only if dry-run output proves safe, stronger concurrent
+credit consume locking.)
+
+Previous marker:
+Phase 26-Fix — Customer Credit Service-Level GL Bridge to 2300
+(follows Phase 26 audit. Added service-level GL bridge primitives to
+backend/src/services/customer-credit.service.js without adding public mutation
+endpoints. recordCreditIn/recordCreditOut now support optional glPosting:
+credit_in can Dr an explicit counter account and Cr 2300; credit_out can Dr
+2300 and Cr an explicit counter account. If glPosting is missing/disabled, rows
+remain ledger-only as before. Generated journalEntryId is saved on the
+CustomerCreditTransaction row; explicit journalEntryId + glPosting.enabled is
+rejected to prevent duplicate/ambiguous journals. GL bridge work uses
+postingService.postEntry, the existing chart/ensureAccount behavior, and wraps
+credit row + journal in a transaction when no caller transaction is supplied.
+No route changes, no return/exchange credit mode, no apply-credit-to-invoice/POS,
+no refund endpoint, no backfill, no migration, no dashboard/report rewrite, no
+print work. Future public credit endpoints must use central idempotency scopes
+customer.credit_in / customer.credit_apply / customer.credit_refund. Phase 25
+reconciliation may still show 2300 differences because 2300 includes other
+subledgers such as invoice deposits/customer gold. Added
+verify-customer-credit-gl-bridge.js and npm script verify:customer-credit-gl-
+bridge. Deferred: customer credit dry-run/backfill checker, manual deposit,
+return/exchange credit mode, apply credit, refund credit, source-aware 2300
+reconciliation, customer/supplier journal-line dimensions.)
+
+Previous marker:
+Phase 25-Fix — Ledger Reporting Foundation MVP
+(follows the Phase 25 audit. Added/strengthened read-only ledger reporting
+foundation without rewriting dashboards or operational reports. Existing
+/accounts/:id/statement and /reports/trial-balance remain JournalEntry/
+JournalLine-based and now include additive ledger metadata; account statement
+also exposes branch filter and period debit/credit totals. Added read-only
+/reports/ledger/account for accountCode/accountId ledger lookup, plus
+/reports/ledger/cash-reconciliation comparing GL cash/bank accounts 1110/1120
+against CashTransaction movement, and /reports/ledger/ar-ap-reconciliation
+comparing GL AR/AP/customer-deposit accounts 1300/2100/2300 against operational
+mirrors. Customer/supplier reconciliation remains account-level only because
+JournalLine has no customerId/supplierId dimensions; customer/supplier
+statements remain source-document-based. Operational reports remain unchanged
+except additive ledgerBased:false/source metadata where touched. Added
+verify-ledger-reporting-foundation.js and npm script verify:ledger-reporting-
+foundation. No dashboard rewrite; no posting.service redesign; no migration; no
+print work. Deferred: dashboard KPI conversion, full balance sheet, full income
+statement, cash flow statement, customer/supplier journal-line dimensions,
+customer credit GL bridge to 2300, ledger-based operational report conversion.)
+
+Previous marker:
+Phase 24.1-Hotfix — Installment Reconciliation Script Runtime Repair
+(follows Phase 24.1-Fix after manual dry-run exposed two runtime issues: root script
+could not resolve backend-only sequelize without NODE_PATH, and Invoice.findAll selected
+all model columns including optional vat_rate, which the current DB schema lacks. Moved
+the dry-run script to backend/scripts/reconcile-installment-balances.js, updated the root
+npm command to call that path, and switched model imports to the backend convention
+require("dotenv").config() + require("../src/models"). All Sequelize reads now use explicit
+attributes only; the script does not mention or require vat_rate/vatRate. The report output
+and JSON mode remain the same. Still dry-run only: no apply mode, no writes, no route changes,
+no DB migration, no business logic changes, no return/exchange changes, no print work.)
+
+Previous marker:
+Phase 24.1-Fix — Dry-Run Installment Drift Reconciliation Report
+(follows the Phase 24.1 audit. Added scripts/reconcile-installment-balances.js as a
+dry-run-only report for historical installment mirror drift between Payment rows and
+Invoice.paidAmount / Invoice.remainingAmount / Customer.balance. The script supports
+--company-id, --invoice-id, --customer-id, --limit, and --json; it rejects --apply,
+--write, --fix, --update, and --confirm with a dry-run-only error. It reads only
+Invoice, Payment, Installment, Customer, plus related return/exchange Invoice rows
+for risky skip classification. It performs no writes, has no apply mode, runs no
+backfill, and changes no routes/business logic. Risky invoices with returns/exchanges
+or suspicious overpayment are skipped for manual review. Added
+verify-installment-reconciliation.js and npm scripts reconcile:installment-balances
+and verify:installment-reconciliation. No DB mutation, no migration, no print work,
+and no ledger-based reports. Deferred: review real dry-run output, guarded apply-mode
+design if approved, historical return/exchange settlement review, ledger-based reports,
+credit application/refund, GL bridge to 2300.)
+
+Previous marker:
+Phase 24-Fix — Installment AR Mirror Writeback
+(follows the Phase 24 audit. Fixed forward-going installment AR mirror drift in POST
+/installments/:id/pay only: after a fresh central idempotency claim and inside the existing
+installment payment transaction, the route now locks the related Invoice and Customer rows,
+reduces Customer.balance, reduces Invoice.remainingAmount, and increases Invoice.paidAmount
+by the collected amount, with AR mirrors clamped at >=0. Idempotency replay/conflict/
+processing paths resolve before the writeback and do not re-apply it. Existing Payment,
+CashTransaction, and postInstallmentPayment journal behavior remain unchanged. No return/
+exchange settlement changes; no customer credit ledger calls; no historical backfill/
+reconciliation; no migration; no print work. Added verify-installment-balance-writeback.js
+and npm script verify:installment-balance-writeback. Deferred: historical installment drift
+reconciliation/backfill, ledger-based reports, credit application/refund flows, GL bridge
+for customer credit ledger.)
+
+Previous marker:
+Phase 23-Fix — Customer Credit Ledger MVP (Infrastructure)
+(follows the Phase 23 audit. Added customer_credit_transactions table (migration 20260707010000, NOT
+run here), model customerCreditTransaction.model.js (registered), and customer-credit.service.js
+(recordCreditIn/recordCreditOut/getCustomerCreditSummary/getCustomerCreditTransactions; availableCredit
+= Σ active credit_in − credit_out; credit_out cannot go negative; accepts transaction; company/customer
+scoped; NEVER writes Customer.balance/Invoice.remainingAmount and posts NO GL — 2300 bridge deferred,
+journalEntryId nullable). Read-only GET /customers/:id/credit endpoint + a read-only Available Credit
+card on customers/[id] statement panel. INFRASTRUCTURE ONLY: no flow creates credit; returns/exchanges
+still cash-refund excess; overpayment still prevented; Customer.balance stays AR-only; statement-v2
+unchanged. New verify-customer-credit-ledger.js (functional + static) passes; typecheck/lint(0 err)/build
++ node -c + all prior verifiers ok. No print/report/posting.service rewrite; no destructive DB; migration
+created but not run. 11 stashes untouched. Deferred (business decision): excess-as-credit vs refund,
+overpayment acceptance, credit apply/refund, GL 2300 bridge, Customer.balance installment drift, ledger reports.)
+
+Previous marker:
+Phase 22-Fix — Strict Production Data-Source Hardening
+(follows the Phase 22 audit. Closed the silent-mock hazard: production (NODE_ENV=production) now
+ALWAYS resolves the data source to "api" and fails loudly via assertProductionDataSource() when
+NEXT_PUBLIC_DATA_SOURCE is missing/≠api or NEXT_PUBLIC_API_URL is empty — called by the API client
+before any request. Centralized lib/data-source.ts (getDataSourceMode/isApiDataSource/
+assertProductionDataSource), removed the (as DataSourceMode) || "mock" default and the duplicate
+|| "mock" in lib/api/client.ts, and replaced 13 direct process.env.NEXT_PUBLIC_DATA_SOURCE reads
+across POS/sales/returns/exchanges/customer-gold/invoices/assets/inventory/employees/settings with
+the central helper. Module is import-safe so next build passes; loud failure is at the API boundary.
+Dev still allows mock/local (default mock; invalid throws). localStorage business persistence stays
+gated by !isApi (unchanged); no mock files deleted. New verify-production-data-source.js (functional +
+static) passes; typecheck/lint(0 err)/production build + prior verifiers ok. Frontend-only; no backend/
+DB/migration/print/idempotency/accounting changes. .env is untracked (local); examples already =api.
+11 stashes untouched. Deferred: explicit demo-mode flag; api-mode Local repo cleanup; credit ledger;
+ledger reports.)
+
+Previous marker:
+Phase 21.5-Fix — Edge Financial Idempotency & Cleanup Script Repair
+(follows the Phase 21.5 audit. Extended central idempotency to the last two exposed financial
+endpoints: /payslips/:id/pay (payroll.payslip_payment) and /customers/:id/gold/payout
+(customer.gold_payout). Both now REQUIRE Idempotency-Key (400 if missing), fold req.params.id into
+the hash, and use claim/succeed inside a transaction — payslip pay is now wrapped in a transaction
+for the first time with postPayrollEntry moved inside it (ends the best-effort no-journal divergence).
+Payslip frontend sends a stable per-payslip ref key; gold payout has no UI caller so none was invented.
+Treasury closing left unchanged (per-account-per-day uniqueness, no cash/journal — deferred). Repaired
+the broken TTL cleanup: relocated scripts/idempotency-cleanup.js → backend/scripts/idempotency-cleanup.js
+(root copy failed with MODULE_NOT_FOUND on dotenv), package script → node backend/scripts/idempotency-
+cleanup.js; still deletes only expires_at < now, --dry-run verified live (0 rows, no delete); run via
+external cron. verify-secondary-idempotency.js extended and passes; verify-idempotency + prior verifiers
+still pass; typecheck/lint(0 err)/build + node -c ok. NO new migration; no payroll/gold/accounting/
+print redesign; no destructive DB. 11 stashes untouched. Deferred: treasury-closing centralization;
+scheduled cleanup job; customer credit ledger; mock hardening; ledger reports.)
+
+Previous marker:
+Phase 21.4-Fix — Secondary Financial Idempotency & TTL Cleanup
+(follows the Phase 21.4 audit. Extended the central idempotency_requests service to the three
+highest-risk secondary financial endpoints: /treasury/transactions (treasury.cash_transaction),
+/purchase-orders/:id/pay (purchase.payment), /installments/:id/pay (installment.payment). Each now
+REQUIRES Idempotency-Key (400 if missing), folds req.params into the request hash, and uses
+claim/succeed inside its business transaction (sentinel-on-duplicate → rollback → resolveExisting
+replay/conflict), replacing the old optional-key/lookup-only logic. Frontend: treasury + installments
+pages now send stable ref-based keys (reset/cleared on success); purchase-pay caller already sent a
+stable key (unchanged). Added scripts/idempotency-cleanup.js (npm run idempotency:cleanup) — deletes
+ONLY expires_at < now (Op.lt), supports --dry-run, no truncate/reset/delete-all; NOT executed here.
+New verify-secondary-idempotency.js passes; verify-idempotency + prior verifiers still pass;
+typecheck/lint(0 err)/build + node -c ok. NO new migration (21.3 table reused); no accounting/
+settlement/stock/print redesign; no destructive DB. 11 stashes untouched. Deferred: payslip/gold-
+payout/treasury-closing centralization; scheduled cleanup job; customer credit ledger; mock hardening.)
+
+Previous marker:
+Phase 21.3-Fix — Central Idempotency Requests + Critical Frontend Keys
+(follows the Phase 21.3 audit. Added central idempotency_requests table with UNIQUE
+(company_id, scope, key) + model + idempotency.service (hashRequest/claim/resolveExisting/succeed).
+Wrapped /pos/checkout, /sales/returns, /sales/exchanges, /purchase-orders/receive with insert-first
+race-safe idempotency (missing key→400, replay saved response, same-key-diff-hash→409, processing→409);
+success payload persisted before commit. Frontend returns/exchanges/purchase-receive now send a stable
+Idempotency-Key (generateUUID, reset on success); POS unchanged. /purchase-orders/:id/pay + secondary
+payment/treasury endpoints deferred (already required-key + row-lock). Migration NOT executed — run
+`cd backend && npm run db:migrate` before use. verify-idempotency.js (functional + static) passes;
+typecheck/lint/build + prior verifiers ok; no print work; no settlement/stock redesign; no DB reset.
+Next: run migration; convert pay/secondary endpoints; TTL cleanup — deferred.)
+
+Previous marker:
+Phase 21.2-Fix — Receivable-First Return / Exchange Settlement
+(follows the Phase 21.2 audit's High finding. Returns/exchanges now settle against the
+original invoice's outstanding receivable FIRST — cash moves only for the real excess.
+Returns: receivableReliefAmount=min(returnedTotal,outstanding), cash_out only if excess>0;
+postReturnEntry money leg splits Cr AR 1300 + Cr Cash/Bank (legacy full-cash fallback kept).
+Exchanges: diff<0 relieves AR first then cash-refunds excess; diff>0 defaults to CREDIT for
+the UI's hardcoded "Exchange" (no fake cash_in), paid_now only for a real method/flag; GL
+splits Cash/Bank + AR 1300; treasury CashTransaction only for real cash; customer.balance +
+invoice.remainingAmount adjusted once, clamped >=0. Stock/asset reversal unchanged; frontend
+unchanged (backend safe default). New verify-return-exchange-settlement.js (functional GL split
++ formula matrix + static route checks; confirms old bug patterns gone) passes; node -c +
+typecheck/lint/build ok. No DB/migration; no customer-credit ledger; idempotency → 21.3 deferred.)
+
+Previous marker:
+Phase 21.1-Fix — Generic Invoice CRUD Guards (data integrity)
+(follows the Phase 21 audit's Critical finding. Blocked generic /invoices create
+entirely (403) and generic update/delete/deactivate/reactivate of posted/cancelled
+invoices (409) in ErpController — posted financial docs change only via lifecycle
+routes (/pos/checkout, /sales/invoices/*). Draft invoices still updatable/deletable;
+lifecycle-field guard preserved. Frontend never used generic invoice mutations, so
+unchanged. New verify-invoice-crud-guards.js (functional, no DB) + lifecycle-route
+static checks all pass; typecheck/lint/build ok. No DB/migration; no accounting/
+treasury redesign. Return/exchange accounting → 21.2; idempotency → 21.3 deferred.)
+
+Previous marker:
+Phase 20.3-Fix — Custom Text Block Styling Controls
+(follows Phase 20.3 request after user confirmed 20.2 manual QA working. Added
+safe per-block style controls for invoicePrintCustomBlocks: fontSize xs/sm/base/
+lg/xl, align left/center/right, and bold/italic/underline booleans. Existing
+blocks without style default safely. Sanitizer rejects invalid font/alignment
+values and ignores arbitrary style/CSS fields. Settings -> Print & Invoice
+Design now exposes a simple print styling toolbar per block. CustomPrintTextBlocks
+maps style enums/booleans to fixed safe rendering values only; text remains plain
+React text with white-space: pre-line. No HTML, no Markdown, no dangerouslySetInnerHTML,
+no rich text editor, no font-family/color picker, no arbitrary CSS input. Existing
+receipt messages, invoice.notes, branch, Sales/POS print paths, and Builder
+customTextBlocks section toggle remain unchanged. No backend/DB/API/migration;
+no financial/business logic changes.)
+```
+
+Previous marker:
+```text
+Phase 20.2-Fix — Custom Print Text Blocks MVP
+(follows Phase 20.2 audit. Added independent invoicePrintCustomBlocks settings
+key with a constrained plain-text MVP: max 5 blocks, title max 120 chars, content
+max 1000 chars, predefined placements afterHeader / afterInvoiceDetails /
+beforeItems / afterItems / afterTotals / beforeSignatures / beforeFooter,
+optional template filter, and sortOrder. Added sanitizer/config module, by-key
+save hook, Settings -> Print & Invoice Design editor, Builder section toggle
+sections.customTextBlocks defaulting true, ViewModel grouping by placement, and
+CustomPrintTextBlocks renderer. Luxury, Compact, Minimal, and Thermal render
+blocks in their placement slots. Existing receipt messages and invoice.notes are
+unchanged. Plain React text only: no HTML, no Markdown, no dangerouslySetInnerHTML.
+No backend/DB/API/migration; no receipt custom blocks; no barcode/QR, VAT
+granularity, paper/layout, autoPrint/copies, legacy cleanup, POS checkout,
+payment/stock/accounting, or totals recalculation changes. Remaining gaps:
+drag/drop deferred; barcode/QR controls deferred; VAT granularity deferred;
+paper/layout controls deferred; autoPrint/copies deferred; legacy cleanup
+deferred; broader a11y cleanup deferred.)
+
+Previous marker:
+Phase 20.1-Fix — Invoice Branch Print Toggle
+(follows Phase 20.1 audit. Added fields.invoiceBranch to the Print Builder
+field visibility config, defaulting true. InvoicePrintViewModel now exposes
+document.branch from invoice.branch only; no fallback to company.branchName, so
+prints do not invent or substitute the operational branch. Luxury, Compact,
+Minimal, and Thermal templates render Branch / الفرع near invoice metadata when
+the field is enabled and the invoice branch exists. Updated verify scripts for
+ViewModel source/no-fallback behavior and Builder/template config defaults. No
+barcode/QR, VAT granularity, paper/layout, backend/DB/API/migration, POS submit,
+payment/stock/accounting, or totals recalculation changes. Remaining gaps:
+barcode/QR controls deferred; VAT granularity deferred; paper/layout controls
+deferred; custom text blocks not started; autoPrint/copies deferred; legacy
+cleanup deferred; broader a11y cleanup deferred.)
+
+Previous marker:
 Phase 19Z-Fix — Static Favicon + Company Logo Favicon
 (follows 19Z audit. Added a static public/favicon.ico fallback so /favicon.ico no longer
 404s before auth loads. Added a client-side CompanyFaviconUpdater mounted once in AppShell;

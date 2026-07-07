@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { ArrowLeft, ArrowRight, Truck, Plus, CheckCircle2, AlertCircle, ShoppingCart } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
@@ -15,7 +15,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { useAssets } from "@/features/assets/hooks/use-assets";
 import { useSuppliers } from "@/hooks/use-suppliers";
 import { Link } from "@/i18n/navigation";
-import { apiClient } from "@/lib/api/client";
+import { apiClient, generateUUID } from "@/lib/api/client";
 import { DATA_SOURCE } from "@/lib/data-source";
 import { formatCurrency } from "@/lib/utils";
 import type { Supplier, Asset, AssetType, Product } from "@/lib/types";
@@ -156,6 +156,10 @@ export default function SupplierPurchasesPage() {
     return activeSuppliers.find((supplier) => supplier.id === supplierId) || null;
   }, [activeSuppliers, supplierId]);
 
+  // Phase 21.3 — stable Idempotency-Key for the purchase-receive submit:
+  // generated once per attempt, reused on retry, reset on success.
+  const idempotencyKeyRef = useRef("");
+
   const handlePostPurchase = async (event: React.FormEvent) => {
     event.preventDefault();
     setErrorMsg("");
@@ -238,8 +242,10 @@ export default function SupplierPurchasesPage() {
       let createdAssetId = assetId;
 
       if (isApi) {
+        if (!idempotencyKeyRef.current) idempotencyKeyRef.current = generateUUID();
         const response = await apiClient<any>("/purchase-orders/receive", {
           method: "POST",
+          idempotencyKey: idempotencyKeyRef.current,
           locale,
           body: JSON.stringify({
             id: purchaseOrderId,
@@ -290,6 +296,7 @@ export default function SupplierPurchasesPage() {
             ],
           }),
         });
+        idempotencyKeyRef.current = ""; // success → next receive gets a fresh key
         createdAssetId = response?.assets?.[0]?.id || response?.data?.assets?.[0]?.id || assetId;
         invalidateAffectedQueries(queryClient, {
           entity: "PurchaseOrder",

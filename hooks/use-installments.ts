@@ -35,16 +35,20 @@ export function useInstallments() {
   }, [refresh]);
 
   const payInstallment = useCallback(
-    async (id: string, paymentMethod = "Cash", amount?: number) => {
+    async (id: string, paymentMethod = "Cash", amount?: number, idempotencyKey?: string) => {
       // Send `amount` whenever it is a finite number (backend requires amount > 0
       // and no longer treats a missing amount as a full payment). Only omit it
       // when the caller genuinely passed nothing.
       const payload: InstallmentPaymentRequest = { paymentMethod };
       if (Number.isFinite(amount as number)) payload.amount = amount;
+      // Phase 21.4 — the backend now REQUIRES a stable Idempotency-Key on this
+      // collection; the caller passes one key per installment-pay attempt so a
+      // double-click/retry replays instead of charging the installment twice.
       const res = await apiClient<Installment>(`/installments/${id}/pay`, {
         method: "POST",
         body: JSON.stringify(payload),
         locale,
+        ...(idempotencyKey ? { idempotencyKey } : {}),
       });
       await refresh();
       return res;

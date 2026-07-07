@@ -59,6 +59,9 @@ export interface AppSettings {
   /** Company Print Builder config (Phase 19Q). Safely sanitized and parsed
    *  via the Zod schema in features/printing/lib/print-builder-config.ts. */
   invoicePrintBuilderConfig?: any;
+  /** Plain-text custom print blocks (Phase 20.2). Stored under its own settings
+   *  key and sanitized by features/printing/lib/invoice-print-custom-blocks-config.ts. */
+  invoicePrintCustomBlocks?: any;
   /** Company print info (Phase 19X-Fix). Display-only contact/branding data for
    *  invoice print; sanitized via features/printing/lib/print-company-info-config.ts.
    *  Written through PUT /settings/by-key/printCompanyInfo (never the PATCH whitelist). */
@@ -152,6 +155,10 @@ const DEFAULT_SETTINGS: AppSettings = {
     copies: 1,
     showBorder: true,
     template: "detailed"
+  },
+  invoicePrintCustomBlocks: {
+    version: 1,
+    blocks: []
   }
 };
 
@@ -224,7 +231,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         const parsed: Partial<AppSettings> = {};
 
         // Parse JSON strings from settings table
-        const keys: (keyof AppSettings)[] = ["paymentMethods", "receipt", "barcode", "printTemplateDefaults", "invoicePrintBuilderConfig", "printCompanyInfo"];
+        const keys: (keyof AppSettings)[] = ["paymentMethods", "receipt", "barcode", "printTemplateDefaults", "invoicePrintBuilderConfig", "invoicePrintCustomBlocks", "printCompanyInfo"];
         keys.forEach(k => {
           if (raw[k]) {
             try {
