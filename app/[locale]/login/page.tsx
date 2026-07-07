@@ -139,7 +139,7 @@ export default function LoginPage() {
                 <p className="font-extrabold text-brand-800 dark:text-brand-200">{t("demoTitle")}</p>
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-brand-700 dark:text-brand-300">
                   <span>admin@admin.com</span>
-                  <span>123456</span>
+                  <span>StrongPassword@2026</span>
                 </div>
               </div>
 
