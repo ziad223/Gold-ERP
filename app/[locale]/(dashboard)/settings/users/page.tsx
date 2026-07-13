@@ -30,6 +30,23 @@ export default function UsersManagementPage() {
   const canManageUsers = hasPermission("users.create") || hasPermission("users.manage");
   const canManageRoles = hasPermission("roles.manage");
   const selectedRole = roles.find((role) => role.id === selectedRoleId);
+  const moduleLabel = (module: string) => module === "gold_purchase.cgp"
+    ? (rtl ? "شراء الذهب من العملاء (CGP)" : "Customer Gold Purchase (CGP)")
+    : module === "gold_purchase.igp"
+      ? (rtl ? "شراء الذهب الاستثماري (IGP)" : "Investment Gold Purchase (IGP)")
+      : module;
+  const permissionLabel = (name: string) => {
+    if (!name.startsWith("gold_purchase.")) return name;
+    const action = name.split(".").at(-1) || name;
+    const labels: Record<string, [string, string]> = {
+      view: ["عرض الوحدة", "View module"], view_all: ["عرض كل الفروع", "View all branches"],
+      view_branch: ["عرض الفرع", "View branch"], view_own: ["عرض السجلات الخاصة", "View own"],
+      create: ["إنشاء", "Create"], update_draft: ["تعديل المسودة", "Update draft"],
+      validate: ["تحقق", "Validate"], submit: ["إرسال للموافقة", "Submit"],
+      approve: ["اعتماد", "Approve"], reject: ["رفض", "Reject"], void: ["إلغاء المسودة", "Void"],
+    };
+    return labels[action]?.[rtl ? 0 : 1] || name;
+  };
 
   const permissionsByModule = useMemo(() => {
     return permissions.reduce<Record<string, typeof permissions>>((acc, permission) => {
@@ -155,7 +172,7 @@ export default function UsersManagementPage() {
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {Object.entries(permissionsByModule).map(([module, modulePermissions]) => (
             <div key={module} className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
-              <h3 className="mb-3 text-sm font-black uppercase tracking-wide text-slate-500">{module}</h3>
+              <h3 className="mb-3 text-sm font-black uppercase tracking-wide text-slate-500">{moduleLabel(module)}</h3>
               <div className="space-y-2">
                 {modulePermissions.map((permission) => (
                   <label key={permission.name} className="flex items-center gap-2 text-xs font-bold">
@@ -169,7 +186,7 @@ export default function UsersManagementPage() {
                         );
                       }}
                     />
-                    {permission.name}
+                    <span>{permissionLabel(permission.name)} <span className="font-mono font-normal text-slate-400">({permission.name})</span></span>
                   </label>
                 ))}
               </div>

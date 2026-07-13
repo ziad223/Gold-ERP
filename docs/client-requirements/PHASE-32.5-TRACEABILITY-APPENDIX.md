@@ -363,3 +363,23 @@ Commits: application `6d12975`; primary verifier `669b194`; verifier compatibili
 
 Dedicated permissions/maker-checker are deferred to Phase 33C. Accounting/tax/value policy is
 deferred to Phase 33D and requires accountant/client decisions. MANUAL UI QA REQUIRED.
+
+# Phase 33C traceability addendum (2026-07-14)
+
+| Requirement | Implementation/evidence |
+|---|---|
+| Dedicated permissions | Exact 22-key CGP/IGP catalog; administrator-only initial grant; grouped role administration UI |
+| Scope | Base view required; all > branch > own; secure detail 404; mutation never widens scope; query branch narrows only |
+| Transitional access | Sales/Supplier fallbacks retained for draft create/read/update/validate/void only |
+| Submission | Validated-only, versioned/idempotent command creates one pending approval and immutable canonical snapshot/hash |
+| Maker–checker | Creator and submitter self-review denied; own-only reviewer denied; independent branch/all reviewer required |
+| Approval/rejection | Locked atomic terminal transition; exact approval version; mandatory rejection reason; rejection returns to draft |
+| Immutability/revisions | Submitted/approved PATCH and void blocked; approved source unchanged; linked idempotent draft revision |
+| Approval queue | Shared scoped queue/detail APIs with aggregate/status/branch/requester/date/document/reference filters and pagination |
+| Audit | Submitted, approved, rejected, and revision-created events for both CGP and IGP |
+| No posting | Live counts remain zero for assets, stock, journal, cash, pools, orders, and notifications |
+| Migration safety | Additive migration; 37 total; validated 383,582-byte local custom backup; no legacy backfill |
+| Verification | 47/47 static verifiers; Phase 33C gated real HTTP verifier; concurrency and snapshot-tamper checks; zero namespace pollution |
+
+Phase 33D remains decision-blocked by final accounting, tax, valuation, settlement, payment,
+return, and reversal policy. MANUAL UI QA REQUIRED.

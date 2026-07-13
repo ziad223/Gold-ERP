@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Check, X, ShieldAlert, AlertCircle, FileText, CheckCircle2 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { AuditDiffViewer } from "@/features/audit/components/AuditDiffViewer";
 import { useAuth } from "@/contexts/auth-context";
-import { formatCurrency } from "@/lib/utils";
+import { usePermissions } from "@/hooks/use-permissions";
+import { listGoldPurchaseApprovals, reviewGoldPurchaseDraft } from "@/hooks/use-gold-purchase-drafts";
+import type { GoldPurchaseApprovalRequest } from "@/lib/types";
 
 interface ApprovalRequest {
   id: string;
@@ -64,13 +66,34 @@ export default function ApprovalsPage() {
   const common = useTranslations("Common");
   const locale = useLocale();
   const rtl = locale === "ar";
-  const { company } = useAuth();
+  const { user } = useAuth();
+  const { hasPermission } = usePermissions();
   
   const [requests, setRequests] = useState<ApprovalRequest[]>(initialApprovals);
   const [successMsg, setSuccessMsg] = useState("");
+  const [goldRequests, setGoldRequests] = useState<GoldPurchaseApprovalRequest[]>([]);
+  const [goldError, setGoldError] = useState("");
+  const canReviewGold = ["cgp", "igp"].some((kind) => hasPermission(`gold_purchase.${kind}.approve`) || hasPermission(`gold_purchase.${kind}.reject`));
 
-  const currency = company?.currency ?? "AED";
-  const money = (value: number) => formatCurrency(value, currency, locale);
+  const loadGoldRequests = useCallback(async () => {
+    if (!canReviewGold) return;
+    try {
+      const response = await listGoldPurchaseApprovals(new URLSearchParams({ approvalStatus: "pending", page: "1", limit: "100" }), locale);
+      setGoldRequests(response.data.items); setGoldError("");
+    } catch (error) { setGoldError(error instanceof Error ? error.message : "Failed to load Gold Purchase approvals"); }
+  }, [canReviewGold, locale]);
+
+  useEffect(() => { void loadGoldRequests(); }, [loadGoldRequests]);
+
+  const reviewGold = async (request: GoldPurchaseApprovalRequest, decision: "approve" | "reject") => {
+    const reason = decision === "reject" ? window.prompt(rtl ? "سبب الرفض" : "Rejection reason") : null;
+    if (decision === "reject" && !reason) return;
+    try {
+      await reviewGoldPurchaseDraft(request.aggregateType, request.documentId, request.documentVersion + 1, request.version, decision, reason, locale);
+      setSuccessMsg(decision === "approve" ? (rtl ? "تم اعتماد طلب شراء الذهب." : "Gold Purchase approved.") : (rtl ? "تم رفض طلب شراء الذهب وإعادته كمسودة." : "Gold Purchase rejected back to draft."));
+      await loadGoldRequests();
+    } catch (error) { setGoldError(error instanceof Error ? error.message : "Gold Purchase review failed"); }
+  };
 
   const handleAction = (id: string, approve: boolean) => {
     setRequests((current) => current.filter((r) => r.id !== id));
@@ -103,6 +126,22 @@ export default function ApprovalsPage() {
           <span>{successMsg}</span>
         </div>
       )}
+
+      {canReviewGold && <section className="space-y-3">
+        <h2 className="text-lg font-black">{rtl ? "موافقات شراء الذهب" : "Gold Purchase approvals"}</h2>
+        {goldError && <div className="rounded-2xl border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">{goldError}</div>}
+        {goldRequests.length === 0 ? <Card className="p-6 text-center text-xs text-muted">{rtl ? "لا توجد طلبات شراء ذهب معلقة ضمن نطاقك." : "No scoped Gold Purchase approvals are pending."}</Card> : goldRequests.map((request) => {
+          const snapshot = request.submittedSnapshot as { documentNumber?: string; createdBy?: string; reference?: { name?: string }; items?: unknown[] };
+          const selfReview = user?.id === request.requestedBy || user?.id === snapshot.createdBy;
+          const canApprove = hasPermission(`gold_purchase.${request.aggregateType}.approve`);
+          const canReject = hasPermission(`gold_purchase.${request.aggregateType}.reject`);
+          return <Card key={request.id} className="space-y-4 p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-mono text-xs text-muted">{request.id}</p><h3 className="font-black">{snapshot.documentNumber || request.documentId}</h3><p className="text-xs text-muted">{request.aggregateType.toUpperCase()} · {snapshot.reference?.name || "—"} · {snapshot.items?.length || 0} {rtl ? "بند" : "lines"}</p></div><Badge tone="amber">{request.approvalStatus}</Badge></div>
+            <div className="rounded-2xl border border-border bg-background p-3 text-xs"><p><strong>{rtl ? "بصمة النسخة: " : "Snapshot hash: "}</strong><span className="font-mono">{request.submittedSnapshotHash}</span></p><p className="mt-1"><strong>{rtl ? "مقدم الطلب: " : "Requested by: "}</strong>{request.requestedBy}</p></div>
+            {selfReview ? <p className="text-xs font-bold text-destructive">{rtl ? "لا يمكن للمنشئ أو مقدم الطلب مراجعة طلبه." : "The creator or submitter cannot review this request."}</p> : <div className="flex justify-end gap-2">{canReject && <Button variant="danger" size="sm" onClick={() => void reviewGold(request, "reject")}><X className="h-4 w-4" />{rtl ? "رفض" : "Reject"}</Button>}{canApprove && <Button size="sm" onClick={() => void reviewGold(request, "approve")}><Check className="h-4 w-4" />{rtl ? "اعتماد" : "Approve"}</Button>}</div>}
+          </Card>;
+        })}
+      </section>}
 
       <div className="space-y-6">
         {requests.length === 0 ? (

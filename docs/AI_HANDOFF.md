@@ -5,14 +5,14 @@
 > **Project Identity & Safeties:**
 > - Repository: [jewellery-erp-master](file:///H:/WORK/jewellery-erp-master)
 > - Branch: `main`
-> - Current Implementation Commit: `75918cb67a3304967818c89fc19594fee6118a2c`
+> - Current Implementation Commit: `007435c991abeb8f0bed5b35b48439188db8f15d` (Phase 33C application + verifier; documentation commit follows this record)
 > - Original Client Requirements: Located at [client-requirements](file:///H:/WORK/client-requirements)
-> - Phase Status: **Phase 32.6-Fix D — CLOSED**
+> - Phase Status: **Phase 33C — IMPLEMENTED & VERIFIED; MANUAL UI QA REQUIRED**
 > - Approved Decisions: AD-002, AD-003, CD-026 to CD-030, SD-008, PC-001 to PC-004
-> - Migration State: Fully migrated, verified, and consistent
-> - Verification State: 45/45 static verifiers PASS; behavioral live verifier passes (including 22 permissions, 11 API smoke tests, and unified Option A HTTP 200 checks).
-> - Remaining Limitations: Headless environment — browser automation was not executed. Manual browser QA remains required.
-> - Recommended Next Phase: Phase 33.1 (or next epic phase)
+> - Migration State: 37 migrations applied locally; Phase 33C additive approval-governance migration verified
+> - Verification State: 47/47 verifier files PASS; Phase 33C gated real HTTP verifier passes with zero persistent pollution and zero posting side effects.
+> - Remaining Limitations: Browser automation/manual UI smoke was not executed. MANUAL UI QA REQUIRED.
+> - Recommended Next Phase: Phase 33D only after accountant/client decisions; do not start accounting implementation while blocked.
 > - Exact Next-Tool Start Instructions: Verify git safety status and read this handoff file.
 
 # DARFUS Jewellery ERP — AI Handoff
@@ -3798,8 +3798,38 @@ Phase 33B is implemented as an additive, non-accounting CGP/IGP draft foundation
 - `scripts/verify-gold-purchase-draft-workflow.js` passed real HTTP behavior, exact cleanup, and
   zero posting/inventory/asset/barcode/pool/order effects. All 46 verifiers pass.
 
-Do not start Phase 33C without owner direction. Dedicated gold-purchase permissions and
-maker-checker remain a Phase 33C decision. Final value/accounting/tax/settlement require
-accountant/client approval before Phase 33D.
+Phase 33C was subsequently owner-authorized and completed as recorded below. Final
+value/accounting/tax/settlement still require accountant/client approval before Phase 33D.
+
+MANUAL UI QA REQUIRED.
+
+## Phase 33C — Gold Purchase Permissions, Submission and Maker–Checker
+
+Phase 33C is implemented and verified. Full contract and evidence:
+`docs/client-requirements/PHASE-33C.md`.
+
+- Added the exact 11 CGP and 11 IGP dedicated permissions with base-view and
+  `view_all > view_branch > view_own` visibility. Approval requires branch/all scope.
+- Preserved Sales/Supplier permissions only as transitional draft-operation fallbacks; they do
+  not authorize submit, approve, reject, or revision creation.
+- Added validated submission, one-level maker–checker, creator/submitter self-review denial,
+  mandatory rejection reasons, immutable canonical JSONB snapshots with SHA-256 hashes,
+  optimistic versions, idempotent commands, and concurrent terminal-review serialization.
+- Added submitted/approved states. Rejection returns to draft without deleting the rejected
+  request/snapshot. Approved documents are immutable and changes require a linked new revision.
+- Added scoped approval queue/detail APIs and live approval UI, permission administration labels,
+  submit/read-only/revision behaviors in both Gold Purchase workspaces.
+- Additive migration `20260714010000-gold-purchase-approval-governance.js` was applied only to
+  local `darfus_erp@localhost:5433` after a validated 383,582-byte custom-format backup. Migration
+  count is 37; 22 Gold Purchase permission rows exist.
+- Application commit `be14c304472c86e776be41646d4d7aeb5dfca059`; verifier commit
+  `007435c991abeb8f0bed5b35b48439188db8f15d`.
+- Typecheck, lint, build, 47/47 verifiers, gated real HTTP behavior, concurrency, snapshot-tamper
+  rejection, zero downstream posting effects, and zero persistent `T33C-*` pollution pass.
+
+Phase 33D is not started. Accountant/client decisions remain required for price basis, VAT/RCM,
+tax, valuation, account categories, customer/supplier settlement, payments, returns, and
+reversals. Posting, receipt, assets, barcodes, inventory, accounting, treasury, withdrawal,
+Liquidity Transfer, and transformation remain out of scope.
 
 MANUAL UI QA REQUIRED.

@@ -666,7 +666,7 @@ export type AdjustmentType = "weight-correction" | "entry-error" | "quality-insp
 
 // Phase 33B — additive Gold Purchase draft contracts. These are deliberately
 // non-posting: no asset, inventory, accounting or treasury fields belong here.
-export type GoldPurchaseDraftStatus = "draft" | "validated";
+export type GoldPurchaseDraftStatus = "draft" | "validated" | "submitted" | "approved";
 export type InvestmentGoldType = "physical" | "bullion";
 export type BullionIdentityType = "serialized_unit" | "bullion_lot";
 
@@ -713,11 +713,43 @@ export interface GoldPurchaseDraft {
   notes?: string | null;
   validatedAt?: string | null;
   validatedBy?: string | null;
+  submittedAt?: string | null;
+  submittedBy?: string | null;
+  approvedAt?: string | null;
+  approvedBy?: string | null;
+  lastRejectedAt?: string | null;
+  lastRejectedBy?: string | null;
+  lastRejectionReason?: string | null;
+  currentApprovalRequestId?: string | null;
+  revisionNumber: number;
+  supersedesDocumentId?: string | null;
+  rootDocumentId?: string | null;
+  approvalHistory?: GoldPurchaseApprovalRequest[];
   voidedAt?: string | null;
   voidedBy?: string | null;
   voidReason?: string | null;
   voided: boolean;
   items: GoldPurchaseDraftItem[];
+}
+
+export type GoldPurchaseApprovalStatus = "pending" | "approved" | "rejected" | "superseded";
+
+export interface GoldPurchaseApprovalRequest {
+  id: string;
+  companyId: string;
+  branchId: string;
+  aggregateType: "cgp" | "igp";
+  documentId: string;
+  documentVersion: number;
+  approvalStatus: GoldPurchaseApprovalStatus;
+  submittedSnapshot: Record<string, unknown>;
+  submittedSnapshotHash: string;
+  requestedBy: string;
+  requestedAt: string;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  reviewReason?: string | null;
+  version: number;
 }
 
 export interface InventoryAdjustment {

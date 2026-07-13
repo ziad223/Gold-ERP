@@ -99,3 +99,16 @@ Sign-off tracker for every open decision. **Status starts PENDING; Answer/Date a
 - **EXPLICITLY DEFERRED:** posting, receipt, assets, barcodes, inventory, liquidity transfer,
   transformation, withdrawal, attachments/documents, and final reporting.
 - MANUAL UI QA REQUIRED.
+
+# DR-33C — Gold Purchase approval governance (2026-07-14)
+
+- **APPROVED/IMPLEMENTED:** Exact 11-key CGP and 11-key IGP permission sets; module view plus `view_all > view_branch > view_own` scope precedence.
+- **APPROVED/IMPLEMENTED:** One-level maker–checker. Creator/submitter self-review is forbidden; reviewers require dedicated approve/reject plus branch/all visibility.
+- **APPROVED/IMPLEMENTED:** `draft → validated → submitted → approved`, with rejection returning to draft while preserving immutable approval history.
+- **APPROVED/IMPLEMENTED:** Canonical submitted JSONB snapshot with SHA-256 hash, optimistic versions, idempotent commands, one pending request, and serialized terminal review.
+- **APPROVED/IMPLEMENTED:** Approved documents are immutable; explicit revision creates a linked new draft and never mutates the source.
+- **TRANSITIONAL:** Phase 33B Sales/Supplier permissions remain draft-operation fallbacks only; they never authorize submit/review/revision.
+- **EXPLICITLY DEFERRED:** all posting, receipt, asset/barcode, inventory, accounting, treasury, payment, return/reversal, withdrawal, liquidity-transfer, and transformation behavior.
+- **ACCOUNTANT/CLIENT DECISION REQUIRED BEFORE PHASE 33D:** final price, VAT/RCM/tax, valuation, account categories, settlements, payments, returns, and reversals.
+- Application `be14c304472c86e776be41646d4d7aeb5dfca059`; verifier `007435c991abeb8f0bed5b35b48439188db8f15d`; 47/47 static verifiers and gated HTTP workflow pass with zero pollution.
+- MANUAL UI QA REQUIRED.

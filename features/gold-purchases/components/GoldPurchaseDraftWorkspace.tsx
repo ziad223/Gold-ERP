@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocale } from "next-intl";
-import { Plus, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
+import { Plus, RefreshCw, Send, ShieldCheck, GitBranch, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -12,7 +12,8 @@ import { usePermissions } from "@/hooks/use-permissions";
 import type { GoldPurchaseDraft, GoldPurchaseDraftItem } from "@/lib/types";
 import {
   createGoldPurchaseDraft, listGoldPurchaseDrafts, updateGoldPurchaseDraft,
-  validateGoldPurchaseDraft, voidGoldPurchaseDraft, type GoldPurchaseDraftKind,
+  validateGoldPurchaseDraft, voidGoldPurchaseDraft, submitGoldPurchaseDraft,
+  createGoldPurchaseRevision, type GoldPurchaseDraftKind,
 } from "@/hooks/use-gold-purchase-drafts";
 
 type Reference = { id: string; name: string; status?: string };
@@ -29,9 +30,14 @@ export function GoldPurchaseDraftWorkspace({ kind }: { kind: GoldPurchaseDraftKi
   const { company, activeBranchId } = useAuth();
   const { hasPermission } = usePermissions();
   const isCgp = kind === "cgp";
-  const canRead = hasPermission(isCgp ? "sales.view" : "suppliers.view");
-  const canCreate = hasPermission(isCgp ? "sales.create" : "suppliers.create");
-  const canUpdate = hasPermission(isCgp ? "sales.create" : "suppliers.update");
+  const prefix = `gold_purchase.${kind}`;
+  const dedicated = hasPermission(`${prefix}.view`);
+  const canRead = dedicated || hasPermission(isCgp ? "sales.view" : "suppliers.view");
+  const canCreate = dedicated ? hasPermission(`${prefix}.create`) : hasPermission(isCgp ? "sales.create" : "suppliers.create");
+  const canUpdate = dedicated ? hasPermission(`${prefix}.update_draft`) : hasPermission(isCgp ? "sales.create" : "suppliers.update");
+  const canValidate = dedicated ? hasPermission(`${prefix}.validate`) : canUpdate;
+  const canVoid = dedicated ? hasPermission(`${prefix}.void`) : canUpdate;
+  const canSubmit = dedicated && hasPermission(`${prefix}.submit`);
   const [drafts, setDrafts] = useState<GoldPurchaseDraft[]>([]);
   const [references, setReferences] = useState<Reference[]>([]);
   const [selected, setSelected] = useState<GoldPurchaseDraft | null>(null);
@@ -96,18 +102,23 @@ export function GoldPurchaseDraftWorkspace({ kind }: { kind: GoldPurchaseDraftKi
   };
   const validate = async () => { if (!selected) return; setSaving(true); try { const r = await validateGoldPurchaseDraft(kind, selected, locale); edit(r.data); await load(); } catch (e) { setError(e instanceof Error ? e.message : "Validation failed"); } finally { setSaving(false); } };
   const voidDraft = async () => { if (!selected) return; const reason = window.prompt(rtl ? "سبب الإلغاء" : "Void reason"); if (!reason) return; setSaving(true); try { await voidGoldPurchaseDraft(kind, selected, reason, locale); reset(); await load(); } catch (e) { setError(e instanceof Error ? e.message : "Void failed"); } finally { setSaving(false); } };
+  const submit = async () => { if (!selected) return; setSaving(true); try { const r = await submitGoldPurchaseDraft(kind, selected, locale); edit(r.data.document); await load(); } catch (e) { setError(e instanceof Error ? e.message : "Submission failed"); } finally { setSaving(false); } };
+  const createRevision = async () => { if (!selected) return; setSaving(true); try { const r = await createGoldPurchaseRevision(kind, selected, locale); edit(r.data); await load(); } catch (e) { setError(e instanceof Error ? e.message : "Revision creation failed"); } finally { setSaving(false); } };
+  const immutable = selected?.status === "submitted" || selected?.status === "approved";
 
   if (!canRead) return <Card className="p-6 text-sm font-bold text-destructive">{rtl ? "لا تملك صلاحية عرض هذه المسودات." : "You do not have permission to view these drafts."}</Card>;
 
   return <div className="space-y-6">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-black">{title}</h1><p className="text-xs text-muted">{rtl ? "مسودات غير محاسبية — لا تنشئ مخزوناً أو قيوداً." : "Non-accounting drafts — no inventory or journals are created."}</p></div><Button variant="secondary" onClick={reset}><Plus className="h-4 w-4" />{rtl ? "مسودة جديدة" : "New draft"}</Button></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-black">{title}</h1><p className="text-xs text-muted">{rtl ? "مسودات غير محاسبية — لا تنشئ مخزوناً أو قيوداً." : "Non-accounting drafts — no inventory or journals are created."}</p></div>{canCreate && <Button variant="secondary" onClick={reset}><Plus className="h-4 w-4" />{rtl ? "مسودة جديدة" : "New draft"}</Button>}</div>
     {error && <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-3 text-sm font-bold text-destructive">{error}</div>}
     <div className="grid gap-6 xl:grid-cols-[.9fr_1.1fr]">
-      <Card className="p-5"><div className="mb-4 flex gap-2"><NativeSelect value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}><option value="">{rtl ? "كل الحالات" : "All statuses"}</option><option value="draft">Draft</option><option value="validated">Validated</option></NativeSelect><Button variant="secondary" onClick={() => void load()}><RefreshCw className="h-4 w-4" /></Button></div>
+      <Card className="p-5"><div className="mb-4 flex gap-2"><NativeSelect value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}><option value="">{rtl ? "كل الحالات" : "All statuses"}</option><option value="draft">Draft</option><option value="validated">Validated</option><option value="submitted">Submitted</option><option value="approved">Approved</option></NativeSelect><Button variant="secondary" onClick={() => void load()}><RefreshCw className="h-4 w-4" /></Button></div>
         {loading ? <p className="py-10 text-center text-muted">{rtl ? "جارٍ التحميل..." : "Loading..."}</p> : drafts.length === 0 ? <p className="py-10 text-center text-muted">{rtl ? "لا توجد مسودات." : "No drafts found."}</p> : <div className="space-y-2">{drafts.map((draft) => <button key={draft.id} onClick={() => edit(draft)} className="w-full rounded-2xl border border-border p-3 text-start hover:border-brand-400"><div className="flex justify-between"><span className="font-mono font-black">{draft.draftNumber}</span><span className={draft.status === "validated" ? "text-emerald-600" : "text-amber-600"}>{draft.status}</span></div><p className="mt-1 text-xs text-muted">{draft.customer?.name || draft.supplier?.name} · {draft.branch?.name}</p></button>)}</div>}
         <div className="mt-4 flex items-center justify-between text-xs"><Button variant="secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>{rtl ? "السابق" : "Previous"}</Button><span>{page} / {Math.max(pages, 1)}</span><Button variant="secondary" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>{rtl ? "التالي" : "Next"}</Button></div>
       </Card>
-      <Card className="space-y-4 p-5"><div className="flex justify-between"><h2 className="font-black">{selected?.draftNumber || (rtl ? "مسودة جديدة" : "New draft")}</h2>{selected && <span className="text-xs font-bold">v{selected.version} · {selected.status}</span>}</div>
+      <Card className="space-y-4 p-5"><div className="flex justify-between"><h2 className="font-black">{selected?.draftNumber || (rtl ? "مسودة جديدة" : "New draft")}</h2>{selected && <span className="text-xs font-bold">v{selected.version} · r{selected.revisionNumber || 1} · {selected.status}</span>}</div>
+        {immutable && <div className="rounded-2xl border border-brand-500/20 bg-brand-500/10 p-3 text-xs font-bold">{selected?.status === "approved" ? (rtl ? "المستند معتمد وغير قابل للتعديل. أنشئ مراجعة جديدة للتغيير." : "Approved and immutable. Create a revision to make changes.") : (rtl ? "المستند قيد المراجعة وغير قابل للتعديل." : "Submitted for review and immutable.")}</div>}
+        {selected?.lastRejectionReason && <div className="rounded-2xl border border-destructive/20 bg-destructive/10 p-3 text-xs"><strong>{rtl ? "آخر سبب رفض: " : "Last rejection: "}</strong>{selected.lastRejectionReason}</div>}
         <div className="grid gap-3 sm:grid-cols-2"><label><span className="label-base">{referenceLabel}</span><NativeSelect value={referenceId} onChange={(e) => setReferenceId(e.target.value)}><option value="">—</option>{references.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</NativeSelect></label><label><span className="label-base">{rtl ? "التاريخ" : "Date"}</span><input className="input-base" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label></div>
         {lines.map((line, index) => <div key={index} className="rounded-2xl border border-border p-4"><div className="mb-3 flex justify-between"><strong>{rtl ? `بند ${index + 1}` : `Line ${index + 1}`}</strong>{lines.length > 1 && <button onClick={() => setLines((x) => x.filter((_, i) => i !== index))} className="text-destructive"><XCircle className="h-4 w-4" /></button>}</div>
           {kind === "igp" && <div className="mb-3 grid gap-3 sm:grid-cols-2"><label><span className="label-base">{rtl ? "نوع الاستثمار" : "Investment type"}</span><NativeSelect value={line.investmentType} onChange={(e) => updateLine(index, "investmentType", e.target.value)}><option value="physical">Physical</option><option value="bullion">Bullion</option></NativeSelect></label>{line.investmentType === "bullion" && <label><span className="label-base">{rtl ? "هوية السبيكة" : "Bullion identity"}</span><NativeSelect value={line.bullionIdentityType || "serialized_unit"} onChange={(e) => updateLine(index, "bullionIdentityType", e.target.value)}><option value="serialized_unit">Serialized unit</option><option value="bullion_lot">Bullion lot</option></NativeSelect></label>}</div>}
@@ -117,7 +128,7 @@ export function GoldPurchaseDraftWorkspace({ kind }: { kind: GoldPurchaseDraftKi
         </div>)}
         <Button variant="secondary" onClick={() => setLines((x) => [...x, blankLine(kind)])}><Plus className="h-4 w-4" />{rtl ? "إضافة بند" : "Add line"}</Button>
         <label className="block"><span className="label-base">{rtl ? "ملاحظات" : "Notes"}</span><textarea className="input-base min-h-20" value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
-        <div className="flex flex-wrap justify-end gap-2">{selected && canUpdate && <Button variant="secondary" disabled={saving} onClick={voidDraft}><XCircle className="h-4 w-4" />{rtl ? "إلغاء المسودة" : "Void"}</Button>}{selected && selected.status === "draft" && canUpdate && <Button variant="secondary" disabled={saving} onClick={validate}><ShieldCheck className="h-4 w-4" />{rtl ? "تحقق" : "Validate"}</Button>}{((selected && canUpdate) || (!selected && canCreate)) && <Button disabled={saving} onClick={save}>{saving ? (rtl ? "جارٍ الحفظ..." : "Saving...") : (rtl ? "حفظ المسودة" : "Save draft")}</Button>}</div>
+        <div className="flex flex-wrap justify-end gap-2">{selected && !immutable && canVoid && <Button variant="secondary" disabled={saving} onClick={voidDraft}><XCircle className="h-4 w-4" />{rtl ? "إلغاء المسودة" : "Void"}</Button>}{selected && selected.status === "draft" && canValidate && <Button variant="secondary" disabled={saving} onClick={validate}><ShieldCheck className="h-4 w-4" />{rtl ? "تحقق" : "Validate"}</Button>}{selected && selected.status === "validated" && canSubmit && <Button disabled={saving} onClick={submit}><Send className="h-4 w-4" />{rtl ? "إرسال للموافقة" : "Submit for approval"}</Button>}{selected?.status === "approved" && canCreate && <Button disabled={saving} onClick={createRevision}><GitBranch className="h-4 w-4" />{rtl ? "إنشاء مراجعة" : "Create revision"}</Button>}{((selected && !immutable && canUpdate) || (!selected && canCreate)) && <Button disabled={saving} onClick={save}>{saving ? (rtl ? "جارٍ الحفظ..." : "Saving...") : (rtl ? "حفظ المسودة" : "Save draft")}</Button>}</div>
       </Card>
     </div>
   </div>;
