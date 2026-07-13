@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { Fragment, use, useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import {
   FileText,
@@ -15,6 +15,8 @@ import {
   Award,
   Upload,
   Trash,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,7 +36,10 @@ import { DATA_SOURCE } from "@/lib/data-source";
 import { toEnglishDigits } from "@/lib/formatters/numbers";
 import { getPublicFileUrl } from "@/lib/files";
 import { useErp } from "@/contexts/erp-context";
-import type { CustomerStatement } from "@/lib/repositories/interfaces";
+import type { CustomerStatement, CustomerCreditReconciliationReport, CustomerStatementV3Report } from "@/lib/repositories/interfaces";
+import type { Invoice } from "@/lib/types";
+import { ExchangeSummary } from "@/components/sales/ExchangeSummary";
+import { useExchangeDisplay } from "@/features/sales/hooks/use-exchange-display";
 
 interface PageProps {
   params: Promise<{ id: string; locale: string }>;
@@ -59,6 +64,13 @@ type KycFormState = {
   kycStatus: KYCStatus;
   amlStatus: AMLStatus;
 };
+
+// Phase 31.1 — accounting-sensitive diagnostics are hidden from normal users
+// until accounting sign-off (statement-v3 source-aware view + customer credit
+// reconciliation panel). The components, queries, repository methods, and backend
+// endpoints are intentionally KEPT intact; only their entry points are gated so
+// nothing is deleted. Flip to true only after sign-off (see docs/CLIENT_SCOPE_LOCK.md).
+const SHOW_ACCOUNTING_SENSITIVE_DIAGNOSTICS = false;
 
 function normalizeKycStatus(value?: string): KYCStatus {
   if (value === "verified" || value === "pending" || value === "flagged" || value === "not-started") return value;
@@ -114,7 +126,20 @@ export default function CustomerProfilePage({ params }: PageProps) {
     enabled: !!id && DATA_SOURCE === "api",
   });
 
-  const displayInvoices = DATA_SOURCE === "api" ? (invoicesQuery.data ?? []) : localInvoices;
+  const displayInvoices = useMemo(
+    () => DATA_SOURCE === "api" ? (invoicesQuery.data ?? []) : localInvoices,
+    [invoicesQuery.data, localInvoices],
+  );
+  const [expandedExchangeInvoiceId, setExpandedExchangeInvoiceId] = useState<string | null>(null);
+  const selectedExchangeInvoice = useMemo(
+    () => displayInvoices.find((invoice: any) => invoice.id === expandedExchangeInvoiceId && invoice.type === "exchange") ?? null,
+    [displayInvoices, expandedExchangeInvoiceId],
+  );
+  const {
+    data: exchangeDisplay,
+    isLoading: isExchangeDisplayLoading,
+    error: exchangeDisplayError,
+  } = useExchangeDisplay(selectedExchangeInvoice?.id, Boolean(selectedExchangeInvoice?.type === "exchange"));
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedPreviewUrl, setSelectedPreviewUrl] = useState("");
@@ -551,28 +576,72 @@ export default function CustomerProfilePage({ params }: PageProps) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {displayInvoices.map((inv: any) => (
-                    <tr key={inv.id} className="hover:bg-slate-50/50">
-                      <td className="px-4 py-3 font-bold text-brand-600">{toEnglishDigits(inv.invoiceNumber || inv.id)}</td>
-                      <td className="px-4 py-3 text-slate-500">{toEnglishDigits(inv.date)}</td>
-                      <td className="px-4 py-3 text-slate-500">{inv.branch}</td>
-                      <td className="px-4 py-3 text-slate-500">{inv.paymentMethod}</td>
-                      <td className="px-4 py-3 font-bold">{money(inv.total)}</td>
-                      <td className="px-4 py-3">
-                        <Badge
-                          tone={
-                            inv.status === "paid"
-                              ? "green"
-                              : inv.status === "partial"
-                              ? "amber"
-                              : "rose"
-                          }
-                        >
-                          {inv.status}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
+                  {displayInvoices.map((inv: any) => {
+                    const isExchangeInvoice = inv.type === "exchange";
+                    const expanded = expandedExchangeInvoiceId === inv.id && isExchangeInvoice;
+                    return (
+                      <Fragment key={inv.id}>
+                        <tr className="hover:bg-slate-50/50">
+                          <td className="px-4 py-3 font-bold text-brand-600">
+                            <div className="flex flex-col items-start gap-1">
+                              <span>{toEnglishDigits(inv.invoiceNumber || inv.id)}</span>
+                              {isExchangeInvoice && (
+                                <button
+                                  type="button"
+                                  className="text-[10px] font-extrabold text-brand-700 underline-offset-2 hover:underline dark:text-brand-300"
+                                  onClick={() => setExpandedExchangeInvoiceId(expanded ? null : inv.id)}
+                                >
+                                  {expanded
+                                    ? (locale === "ar" ? "إخفاء ملخص الاستبدال" : "Hide exchange summary")
+                                    : (locale === "ar" ? "عرض ملخص الاستبدال" : "View exchange summary")}
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-slate-500">{toEnglishDigits(inv.date)}</td>
+                          <td className="px-4 py-3 text-slate-500">{inv.branch}</td>
+                          <td className="px-4 py-3 text-slate-500">{inv.paymentMethod}</td>
+                          <td className="px-4 py-3 font-bold">{money(inv.total)}</td>
+                          <td className="px-4 py-3">
+                            <Badge
+                              tone={
+                                inv.status === "paid"
+                                  ? "green"
+                                  : inv.status === "partial"
+                                  ? "amber"
+                                  : "rose"
+                              }
+                            >
+                              {inv.status}
+                            </Badge>
+                          </td>
+                        </tr>
+                        {expanded && (
+                          <tr>
+                            <td colSpan={6} className="bg-slate-50/60 px-4 py-4 dark:bg-navy-950/40">
+                              {isExchangeDisplayLoading ? (
+                                <div className="rounded-2xl border border-slate-200 bg-white p-4 text-xs font-semibold text-slate-500 dark:border-slate-800 dark:bg-navy-900">
+                                  {locale === "ar" ? "جارٍ تحميل ملخص الاستبدال..." : "Loading exchange summary..."}
+                                </div>
+                              ) : exchangeDisplay ? (
+                                <ExchangeSummary invoice={inv as Invoice} display={exchangeDisplay} currency={currency} />
+                              ) : (
+                                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs font-semibold text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                                  {exchangeDisplayError
+                                    ? (locale === "ar"
+                                        ? "ملخص الاستبدال غير متاح. يتم عرض سجل الفاتورة المحفوظ فقط."
+                                        : "Exchange summary is unavailable. Showing stored invoice history only.")
+                                    : (locale === "ar"
+                                        ? "ملخص الاستبدال غير متاح لمصدر البيانات الحالي. يتم عرض سجل الفاتورة المحفوظ فقط."
+                                        : "Exchange summary is unavailable for the current data source. Showing stored invoice history only.")}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -827,7 +896,7 @@ export default function CustomerProfilePage({ params }: PageProps) {
 // there is no fix/reconcile/write action.
 const STATEMENT_PAGE_SIZES = [20, 50, 100] as const;
 
-type CustomerDepositForm = {
+type CustomerCreditCashForm = {
   amount: string;
   paymentMethod: "cash" | "bank";
   date: string;
@@ -835,14 +904,34 @@ type CustomerDepositForm = {
   reference: string;
 };
 
+type CustomerCreditApplyForm = {
+  invoiceId: string;
+  amount: string;
+  date: string;
+  description: string;
+  reference: string;
+};
+
 const getTodayYmd = () => new Date().toISOString().slice(0, 10);
 
-const getCustomerDepositSignature = (form: CustomerDepositForm, customerId: string) =>
+const getCustomerCreditCashSignature = (form: CustomerCreditCashForm, customerId: string, action: "deposit" | "refund") =>
   JSON.stringify({
+    action,
     customerId,
     amount: form.amount.trim(),
     paymentMethod: form.paymentMethod,
     accountCode: form.paymentMethod === "bank" ? "1120" : "1110",
+    date: form.date,
+    description: form.description.trim(),
+    reference: form.reference.trim(),
+  });
+
+const getCustomerCreditApplySignature = (form: CustomerCreditApplyForm, customerId: string) =>
+  JSON.stringify({
+    action: "apply",
+    customerId,
+    invoiceId: form.invoiceId,
+    amount: form.amount.trim(),
     date: form.date,
     description: form.description.trim(),
     reference: form.reference.trim(),
@@ -859,8 +948,9 @@ function CustomerStatementPanel({ customerId, money }: { customerId: string; mon
   const [to, setTo] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
+  const [activeStatementView, setActiveStatementView] = useState<"v2" | "v3">("v2");
   const [depositOpen, setDepositOpen] = useState(false);
-  const [depositForm, setDepositForm] = useState<CustomerDepositForm>({
+  const [depositForm, setDepositForm] = useState<CustomerCreditCashForm>({
     amount: "",
     paymentMethod: "cash",
     date: getTodayYmd(),
@@ -869,6 +959,34 @@ function CustomerStatementPanel({ customerId, money }: { customerId: string; mon
   });
   const [depositIdempotency, setDepositIdempotency] = useState<{ key: string; signature: string } | null>(null);
   const [depositSubmitting, setDepositSubmitting] = useState(false);
+  const [refundOpen, setRefundOpen] = useState(false);
+  const [refundForm, setRefundForm] = useState<CustomerCreditCashForm>({
+    amount: "",
+    paymentMethod: "cash",
+    date: getTodayYmd(),
+    description: "",
+    reference: "",
+  });
+  const [refundIdempotency, setRefundIdempotency] = useState<{ key: string; signature: string } | null>(null);
+  const [refundSubmitting, setRefundSubmitting] = useState(false);
+  const [applyOpen, setApplyOpen] = useState(false);
+  const [applyForm, setApplyForm] = useState<CustomerCreditApplyForm>({
+    invoiceId: "",
+    amount: "",
+    date: getTodayYmd(),
+    description: "",
+    reference: "",
+  });
+  const [applyIdempotency, setApplyIdempotency] = useState<{ key: string; signature: string } | null>(null);
+  const [applySubmitting, setApplySubmitting] = useState(false);
+
+  const [reconciliationExpanded, setReconciliationExpanded] = useState(false);
+
+  const reconciliationQuery = useQuery<CustomerCreditReconciliationReport>({
+    queryKey: ["customer-credit-reconciliation", customerId],
+    queryFn: () => accountingRepository.getCustomerCreditReconciliation(customerId),
+    enabled: isApi && !!customerId && reconciliationExpanded,
+  });
 
   const dateError = from && to && from > to;
 
@@ -884,16 +1002,56 @@ function CustomerStatementPanel({ customerId, money }: { customerId: string; mon
     enabled: isApi && !!customerId && !dateError,
   });
 
+  const statementV3Query = useQuery<CustomerStatementV3Report>({
+    queryKey: ["customer-statement-v3", customerId, from, to],
+    queryFn: () =>
+      accountingRepository.getCustomerStatementV3(customerId, {
+        from: from || undefined,
+        to: to || undefined,
+      }),
+    enabled: isApi && !!customerId && activeStatementView === "v3" && !dateError,
+  });
+
   const creditQuery = useQuery<{ data: { availableCredit: number; currency: string } }>({
     queryKey: ["customer-credit", customerId],
     queryFn: () => apiClient(`/customers/${encodeURIComponent(customerId)}/credit`, { locale }),
     enabled: isApi && !!customerId,
   });
   const availableCredit = creditQuery.data?.data?.availableCredit ?? 0;
+  const invoicesQuery = useQuery<any[]>({
+    queryKey: ["customer-invoices", customerId],
+    queryFn: async () => normalizeItems(await apiClient(`/customers/${encodeURIComponent(customerId)}/invoices`, { locale })),
+    enabled: isApi && !!customerId,
+  });
+  const openInvoices = useMemo(
+    () => (invoicesQuery.data ?? []).filter((invoice) => {
+      const remaining = Number(invoice.remainingAmount || 0);
+      return remaining > 0.0001 &&
+        invoice.postingStatus !== "cancelled" &&
+        invoice.status !== "cancelled" &&
+        invoice.type !== "return" &&
+        invoice.type !== "exchange";
+    }),
+    [invoicesQuery.data],
+  );
+  const selectedApplyInvoice = useMemo(
+    () => openInvoices.find((invoice) => invoice.id === applyForm.invoiceId) || null,
+    [openInvoices, applyForm.invoiceId],
+  );
 
-  const updateDepositForm = (patch: Partial<CustomerDepositForm>) => {
+  const updateDepositForm = (patch: Partial<CustomerCreditCashForm>) => {
     setDepositForm((current) => ({ ...current, ...patch }));
     setDepositIdempotency(null);
+  };
+
+  const updateRefundForm = (patch: Partial<CustomerCreditCashForm>) => {
+    setRefundForm((current) => ({ ...current, ...patch }));
+    setRefundIdempotency(null);
+  };
+
+  const updateApplyForm = (patch: Partial<CustomerCreditApplyForm>) => {
+    setApplyForm((current) => ({ ...current, ...patch }));
+    setApplyIdempotency(null);
   };
 
   const openDepositModal = () => {
@@ -908,13 +1066,51 @@ function CustomerStatementPanel({ customerId, money }: { customerId: string; mon
     setDepositOpen(true);
   };
 
+  const openRefundModal = () => {
+    if (availableCredit <= 0) {
+      toast.error(rtl ? "لا يوجد رصيد دائن متاح لرده" : "No available credit to refund");
+      return;
+    }
+    setRefundForm({
+      amount: "",
+      paymentMethod: "cash",
+      date: getTodayYmd(),
+      description: rtl ? "رد رصيد دائن للعميل" : "Customer credit refund",
+      reference: "",
+    });
+    setRefundIdempotency(null);
+    setRefundOpen(true);
+  };
+
+  const openApplyModal = () => {
+    if (availableCredit <= 0) {
+      toast.error(rtl ? "لا يوجد رصيد دائن متاح للتطبيق" : "No available credit to apply");
+      return;
+    }
+    if (openInvoices.length === 0) {
+      toast.error(rtl ? "لا توجد فواتير مفتوحة لتطبيق الرصيد عليها" : "No open invoices to apply credit to");
+      return;
+    }
+    const invoice = openInvoices[0];
+    const defaultAmount = Math.min(Number(invoice.remainingAmount || 0), availableCredit);
+    setApplyForm({
+      invoiceId: invoice.id,
+      amount: defaultAmount > 0 ? String(Math.round(defaultAmount * 100) / 100) : "",
+      date: getTodayYmd(),
+      description: rtl ? "تطبيق رصيد دائن على فاتورة" : "Apply customer credit to invoice",
+      reference: "",
+    });
+    setApplyIdempotency(null);
+    setApplyOpen(true);
+  };
+
   const submitDeposit = async () => {
     const amount = Number(depositForm.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
       toast.error(rtl ? "مبلغ الإيداع يجب أن يكون أكبر من صفر" : "Deposit amount must be greater than zero");
       return;
     }
-    const signature = getCustomerDepositSignature(depositForm, customerId);
+    const signature = getCustomerCreditCashSignature(depositForm, customerId, "deposit");
     const idem = depositIdempotency?.signature === signature
       ? depositIdempotency
       : { key: generateUUID(), signature };
@@ -945,6 +1141,105 @@ function CustomerStatementPanel({ customerId, money }: { customerId: string; mon
       toast.error(err?.message || (rtl ? "فشل تسجيل الإيداع" : "Failed to record deposit"));
     } finally {
       setDepositSubmitting(false);
+    }
+  };
+
+  const submitRefund = async () => {
+    const amount = Number(refundForm.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error(rtl ? "مبلغ رد الرصيد يجب أن يكون أكبر من صفر" : "Refund amount must be greater than zero");
+      return;
+    }
+    if (amount > availableCredit + 0.0001) {
+      toast.error(rtl ? "المبلغ أكبر من الرصيد الدائن المتاح" : "Refund amount exceeds available credit");
+      return;
+    }
+    const signature = getCustomerCreditCashSignature(refundForm, customerId, "refund");
+    const idem = refundIdempotency?.signature === signature
+      ? refundIdempotency
+      : { key: generateUUID(), signature };
+    setRefundIdempotency(idem);
+    setRefundSubmitting(true);
+    try {
+      await apiClient(`/customers/${encodeURIComponent(customerId)}/credit/refund`, {
+        method: "POST",
+        locale,
+        idempotencyKey: idem.key,
+        body: JSON.stringify({
+          amount,
+          paymentMethod: refundForm.paymentMethod,
+          accountCode: refundForm.paymentMethod === "bank" ? "1120" : "1110",
+          date: refundForm.date,
+          description: refundForm.description.trim() || (rtl ? "رد رصيد دائن للعميل" : "Customer credit refund"),
+          reference: refundForm.reference.trim() || undefined,
+        }),
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["customer-credit", customerId] }),
+        queryClient.invalidateQueries({ queryKey: ["customer-statement-v2", customerId] }),
+      ]);
+      setRefundOpen(false);
+      setRefundIdempotency(null);
+      toast.success(rtl ? "تم رد الرصيد الدائن للعميل" : "Customer credit refunded");
+    } catch (err: any) {
+      toast.error(err?.message || (rtl ? "فشل رد الرصيد" : "Failed to refund credit"));
+    } finally {
+      setRefundSubmitting(false);
+    }
+  };
+
+  const submitApplyCredit = async () => {
+    const amount = Number(applyForm.amount);
+    const invoice = selectedApplyInvoice;
+    const invoiceRemaining = Number(invoice?.remainingAmount || 0);
+    if (!invoice) {
+      toast.error(rtl ? "اختر فاتورة مفتوحة" : "Select an open invoice");
+      return;
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error(rtl ? "مبلغ التطبيق يجب أن يكون أكبر من صفر" : "Apply amount must be greater than zero");
+      return;
+    }
+    if (amount > availableCredit + 0.0001) {
+      toast.error(rtl ? "المبلغ أكبر من الرصيد الدائن المتاح" : "Amount exceeds available credit");
+      return;
+    }
+    if (amount > invoiceRemaining + 0.0001) {
+      toast.error(rtl ? "المبلغ أكبر من المتبقي على الفاتورة" : "Amount exceeds invoice remaining balance");
+      return;
+    }
+
+    const signature = getCustomerCreditApplySignature(applyForm, customerId);
+    const idem = applyIdempotency?.signature === signature
+      ? applyIdempotency
+      : { key: generateUUID(), signature };
+    setApplyIdempotency(idem);
+    setApplySubmitting(true);
+    try {
+      await apiClient(`/invoices/${encodeURIComponent(invoice.id)}/apply-customer-credit`, {
+        method: "POST",
+        locale,
+        idempotencyKey: idem.key,
+        body: JSON.stringify({
+          amount,
+          date: applyForm.date,
+          description: applyForm.description.trim() || (rtl ? "تطبيق رصيد دائن على فاتورة" : "Apply customer credit to invoice"),
+          reference: applyForm.reference.trim() || undefined,
+        }),
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["customer-credit", customerId] }),
+        queryClient.invalidateQueries({ queryKey: ["customer-statement-v2", customerId] }),
+        queryClient.invalidateQueries({ queryKey: ["customer-invoices", customerId] }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.invoices }),
+      ]);
+      setApplyOpen(false);
+      setApplyIdempotency(null);
+      toast.success(rtl ? "تم تطبيق الرصيد على الفاتورة" : "Customer credit applied to invoice");
+    } catch (err: any) {
+      toast.error(err?.message || (rtl ? "فشل تطبيق الرصيد" : "Failed to apply customer credit"));
+    } finally {
+      setApplySubmitting(false);
     }
   };
 
@@ -982,13 +1277,35 @@ function CustomerStatementPanel({ customerId, money }: { customerId: string; mon
         <div className="flex flex-col items-start gap-3 sm:items-end">
           <p className="max-w-xs text-start text-[10px] text-slate-400 sm:text-end">
             {rtl
-              ? "رصيد دائن للعميل. لا يخصم من الفواتير إلا عند تطبيق الرصيد في مرحلة لاحقة."
-              : "Customer store credit. It does not reduce invoices until credit application is added later."}
+              ? "رصيد دائن للعميل. يمكن تطبيقه على الفواتير المفتوحة بدون حركة نقدية."
+              : "Customer store credit. It can be applied to open invoices without cash movement."}
           </p>
-          <Button type="button" size="sm" onClick={openDepositModal}>
-            <DollarSign className="h-4 w-4" />
-            {rtl ? "إضافة إيداع" : "Add Deposit"}
-          </Button>
+          <div className="flex flex-wrap justify-start gap-2 sm:justify-end">
+            <Button type="button" size="sm" onClick={openDepositModal}>
+              <DollarSign className="h-4 w-4" />
+              {rtl ? "إضافة إيداع" : "Add Deposit"}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={openApplyModal}
+              disabled={availableCredit <= 0 || openInvoices.length === 0 || creditQuery.isLoading || invoicesQuery.isLoading}
+            >
+              <FileText className="h-4 w-4" />
+              {rtl ? "تطبيق على فاتورة" : "Apply to Invoice"}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={openRefundModal}
+              disabled={availableCredit <= 0 || creditQuery.isLoading}
+            >
+              <DollarSign className="h-4 w-4" />
+              {rtl ? "رد الرصيد" : "Refund Credit"}
+            </Button>
+          </div>
         </div>
       </Card>
 
@@ -1080,6 +1397,237 @@ function CustomerStatementPanel({ customerId, money }: { customerId: string; mon
         </div>
       )}
 
+      {refundOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/60 p-4">
+          <div className="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl dark:bg-navy-900">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-black text-navy-950 dark:text-white">
+                  {rtl ? "رد رصيد دائن للعميل" : "Customer Credit Refund"}
+                </h3>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  {rtl
+                    ? "هذا يعيد رصيد العميل الدائن نقداً أو بنكياً. لن يغيّر رصيد الفواتير أو رصيد الذمم."
+                    : "This returns customer credit as cash or bank. It does not affect invoice balances or AR balance."}
+                </p>
+              </div>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setRefundOpen(false)} disabled={refundSubmitting}>
+                {rtl ? "إغلاق" : "Close"}
+              </Button>
+            </div>
+
+            <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-[11px] font-bold text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-500/10 dark:text-emerald-300">
+              {rtl ? "الرصيد الدائن المتاح للرد: " : "Available credit to refund: "}
+              {money(availableCredit)}
+            </div>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <label className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span className="mb-1 block">{rtl ? "المبلغ" : "Amount"}</span>
+                <input
+                  className="input-base w-full"
+                  inputMode="decimal"
+                  value={refundForm.amount}
+                  onChange={(e) => updateRefundForm({ amount: toEnglishDigits(e.target.value) })}
+                  placeholder="0.00"
+                />
+              </label>
+              <label className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span className="mb-1 block">{rtl ? "طريقة الرد" : "Refund Method"}</span>
+                <select
+                  className="input-base w-full"
+                  value={refundForm.paymentMethod}
+                  onChange={(e) => updateRefundForm({ paymentMethod: e.target.value as "cash" | "bank" })}
+                >
+                  <option value="cash">{rtl ? "نقدي — 1110" : "Cash — 1110"}</option>
+                  <option value="bank">{rtl ? "بنك — 1120" : "Bank — 1120"}</option>
+                </select>
+              </label>
+              <label className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span className="mb-1 block">{rtl ? "التاريخ" : "Date"}</span>
+                <input
+                  type="date"
+                  className="input-base w-full"
+                  value={refundForm.date}
+                  onChange={(e) => updateRefundForm({ date: e.target.value })}
+                />
+              </label>
+              <label className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span className="mb-1 block">{rtl ? "مرجع" : "Reference"}</span>
+                <input
+                  className="input-base w-full"
+                  maxLength={120}
+                  value={refundForm.reference}
+                  onChange={(e) => updateRefundForm({ reference: e.target.value })}
+                />
+              </label>
+              <label className="sm:col-span-2 text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span className="mb-1 block">{rtl ? "الوصف" : "Description"}</span>
+                <textarea
+                  className="input-base min-h-24 w-full resize-y"
+                  maxLength={255}
+                  value={refundForm.description}
+                  onChange={(e) => updateRefundForm({ description: e.target.value })}
+                />
+              </label>
+            </div>
+
+            <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold text-amber-700 dark:border-amber-900/50 dark:bg-amber-500/10 dark:text-amber-300">
+              {rtl
+                ? "تنبيه: هذا يقلل الرصيد الدائن فقط، ولا يسدد أو يعدل أي فاتورة."
+                : "Warning: this reduces available credit only. It does not settle or change any invoice."}
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={() => setRefundOpen(false)} disabled={refundSubmitting}>
+                {rtl ? "إلغاء" : "Cancel"}
+              </Button>
+              <Button type="button" onClick={submitRefund} disabled={refundSubmitting || availableCredit <= 0}>
+                {refundSubmitting ? (rtl ? "جارٍ الحفظ..." : "Saving...") : (rtl ? "حفظ رد الرصيد" : "Save Refund")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {applyOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/60 p-4">
+          <div className="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl dark:bg-navy-900">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-black text-navy-950 dark:text-white">
+                  {rtl ? "تطبيق رصيد دائن على فاتورة" : "Apply Credit to Invoice"}
+                </h3>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  {rtl
+                    ? "هذا يستهلك الرصيد الدائن ويخفض رصيد الفاتورة. لا توجد حركة نقدية أو بنكية."
+                    : "This consumes customer credit and reduces the invoice balance. No cash or bank movement is created."}
+                </p>
+              </div>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setApplyOpen(false)} disabled={applySubmitting}>
+                {rtl ? "إغلاق" : "Close"}
+              </Button>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-[11px] font-bold text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-500/10 dark:text-emerald-300">
+                {rtl ? "الرصيد الدائن المتاح: " : "Available credit: "}
+                {money(availableCredit)}
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-[11px] font-bold text-slate-600 dark:border-slate-800 dark:bg-navy-950 dark:text-slate-300">
+                {rtl ? "المتبقي على الفاتورة: " : "Invoice remaining: "}
+                {selectedApplyInvoice ? money(Number(selectedApplyInvoice.remainingAmount || 0)) : "—"}
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <label className="sm:col-span-2 text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span className="mb-1 block">{rtl ? "الفاتورة المفتوحة" : "Open Invoice"}</span>
+                <select
+                  className="input-base w-full"
+                  value={applyForm.invoiceId}
+                  onChange={(e) => {
+                    const invoice = openInvoices.find((item) => item.id === e.target.value);
+                    const defaultAmount = invoice ? Math.min(Number(invoice.remainingAmount || 0), availableCredit) : 0;
+                    updateApplyForm({
+                      invoiceId: e.target.value,
+                      amount: defaultAmount > 0 ? String(Math.round(defaultAmount * 100) / 100) : "",
+                    });
+                  }}
+                >
+                  {openInvoices.map((invoice) => (
+                    <option key={invoice.id} value={invoice.id}>
+                      {(invoice.invoiceNumber || invoice.id)} — {money(Number(invoice.remainingAmount || 0))}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span className="mb-1 block">{rtl ? "المبلغ" : "Amount"}</span>
+                <input
+                  className="input-base w-full"
+                  inputMode="decimal"
+                  value={applyForm.amount}
+                  onChange={(e) => updateApplyForm({ amount: toEnglishDigits(e.target.value) })}
+                  placeholder="0.00"
+                />
+              </label>
+              <label className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span className="mb-1 block">{rtl ? "التاريخ" : "Date"}</span>
+                <input
+                  type="date"
+                  className="input-base w-full"
+                  value={applyForm.date}
+                  onChange={(e) => updateApplyForm({ date: e.target.value })}
+                />
+              </label>
+              <label className="sm:col-span-2 text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span className="mb-1 block">{rtl ? "مرجع" : "Reference"}</span>
+                <input
+                  className="input-base w-full"
+                  maxLength={120}
+                  value={applyForm.reference}
+                  onChange={(e) => updateApplyForm({ reference: e.target.value })}
+                />
+              </label>
+              <label className="sm:col-span-2 text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span className="mb-1 block">{rtl ? "الوصف" : "Description"}</span>
+                <textarea
+                  className="input-base min-h-24 w-full resize-y"
+                  maxLength={255}
+                  value={applyForm.description}
+                  onChange={(e) => updateApplyForm({ description: e.target.value })}
+                />
+              </label>
+            </div>
+
+            <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold text-amber-700 dark:border-amber-900/50 dark:bg-amber-500/10 dark:text-amber-300">
+              {rtl
+                ? "تنبيه: لا يمكن أن يتجاوز المبلغ الرصيد الدائن المتاح أو المتبقي على الفاتورة. لا يتم إنشاء حركة خزينة."
+                : "Warning: the amount cannot exceed available credit or invoice remaining balance. No treasury transaction is created."}
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={() => setApplyOpen(false)} disabled={applySubmitting}>
+                {rtl ? "إلغاء" : "Cancel"}
+              </Button>
+              <Button type="button" onClick={submitApplyCredit} disabled={applySubmitting || availableCredit <= 0 || openInvoices.length === 0}>
+                {applySubmitting ? (rtl ? "جارٍ التطبيق..." : "Applying...") : (rtl ? "تطبيق الرصيد" : "Apply Credit")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sub-tab view selector */}
+      <div className="flex border-b border-slate-200 dark:border-navy-800 gap-2 mb-2">
+        <button
+          type="button"
+          onClick={() => setActiveStatementView("v2")}
+          className={`px-4 py-2 text-xs font-bold border-b-2 transition-colors ${
+            activeStatementView === "v2"
+              ? "border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-400"
+              : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+          }`}
+        >
+          {rtl ? "كشف حساب المستندات التقليدي v2" : "Legacy / Document-only Statement v2"}
+        </button>
+        {/* Phase 31.1 — statement-v3 (source-aware, accounting-sensitive) hidden until sign-off. */}
+        {SHOW_ACCOUNTING_SENSITIVE_DIAGNOSTICS && (
+        <button
+          type="button"
+          onClick={() => setActiveStatementView("v3")}
+          className={`px-4 py-2 text-xs font-bold border-b-2 transition-colors ${
+            activeStatementView === "v3"
+              ? "border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-400"
+              : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+          }`}
+        >
+          {rtl ? "كشف حساب مرن المصدر v3 - تشخيصي" : "Source-aware Statement v3 (Diagnostic)"}
+        </button>
+        )}
+      </div>
+
       {/* Filters */}
       <Card className="p-5">
         <div className="flex flex-wrap items-end gap-4">
@@ -1105,102 +1653,540 @@ function CustomerStatementPanel({ customerId, money }: { customerId: string; mon
         )}
       </Card>
 
-      {error ? (
-        <Card className="p-8 text-center text-sm font-bold text-rose-600">
-          {(error as any)?.message || (rtl ? "تعذّر تحميل كشف الحساب" : "Failed to load the statement")}
-        </Card>
-      ) : isLoading && !data ? (
-        <Card className="p-10 text-center text-sm text-slate-500">{rtl ? "جارٍ التحميل..." : "Loading..."}</Card>
-      ) : data ? (
-        <>
-          {/* Summary — server values only */}
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-2xl bg-slate-50 p-4 dark:bg-navy-950">
-              <p className="text-[10px] text-slate-400">{rtl ? "الرصيد الافتتاحي" : "Opening Balance"}</p>
-              <p className="mt-1 text-lg font-black">{money(data.openingBalance)}</p>
-              <p className="mt-1 text-[10px] text-slate-400">{(data.from || "—")} → {(data.to || "—")}</p>
-            </div>
-            <div className="rounded-2xl bg-slate-50 p-4 dark:bg-navy-950">
-              <p className="text-[10px] text-slate-400">{rtl ? "الرصيد الختامي (محسوب)" : "Closing Balance (computed)"}</p>
-              <p className="mt-1 text-lg font-black text-brand-700 dark:text-brand-300">{money(data.closingBalance)}</p>
-            </div>
-            <div className="rounded-2xl bg-slate-50 p-4 dark:bg-navy-950">
-              <p className="text-[10px] text-slate-400">{rtl ? "رصيد العميل (مرجعي)" : "Customer Balance (reference)"}</p>
-              <p className="mt-1 text-lg font-black text-slate-600 dark:text-slate-300">{money(data.customerBalanceReference)}</p>
-              <p className="mt-1 text-[10px] text-slate-400">{rtl ? "للمقارنة فقط — ليس الرصيد الختامي" : "Reference only — not the closing balance"}</p>
-            </div>
-            <div className="rounded-2xl bg-slate-50 p-4 dark:bg-navy-950">
-              <p className="text-[10px] text-slate-400">{rtl ? "الفرق" : "Difference"}</p>
-              <p className={`mt-1 text-lg font-black ${data.difference !== 0 ? "text-amber-600" : ""}`}>{money(data.difference)}</p>
-              <p className="mt-1 text-[10px] text-slate-400">{rtl ? `${data.total} حركة` : `${data.total} rows`}</p>
-            </div>
-          </div>
-
-          {data.difference !== 0 && (
-            <Card className="border-amber-300 bg-amber-50 p-4 text-xs font-bold text-amber-700 dark:border-amber-900/50 dark:bg-amber-500/10 dark:text-amber-300">
-              {rtl
-                ? "يوجد فرق بين رصيد العميل المرجعي والرصيد المحسوب من المستندات. هذه شاشة عرض فقط — لا يوجد إجراء تصحيح."
-                : "There is a difference between the reference customer balance and the document-computed balance. This is a read-only view — no fix action."}
-            </Card>
-          )}
-
-          {/* Transactions table — server rows only */}
-          <Card className="overflow-hidden">
-            {data.items.length ? (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[820px] text-start text-xs">
-                  <thead className="bg-slate-50 text-slate-500 dark:bg-navy-950">
-                    <tr>
-                      <th className="px-4 py-3 text-start">{rtl ? "التاريخ" : "Date"}</th>
-                      <th className="px-4 py-3 text-start">{rtl ? "النوع" : "Type"}</th>
-                      <th className="px-4 py-3 text-start">{rtl ? "المرجع" : "Reference"}</th>
-                      <th className="px-4 py-3 text-start">{rtl ? "الوصف" : "Description"}</th>
-                      <th className="px-4 py-3 text-end">{rtl ? "مدين" : "Debit"}</th>
-                      <th className="px-4 py-3 text-end">{rtl ? "دائن" : "Credit"}</th>
-                      <th className="px-4 py-3 text-end">{rtl ? "الحركة" : "Delta"}</th>
-                      <th className="px-4 py-3 text-end">{rtl ? "الرصيد الجاري" : "Running Balance"}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {data.items.map((row) => (
-                      <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-navy-950/40">
-                        <td className="px-4 py-3 text-slate-500">{toEnglishDigits((row.date || "").slice(0, 10))}</td>
-                        <td className="px-4 py-3"><Badge tone={row.type === "payment" ? "green" : row.type === "return" ? "amber" : "blue"}>{typeLabel(row.type)}</Badge></td>
-                        <td className="px-4 py-3 font-mono font-bold text-brand-700 dark:text-brand-300">{toEnglishDigits(row.sourceNumber)}</td>
-                        <td className="px-4 py-3">{row.description || "—"}</td>
-                        <td className="px-4 py-3 text-end font-bold text-rose-600">{row.debit ? money(row.debit) : "—"}</td>
-                        <td className="px-4 py-3 text-end font-bold text-emerald-600">{row.credit ? money(row.credit) : "—"}</td>
-                        <td className="px-4 py-3 text-end">{money(row.delta)}</td>
-                        <td className="px-4 py-3 text-end font-black">{money(row.runningBalance)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="py-10 text-center text-xs text-slate-500">{rtl ? "لا توجد حركات ضمن المعايير المحددة." : "No transactions for the selected criteria."}</p>
-            )}
-            {total > 0 && (
-              <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 text-xs dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
-                <p className="font-semibold text-slate-500">
-                  {rtl ? `عرض ${first}-${last} من ${total}` : `Showing ${first}-${last} of ${total}`}
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button type="button" variant="secondary" size="sm" disabled={isLoading || page <= 1} onClick={() => setPage(Math.max(page - 1, 1))}>
-                    {rtl ? "السابق" : "Previous"}
-                  </Button>
-                  <span className="min-w-20 text-center font-bold text-slate-500">
-                    {rtl ? `صفحة ${page} / ${totalPages}` : `Page ${page} / ${totalPages}`}
-                  </span>
-                  <Button type="button" variant="secondary" size="sm" disabled={isLoading || page >= totalPages} onClick={() => setPage(Math.min(page + 1, totalPages))}>
-                    {rtl ? "التالي" : "Next"}
-                  </Button>
-                </div>
-              </div>
-            )}
+      {activeStatementView === "v2" ? (
+        error ? (
+          <Card className="p-8 text-center text-sm font-bold text-rose-600">
+            {(error as any)?.message || (rtl ? "تعذّر تحميل كشف الحساب" : "Failed to load the statement")}
           </Card>
-        </>
-      ) : null}
+        ) : isLoading && !data ? (
+          <Card className="p-10 text-center text-sm text-slate-500">{rtl ? "جارٍ التحميل..." : "Loading..."}</Card>
+        ) : data ? (
+          <>
+            {/* Summary — server values only */}
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-2xl bg-slate-50 p-4 dark:bg-navy-950">
+                <p className="text-[10px] text-slate-400">{rtl ? "الرصيد الافتتاحي" : "Opening Balance"}</p>
+                <p className="mt-1 text-lg font-black">{money(data.openingBalance)}</p>
+                <p className="mt-1 text-[10px] text-slate-400">{(data.from || "—")} → {(data.to || "—")}</p>
+              </div>
+              <div className="rounded-2xl bg-slate-55 bg-slate-50 p-4 dark:bg-navy-950">
+                <p className="text-[10px] text-slate-400">{rtl ? "الرصيد الختامي (محسوب)" : "Closing Balance (computed)"}</p>
+                <p className="mt-1 text-lg font-black text-brand-700 dark:text-brand-300">{money(data.closingBalance)}</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4 dark:bg-navy-950">
+                <p className="text-[10px] text-slate-400">{rtl ? "رصيد العميل (مرجعي)" : "Customer Balance (reference)"}</p>
+                <p className="mt-1 text-lg font-black text-slate-600 dark:text-slate-300">{money(data.customerBalanceReference)}</p>
+                <p className="mt-1 text-[10px] text-slate-400">{rtl ? "للمقارنة فقط — ليس الرصيد الختامي" : "Reference only — not the closing balance"}</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4 dark:bg-navy-950">
+                <p className="text-[10px] text-slate-400">{rtl ? "الفرق" : "Difference"}</p>
+                <p className={`mt-1 text-lg font-black ${data.difference !== 0 ? "text-amber-600" : ""}`}>{money(data.difference)}</p>
+                <p className="mt-1 text-[10px] text-slate-400">{rtl ? `${data.total} حركة` : `${data.total} rows`}</p>
+              </div>
+            </div>
+
+            {data.difference !== 0 && (
+              <Card className="border-amber-300 bg-amber-50 p-4 text-xs font-bold text-amber-700 dark:border-amber-900/50 dark:bg-amber-500/10 dark:text-amber-300">
+                {rtl
+                  ? "يوجد فرق بين رصيد العميل المرجعي والرصيد المحسوب من المستندات. هذه شاشة عرض فقط — لا يوجد إجراء تصحيح."
+                  : "There is a difference between the reference customer balance and the document-computed balance. This is a read-only view — no fix action."}
+              </Card>
+            )}
+
+            {/* Transactions table — server rows only */}
+            <Card className="overflow-hidden">
+              {data.items.length ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[820px] text-start text-xs">
+                    <thead className="bg-slate-50 text-slate-500 dark:bg-navy-950">
+                      <tr>
+                        <th className="px-4 py-3 text-start">{rtl ? "التاريخ" : "Date"}</th>
+                        <th className="px-4 py-3 text-start">{rtl ? "النوع" : "Type"}</th>
+                        <th className="px-4 py-3 text-start">{rtl ? "المرجع" : "Reference"}</th>
+                        <th className="px-4 py-3 text-start">{rtl ? "الوصف" : "Description"}</th>
+                        <th className="px-4 py-3 text-end">{rtl ? "مدين" : "Debit"}</th>
+                        <th className="px-4 py-3 text-end">{rtl ? "دائن" : "Credit"}</th>
+                        <th className="px-4 py-3 text-end">{rtl ? "الحركة" : "Delta"}</th>
+                        <th className="px-4 py-3 text-end">{rtl ? "الرصيد الجاري" : "Running Balance"}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {data.items.map((row) => (
+                        <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-navy-950/40">
+                          <td className="px-4 py-3 text-slate-500">{toEnglishDigits((row.date || "").slice(0, 10))}</td>
+                          <td className="px-4 py-3"><Badge tone={row.type === "payment" ? "green" : row.type === "return" ? "amber" : "blue"}>{typeLabel(row.type)}</Badge></td>
+                          <td className="px-4 py-3 font-mono font-bold text-brand-700 dark:text-brand-300">{toEnglishDigits(row.sourceNumber)}</td>
+                          <td className="px-4 py-3">{row.description || "—"}</td>
+                          <td className="px-4 py-3 text-end font-bold text-rose-600">{row.debit ? money(row.debit) : "—"}</td>
+                          <td className="px-4 py-3 text-end font-bold text-emerald-600">{row.credit ? money(row.credit) : "—"}</td>
+                          <td className="px-4 py-3 text-end">{money(row.delta)}</td>
+                          <td className="px-4 py-3 text-end font-black">{money(row.runningBalance)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="py-10 text-center text-xs text-slate-500">{rtl ? "لا توجد حركات ضمن المعايير المحددة." : "No transactions for the selected criteria."}</p>
+              )}
+              {total > 0 && (
+                <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 text-xs dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="font-semibold text-slate-500">
+                    {rtl ? `عرض ${first}-${last} من ${total}` : `Showing ${first}-${last} of ${total}`}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button type="button" variant="secondary" size="sm" disabled={isLoading || page <= 1} onClick={() => setPage(Math.max(page - 1, 1))}>
+                      {rtl ? "السابق" : "Previous"}
+                    </Button>
+                    <span className="min-w-20 text-center font-bold text-slate-500">
+                      {rtl ? `صفحة ${page} / ${totalPages}` : `Page ${page} / ${totalPages}`}
+                    </span>
+                    <Button type="button" variant="secondary" size="sm" disabled={isLoading || page >= totalPages} onClick={() => setPage(Math.min(page + 1, totalPages))}>
+                      {rtl ? "التالي" : "Next"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </Card>
+          </>
+        ) : null
+      ) : (
+        statementV3Query.isLoading ? (
+          <Card className="p-10 text-center text-sm text-slate-500">
+            {rtl ? "جاري تحميل كشف الحساب مرن المصدر..." : "Loading source-aware statement..."}
+          </Card>
+        ) : statementV3Query.error ? (
+          <Card className="p-8 text-center text-sm font-bold text-rose-600">
+            {rtl
+              ? "فشل تحميل كشف الحساب مرن المصدر. كشف الحساب التقليدي v2 ما زال متاحًا."
+              : "Failed to load source-aware statement. Legacy statement v2 remains available."}
+          </Card>
+        ) : statementV3Query.data ? (() => {
+          const report = statementV3Query.data;
+          return (
+            <div className="space-y-6">
+              {/* Info alert */}
+              <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4 text-blue-800 dark:border-blue-900/30 dark:bg-blue-950/20 dark:text-blue-300 text-xs font-bold">
+                {rtl
+                  ? "كشف حساب مرن المصدر للقراءة فقط. هذا العرض لا يعدل الأرصدة أو البيانات المرحلة أو كريدت العميل أو القيود المحاسبية."
+                  : "Read-only source-aware statement. This view does not alter balances, posted data, customer credit, or accounting entries."}
+              </div>
+
+              {/* Card 1 — AR Statement */}
+              <Card className="p-5 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+                  <h4 className="text-sm font-black text-navy-950 dark:text-white">
+                    {rtl ? "كشف حساب المديونية" : "Accounts Receivable Statement"}
+                  </h4>
+                  <Badge tone={report.arStatement.meta.matchesCustomerBalance ? "green" : "amber"}>
+                    {report.arStatement.meta.matchesCustomerBalance
+                      ? (rtl ? "مطابق لرصيد العميل" : "Matches Customer Balance")
+                      : (rtl ? "غير مطابق" : "Discrepancy")}
+                  </Badge>
+                </div>
+
+                {/* AR summary metrics */}
+                <div className="grid gap-4 grid-cols-2 lg:grid-cols-4 text-xs">
+                  <div className="rounded-2xl bg-slate-50 p-4 dark:bg-navy-950/60">
+                    <p className="text-[10px] text-slate-400">{rtl ? "الرصيد الافتتاحي" : "Opening Balance"}</p>
+                    <p className="mt-1 text-base font-black text-navy-950 dark:text-white">{money(report.arStatement.openingBalance)}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-4 dark:bg-navy-950/60">
+                    <p className="text-[10px] text-slate-400">{rtl ? "الرصيد الختامي (محسوب)" : "Closing Balance"}</p>
+                    <p className="mt-1 text-base font-black text-brand-700 dark:text-brand-300">{money(report.arStatement.closingBalance)}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-4 dark:bg-navy-950/60">
+                    <p className="text-[10px] text-slate-400">{rtl ? "رصيد العميل (المرآة)" : "Customer Balance Reference"}</p>
+                    <p className="mt-1 text-base font-black text-navy-950 dark:text-white">{money(report.arStatement.meta.customerBalance)}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-4 dark:bg-navy-950/60">
+                    <p className="text-[10px] text-slate-400">{rtl ? "عدد الصفوف" : "Total Rows"}</p>
+                    <p className="mt-1 text-base font-black text-navy-950 dark:text-white">{report.arStatement.rows.length}</p>
+                  </div>
+                </div>
+
+                {/* AR rows table */}
+                {report.arStatement.rows.length ? (
+                  <div className="overflow-x-auto rounded-lg border border-slate-100 dark:border-slate-800">
+                    <table className="w-full min-w-[800px] text-start text-xs">
+                      <thead className="bg-slate-50 text-slate-500 dark:bg-navy-950">
+                        <tr>
+                          <th className="px-4 py-2.5 text-start">{rtl ? "التاريخ" : "Date"}</th>
+                          <th className="px-4 py-2.5 text-start">{rtl ? "النوع" : "Type"}</th>
+                          <th className="px-4 py-2.5 text-start">{rtl ? "المرجع" : "Document Number"}</th>
+                          <th className="px-4 py-2.5 text-start">{rtl ? "الوصف" : "Description"}</th>
+                          <th className="px-4 py-2.5 text-end">{rtl ? "مدين" : "Debit"}</th>
+                          <th className="px-4 py-2.5 text-end">{rtl ? "دائن" : "Credit"}</th>
+                          <th className="px-4 py-2.5 text-end">{rtl ? "الرصيد الجاري" : "Running Balance"}</th>
+                          <th className="px-4 py-2.5 text-start">{rtl ? "المرجعية" : "Authority"}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {report.arStatement.rows.map((row) => (
+                          <tr
+                            key={row.id}
+                            className={`hover:bg-slate-50 dark:hover:bg-navy-950/40 ${
+                              !row.authoritative ? "bg-amber-50/30 dark:bg-amber-950/10" : ""
+                            }`}
+                          >
+                            <td className="px-4 py-2.5 text-slate-500">{toEnglishDigits(row.date)}</td>
+                            <td className="px-4 py-2.5">
+                              <Badge
+                                tone={
+                                  row.type === "payment"
+                                    ? "green"
+                                    : row.type.includes("relief")
+                                    ? "blue"
+                                    : row.type.includes("refund") || row.type.includes("transfer")
+                                    ? "amber"
+                                    : "violet"
+                                }
+                              >
+                                {row.type}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-2.5 font-mono font-bold text-brand-700 dark:text-brand-300">
+                              {toEnglishDigits(row.documentNumber || row.id)}
+                            </td>
+                            <td className="px-4 py-2.5">{row.description}</td>
+                            <td className="px-4 py-2.5 text-end font-bold text-rose-600">{row.debit ? money(row.debit) : "—"}</td>
+                            <td className="px-4 py-2.5 text-end font-bold text-emerald-600">{row.credit ? money(row.credit) : "—"}</td>
+                            <td className="px-4 py-2.5 text-end font-black">{money(row.runningBalance)}</td>
+                            <td className="px-4 py-2.5">
+                              <Badge tone={row.authoritative ? "green" : "rose"}>
+                                {row.authoritative
+                                  ? (rtl ? "موثق من النظام" : "System Authoritative")
+                                  : (rtl ? "غير نهائي / تقديري" : "Non-Authoritative / Estimated")}
+                              </Badge>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="py-6 text-center text-xs text-slate-500">
+                    {rtl ? "لا توجد حركات مديونية." : "No accounts receivable transactions."}
+                  </p>
+                )}
+              </Card>
+
+              {/* Card 2 — Customer Credit Ledger */}
+              <Card className="p-5 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 dark:border-slate-800 gap-2">
+                  <div>
+                    <h4 className="text-sm font-black text-navy-950 dark:text-white">
+                      {rtl ? "دفتر كريدت العميل" : "Customer Credit Ledger"}
+                    </h4>
+                    <p className="mt-0.5 text-[10px] leading-tight text-rose-600 dark:text-rose-400 font-bold">
+                      {rtl ? "رصيد كريدت العميل فقط، وليس كامل حساب 2300." : "Customer Credit Ledger only, not full account 2300."}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Credit summary metrics */}
+                <div className="grid gap-4 grid-cols-2 lg:grid-cols-3 text-xs">
+                  <div className="rounded-2xl bg-slate-50 p-4 dark:bg-navy-950/60">
+                    <p className="text-[10px] text-slate-400">{rtl ? "الرصيد الافتتاحي للكريدت" : "Opening Credit Balance"}</p>
+                    <p className="mt-1 text-base font-black text-navy-950 dark:text-white">{money(report.customerCreditLedger.openingBalance)}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-4 dark:bg-navy-950/60">
+                    <p className="text-[10px] text-slate-400">{rtl ? "الرصيد الختامي للكريدت" : "Closing Credit Balance"}</p>
+                    <p className="mt-1 text-base font-black text-emerald-600 dark:text-emerald-400">{money(report.customerCreditLedger.closingBalance)}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-4 dark:bg-navy-950/60">
+                    <p className="text-[10px] text-slate-400">{rtl ? "عدد الصفوف" : "Total Rows"}</p>
+                    <p className="mt-1 text-base font-black text-navy-950 dark:text-white">{report.customerCreditLedger.rows.length}</p>
+                  </div>
+                </div>
+
+                {/* Credit rows table */}
+                {report.customerCreditLedger.rows.length ? (
+                  <div className="overflow-x-auto rounded-lg border border-slate-100 dark:border-slate-800">
+                    <table className="w-full min-w-[800px] text-start text-xs">
+                      <thead className="bg-slate-50 text-slate-500 dark:bg-navy-950">
+                        <tr>
+                          <th className="px-4 py-2.5 text-start">{rtl ? "التاريخ" : "Date"}</th>
+                          <th className="px-4 py-2.5 text-start">{rtl ? "النوع" : "Type"}</th>
+                          <th className="px-4 py-2.5 text-start">{rtl ? "المرجع" : "Document Number"}</th>
+                          <th className="px-4 py-2.5 text-start">{rtl ? "الوصف" : "Description"}</th>
+                          <th className="px-4 py-2.5 text-end">{rtl ? "إيداع" : "Credit In"}</th>
+                          <th className="px-4 py-2.5 text-end">{rtl ? "سحب / تطبيق" : "Credit Out"}</th>
+                          <th className="px-4 py-2.5 text-end">{rtl ? "رصيد الكريدت الجاري" : "Running Credit Balance"}</th>
+                          <th className="px-4 py-2.5 text-start">{rtl ? "المرجعية" : "Authority"}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {report.customerCreditLedger.rows.map((row) => (
+                          <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-navy-950/40">
+                            <td className="px-4 py-2.5 text-slate-500">{toEnglishDigits(row.date)}</td>
+                            <td className="px-4 py-2.5">
+                              <Badge
+                                tone={
+                                  row.type.includes("in") || row.type.includes("deposit") || row.type.includes("exchange") || row.type.includes("return")
+                                    ? "green"
+                                    : "amber"
+                                }
+                              >
+                                {row.type}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-2.5 font-mono font-bold text-brand-700 dark:text-brand-300">
+                              {toEnglishDigits(row.documentNumber || row.id)}
+                            </td>
+                            <td className="px-4 py-2.5">{row.description}</td>
+                            <td className="px-4 py-2.5 text-end font-bold text-emerald-600">{row.creditIn ? money(row.creditIn) : "—"}</td>
+                            <td className="px-4 py-2.5 text-end font-bold text-rose-600">{row.creditOut ? money(row.creditOut) : "—"}</td>
+                            <td className="px-4 py-2.5 text-end font-black">{money(row.runningCreditBalance)}</td>
+                            <td className="px-4 py-2.5">
+                              <Badge tone={row.authoritative ? "green" : "rose"}>
+                                {row.authoritative
+                                  ? (rtl ? "موثق من النظام" : "System Authoritative")
+                                  : (rtl ? "غير نهائي / تقديري" : "Non-Authoritative / Estimated")}
+                              </Badge>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="py-6 text-center text-xs text-slate-500">
+                    {rtl ? "لا توجد حركات لدفتر الكريدت." : "No credit ledger transactions."}
+                  </p>
+                )}
+              </Card>
+
+              {/* Warnings, Categories, and Meta */}
+              <div className="grid gap-6 md:grid-cols-2 text-xs">
+                {/* Warnings & Categories Card */}
+                <Card className="p-5 space-y-4">
+                  <div>
+                    <h5 className="font-black text-navy-950 dark:text-white">{rtl ? "تقرير المطابقة والملاحظات" : "Reconciliation Notes"}</h5>
+                    <p className="mt-0.5 text-[10px] text-slate-500">{rtl ? "كشف الحساب v2 كما هو بدون تغيير." : "statement-v2 remains unchanged."}</p>
+                  </div>
+
+                  {/* Categories */}
+                  <div>
+                    <p className="font-bold text-slate-500 mb-1.5">{rtl ? "فئات الاختلاف" : "Divergence Categories"}</p>
+                    {report.reconciliation.categories && report.reconciliation.categories.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {report.reconciliation.categories.map((c) => (
+                          <Badge key={c} tone="amber">
+                            {c}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-slate-400 italic text-[11px]">{rtl ? "لا توجد فئات اختلاف." : "No divergence categories."}</p>
+                    )}
+                  </div>
+
+                  {/* Warnings */}
+                  <div>
+                    <p className="font-bold text-slate-500 mb-1">{rtl ? "تحذيرات التشخيص" : "Diagnostic Warnings"}</p>
+                    {report.reconciliation.warnings && report.reconciliation.warnings.length > 0 ? (
+                      <ul className="list-disc list-inside space-y-1 text-rose-600 dark:text-rose-400 font-bold">
+                        {report.reconciliation.warnings.map((w, i) => (
+                          <li key={i}>{w}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-slate-400 italic text-[11px]">{rtl ? "لا توجد تحذيرات." : "No warnings."}</p>
+                    )}
+                  </div>
+                </Card>
+
+                {/* Audit Rules Card */}
+                <Card className="p-5 space-y-3">
+                  <h5 className="font-black text-navy-950 dark:text-white">{rtl ? "قواعد الاحتساب المحاسبية" : "Diagnostic Audit Rules"}</h5>
+                  <div className="space-y-1 text-[11px] text-slate-500">
+                    <p>Version: <span className="font-mono font-bold">{report.version}</span></p>
+                    <p>Ledger Mode: <span className="font-mono font-bold">{report.meta.ledgerBased}</span></p>
+                    <p>Dual Ledger Structure: <span className="font-mono font-bold">{report.meta.accountingRules.structure}</span></p>
+                    <p>Exchange/Return Clamping: <span className="font-mono font-bold">{report.meta.accountingRules.negativeExchangeReturnHandling}</span></p>
+                    <p>Cash Collection/Refund Display: <span className="font-mono font-bold">{report.meta.accountingRules.cashTransactions}</span></p>
+                    <p>Legacy statement-v2 intact: <span className="font-mono font-bold">{String(!report.meta.statementV2Changed)}</span></p>
+                    <p>Read-Only Safety: <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 font-black">{String(!report.meta.mutatesData)}</span></p>
+                  </div>
+                </Card>
+              </div>
+            </div>
+          );
+        })() : null
+      )}
+
+      {/* Phase 31.1 — customer credit reconciliation diagnostic hidden until sign-off. */}
+      {SHOW_ACCOUNTING_SENSITIVE_DIAGNOSTICS && (
+      <Card className="mt-6 border-slate-200 dark:border-slate-800">
+        <button
+          type="button"
+          onClick={() => setReconciliationExpanded(!reconciliationExpanded)}
+          className="flex w-full items-center justify-between p-5 text-start font-black text-navy-950 dark:text-white"
+        >
+          <div>
+            <h4 className="text-sm">
+              {rtl ? "تشخيص مطابقة رصيد العميل والكريدت" : "Customer Credit Reconciliation Diagnostic"}
+            </h4>
+            <p className="mt-1 text-xs font-normal text-slate-500">
+              {rtl ? "عرض تشخيص فروقات كشف الحساب والكريدت" : "View statement and credit discrepancy diagnostics"}
+            </p>
+          </div>
+          {reconciliationExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+        </button>
+
+        {reconciliationExpanded && (
+          <div className="border-t border-slate-100 p-5 dark:border-slate-800 space-y-6 text-xs">
+            {/* Warning Text */}
+            <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 text-amber-800 dark:border-amber-900/30 dark:bg-amber-950/20 dark:text-amber-300">
+              <p className="font-bold">
+                {rtl
+                  ? "تشخيص داخلي للقراءة فقط. هذا التقرير يساعد في كشف فروقات كشف الحساب ولا يقوم بتعديل القيود أو الأرصدة أو الفواتير أو كريدت العميل أو كشف الحساب."
+                  : "Internal read-only audit diagnostic. This report helps identify statement discrepancies. It does not alter posted transactions, ledger balances, customer balances, customer credit, or customer statements."}
+              </p>
+            </div>
+
+            {reconciliationQuery.isLoading ? (
+              <div className="py-6 text-center text-slate-500">{rtl ? "جارٍ تحميل بيانات التشخيص..." : "Loading diagnostic report..."}</div>
+            ) : reconciliationQuery.error ? (
+              <div className="py-6 text-center text-rose-600">
+                {rtl ? "فشل تحميل تقرير التشخيص." : "Failed to load diagnostic report."}
+              </div>
+            ) : reconciliationQuery.data ? (() => {
+              const report = reconciliationQuery.data;
+              return (
+                <div className="space-y-6">
+                  {/* Balance Summary Grid */}
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                    <div className="rounded-2xl bg-slate-50 p-4 dark:bg-navy-950/60">
+                      <p className="text-[10px] text-slate-400">{rtl ? "الرصيد الختامي لكشف الحساب" : "Statement Closing Balance"}</p>
+                      <p className="mt-1 text-base font-black text-navy-950 dark:text-white">{money(report.statementClosingBalance)}</p>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-4 dark:bg-navy-950/60">
+                      <p className="text-[10px] text-slate-400">{rtl ? "رصيد العميل (مرآة الحسابات المدينة)" : "Customer Balance (AR Mirror)"}</p>
+                      <p className="mt-1 text-base font-black text-navy-950 dark:text-white">{money(report.customerBalance)}</p>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-4 dark:bg-navy-950/60">
+                      <p className="text-[10px] text-slate-400">{rtl ? "الرصيد المدين المقدر" : "Source-aware Estimated AR Balance"}</p>
+                      <p className="mt-1 text-base font-black text-navy-950 dark:text-white">{money(report.sourceAwareEstimatedArBalance)}</p>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-4 dark:bg-navy-950/60">
+                      <p className="text-[10px] text-slate-400">{rtl ? "الفرق / الفجوة" : "Difference (Gap)"}</p>
+                      <p className={`mt-1 text-base font-black ${report.difference !== 0 ? "text-amber-600" : "text-emerald-600"}`}>
+                        {money(report.difference)}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-4 dark:bg-navy-950/60">
+                      <p className="text-[10px] text-slate-400">{rtl ? "رصيد كريدت العميل" : "Customer Credit Ledger Balance"}</p>
+                      <p className="mt-1 text-base font-black text-emerald-600 dark:text-emerald-400">{money(report.customerCreditBalance)}</p>
+                      <p className="mt-1 text-[9px] leading-tight text-slate-500">
+                        {rtl ? "رصيد كريدت العميل فقط، وليس كامل حساب 2300." : "Customer credit ledger only, not full account 2300."}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Categories & Warnings */}
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {/* Categories */}
+                    <Card className="p-4 border-slate-100 dark:border-slate-800">
+                      <h5 className="font-black text-navy-950 dark:text-white mb-3">{rtl ? "فئات التشخيص" : "Diagnostic Categories"}</h5>
+                      {report.categories && report.categories.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {report.categories.map((cat) => (
+                            <Badge key={cat} tone="amber">
+                              {cat}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-slate-500 text-xs">{rtl ? "لا توجد فئات تشخيص محددة." : "No diagnostic categories flagged."}</p>
+                      )}
+                    </Card>
+
+                    {/* Warnings */}
+                    <Card className="p-4 border-slate-100 dark:border-slate-800">
+                      <h5 className="font-black text-navy-950 dark:text-white mb-3">{rtl ? "تحذيرات النظام" : "System Warnings"}</h5>
+                      {report.warnings && report.warnings.length > 0 ? (
+                        <ul className="space-y-1.5 list-disc list-inside text-rose-600 dark:text-rose-400">
+                          {report.warnings.map((w, idx) => (
+                            <li key={idx}>{w}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-slate-500 text-xs">{rtl ? "لا توجد تحذيرات للمطابقة." : "No reconciliation warnings."}</p>
+                      )}
+                    </Card>
+                  </div>
+
+                  {/* Documents List */}
+                  <div>
+                    <h5 className="font-black text-navy-950 dark:text-white mb-3">{rtl ? "المستندات المتباينة" : "Divergent Documents"}</h5>
+                    {report.documents && report.documents.length > 0 ? (
+                      <Card className="overflow-hidden border-slate-100 dark:border-slate-800">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-start text-xs">
+                            <thead className="bg-slate-50 text-slate-500 dark:bg-navy-950">
+                              <tr>
+                                <th className="px-4 py-2.5 text-start">{rtl ? "المستند" : "Document"}</th>
+                                <th className="px-4 py-2.5 text-start">{rtl ? "النوع" : "Type"}</th>
+                                <th className="px-4 py-2.5 text-start">{rtl ? "التاريخ" : "Date"}</th>
+                                <th className="px-4 py-2.5 text-end">{rtl ? "المبلغ" : "Amount"}</th>
+                                <th className="px-4 py-2.5 text-start">{rtl ? "الفئة" : "Category"}</th>
+                                <th className="px-4 py-2.5 text-start">{rtl ? "الوصف" : "Explanation"}</th>
+                                <th className="px-4 py-2.5 text-start">{rtl ? "المرجعية" : "Authority"}</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                              {report.documents.map((doc, idx) => (
+                                <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-navy-950/40">
+                                  <td className="px-4 py-2.5 font-bold font-mono text-brand-700 dark:text-brand-300">
+                                    {toEnglishDigits(doc.documentNumber)}
+                                  </td>
+                                  <td className="px-4 py-2.5 capitalize">{doc.documentType}</td>
+                                  <td className="px-4 py-2.5 text-slate-500">{doc.date ? toEnglishDigits(doc.date.slice(0, 10)) : "—"}</td>
+                                  <td className="px-4 py-2.5 text-end font-bold">{money(doc.amount)}</td>
+                                  <td className="px-4 py-2.5 font-mono text-slate-600 dark:text-slate-400">{doc.category}</td>
+                                  <td className="px-4 py-2.5">{doc.explanation}</td>
+                                  <td className="px-4 py-2.5">
+                                    <Badge tone={doc.authoritative ? "green" : "rose"}>
+                                      {doc.authoritative
+                                        ? (rtl ? "موثق من النظام" : "System Authoritative")
+                                        : (rtl ? "غير نهائي / تقديري" : "Non-Authoritative / Estimated")}
+                                    </Badge>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </Card>
+                    ) : (
+                      <p className="text-slate-500 text-xs py-2">{rtl ? "لم يتم العثور على مستندات متباينة." : "No divergent documents found."}</p>
+                    )}
+                  </div>
+
+                  {/* Metadata display */}
+                  <div className="border-t border-slate-100 pt-4 dark:border-slate-800 text-[10px] text-slate-400 grid gap-2 sm:grid-cols-2">
+                    <div>
+                      <p className="font-bold text-slate-500 mb-1">{rtl ? "البيانات الوصفية للتشخيص" : "Diagnostic Metadata"}</p>
+                      <p>Source: {report.meta?.source || "diagnostic_read_only"}</p>
+                      <p>Ledger Based: {String(report.meta?.ledgerBased)}</p>
+                      <p>Settlement Authority: {report.meta?.settlementAuthority || "unavailable"}</p>
+                      <p>Credit Scope: {report.meta?.creditScope || "customer_credit_ledger_only"}</p>
+                    </div>
+                    <div className="sm:text-end">
+                      <p className="font-bold text-slate-500 mb-1">{rtl ? "ضمانات عدم التعديل" : "Non-mutation Guarantees"}</p>
+                      <p>Mutates Data: <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">{String(report.meta?.mutatesData)}</span></p>
+                      <p>Statement Changed: <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">{String(report.meta?.statementChanged)}</span></p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })() : null}
+          </div>
+        )}
+      </Card>
+      )}
     </div>
   );
 }

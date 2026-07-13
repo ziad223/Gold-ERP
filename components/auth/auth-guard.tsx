@@ -50,7 +50,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   const required = ROUTE_PERMISSIONS.find(([pattern]) => pattern.test(pathname))?.[1];
-  if (required && !hasPermission(required)) {
+  const reservationAccountSettingsAccess = /^\/settings\/?$/.test(pathname) && hasPermission("reservations.configure_account");
+  if (required && !hasPermission(required) && !reservationAccountSettingsAccess) {
     return (
       <div className="grid min-h-screen place-items-center bg-background p-6">
         <div className="max-w-md rounded-3xl border border-border bg-panel p-8 text-center shadow-soft">

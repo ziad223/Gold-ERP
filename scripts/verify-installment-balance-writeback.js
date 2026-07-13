@@ -85,8 +85,10 @@ function replaySafety() {
 function noScopeCreep() {
   assert.ok(!installmentRoute.includes("recordCreditIn"), "installment payment does not record customer credit in");
   assert.ok(!installmentRoute.includes("recordCreditOut"), "installment payment does not record customer credit out");
-  assert.ok(!returnRoute.includes("recordCreditIn") && !returnRoute.includes("recordCreditOut"), "returns do not call customer credit ledger");
-  assert.ok(!exchangeRoute.includes("recordCreditIn") && !exchangeRoute.includes("recordCreditOut"), "exchanges do not call customer credit ledger");
+  // Phase 30: returns/exchanges MAY create customer credit (recordCreditIn) for
+  // the operator-selected excess, but must never CONSUME/apply it (recordCreditOut).
+  assert.ok(!returnRoute.includes("recordCreditOut"), "returns never consume customer credit (no credit_out)");
+  assert.ok(!exchangeRoute.includes("recordCreditOut"), "exchanges never consume customer credit (no credit_out)");
   assert.ok(posting.includes("async postInstallmentPayment"), "postInstallmentPayment still exists");
   assert.ok(!/CustomPrint|print template|InvoicePrint/i.test(installmentRoute), "installment route has no print coupling");
 }

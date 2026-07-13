@@ -9,6 +9,7 @@ import {
   shouldShowEnglish,
 } from "@/features/printing/lib/print-template-config";
 import type { InvoicePrintTemplateProps } from "@/features/printing/components/InvoicePrintTemplate";
+import { ExchangePrintSummary } from "@/features/printing/components/ExchangePrintSummary";
 import {
   formatLocalizedText,
   LocalizedPrintLabel,
@@ -90,7 +91,10 @@ export function ThermalInvoicePrintTemplate({
   viewModel,
   templateConfig,
   documentTitleOverride,
+  exchangeDisplay,
 }: InvoicePrintTemplateProps) {
+  // Phase 30.7-Fix — customer-safe exchange print (suppress raw negative rows/totals).
+  const isExchange = invoice.type === "exchange";
   const precision = settings?.decimalPrecision ?? 2;
   const currency = settings?.currency ?? company.currency ?? "AED";
   const vm = viewModel ?? buildInvoicePrintViewModel(invoice, {
@@ -215,7 +219,10 @@ export function ThermalInvoicePrintTemplate({
       )}
       <CustomPrintTextBlocks blocks={customBlocks.beforeItems} compact />
 
-      {tpl.sections.itemsTable && (
+      {isExchange && (
+        <ExchangePrintSummary exchangeDisplay={exchangeDisplay ?? null} locale={locale} currency={currency} variant="thermal" />
+      )}
+      {tpl.sections.itemsTable && !isExchange && (
         <>
           <hr className="thermal-rule" />
           <div>
@@ -241,14 +248,14 @@ export function ThermalInvoicePrintTemplate({
       )}
       <CustomPrintTextBlocks blocks={customBlocks.afterItems} compact />
 
-      {tpl.sections.specialSummary && vm.special?.exchange && (
+      {tpl.sections.specialSummary && vm.special?.exchange && !isExchange && (
         <>
           <hr className="thermal-rule" />
           <LineRow labelEn="Exchange Difference" labelAr="فرق الاستبدال" value={money(vm.special.exchange.difference)} showEnglish={showEn} showArabic={showAr} />
         </>
       )}
 
-      {tpl.sections.amountDetails && (
+      {tpl.sections.amountDetails && !isExchange && (
         <div className="thermal-totals">
           <hr className="thermal-rule" />
           <LineRow labelEn="Net / Subtotal" labelAr="الصافي" value={money(vm.totals.subtotal)} showEnglish={showEn} showArabic={showAr} />
@@ -261,7 +268,7 @@ export function ThermalInvoicePrintTemplate({
         </div>
       )}
 
-      {tpl.sections.paymentMethod && vm.payments.length > 0 && (
+      {tpl.sections.paymentMethod && vm.payments.length > 0 && !isExchange && (
         <>
           <hr className="thermal-rule" />
           <SectionTitle en="Payment" ar="الدفع" showEnglish={showEn} showArabic={showAr} />

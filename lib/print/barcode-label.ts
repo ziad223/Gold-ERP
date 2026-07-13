@@ -63,6 +63,82 @@ export function sanitizeBarcodeConfig<T extends Record<string, any>>(config: T):
   };
 }
 
+// ── Phase 32.3-Fix — Asset client front/back tag payload ─────────────────────
+// A richer, Asset-only payload for the client front/back tag layouts. It is
+// ADDITIVE: the flat BarcodeLabelData above (generic template + Product labels)
+// is unchanged. Products never use this shape.
+
+export interface AssetTagStone {
+  type: string;
+  carat?: number;
+  color?: string;
+  shape?: string;
+}
+
+export interface AssetTagData {
+  assetId: string;
+  name: string;
+  /** Printed value — equals the stored asset.barcode (id fallback only if unset). */
+  barcode: string;
+  rfid?: string;
+  type: string;
+  inventorySubtype?: string;
+  inventoryCode?: string;
+  itemCode?: string;
+  karatCode?: string;
+  barcodeSerial?: number;
+  barcodeRevision?: number;
+  karat?: number;
+  grossWeight?: number;
+  netWeight?: number;
+  goldWeight?: number;
+  price: number;
+  branch?: string;
+  supplierName?: string;
+  createdAt?: string;
+  /** Type-specific attributes captured by the Phase 32.2 item forms. */
+  metadata: Record<string, any>;
+  metadataSchemaVersion?: number;
+  copies?: number;
+}
+
+const toNum = (value: any): number | undefined => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+};
+
+/**
+ * Map a serialized Asset to the client front/back tag payload. The barcode value
+ * is the STORED asset.barcode — the frontend never reconstructs or regenerates a
+ * different identity (backend remains the source of truth).
+ */
+export function assetToTagData(asset: any, copies = 1): AssetTagData {
+  return {
+    assetId: asset.id,
+    name: asset.name,
+    barcode: String(asset.barcode || asset.id),
+    rfid: asset.rfid || undefined,
+    type: asset.type,
+    inventorySubtype: asset.inventorySubtype || undefined,
+    inventoryCode: asset.inventoryCode || undefined,
+    itemCode: asset.itemCode || undefined,
+    karatCode: asset.karatCode || undefined,
+    barcodeSerial: asset.barcodeSerial ?? undefined,
+    barcodeRevision: asset.barcodeRevision ?? undefined,
+    karat: asset.karat ?? undefined,
+    grossWeight: toNum(asset.grossWeight),
+    netWeight: toNum(asset.netWeight),
+    goldWeight: toNum(asset.goldWeight),
+    price: Number(asset.price) || 0,
+    branch: asset.branch || undefined,
+    supplierName: asset.source || undefined,
+    createdAt: asset.createdAt || undefined,
+    metadata: (asset.metadata && typeof asset.metadata === "object") ? asset.metadata : {},
+    metadataSchemaVersion: asset.metadataSchemaVersion ?? undefined,
+    copies,
+  };
+}
+
 /** Map a quantity-based Product to the canonical label payload. */
 export function productToLabelData(product: any, copies = 1): BarcodeLabelData {
   return {

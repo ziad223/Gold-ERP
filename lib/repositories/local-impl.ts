@@ -17,6 +17,8 @@ import type {
   TrialBalance,
   LedgerReconciliation,
   CustomerStatement,
+  CustomerCreditReconciliationReport,
+  CustomerStatementV3Report,
   SupplierStatement,
   SupplierPaymentResult,
 } from "./interfaces";
@@ -820,6 +822,14 @@ export class LocalAccountingRepository implements AccountingRepository {
   async getCustomerStatementV2(): Promise<CustomerStatement> {
     // Customer sub-ledger statements require the API; unsupported in mock/local.
     throw new Error("Customer statement is only available in API mode.");
+  }
+  async getCustomerStatementV3(): Promise<CustomerStatementV3Report> {
+    // Customer sub-ledger statements require the API; unsupported in mock/local.
+    throw new Error("Customer statement v3 is only available in API mode.");
+  }
+  async getCustomerCreditReconciliation(): Promise<CustomerCreditReconciliationReport> {
+    // Customer credit reconciliation requires the API; unsupported in mock/local.
+    throw new Error("Customer credit reconciliation is only available in API mode.");
   }
   async getSupplierStatement(): Promise<SupplierStatement> {
     // Supplier sub-ledger statements require the API; unsupported in mock/local.

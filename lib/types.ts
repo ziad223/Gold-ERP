@@ -82,6 +82,15 @@ export interface Asset {
   location: string;
   status: AssetStatus;
   barcode: string;
+  inventoryCode?: string;
+  itemCode?: string;
+  karatCode?: string;
+  barcodeSerial?: number;
+  barcodeGeneratedAt?: string;
+  barcodeRevision?: number;
+  inventorySubtype?: string;
+  metadataSchemaVersion?: number;
+  metadata?: Record<string, unknown>;
   rfid?: string;
   source?: string;
   parentAssetId?: string;
@@ -100,6 +109,58 @@ export interface Asset {
   manufacturingOrderId?: string;
   contributionWeight?: number; // grams used from parent
   processLoss?: number; // grams lost in process
+}
+
+export interface BarcodeInventoryCode {
+  id: string;
+  code: string;
+  displayName: string;
+  assetType: AssetType;
+  description?: string | null;
+  isActive: boolean;
+  isClientApproved: boolean;
+  isProvisional: boolean;
+  requiresKarat: boolean;
+  defaultKaratCode?: string | null;
+  defaultItemCode?: string | null;
+  sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface BarcodeItemCode {
+  id: string;
+  code: string;
+  displayName: string;
+  description?: string | null;
+  isActive: boolean;
+  isClientApproved: boolean;
+  isProvisional: boolean;
+  allowedInventoryCodes: string[];
+  sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface BarcodeSettingsResponse {
+  inventoryCodes: BarcodeInventoryCode[];
+  itemCodes: BarcodeItemCode[];
+  source: "database";
+  usage: {
+    inventory: Record<string, BarcodeCodeUsage>;
+    item: Record<string, BarcodeCodeUsage>;
+  };
+  policy: {
+    format: string;
+    serialLength: number;
+    separators: boolean;
+  };
+}
+
+export interface BarcodeCodeUsage {
+  used: boolean;
+  assetCount: number;
+  sequenceCount: number;
 }
 
 export interface AssetCertificate {
@@ -261,6 +322,95 @@ export interface Invoice {
   cancelReason?: string;
 }
 
+export type ExchangePolicyStatus = "target_policy" | "legacy_or_unknown";
+export type ExchangeSettlementSource = "linked_records" | "best_effort" | "unavailable";
+
+export interface ExchangeDisplayItem {
+  invoiceItemId?: number;
+  assetId?: string;
+  name?: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+}
+
+export interface ExchangeDisplayLine {
+  key: string;
+  label: string;
+  amount: number;
+  displayAs: string;
+}
+
+export interface ExchangePolicyFigures {
+  returnedValue: number;
+  newSubtotal: number;
+  newTax: number;
+  newGross: number | null;
+  difference: number;
+  amountDueFromCustomer: number;
+  arRelief: number | null;
+  excessDueToCustomer: number;
+  storedSubtotal?: number;
+  storedTax?: number;
+  storedTotal?: number;
+}
+
+export interface ExchangeDisplayPolicy {
+  vatAppliesTo: "new_items_only" | "historical_stored_values";
+  returnedValueTaxable: boolean | null;
+  excessTaxable: boolean | null;
+  settlementAffectsVat: boolean | null;
+}
+
+export interface ExchangeCustomerFacingModel {
+  showNegativeLines: false;
+  showNegativeTotal: false;
+  replacementSection: ExchangeDisplayItem[];
+  returnedCreditSection: ExchangeDisplayItem[];
+  balanceDueLabel: string;
+  policyNote: string;
+  currency: string;
+  displayTotal: number;
+  lines: ExchangeDisplayLine[];
+  settlementSummary: ExchangeSettlementSummary | null;
+}
+
+export interface ExchangeSettlementSummary {
+  cashAmount: number;
+  bankAmount: number;
+  creditAmount: number;
+  allocatedAmount: number;
+  expectedAmount: number | null;
+  isComplete: boolean;
+  source: ExchangeSettlementSource;
+}
+
+export interface ExchangeLegacyFallback {
+  isLegacyOrUnknown: boolean;
+  message: string | null;
+}
+
+export interface ExchangeDisplayResponse {
+  invoiceId: string;
+  originalInvoiceId?: string;
+  customerId?: string;
+  currency: string;
+  policyStatus: ExchangePolicyStatus;
+  policyVersion: string | null;
+  readOnly: true;
+  exchangePolicy: ExchangeDisplayPolicy;
+  figures: ExchangePolicyFigures;
+  customerFacing: ExchangeCustomerFacingModel;
+  settlementSummary: ExchangeSettlementSummary;
+  legacyFallback: ExchangeLegacyFallback;
+}
+
+export interface ExchangeDisplayApiResponse {
+  success: boolean;
+  data: ExchangeDisplayResponse;
+  readOnly?: boolean;
+}
+
 export interface Installment {
   id: string;
   invoiceId: string;
@@ -293,11 +443,62 @@ export interface Reservation {
   customerId: string;
   customerName: string;
   branch: string;
+  branchId?: string | null;
+  currency?: string;
   deposit: number;
+  agreedTotal?: number;
+  paidTotal?: number;
+  remainingTotal?: number;
+  excessTotal?: number;
   expiresAt: string;
+  fullyPaidAt?: string | null;
+  finalInvoiceId?: string | null;
+  workflowVersion?: number;
+  isLegacy?: boolean;
+  version?: number;
+  createdBy?: string | null;
+  updatedBy?: string | null;
   createdAt: string;
-  status: "active" | "expired" | "completed" | "cancelled";
+  status: "active" | "partially_paid" | "fully_paid" | "expired" | "completed" | "cancelled";
   notes?: string;
+  items?: ReservationItem[];
+  payments?: ReservationPayment[];
+}
+
+export interface ReservationItem {
+  id: string;
+  reservationId: string;
+  assetId: string;
+  assetName: string;
+  itemType: "asset";
+  agreedPrice: number;
+  originalPrice?: number | null;
+  status: "active" | "released";
+  reservedAt: string;
+  releasedAt?: string | null;
+  addedBy?: string | null;
+  releaseReason?: string | null;
+}
+
+export interface ReservationPayment {
+  id: string;
+  reservationId: string;
+  customerId: string;
+  branchId?: string | null;
+  amount: number;
+  currency: string;
+  paymentMethod: string;
+  treasuryAccountCode: string;
+  advancesAccountId: string;
+  advancesAccountCode: string;
+  receiptNumber: string;
+  journalEntryId?: string | null;
+  status: "posted" | "reversed" | "refunded";
+  idempotencyKey?: string | null;
+  receivedBy?: string | null;
+  receivedEmployeeId?: string | null;
+  receivedAt: string;
+  sourceReference?: string | null;
 }
 
 export interface RepairOrder {
@@ -800,11 +1001,29 @@ export type ExchangeNewItem =
  * assetId, first matching line) is the backward-compatible fallback. No financial
  * fields — the backend computes credit-note totals/COGS/VAT server-side.
  */
+/**
+ * Phase 30-Fix — optional operator-selected settlement of the return EXCESS
+ * (the value owed back to the customer AFTER receivable-first AR relief). The
+ * parts must sum to the excess; cash uses 1110, bank uses 1120, and credit is
+ * mapped to Customer Deposits 2300 by the backend. Omitted → legacy full
+ * cash/bank refund.
+ */
+export interface ReturnSettlement {
+  cashAmount: number;
+  bankAmount: number;
+  creditAmount: number;
+  cashAccountCode: "1110";
+  bankAccountCode: "1120";
+  reference?: string;
+  description?: string;
+}
+
 export interface CreateReturnPayload {
   originalInvoiceId: string;
   returnedInvoiceItemIds?: number[];
   returnedAssetIds?: string[];
   reason?: string;
+  settlement?: ReturnSettlement;
 }
 
 /**

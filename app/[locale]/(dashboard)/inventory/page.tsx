@@ -24,22 +24,26 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { useProductsList, useAssetsList } from "@/features/inventory/hooks/use-inventory-list";
 import { Link } from "@/i18n/navigation";
 import { BarcodePrintTemplate } from "@/features/printing/components/BarcodePrintTemplate";
+import { ClientBarcodeTagTemplate } from "@/features/printing/components/ClientBarcodeTagTemplate";
 import { renderPrintDocument } from "@/features/printing/components/render-print-document";
 import { exportData } from "@/lib/export/export-service";
 import { DEFAULT_BARCODE_LABEL_CONFIG } from "@/lib/print/print-config";
 import { printHtmlDocument } from "@/lib/print/print-service";
-import { type BarcodeLabelData, productToLabelData, assetToLabelData } from "@/lib/print/barcode-label";
+import { type BarcodeLabelData, productToLabelData, assetToLabelData, assetToTagData } from "@/lib/print/barcode-label";
 import { ScannableBarcode } from "@/features/printing/components/ScannableBarcode";
 import { getPublicFileUrl } from "@/lib/api/files";
 import { formatCurrency, formatNumber } from "@/lib/utils";
 import type { Asset, AssetStatus, AssetType, Product, StockMovement } from "@/lib/types";
 import { useCoreErpData } from "@/hooks/use-core-erp-data";
 import { apiClient } from "@/lib/api/client";
+import { useBarcodeSettings } from "@/features/settings/hooks/use-barcode-settings";
+import { InventoryItemForm } from "@/features/inventory/components/InventoryItemForm";
 
 const initialForm = {
   name: "",
   type: "gold-piece" as AssetType,
   category: "",
+  itemCode: "RNG",
   karat: "21",
   grossWeight: "",
   price: "",
@@ -50,6 +54,7 @@ const initialForm = {
 const assetFormSchema = z.object({
   name: z.string().min(2, { message: "Name is too short" }),
   category: z.string().min(2, { message: "Category is too short" }),
+  itemCode: z.string().min(2, { message: "Item code is required" }),
   grossWeight: z.coerce.number().positive({ message: "Weight must be positive" }),
   price: z.coerce.number().positive({ message: "Price must be positive" }),
   location: z.string().optional(),
@@ -75,6 +80,7 @@ export default function InventoryPage() {
   
   const { products, assets, isLoading: isErpLoading, error: erpError, refetch } = useCoreErpData();
   const { createAsset, updateAsset } = useAssets();
+  const { inventoryCodes: barcodeInventoryCodes, itemCodes: barcodeItemCodes } = useBarcodeSettings();
   
   const [activeTab, setActiveTab] = useState<"products" | "assets">("products");
   
@@ -116,6 +122,22 @@ export default function InventoryPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(initialForm);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
+  const selectedInventoryCode = barcodeInventoryCodes.find((code) => code.assetType === form.type && code.isActive);
+  const availableItemCodes = barcodeItemCodes.filter((code) =>
+    code.isActive && (!code.allowedInventoryCodes.length || (selectedInventoryCode && code.allowedInventoryCodes.includes(selectedInventoryCode.code)))
+  );
+
+  useEffect(() => {
+    if (!selectedInventoryCode) return;
+    const preferred = selectedInventoryCode.defaultItemCode;
+    const currentAllowed = availableItemCodes.some((code) => code.code === form.itemCode);
+    if (preferred && availableItemCodes.some((code) => code.code === preferred) && form.itemCode !== preferred) {
+      setForm((current) => ({ ...current, itemCode: preferred, karat: selectedInventoryCode.requiresKarat ? current.karat || "21" : "" }));
+    } else if (!currentAllowed && availableItemCodes[0]) {
+      setForm((current) => ({ ...current, itemCode: availableItemCodes[0].code, karat: selectedInventoryCode.requiresKarat ? current.karat || "21" : "" }));
+    }
+  }, [selectedInventoryCode, availableItemCodes, form.itemCode]);
   
   // Grid vs Table View
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
@@ -479,40 +501,6 @@ export default function InventoryPage() {
     }
   };
 
-  const save = (event: FormEvent) => {
-    event.preventDefault();
-    setFormErrors({});
-
-    const result = assetFormSchema.safeParse(form);
-    if (!result.success) {
-      const fieldErrors: Record<string, string> = {};
-      result.error.issues.forEach((issue) => {
-        if (issue.path[0]) {
-          fieldErrors[issue.path[0] as string] = issue.message;
-        }
-      });
-      setFormErrors(fieldErrors);
-      return;
-    }
-
-    const grossWeight = Number(form.grossWeight);
-    const price = Number(form.price);
-
-    createAsset({
-      name: form.name.trim(),
-      type: form.type,
-      category: form.category.trim(),
-      karat: Number(form.karat) || undefined,
-      grossWeight,
-      netWeight: grossWeight,
-      price,
-      location: form.location.trim() || "Showroom",
-    }).then(() => {
-      setForm(initialForm);
-      setOpen(false);
-    });
-  };
-
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
       setSelectedAssetIds(filteredAssets.map((a) => a.id));
@@ -678,6 +666,55 @@ export default function InventoryPage() {
     setShowPrintPreview(true);
   };
 
+  // Phase 32.3-Fix — client front/back tag print for serialized ASSETS only.
+  // Additive: it does not touch the generic barcode flow above (products +
+  // generic asset labels still use BarcodePrintTemplate). The printed barcode is
+  // the STORED asset.barcode; no serial/barcode is generated in the browser.
+  const printClientAssetTags = async () => {
+    if (!canPrintBarcode) {
+      toast.error(rtl ? "ليس لديك صلاحية طباعة الباركود" : "You don't have barcode print permission");
+      return;
+    }
+    const copies = barcodeConfig.copies || 1;
+    const selectedSet = new Set(selectedAssetIds);
+    const targetAssets = selectedAssetIds.length
+      ? filteredAssets.filter((a) => selectedSet.has(a.id))
+      : await assetsList.fetchAllMatching();
+    const items = targetAssets.map((a) => assetToTagData(a, copies));
+    if (!items.length) {
+      toast.error(printT("noDataToExport"));
+      return;
+    }
+
+    const html = renderPrintDocument(
+      <ClientBarcodeTagTemplate
+        items={items}
+        config={{
+          widthMm: barcodeConfig.widthMm,
+          heightMm: barcodeConfig.heightMm,
+          columns: barcodeConfig.columns,
+          direction: barcodeConfig.direction === "RTL" ? "RTL" : "LTR",
+          fontSizePx: barcodeConfig.fontSizePx ?? 8,
+          showQrCode: Boolean(barcodeConfig.showQrCode),
+          showCompanyName: barcodeConfig.showCompanyName !== false,
+          showLogo: Boolean(barcodeConfig.showLogo),
+          showBorder: barcodeConfig.showBorder !== false,
+        }}
+        companyName={company?.businessName || "DARFUS"}
+        companyLogo={company?.logo}
+        currency={currency}
+        locale={locale}
+      />,
+      { documentType: "barcode", paperSize: "barcode-label", title: printT("printBarcode"), locale },
+    );
+    const result = printHtmlDocument(html, { documentType: "barcode", paperSize: "barcode-label", title: printT("printBarcode"), locale });
+    if (!result.ok) {
+      toast.error(result.errorCode === "popup-blocked" ? printT("popupBlocked") : printT("printFailed"));
+    } else {
+      toast.success(rtl ? "تم إرسال تاج العميل (وجه/ظهر) للطباعة" : "Client front/back tags sent to printer");
+    }
+  };
+
   const handleConfirmPrint = () => {
     if (!printPreviewItems.length || !previewConfig) return;
     // Re-check permission at the print boundary (defends the handler, not just the button).
@@ -820,6 +857,17 @@ export default function InventoryPage() {
               <Printer className="h-4 w-4" />
               {t("printBarcode")}
             </Button>
+            {activeTab === "assets" && (
+              <Button
+                variant="secondary"
+                onClick={printClientAssetTags}
+                disabled={!canPrintBarcode}
+                title={canPrintBarcode ? undefined : (rtl ? "تحتاج صلاحية طباعة الباركود" : "Barcode print permission required")}
+              >
+                <Barcode className="h-4 w-4" />
+                {rtl ? "تاج العميل (وجه/ظهر)" : "Client Tags"}
+              </Button>
+            )}
             <Button onClick={() => setOpen(true)}>
               <Plus className="h-4 w-4" />
               {t("newAsset")}
@@ -1304,55 +1352,17 @@ export default function InventoryPage() {
       )}
 
       <Modal open={open} onClose={() => setOpen(false)} title={t("addTitle")} description={t("addDescription")}>
-        <form onSubmit={save} className="grid gap-5 sm:grid-cols-2 text-xs">
-          <label className="sm:col-span-2">
-            <span className="label-base font-bold">{t("name")}</span>
-            <input className="input-base" value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} />
-            {formErrors.name && <p className="text-rose-500 text-[10px] mt-0.5">{formErrors.name}</p>}
-          </label>
-          <label>
-            <span className="label-base font-bold">{t("type")}</span>
-            <NativeSelect value={form.type} onChange={(event) => setForm((current) => ({ ...current, type: event.target.value as AssetType }))}>
-              {Object.entries(typeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-            </NativeSelect>
-          </label>
-          <label>
-            <span className="label-base font-bold">{t("category")}</span>
-            <input className="input-base" value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))} />
-            {formErrors.category && <p className="text-rose-500 text-[10px] mt-0.5">{formErrors.category}</p>}
-          </label>
-          <label>
-            <span className="label-base font-bold">{t("karat")}</span>
-            <NativeSelect value={form.karat} onChange={(event) => setForm((current) => ({ ...current, karat: event.target.value }))}>
-              <option value="18">18K</option>
-              <option value="21">21K</option>
-              <option value="22">22K</option>
-              <option value="24">24K</option>
-            </NativeSelect>
-          </label>
-          <label>
-            <span className="label-base font-bold">{t("grossWeight")}</span>
-            <input type="number" step="0.01" className="input-base" value={form.grossWeight} onChange={(event) => setForm((current) => ({ ...current, grossWeight: event.target.value }))} />
-            {formErrors.grossWeight && <p className="text-rose-500 text-[10px] mt-0.5">{formErrors.grossWeight}</p>}
-          </label>
-          <label>
-            <span className="label-base font-bold">{t("price")}</span>
-            <input type="number" className="input-base" value={form.price} onChange={(event) => setForm((current) => ({ ...current, price: event.target.value }))} />
-            {formErrors.price && <p className="text-rose-500 text-[10px] mt-0.5">{formErrors.price}</p>}
-          </label>
-          <label>
-            <span className="label-base font-bold">{t("branch")}</span>
-            <input className="input-base" value={form.branch} onChange={(event) => setForm((current) => ({ ...current, branch: event.target.value }))} placeholder={company?.branchName} />
-          </label>
-          <label>
-            <span className="label-base font-bold">{t("location")}</span>
-            <input className="input-base" value={form.location} onChange={(event) => setForm((current) => ({ ...current, location: event.target.value }))} />
-          </label>
-          <div className="flex justify-end gap-2 sm:col-span-2">
-            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>{common("cancel")}</Button>
-            <Button type="submit"><Barcode className="h-4 w-4" />{t("save")}</Button>
-          </div>
-        </form>
+        {/* Phase 32.2-Fix — type-driven item-type Add form (Gold By Weight/Piece,
+            Diamond, Gem Stone, Pearl, Watch). Reuses the Phase 32.1 barcode/
+            inventory foundation; the backend allocates the final stored barcode. */}
+        <InventoryItemForm
+          mode="add"
+          onDone={() => {
+            setOpen(false);
+            refetch();
+          }}
+          onCancel={() => setOpen(false)}
+        />
       </Modal>
 
       {/* Product Details Modal */}

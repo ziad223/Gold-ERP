@@ -152,10 +152,22 @@ function staticChecks() {
 
   const routes = read("backend/src/routes/erp.routes.js");
   assert.ok(routes.includes('router.get("/customers/:id/credit"'), "credit summary endpoint remains");
-  assert.ok(routes.includes('router.post("/customers/:id/credit/deposit"'), "manual deposit is the only public POST credit endpoint");
-  assert.ok(!/router\.(post|put|patch|delete)\([^)]*credit\/(apply|refund|adjust)/.test(routes), "no apply/refund/adjust route");
+  assert.ok(routes.includes('router.post("/customers/:id/credit/deposit"'), "manual deposit public POST credit endpoint remains");
+  assert.ok(routes.includes('router.post("/customers/:id/credit/refund"'), "manual refund public POST credit endpoint exists");
+  assert.ok(routes.includes('router.post("/invoices/:id/apply-customer-credit"'), "invoice apply-credit endpoint exists");
+  assert.ok(!/router\.(post|put|patch|delete)\([^)]*credit\/adjust/.test(routes), "no credit adjustment route");
   assert.ok(routes.includes("customerCreditService.recordCreditIn"), "manual deposit route creates credit_in through the service");
-  assert.ok(!routes.includes("customerCreditService.recordCreditOut"), "routes do not create credit_out");
+  const refundStart = routes.indexOf('router.post("/customers/:id/credit/refund"');
+  const refundEnd = routes.indexOf('router.post("/invoices/:id/apply-customer-credit"', refundStart);
+  assert.ok(refundStart >= 0 && refundEnd > refundStart, "refund route section is bounded");
+  const refundRoute = routes.slice(refundStart, refundEnd);
+  assert.ok(refundRoute.includes("customerCreditService.recordCreditOut"), "manual refund route creates credit_out through the service");
+  const applyStart = routes.indexOf('router.post("/invoices/:id/apply-customer-credit"');
+  const applyEnd = routes.indexOf("// ─────────────────────────────────────────────────────────────────────────────\n// GL ACCOUNT STATEMENT", applyStart);
+  assert.ok(applyStart >= 0 && applyEnd > applyStart, "apply-credit route section is bounded");
+  const applyRoute = routes.slice(applyStart, applyEnd);
+  assert.ok(applyRoute.includes("customerCreditService.recordCreditOut"), "invoice apply-credit route creates credit_out through the service");
+  assert.ok(!routes.replace(refundRoute, "").replace(applyRoute, "").includes("customerCreditService.recordCreditOut"), "only refund/apply routes create credit_out");
   assert.ok(routes.includes("postReturnEntry"), "return route remains present");
   assert.ok(routes.includes("postExchangeEntry") || routes.includes('sourceType: "exchange"'), "exchange posting remains present");
 

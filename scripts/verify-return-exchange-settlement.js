@@ -77,15 +77,15 @@ function settleReturn(returnedTotal, outstanding) {
   const relief = round(Math.min(returnedTotal, outstanding));
   return { relief, cash: round(returnedTotal - relief) };
 }
-function settleExchange(diffTotal, outstanding, settlementMode) {
+function settleExchange(difference, outstanding, settlementMode) {
   let relief = 0, cashRefund = 0, increase = 0, cashIn = 0;
-  if (diffTotal < 0) {
-    const v = round(Math.abs(diffTotal));
+  if (difference < 0) {
+    const v = round(Math.abs(difference));
     relief = round(Math.min(v, outstanding));
     cashRefund = round(v - relief);
-  } else if (diffTotal > 0) {
-    if (settlementMode === "paid_now") cashIn = round(diffTotal);
-    else increase = round(diffTotal);
+  } else if (difference > 0) {
+    if (settlementMode === "paid_now") cashIn = round(difference);
+    else increase = round(difference);
   }
   return { relief, cashRefund, increase, cashIn };
 }
@@ -113,15 +113,19 @@ function staticRouteChecks() {
   const svc = fs.readFileSync(path.resolve(__dirname, "..", "backend", "src", "services", "posting.service.js"), "utf8");
 
   // Returns receivable-first + gated treasury + AR passed to posting.
+  // (Phase 30 renamed the excess to `excessAmount` and gates cash/bank refund via
+  // the makeRefundCashTx helper; receivable-first is still enforced.)
   assert.ok(routes.includes("receivableReliefAmount = roundVal(Math.min(returnedTotal, outstandingBefore))"), "returns compute receivable-first relief");
-  assert.ok(routes.includes("cashRefundAmount = roundVal(returnedTotal - receivableReliefAmount)"), "returns compute cash-refund excess");
-  assert.ok(routes.includes("if (cashRefundAmount > 0)"), "returns gate cash_out on real refund");
-  assert.ok(/postReturnEntry\([\s\S]{0,220}receivableReliefAmount/.test(routes), "returns pass the split to postReturnEntry");
+  assert.ok(routes.includes("excessAmount = roundVal(returnedTotal - receivableReliefAmount)"), "returns compute the excess after AR relief");
+  assert.ok(routes.includes("const makeRefundCashTx") && routes.includes("if (amount <= 0) return;"), "returns gate cash_out on a real refund amount");
+  assert.ok(/postReturnEntry\([\s\S]{0,320}receivableReliefAmount/.test(routes), "returns pass the split to postReturnEntry");
 
   // Exchange receivable-first + gated treasury + AR 1300 GL leg.
-  assert.ok(routes.includes("receivableReliefAmount = roundVal(Math.min(creditValue, outstandingBefore))"), "exchange computes receivable-first relief");
-  assert.ok(routes.includes("exchangeCashAmount = diffTotal > 0 ? cashInAmount : cashRefundAmount"), "exchange gates treasury on real cash");
-  assert.ok(routes.includes("if (exchangeCashAmount > 0)"), "exchange only creates CashTransaction for real cash");
+  // (Phase 30.3 derives the refund excess from target-policy excessDueToCustomer and gates cash/bank
+  // via makeExchangeCashTx.)
+  assert.ok(routes.includes("receivableReliefAmount = arRelief"), "exchange uses target-policy receivable-first relief");
+  assert.ok(routes.includes("const refundExcess = excessDueToCustomer"), "exchange settles only the target-policy excess due to customer");
+  assert.ok(routes.includes("const makeExchangeCashTx"), "exchange only creates CashTransaction for real cash portions");
   assert.ok(routes.includes('accountCode: "1300"'), "exchange GL posts to AR 1300");
   assert.ok(routes.includes("exchangeArDelta"), "exchange adjusts receivable via a single AR delta");
 

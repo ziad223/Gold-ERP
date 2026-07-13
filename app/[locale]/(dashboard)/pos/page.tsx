@@ -14,7 +14,9 @@ import { Modal } from "@/components/ui/modal";
 import { useAuth } from "@/contexts/auth-context";
 import { usePos } from "@/features/sales/hooks/use-pos";
 import { useAppSettings } from "@/contexts/settings-context";
-import { generateUUID } from "@/lib/api/client";
+import { apiClient, generateUUID } from "@/lib/api/client";
+import { Link } from "@/i18n/navigation";
+import { usePermissions } from "@/hooks/use-permissions";
 import { filterData } from "@/hooks/use-data-filters";
 import type { Asset, AssetType, Invoice, Product } from "@/lib/types";
 import { useCoreErpData } from "@/hooks/use-core-erp-data";
@@ -180,6 +182,17 @@ export default function PosPage() {
   const [makingCharge, setMakingCharge] = useState("0");
   const [stoneValue, setStoneValue] = useState("0");
   const [notes, setNotes] = useState("");
+  // Phase 32.6-Post-C — POS reservation (deposit) mode.
+  const { hasPermission } = usePermissions();
+  const [showReservationDialog, setShowReservationDialog] = useState(false);
+  const [resInitialPayment, setResInitialPayment] = useState("");
+  const [resExpiry, setResExpiry] = useState("");
+  const [resMethod, setResMethod] = useState("cash");
+  const [resNotes, setResNotes] = useState("");
+  const [creatingReservation, setCreatingReservation] = useState(false);
+  const [createdReservation, setCreatedReservation] = useState<{ id: string; paidTotal?: string | number; remainingTotal?: string | number; agreedTotal?: string | number; expiresAt?: string } | null>(null);
+  const reservationAccountConfigured = Boolean(settings?.reservationAdvancesAccountId);
+  const canConfigureSettings = hasPermission("settings.update");
 
   // Split payment details
   const [splitCash, setSplitCash] = useState("0");
@@ -747,6 +760,28 @@ export default function PosPage() {
       return;
     }
 
+    // Phase 32.6-Post-C — the Deposit / عربون action creates a Reservation, not a
+    // sales invoice. Enter reservation mode: open the dedicated dialog and never
+    // run the normal invoice/sale posting path from here.
+    if (method === "deposit") {
+      if (cart.some((item) => item.isProduct)) {
+        setPricingError(rtl ? "الحجز يقبل قطع الأصول فقط وليس المنتجات المخزنية." : "Reservations accept serialized assets only, not stock products.");
+        return;
+      }
+      if (!reservationAccountConfigured) {
+        setPricingError(rtl ? "لا يمكن تسجيل حجز بعربون قبل تحديد حساب دفعات مقدمة العملاء للحجوزات من الإعدادات المحاسبية." : "A reservation deposit cannot be recorded until the Reservation Advances Account is configured in Accounting Settings.");
+        return;
+      }
+      setResInitialPayment("");
+      setResMethod("cash");
+      setResNotes(notes || "");
+      const week = new Date();
+      week.setDate(week.getDate() + 7);
+      setResExpiry(week.toISOString().slice(0, 16));
+      setShowReservationDialog(true);
+      return;
+    }
+
     if (method === "split") {
       const splitSum = (Number(splitCash) || 0) + (Number(splitCard) || 0) + (Number(splitTransfer) || 0);
       if (Math.abs(splitSum - Number(provisionalTotal)) > 0.01) {
@@ -845,6 +880,65 @@ export default function PosPage() {
       setIdempotencyKey(""); // reset key for next transaction
     } catch (err: any) {
       setPricingError(err.message || "Failed to post invoice checkout.");
+    }
+  };
+
+  // Phase 32.6-Post-C — create a reservation with a mandatory initial payment
+  // from the POS cart. Submits only asset ids and operational fields; totals,
+  // VAT, journal lines, and the advances account are all server-derived.
+  const createReservationFromPos = async () => {
+    setPricingError("");
+    const customer = customers.find((item) => item.id === customerId);
+    if (!customer) { setPricingError(rtl ? "العميل مطلوب!" : "Customer is required!"); return; }
+    const amount = Number(toEnglishDigits(resInitialPayment));
+    const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    if (!(amount > 0)) { setPricingError(rtl ? "يجب إدخال دفعة أولى أكبر من صفر." : "An initial payment greater than zero is required."); return; }
+    if (amount > cartTotal + 0.0001) { setPricingError(rtl ? "الدفعة الأولى لا يمكن أن تتجاوز إجمالي الحجز." : "The initial payment cannot exceed the reservation total."); return; }
+    if (!resExpiry) { setPricingError(rtl ? "تاريخ ووقت انتهاء الحجز مطلوب." : "Reservation expiry date/time is required."); return; }
+    const expiryDate = new Date(resExpiry);
+    if (Number.isNaN(expiryDate.getTime()) || expiryDate.getTime() <= Date.now()) { setPricingError(rtl ? "يجب أن يكون تاريخ الانتهاء في المستقبل." : "Expiry must be in the future."); return; }
+    if (!reservationAccountConfigured) { setPricingError(rtl ? "حساب دفعات مقدمة العملاء للحجوزات غير محدد." : "Reservation advances account is not configured."); return; }
+
+    setCreatingReservation(true);
+    try {
+      const key = generateUUID();
+      const res = await apiClient<{ success: boolean; data: { reservation: any } }>("/reservations", {
+        method: "POST",
+        locale,
+        idempotencyKey: key,
+        body: JSON.stringify({
+          customerId,
+          branchId: activeBranchId,
+          expiresAt: expiryDate.toISOString(),
+          notes: resNotes || null,
+          items: cart.map((item) => ({ assetId: item.id })),
+          initialPayment: { amount, paymentMethod: resMethod },
+          customerName: customer.name,
+          branch: activeBranch,
+        }),
+      });
+      const reservation = (res as any)?.data?.reservation?.reservation || (res as any)?.data?.reservation || (res as any)?.data;
+      setShowReservationDialog(false);
+      setCart([]);
+      setDiscount("0");
+      setMakingCharge("0");
+      setStoneValue("0");
+      setNotes("");
+      setResInitialPayment("");
+      setResNotes("");
+      setIdempotencyKey("");
+      setCreatedReservation({
+        id: reservation?.id,
+        agreedTotal: reservation?.agreedTotal,
+        paidTotal: reservation?.paidTotal,
+        remainingTotal: reservation?.remainingTotal,
+        expiresAt: reservation?.expiresAt,
+      });
+      toast.success(rtl ? "تم إنشاء الحجز وتسجيل الدفعة الأولى بنجاح." : "Reservation created and initial payment recorded successfully.");
+    } catch (err: any) {
+      setPricingError(err.message || (rtl ? "تعذّر إنشاء الحجز." : "Failed to create the reservation."));
+    } finally {
+      setCreatingReservation(false);
     }
   };
 
@@ -1383,14 +1477,30 @@ export default function PosPage() {
                 </div>
               </div>
             ) : (
-              <Button onClick={completeSale} disabled={!cart.length || isPosting || settingsNotReady} className="mt-5 w-full">
-                {isPosting ? (
-                  <RefreshCw className="h-5 w-5 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="h-5 w-5" />
+              <>
+                {method === "deposit" && !reservationAccountConfigured && (
+                  <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
+                    <p>{rtl ? "لا يمكن تسجيل حجز بعربون قبل تحديد حساب دفعات مقدمة العملاء للحجوزات من الإعدادات المحاسبية." : "A reservation deposit cannot be recorded until the Reservation Advances Account is configured in Accounting Settings."}</p>
+                    {canConfigureSettings ? (
+                      <Link href="/settings" className="mt-1 inline-block underline">{rtl ? "فتح الإعدادات المحاسبية" : "Open Accounting Settings"}</Link>
+                    ) : (
+                      <p className="mt-1">{rtl ? "يرجى التواصل مع مسؤول معتمد." : "Please contact an authorized administrator."}</p>
+                    )}
+                  </div>
                 )}
-                {t("complete")}
-              </Button>
+                <Button
+                  onClick={completeSale}
+                  disabled={!cart.length || isPosting || settingsNotReady || (method === "deposit" && !reservationAccountConfigured)}
+                  className="mt-5 w-full"
+                >
+                  {isPosting ? (
+                    <RefreshCw className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="h-5 w-5" />
+                  )}
+                  {method === "deposit" ? (rtl ? "إنشاء الحجز وتسجيل الدفعة الأولى" : "Create Reservation and Record Initial Payment") : t("complete")}
+                </Button>
+              </>
             )}
             {draftMessage && (
               <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300">
@@ -1418,6 +1528,84 @@ export default function PosPage() {
           previewLabels={printLabels}
         />
       )}
+
+      {/* Phase 32.6-Post-C — POS reservation deposit dialog */}
+      <Modal
+        open={showReservationDialog}
+        onClose={() => setShowReservationDialog(false)}
+        title={rtl ? "إنشاء حجز بعربون" : "Create Reservation Deposit"}
+        description={rtl ? "احجز القطع للعميل وسجّل الدفعة الأولى" : "Reserve the cart items for the customer and record the initial payment"}
+      >
+        <div className="space-y-4 text-sm">
+          <p className="text-xs text-muted">{rtl ? "الإجماليات والقيود المحاسبية تُحتسب على الخادم. لا يتم إنشاء فاتورة بيع." : "Totals and journals are computed on the server. No sales invoice is created."}</p>
+          <div className="rounded-2xl border border-border p-3 text-xs space-y-1">
+            <p>{rtl ? "العميل" : "Customer"}: <strong>{customers.find((c) => c.id === customerId)?.name || "—"}</strong></p>
+            <p>{rtl ? "عدد القطع" : "Items"}: <strong>{cart.length}</strong></p>
+            <p>{rtl ? "إجمالي الحجز" : "Reservation total"}: <strong>{money(cart.reduce((sum, item) => sum + item.price * item.quantity, 0))}</strong></p>
+            <p>{rtl ? "المتبقي بعد الدفعة" : "Remaining after payment"}: <strong>{money(Math.max(0, cart.reduce((sum, item) => sum + item.price * item.quantity, 0) - (Number(toEnglishDigits(resInitialPayment)) || 0)))}</strong></p>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <label className="block">
+              <span className="label-base">{rtl ? "الدفعة الأولى (إلزامية)" : "Initial payment (required)"}</span>
+              <input type="text" inputMode="decimal" dir="ltr" className="input-base mt-1" placeholder="0" value={resInitialPayment} onChange={(e) => setResInitialPayment(e.target.value)} />
+            </label>
+            <label className="block">
+              <span className="label-base">{rtl ? "طريقة الدفع" : "Payment method"}</span>
+              <select className="input-base mt-1" value={resMethod} onChange={(e) => setResMethod(e.target.value)}>
+                <option value="cash">{rtl ? "نقدي" : "Cash"}</option>
+                <option value="card">{rtl ? "بطاقة" : "Card"}</option>
+                <option value="transfer">{rtl ? "تحويل" : "Transfer"}</option>
+              </select>
+            </label>
+          </div>
+          <label className="block">
+            <span className="label-base">{rtl ? "تاريخ ووقت انتهاء الحجز" : "Reservation expiry (date & time)"}</span>
+            <input type="datetime-local" className="input-base mt-1" value={resExpiry} onChange={(e) => setResExpiry(e.target.value)} />
+          </label>
+          <label className="block">
+            <span className="label-base">{rtl ? "ملاحظات" : "Notes"}</span>
+            <input className="input-base mt-1" value={resNotes} onChange={(e) => setResNotes(e.target.value)} />
+          </label>
+          {!reservationAccountConfigured && (
+            <p className="text-xs font-bold text-amber-600">{rtl ? "حساب دفعات الحجوزات غير محدد في الإعدادات المحاسبية." : "The Reservation Advances Account is not configured in Accounting Settings."}</p>
+          )}
+          <div className="flex justify-end gap-2 pt-4 border-t border-border">
+            <Button type="button" variant="secondary" onClick={() => setShowReservationDialog(false)}>{common("cancel")}</Button>
+            <Button type="button" disabled={creatingReservation || !reservationAccountConfigured} onClick={createReservationFromPos}>
+              {creatingReservation ? <RefreshCw className="h-4 w-4 animate-spin" /> : null}
+              {rtl ? "إنشاء الحجز وتسجيل الدفعة الأولى" : "Create Reservation and Record Initial Payment"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Phase 32.6-Post-C — reservation success summary */}
+      <Modal
+        open={Boolean(createdReservation)}
+        onClose={() => setCreatedReservation(null)}
+        title={rtl ? "تم إنشاء الحجز" : "Reservation Created"}
+        description={createdReservation?.id || ""}
+      >
+        {createdReservation && (
+          <div className="space-y-3 text-sm">
+            <div className="flex items-center gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="h-5 w-5 shrink-0" />
+              <span className="font-bold">{rtl ? "تم إنشاء الحجز وتسجيل الدفعة الأولى بنجاح." : "Reservation created and initial payment recorded successfully."}</span>
+            </div>
+            <div className="rounded-2xl border border-border p-3 text-xs space-y-1">
+              <p>{rtl ? "رقم الحجز" : "Reservation"}: <strong>{createdReservation.id}</strong></p>
+              <p>{rtl ? "الإجمالي" : "Total"}: <strong>{money(createdReservation.agreedTotal ?? 0)}</strong></p>
+              <p>{rtl ? "المدفوع" : "Paid"}: <strong>{money(createdReservation.paidTotal ?? 0)}</strong></p>
+              <p>{rtl ? "المتبقي" : "Remaining"}: <strong>{money(createdReservation.remainingTotal ?? 0)}</strong></p>
+              <p>{rtl ? "تاريخ الانتهاء" : "Expiry"}: <strong>{createdReservation.expiresAt || "—"}</strong></p>
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t border-border">
+              <Link href="/sales/reservations" className="inline-flex items-center rounded-2xl bg-brand-600 px-4 py-2 text-xs font-bold text-white">{rtl ? "فتح إدارة الحجوزات" : "Open Reservations"}</Link>
+              <Button type="button" variant="secondary" onClick={() => setCreatedReservation(null)}>{rtl ? "إغلاق" : "Close"}</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Save Draft Modal */}
       <Modal

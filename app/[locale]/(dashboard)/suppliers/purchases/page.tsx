@@ -20,6 +20,7 @@ import { DATA_SOURCE } from "@/lib/data-source";
 import { formatCurrency } from "@/lib/utils";
 import type { Supplier, Asset, AssetType, Product } from "@/lib/types";
 import { normalizeNumberInput, toEnglishDigits } from "@/lib/formatters/numbers";
+import { useBarcodeSettings } from "@/features/settings/hooks/use-barcode-settings";
 
 export default function SupplierPurchasesPage() {
   const t = useTranslations("Suppliers");
@@ -30,6 +31,7 @@ export default function SupplierPurchasesPage() {
   const { company, activeBranch, activeBranchId, user } = useAuth();
   const { items: suppliers, loading: suppliersLoading, error: suppliersError, refresh: refreshSuppliers } = useSuppliers({ page: 1, pageSize: 100 });
   const { createAsset, isCreating } = useAssets();
+  const { inventoryCodes: barcodeInventoryCodes, itemCodes: barcodeItemCodes } = useBarcodeSettings();
   const isApi = DATA_SOURCE === "api";
 
   const [supplierId, setSupplierId] = useState("");
@@ -98,6 +100,7 @@ export default function SupplierPurchasesPage() {
   const [assetName, setAssetName] = useState("");
   const [assetType, setAssetType] = useState<AssetType>("gold-piece");
   const [category, setCategory] = useState("");
+  const [itemCode, setItemCode] = useState("RNG");
   const [karat, setKarat] = useState("21");
   const [quantity, setQuantity] = useState("1");
   const [weightPerUnit, setWeightPerUnit] = useState("");
@@ -111,6 +114,15 @@ export default function SupplierPurchasesPage() {
   const [errorMsg, setErrorMsg] = useState("");
 
   const currency = company?.currency ?? "AED";
+  const selectedInventoryCode = barcodeInventoryCodes.find((code) => code.assetType === assetType && code.isActive);
+  const availableItemCodes = barcodeItemCodes.filter((code) => code.isActive && (!code.allowedInventoryCodes.length || (selectedInventoryCode && code.allowedInventoryCodes.includes(selectedInventoryCode.code))));
+  useEffect(() => {
+    if (!selectedInventoryCode || isQuantityBased) return;
+    const preferred = selectedInventoryCode.defaultItemCode;
+    if (preferred && availableItemCodes.some((code) => code.code === preferred) && itemCode !== preferred) setItemCode(preferred);
+    else if (!availableItemCodes.some((code) => code.code === itemCode) && availableItemCodes[0]) setItemCode(availableItemCodes[0].code);
+    if (!selectedInventoryCode.requiresKarat) setKarat("");
+  }, [selectedInventoryCode, availableItemCodes, itemCode, isQuantityBased]);
   const money = (value: number) => formatCurrency(value, currency, locale);
   const BackIcon = rtl ? ArrowRight : ArrowLeft;
   const parseDecimal = (value: string) => Number(toEnglishDigits(value).replace(",", ".")) || 0;
@@ -185,6 +197,10 @@ export default function SupplierPurchasesPage() {
       setErrorMsg(rtl ? "برجاء استكمال بيانات التوريد بشكل صحيح." : "Please fill in all asset purchase details correctly.");
       return;
     }
+    if (!isQuantityBased && (!selectedInventoryCode || !itemCode)) {
+      setErrorMsg(rtl ? "يجب اختيار كود مخزون وكود قطعة نشطين." : "Select active inventory and item codes before receiving a serialized asset.");
+      return;
+    }
 
     if (paidAmountNum < 0 || paidAmountNum > totalCost) {
       setErrorMsg(rtl ? "المبلغ المدفوع يجب ألا يتجاوز إجمالي الشراء." : "Paid amount cannot exceed total cost.");
@@ -208,7 +224,7 @@ export default function SupplierPurchasesPage() {
       const dateStr = purchaseDate || new Date().toISOString().slice(0, 10);
       const purchaseOrderId = `PO-${timestamp}`;
 
-      const barcode = String(timestamp).slice(-13).padStart(13, "6");
+      const localPlaceholderBarcode = `LOCAL-PENDING-${timestamp}`;
       const assetId = `AST-PUR-${timestamp.toString().slice(-6)}`;
 
       // Local/mock mode keeps the existing client-side repository behavior.
@@ -225,7 +241,10 @@ export default function SupplierPurchasesPage() {
         branch: activeBranch,
         location: "Showroom",
         status: "available",
-        barcode,
+        barcode: localPlaceholderBarcode,
+        inventoryCode: selectedInventoryCode?.code,
+        itemCode,
+        inventorySubtype: assetType === "watch" ? "watch" : undefined,
         source: `${rtl ? "توريد من: " : "Supplied by: "} ${selectedSupplier.name}`,
         events: [
           {
@@ -276,9 +295,11 @@ export default function SupplierPurchasesPage() {
             isConsignment: Boolean(selectedSupplier.isConsignment),
             items: [
               {
-                barcode,
                 name: assetName,
                 type: assetType,
+                inventoryCode: selectedInventoryCode?.code,
+                itemCode: isQuantityBased ? undefined : itemCode,
+                inventorySubtype: assetType === "watch" ? "watch" : undefined,
                 category: category.trim() || (rtl ? "خام" : "Raw material"),
                 karat: Number(karat) || undefined,
                 weightPerUnit: weightPerUnitNum,
@@ -333,7 +354,7 @@ export default function SupplierPurchasesPage() {
             ...newAssetItem,
             id: `${assetId}-${i + 1}`,
             name: quantityNum > 1 ? `${assetName} ${i + 1}` : assetName,
-            barcode: String(timestamp + i).slice(-13).padStart(13, "6"),
+            barcode: `LOCAL-PENDING-${timestamp + i}`,
           });
         }
       }
@@ -357,6 +378,7 @@ export default function SupplierPurchasesPage() {
       setPurchaseDate(new Date().toISOString().slice(0, 10));
       setNotes("");
       setCategory("");
+      setItemCode("RNG");
       setUseReverseCharge(false);
       setDrcVerified(false);
     } catch (err: any) {
@@ -510,8 +532,17 @@ export default function SupplierPurchasesPage() {
                   <option value="gold-weight">{rtl ? "ذهب بالوزن" : "Gold by Weight"}</option>
                   <option value="diamond">{rtl ? "ألماس" : "Diamond"}</option>
                   <option value="gemstone">{rtl ? "أحجار كريمة" : "Gemstones"}</option>
+                  <option value="pearl">{rtl ? "لؤلؤ" : "Pearl"}</option>
+                  <option value="watch">{rtl ? "ساعات" : "Watch"}</option>
                 </NativeSelect>
               </label>
+
+              {!isQuantityBased && <label className="block">
+                <span className="label-base">{rtl ? "كود القطعة" : "Item Code"}</span>
+                <NativeSelect value={itemCode} onChange={(e) => setItemCode(e.target.value)}>
+                  {availableItemCodes.map((code) => <option key={code.id} value={code.code}>{code.code} — {code.displayName}</option>)}
+                </NativeSelect>
+              </label>}
 
               <label className="block">
                 <span className="label-base">{rtl ? "التصنيف" : "Category"}</span>
@@ -520,7 +551,8 @@ export default function SupplierPurchasesPage() {
 
               <label className="block">
                 <span className="label-base">{rtl ? "العيار" : "Karat"}</span>
-                <NativeSelect value={karat} onChange={(e) => setKarat(e.target.value)}>
+                <NativeSelect disabled={selectedInventoryCode?.requiresKarat === false} value={karat} onChange={(e) => setKarat(e.target.value)}>
+                  {selectedInventoryCode?.requiresKarat === false && <option value="">{selectedInventoryCode.defaultKaratCode || "00"}</option>}
                   <option value="18">18K</option>
                   <option value="21">21K</option>
                   <option value="22">22K</option>

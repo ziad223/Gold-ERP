@@ -7,8 +7,8 @@
  *     exposes ONLY the credit model, so any attempt to touch Customer/Invoice
  *     would throw (proving the service never mutates them).
  * (B) Static: migration + model + registration + service surface exist; the
- *     endpoint exists; only manual deposits may create credit; apply/refund
- *     and return/exchange credit modes are still not wired;
+ *     endpoint exists; only manual deposit/refund routes may create credit;
+ *     apply and return/exchange credit modes are still not wired;
  *     the service does not write Customer.balance / Invoice.remainingAmount;
  *     GL posting is optional and requires explicit glPosting context; no
  *     print/report/data-source coupling.
@@ -112,7 +112,7 @@ function staticChecks() {
   assert.ok(/isIn:\s*\[\[\s*"credit_in",\s*"credit_out"\s*\]\]/.test(model), "model validates direction");
   const idx = read("backend/src/models/index.js");
   assert.ok(idx.includes('require("./customerCreditTransaction.model")'), "model is required in index");
-  assert.ok(/CustomerCreditTransaction\s*$/m.test(idx) || idx.includes("CustomerCreditTransaction\n"), "model is exported from index");
+  assert.ok(/CustomerCreditTransaction,?\s*$/m.test(idx) || idx.includes("CustomerCreditTransaction") || idx.includes("CustomerCreditTransaction\r\n"), "model is exported from index");
 
   // Service surface.
   const service = read("backend/src/services/customer-credit.service.js");
@@ -129,15 +129,29 @@ function staticChecks() {
   assert.ok(service.includes("pass either journalEntryId or glPosting.enabled"), "service rejects ambiguous journal link inputs");
   assert.ok(!/print/i.test(service), "service has no print coupling");
 
-  // Credit endpoint exists; Phase 27 allows only the manual deposit mutation.
+  // Credit endpoints exist; Phase 29 allows manual deposit/refund plus applying
+  // credit to an existing invoice. No adjustment or POS credit endpoint.
   const routes = read("backend/src/routes/erp.routes.js");
   assert.ok(routes.includes('router.get("/customers/:id/credit"'), "GET /customers/:id/credit exists");
   assert.ok(routes.includes('router.post("/customers/:id/credit/deposit"'), "manual deposit credit endpoint exists");
-  assert.ok(!/router\.(post|put|patch|delete)\([^)]*credit\/(apply|refund|adjust)/.test(routes), "no apply/refund/adjust endpoint");
+  assert.ok(routes.includes('router.post("/customers/:id/credit/refund"'), "manual refund credit endpoint exists");
+  assert.ok(routes.includes('router.post("/invoices/:id/apply-customer-credit"'), "invoice apply-credit endpoint exists");
+  assert.ok(!/router\.(post|put|patch|delete)\([^)]*credit\/adjust/.test(routes), "no credit adjustment endpoint");
+  assert.ok(!routes.includes('paymentMethod === "customer_credit"'), "POS checkout does not add a customer-credit payment method");
 
-  // Only the manual deposit route creates credit; no credit_out route exists.
+  // Only the manual deposit/refund/apply routes create customer credit movements.
   assert.ok(routes.includes("customerCreditService.recordCreditIn"), "manual deposit records credit_in");
-  assert.ok(!routes.includes("customerCreditService.recordCreditOut"), "no route records credit_out yet");
+  const refundStart = routes.indexOf('router.post("/customers/:id/credit/refund"');
+  const refundEnd = routes.indexOf('router.post("/invoices/:id/apply-customer-credit"', refundStart);
+  assert.ok(refundStart >= 0 && refundEnd > refundStart, "refund route section is bounded");
+  const refundRoute = routes.slice(refundStart, refundEnd);
+  assert.ok(refundRoute.includes("customerCreditService.recordCreditOut"), "manual refund records credit_out");
+  const applyStart = routes.indexOf('router.post("/invoices/:id/apply-customer-credit"');
+  const applyEnd = routes.indexOf("// ─────────────────────────────────────────────────────────────────────────────\n// GL ACCOUNT STATEMENT", applyStart);
+  assert.ok(applyStart >= 0 && applyEnd > applyStart, "apply-credit route section is bounded");
+  const applyRoute = routes.slice(applyStart, applyEnd);
+  assert.ok(applyRoute.includes("customerCreditService.recordCreditOut"), "invoice apply-credit records credit_out");
+  assert.ok(!routes.replace(refundRoute, "").replace(applyRoute, "").includes("customerCreditService.recordCreditOut"), "no non-refund/apply route records credit_out");
   // Only the read helpers are wired.
   assert.ok(routes.includes("customerCreditService.getCustomerCreditSummary"), "endpoint uses the summary helper");
 

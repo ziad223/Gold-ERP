@@ -134,7 +134,7 @@ export default function CustomerGoldPage() {
           branch: activeBranch,
           location: "Melt Room",
           status: "available",
-          barcode: String(timestamp).slice(-13).padStart(13, "6"),
+          barcode: `LOCAL-PENDING-${timestamp}`,
           source: `${rtl ? "شراء مستعمل من: " : "Purchased scrap from: "} ${targetCustomer.name}`,
           events: [
             {

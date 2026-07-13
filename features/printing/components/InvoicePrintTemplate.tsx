@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
-import type { Invoice } from "@/lib/types";
+import type { Invoice, ExchangeDisplayResponse } from "@/lib/types";
+import { ExchangePrintSummary } from "@/features/printing/components/ExchangePrintSummary";
 import { getPublicFileUrl } from "@/lib/api/files";
 import { formatAppMoney } from "@/lib/formatters/currency";
 import { toEnglishDigits } from "@/lib/formatters/numbers";
@@ -84,6 +85,12 @@ export interface InvoicePrintTemplateProps {
    * printed title wording only — never the invoice type, items, or totals.
    */
   documentTitleOverride?: { titleAr: string; titleEn: string };
+  /**
+   * Phase 30.7-Fix — trusted, pre-fetched customer-facing exchange display data.
+   * When the invoice is an exchange, templates render ExchangePrintSummary from
+   * this (suppressing the raw negative item line/total). Never fetched in print.
+   */
+  exchangeDisplay?: ExchangeDisplayResponse | null;
 }
 
 const luxuryInvoiceStyles = `
@@ -492,7 +499,11 @@ export function InvoicePrintTemplate({
   viewModel,
   templateConfig,
   documentTitleOverride,
+  exchangeDisplay,
 }: InvoicePrintTemplateProps) {
+  // Phase 30.7-Fix — for exchange invoices, render the customer-safe summary and
+  // suppress the raw negative item line/totals (never shown to the customer).
+  const isExchange = invoice.type === "exchange";
   const settingsConfig = (settings as { printTemplateConfig?: PrintTemplateConfigOverrides } | undefined)?.printTemplateConfig;
   const tpl = resolveInvoicePrintTemplateConfig(templateConfig ?? settingsConfig);
   const showAr = shouldShowArabic(tpl);
@@ -648,7 +659,10 @@ export function InvoicePrintTemplate({
         <CustomPrintTextBlocks blocks={customBlocks.afterInvoiceDetails} />
         <CustomPrintTextBlocks blocks={customBlocks.beforeItems} />
 
-        {tpl.sections.itemsTable && (
+        {isExchange && (
+          <ExchangePrintSummary exchangeDisplay={exchangeDisplay ?? null} locale={locale} currency={currency} variant="full" />
+        )}
+        {tpl.sections.itemsTable && !isExchange && (
         <section className="luxury-table-wrap">
           <table className="luxury-table">
             <thead>
@@ -685,9 +699,9 @@ export function InvoicePrintTemplate({
         )}
         <CustomPrintTextBlocks blocks={customBlocks.afterItems} />
 
-        {tpl.sections.specialSummary && vm.special && <SpecialSections special={vm.special} money={money} text={text} showEnglish={showEn} showArabic={showAr} />}
+        {tpl.sections.specialSummary && vm.special && !isExchange && <SpecialSections special={vm.special} money={money} text={text} showEnglish={showEn} showArabic={showAr} />}
 
-        {(tpl.sections.paymentMethod || tpl.sections.amountDetails) && (
+        {(tpl.sections.paymentMethod || tpl.sections.amountDetails) && !isExchange && (
         <section className="luxury-summary-row">
           {tpl.sections.paymentMethod && (
           <div className="luxury-box payment-box">

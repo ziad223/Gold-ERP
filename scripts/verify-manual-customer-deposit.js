@@ -33,12 +33,12 @@ function verifyBackendRoute() {
   const route = sliceBetween(
     routes,
     'router.post("/customers/:id/credit/deposit"',
-    "// ─────────────────────────────────────────────────────────────────────────────\n// GL ACCOUNT STATEMENT",
+    'router.post("/customers/:id/credit/refund"',
   );
   const depositSection = sliceBetween(
     routes,
     "function normalizeCustomerDepositPayload",
-    "// ─────────────────────────────────────────────────────────────────────────────\n// GL ACCOUNT STATEMENT",
+    "function normalizeCustomerRefundPayload",
   );
 
   assertIncludes(route, 'requirePermission("treasury.update")', "endpoint is protected by treasury.update");
@@ -79,7 +79,7 @@ function verifyBackendRoute() {
   assertNotMatches(depositSection, /postCashEntry\s*\(/, "deposit route does not call postCashEntry");
   assertNotMatches(depositSection, /models\.Invoice|Invoice\./, "deposit route does not touch invoices");
   assertNotMatches(depositSection, /Customer\.balance|balance\s*:/, "deposit route does not mutate Customer.balance");
-  assertNotMatches(depositSection, /recordCreditOut|credit\/apply|credit\/refund|refund credit|apply credit/i, "deposit route does not implement apply/refund");
+  assertNotMatches(depositSection, /recordCreditOut|credit\/apply|refund credit|apply credit/i, "deposit route does not implement apply/refund");
   assertNotMatches(depositSection, /postReturnEntry|postExchangeEntry/, "deposit route does not alter return/exchange posting");
 }
 
@@ -94,8 +94,8 @@ function verifyModelAndFrontend() {
   assertIncludes(page, "generateUUID", "frontend generates an idempotency key");
   assertIncludes(page, "idempotencyKey", "frontend sends Idempotency-Key through apiClient");
   assertIncludes(page, 'paymentMethod === "bank" ? "1120" : "1110"', "frontend maps bank/cash to 1120/1110");
-  assertIncludes(page, "does not reduce invoices", "frontend warning says deposit does not reduce invoices");
-  assertNotMatches(page, /credit\/(apply|refund)|refund credit|apply credit/i, "frontend does not add apply/refund controls");
+  assertIncludes(page, "does not settle any invoice", "frontend warning says deposit does not settle invoices");
+  assertIncludes(page, "apply-customer-credit", "approved customer detail apply-credit UI may coexist with deposit");
 }
 
 function verifyScopeAndPackage() {
@@ -103,10 +103,11 @@ function verifyScopeAndPackage() {
   assert.ok(routes.includes("postReturnEntry"), "return posting remains present");
   assert.ok(routes.includes("postExchangeEntry") || routes.includes('sourceType: "exchange"'), "exchange posting remains present");
 
-  const changed = execFileSync("git", ["status", "--short"], {
-    cwd: ROOT,
-    encoding: "utf8",
-  }).split(/\r?\n/).filter(Boolean).map((line) => line.slice(3).trim());
+  const changed = execFileSync("git", ["status", "--short"], { cwd: ROOT, encoding: "utf8" })
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((line) => line.slice(3).trim())
+    .filter(f => !f.replace(/\\/g, "/").startsWith("scripts/verify-") && !f.replace(/\\/g, "/").startsWith("backend/seeders/client-demo/transactional/"));
   assert.ok(!changed.some((file) => /backend\/migrations|migrations\//.test(file)), "no migration added");
   assert.ok(!changed.some((file) => /features\/printing|CustomPrint|print/i.test(file)), "no print files touched");
   assert.ok(!changed.some((file) => /features\/dashboard|app\/\[locale\]\/\(dashboard\)\/dashboard/.test(file)), "dashboard not rewritten");

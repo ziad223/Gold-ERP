@@ -33,11 +33,9 @@ export function AssetEditModal({ open, onClose, asset, onSave }: AssetEditModalP
   });
 
   const onSubmit = (data: any) => {
-    onSave({
+    const updates: Partial<Asset> = {
       name: data.name,
       category: data.category,
-      type: data.type as AssetType,
-      karat: Number(data.karat) || undefined,
       grossWeight: Number(data.grossWeight) || 0,
       price: Number(data.price) || 0,
       cost: Number(data.cost) || 0,
@@ -45,7 +43,12 @@ export function AssetEditModal({ open, onClose, asset, onSave }: AssetEditModalP
       stones: Number(data.stones) || 0,
       pearls: Number(data.pearls) || 0,
       notes: data.notes,
-    });
+    };
+    if (!asset.barcode) {
+      updates.type = data.type as AssetType;
+      updates.karat = Number(data.karat) || undefined;
+    }
+    onSave(updates);
     onClose();
   };
 
@@ -75,7 +78,7 @@ export function AssetEditModal({ open, onClose, asset, onSave }: AssetEditModalP
         <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="block label-base mb-1 font-bold">{t("type")}</label>
-            <NativeSelect className="text-xs" {...register("type")}>
+            <NativeSelect className="text-xs" {...register("type")} disabled={Boolean(asset.barcode)}>
               <option value="gold-piece">{t("typeGoldPiece")}</option>
               <option value="gold-weight">{t("typeGoldWeight")}</option>
               <option value="diamond">{t("typeDiamond")}</option>
@@ -86,7 +89,7 @@ export function AssetEditModal({ open, onClose, asset, onSave }: AssetEditModalP
           </div>
           <div>
             <label className="block label-base mb-1 font-bold">{t("karat")}</label>
-            <NativeSelect className="text-xs" {...register("karat")}>
+            <NativeSelect className="text-xs" {...register("karat")} disabled={Boolean(asset.barcode)}>
               <option value="24">24K</option>
               <option value="22">22K</option>
               <option value="21">21K</option>
@@ -102,6 +105,12 @@ export function AssetEditModal({ open, onClose, asset, onSave }: AssetEditModalP
             />
           </div>
         </div>
+
+        {asset.barcode && (
+          <p className="text-[10px] font-bold text-amber-600">
+            Used barcode identity is locked; type and karat cannot be changed.
+          </p>
+        )}
 
         <div className="grid grid-cols-3 gap-4">
           <div>

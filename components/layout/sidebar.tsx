@@ -93,7 +93,12 @@ export function Sidebar({ open, onClose, collapsed, onToggle }: SidebarProps) {
       ? PanelLeftOpen
       : PanelLeftClose;
   const visibleGroups = groups
-    .map((group) => ({ ...group, items: group.items.filter((item) => hasPermission(item.permission)) }))
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) =>
+        hasPermission(item.permission) || (item.href === "/settings" && hasPermission("reservations.configure_account"))
+      )
+    }))
     .filter((group) => group.items.length > 0);
   const ActiveArrow = rtl ? ChevronLeft : ChevronRight;
 

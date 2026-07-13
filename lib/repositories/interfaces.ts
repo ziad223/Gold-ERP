@@ -276,6 +276,119 @@ export interface CustomerStatementQuery {
   pageSize?: number;
 }
 
+export interface CustomerCreditReconciliationDocument {
+  documentId: string;
+  documentNumber: string;
+  documentType: string;
+  date: string | null;
+  amount: number;
+  category: string;
+  explanation: string;
+  authoritative: boolean;
+}
+
+export interface CustomerCreditReconciliationReport {
+  customerId: string;
+  statementClosingBalance: number;
+  customerBalance: number;
+  customerCreditBalance: number;
+  sourceAwareEstimatedArBalance: number;
+  difference: number;
+  categories: string[];
+  documents: CustomerCreditReconciliationDocument[];
+  warnings: string[];
+  meta: {
+    source: string;
+    mutatesData: boolean;
+    statementChanged: boolean;
+    ledgerBased: string;
+    settlementAuthority: string;
+    creditScope: string;
+  };
+  currency?: string;
+}
+
+export interface SourceAwareArRow {
+  id: string;
+  date: string;
+  type: string;
+  documentId?: string;
+  documentNumber?: string;
+  description: string;
+  debit: number;
+  credit: number;
+  runningBalance: number;
+  source: string;
+  authoritative: boolean;
+  warnings?: string[];
+}
+
+export interface CustomerCreditLedgerRow {
+  id: string;
+  date: string;
+  type: string;
+  sourceType?: string;
+  sourceId?: string;
+  documentNumber?: string;
+  description: string;
+  creditIn: number;
+  creditOut: number;
+  runningCreditBalance: number;
+  authoritative: boolean;
+  warnings?: string[];
+}
+
+export interface CustomerStatementV3Report {
+  customerId: string;
+  customerName?: string;
+  currency?: string;
+  version: string;
+  arStatement: {
+    openingBalance: number;
+    closingBalance: number;
+    rows: SourceAwareArRow[];
+    meta: {
+      source: string;
+      matchesCustomerBalance: boolean;
+      customerBalance: number;
+      legacyStatementV2Unchanged: boolean;
+    };
+  };
+  customerCreditLedger: {
+    openingBalance: number;
+    closingBalance: number;
+    rows: CustomerCreditLedgerRow[];
+    meta: {
+      source: string;
+      creditScope: string;
+      notFullAccount2300: boolean;
+    };
+  };
+  reconciliation: {
+    legacyStatementV2ClosingBalance?: number;
+    customerBalance: number;
+    customerCreditBalance: number;
+    arDifference: number;
+    warnings: string[];
+    categories: string[];
+  };
+  meta: {
+    source: string;
+    mutatesData: boolean;
+    statementV2Changed: boolean;
+    ledgerBased: string;
+    accountingRules: {
+      structure: string;
+      negativeExchangeReturnHandling: string;
+      cashTransactions: string;
+      legacyStatement: string;
+      creditScope: string;
+    };
+  };
+}
+
+
+
 export interface SupplierStatementRow {
   id: string;
   type: string;
@@ -341,6 +454,8 @@ export interface AccountingRepository {
   // Phase 10C — read-only customer sub-ledger statement. Hits GET
   // /customers/:id/statement-v2. Mock/local mode does not support it.
   getCustomerStatementV2(customerId: string, query?: CustomerStatementQuery): Promise<CustomerStatement>;
+  getCustomerStatementV3(customerId: string, query?: CustomerStatementQuery): Promise<CustomerStatementV3Report>;
+  getCustomerCreditReconciliation(customerId: string): Promise<CustomerCreditReconciliationReport>;
   // Phase 10F — read-only supplier sub-ledger statement. Hits GET
   // /suppliers/:id/statement. Mock/local mode does not support it.
   getSupplierStatement(supplierId: string, query?: SupplierStatementQuery): Promise<SupplierStatement>;

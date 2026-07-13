@@ -211,7 +211,7 @@ export default function ManufacturingPage() {
           branch: activeBranch,
           location: "Showroom",
           status: "available",
-          barcode: String(timestamp).slice(-13).padStart(13, "6"),
+          barcode: `LOCAL-PENDING-${timestamp}`,
           source: `${rtl ? "تحويل وتصنيع من: " : "Manufactured from parent: "} ${selectedInputAsset.id}`,
           parentAssetId: selectedInputAsset.id,
           events: [

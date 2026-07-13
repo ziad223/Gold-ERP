@@ -22,6 +22,8 @@ import type {
   LedgerReconciliationQuery,
   CustomerStatement,
   CustomerStatementQuery,
+  CustomerCreditReconciliationReport,
+  CustomerStatementV3Report,
   SupplierStatement,
   SupplierStatementQuery,
   SupplierPaymentInput,
@@ -341,6 +343,27 @@ export class ApiAccountingRepository implements AccountingRepository {
       auth(),
     );
     return (res?.data ?? res) as CustomerStatement;
+  }
+
+  async getCustomerStatementV3(customerId: string, query: CustomerStatementQuery = {}): Promise<CustomerStatementV3Report> {
+    const params = new URLSearchParams();
+    if (query.from) params.append("from", query.from);
+    if (query.to) params.append("to", query.to);
+    const qs = params.toString();
+    const res = await apiClient<any>(
+      `/customers/${encodeURIComponent(customerId)}/statement-v3${qs ? `?${qs}` : ""}`,
+      auth(),
+    );
+    return (res?.data ?? res) as CustomerStatementV3Report;
+  }
+
+
+  async getCustomerCreditReconciliation(customerId: string): Promise<CustomerCreditReconciliationReport> {
+    const res = await apiClient<any>(
+      `/customers/${encodeURIComponent(customerId)}/credit/reconciliation`,
+      auth(),
+    );
+    return (res?.data ?? res) as CustomerCreditReconciliationReport;
   }
 
   async getSupplierStatement(supplierId: string, query: SupplierStatementQuery = {}): Promise<SupplierStatement> {

@@ -70,6 +70,11 @@ export interface AppSettings {
   goldPricingMode?: "manual_sale_price" | "dynamic_by_karat" | "dynamic_by_karat_plus_making";
   /** P5.1 foundation flag (default false). Split-by-karat posting is NOT enabled yet. */
   accountingByKarat?: boolean;
+  /** Phase 32.6-Post-C — configured Customer Reservation Advances liability account
+   *  ID credited for reservation initial/later payments. Stores an Account ID only;
+   *  validated backend-side (active, company-scoped, credit-nature liability). */
+  reservationAdvancesAccountId?: string;
+  reservationExpiryWarningHours?: number;
 }
 
 interface SettingsContextValue {
@@ -109,6 +114,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   installmentMinDownPaymentPercent: 0,
   goldPricingMode: "manual_sale_price",
   accountingByKarat: false,
+  reservationExpiryWarningHours: 72,
   receipt: {
     showLogo: true,
     welcomeMessage: "أهلاً بكم في متجرنا",
@@ -247,7 +253,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           if (raw[k] !== undefined) parsed[k] = Number(raw[k]);
         });
 
-        const strKeys: (keyof AppSettings)[] = ["language", "theme", "invoicePrefix", "invoiceNumbering", "dateFormat", "installmentDefaultFrequency", "goldPricingMode"];
+        const strKeys: (keyof AppSettings)[] = ["language", "theme", "invoicePrefix", "invoiceNumbering", "dateFormat", "installmentDefaultFrequency", "goldPricingMode", "reservationAdvancesAccountId"];
         strKeys.forEach(k => {
           if (raw[k] !== undefined) parsed[k] = String(raw[k]);
         });
@@ -366,7 +372,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         "language", "theme", "vatRate", "invoicePrefix", "invoiceNumbering",
         "dateFormat", "decimalPrecision", "paymentMethods", "lowStockThreshold", "receipt", "allowZeroDownPayment",
         "installmentEnabled", "installmentDefaultFrequency", "installmentMaxCount", "installmentMinDownPaymentPercent", "barcode",
-        "goldPricingMode", "accountingByKarat"
+        "goldPricingMode", "accountingByKarat", "reservationAdvancesAccountId"
       ];
       
       keys.forEach(k => {

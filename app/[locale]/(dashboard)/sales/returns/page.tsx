@@ -53,6 +53,15 @@ export default function ReturnsPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [apiReturnList, setApiReturnList] = useState<Invoice[]>([]);
 
+  // Phase 30.1 — optional return settlement of the excess after AR relief.
+  // Omitted by default (legacy full cash/bank refund); shown only when excess > 0.
+  const [settlementEnabled, setSettlementEnabled] = useState(false);
+  const [cashAmount, setCashAmount] = useState("");
+  const [bankAmount, setBankAmount] = useState("");
+  const [creditAmount, setCreditAmount] = useState("");
+  const [settlementReference, setSettlementReference] = useState("");
+  const [settlementDescription, setSettlementDescription] = useState("");
+
   const currency = company?.currency ?? "AED";
   const money = (value: number) => toEnglishDigits(formatCurrency(value, currency, locale));
   const BackIcon = rtl ? ArrowRight : ArrowLeft;
@@ -69,6 +78,51 @@ export default function ReturnsPage() {
     () => (searchedInvoice?.items ?? []).filter((item, index) => selectedItems.includes(lineKey(item, index))),
     [searchedInvoice, selectedItems]
   );
+
+  // Phase 30.1 — receivable-first math for the settlement UI. The backend stays
+  // authoritative (it validates sum == excess with a 0.01 tolerance); these
+  // client figures let the operator split the excess and see AR relief up front.
+  const roundMoney = (value: number) => Math.round((Number(value) || 0) * 100) / 100;
+  const selectedNetTotal = useMemo(
+    () => selectedLineItems.reduce((sum, item) => sum + (Number(item.price) || 0), 0),
+    [selectedLineItems]
+  );
+  const vatRate = Number(searchedInvoice?.vatRate || 0);
+  const returnValueGross = roundMoney(selectedNetTotal * (1 + vatRate / 100));
+  const outstandingAR = roundMoney(Number(searchedInvoice?.remainingAmount || 0));
+  const arRelief = roundMoney(Math.min(returnValueGross, outstandingAR));
+  const excess = roundMoney(Math.max(returnValueGross - arRelief, 0));
+  const hasCustomer = Boolean(searchedInvoice?.customerId);
+
+  const settleCash = roundMoney(Number(cashAmount) || 0);
+  const settleBank = roundMoney(Number(bankAmount) || 0);
+  const settleCredit = roundMoney(Number(creditAmount) || 0);
+  const settlementSum = roundMoney(settleCash + settleBank + settleCredit);
+  const settlementError = useMemo(() => {
+    if (!settlementEnabled) return "";
+    if (excess <= 0.01) {
+      return rtl
+        ? "لا حاجة لتسوية: قيمة المرتجع خفّضت الرصيد المستحق فقط."
+        : "Settlement is only available when there is excess after AR relief.";
+    }
+    if (settleCash < 0 || settleBank < 0 || settleCredit < 0) {
+      return rtl ? "لا يمكن أن تكون المبالغ سالبة." : "Amounts cannot be negative.";
+    }
+    if (settleCredit > 0 && !hasCustomer) {
+      return rtl ? "تسوية الرصيد الدائن تتطلب وجود عميل على الفاتورة." : "Credit settlement requires a customer on the invoice.";
+    }
+    if (Math.abs(settlementSum - excess) > 0.01) {
+      return rtl ? "مجموع النقد + البنك + الرصيد الدائن يجب أن يساوي قيمة الفائض." : "Cash + Bank + Customer Credit must equal the excess amount.";
+    }
+    return "";
+  }, [settlementEnabled, excess, settleCash, settleBank, settleCredit, settlementSum, hasCustomer, rtl]);
+  const settlementValid = !settlementEnabled || (excess > 0.01 && settlementError === "");
+
+  const applyPreset = (mode: "cash" | "bank" | "credit") => {
+    setCashAmount(mode === "cash" ? String(excess) : "0");
+    setBankAmount(mode === "bank" ? String(excess) : "0");
+    setCreditAmount(mode === "credit" ? String(excess) : "0");
+  };
 
   // Load credit notes list from API
   const loadCreditNotes = useCallback(() => {
@@ -178,6 +232,14 @@ export default function ReturnsPage() {
   // reset on success and when a new invoice search starts a fresh operation.
   const idempotencyKeyRef = useRef("");
 
+  // Phase 30.1 — reset the idempotency key whenever the request signature changes
+  // (selected items or the settlement split), so a changed request gets a fresh
+  // key. The backend hashes the whole body incl. settlement, so a stale key on a
+  // changed split would 409; retrying the SAME split keeps replaying the key.
+  useEffect(() => {
+    idempotencyKeyRef.current = "";
+  }, [selectedItems, settlementEnabled, cashAmount, bankAmount, creditAmount, settlementReference, settlementDescription]);
+
   const handlePostReturn = async () => {
     setErrorMsg("");
     if (!searchedInvoice) {
@@ -213,6 +275,23 @@ export default function ReturnsPage() {
         // Send exact line ids only when every selected line has one (mock items may not).
         if (lineIds.length > 0 && lineIds.length === selectedLineItems.length) {
           payload.returnedInvoiceItemIds = lineIds;
+        }
+        // Phase 30.1 — include the settlement split ONLY when the operator enabled
+        // it AND there is a real excess; otherwise omit it (legacy full refund).
+        if (settlementEnabled && excess > 0.01) {
+          if (!settlementValid) {
+            setErrorMsg(settlementError || (rtl ? "تسوية غير صحيحة." : "Invalid settlement."));
+            return;
+          }
+          payload.settlement = {
+            cashAmount: settleCash,
+            bankAmount: settleBank,
+            creditAmount: settleCredit,
+            cashAccountCode: "1110",
+            bankAccountCode: "1120",
+            ...(settlementReference.trim() ? { reference: settlementReference.trim() } : {}),
+            ...(settlementDescription.trim() ? { description: settlementDescription.trim() } : {}),
+          };
         }
         if (!idempotencyKeyRef.current) idempotencyKeyRef.current = generateUUID();
         await apiClient("/sales/returns", { method: "POST", body: JSON.stringify(payload), idempotencyKey: idempotencyKeyRef.current, locale });
@@ -290,6 +369,14 @@ export default function ReturnsPage() {
       setInvoiceId("");
       setSelectedItems([]);
       setReason("");
+      // Phase 30.1 — reset the settlement controls for the next operation.
+      setSettlementEnabled(false);
+      setCashAmount("");
+      setBankAmount("");
+      setCreditAmount("");
+      setSettlementReference("");
+      setSettlementDescription("");
+      idempotencyKeyRef.current = "";
     } catch (err) {
       const msg = err instanceof Error ? err.message : "";
       setErrorMsg(msg || (rtl
@@ -442,6 +529,94 @@ export default function ReturnsPage() {
                     />
                   </label>
  
+                  {/* Phase 30.1 — receivable-first summary + optional settlement of the excess. */}
+                  <div className="space-y-3 rounded-2xl border border-border p-4">
+                    <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
+                      <div>
+                        <p className="text-muted">{rtl ? "قيمة المرتجع (شامل الضريبة)" : "Return value (incl. VAT)"}</p>
+                        <p className="font-black">{money(returnValueGross)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted">{rtl ? "الرصيد المستحق على الفاتورة" : "Outstanding balance"}</p>
+                        <p className="font-black">{money(outstandingAR)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted">{rtl ? "خصم من المستحق" : "AR relief"}</p>
+                        <p className="font-black text-amber-600">{money(arRelief)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted">{rtl ? "الفائض المستحق للعميل" : "Excess due to customer"}</p>
+                        <p className="font-black text-brand-700 dark:text-brand-300">{money(excess)}</p>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-muted">
+                      {rtl
+                        ? "يُخصم مبلغ المرتجع من الرصيد المستحق للفاتورة أولاً."
+                        : "The outstanding invoice balance is reduced first."}
+                    </p>
+
+                    {excess <= 0.01 ? (
+                      <p className="text-xs font-bold text-muted">
+                        {rtl
+                          ? "لا حاجة لاسترداد أو رصيد دائن — هذا المرتجع يخفّض الرصيد المستحق فقط."
+                          : "No refund or customer credit is needed. This return only reduces the outstanding invoice balance."}
+                      </p>
+                    ) : (
+                      <div className="space-y-3">
+                        <label className="flex items-center gap-2 text-xs font-bold">
+                          <input
+                            type="checkbox"
+                            checked={settlementEnabled}
+                            onChange={(e) => setSettlementEnabled(e.target.checked)}
+                          />
+                          {rtl ? "تحديد طريقة تسوية الفائض" : "Add settlement options"}
+                        </label>
+
+                        {settlementEnabled && (
+                          <div className="space-y-3">
+                            <div className="flex flex-wrap gap-2">
+                              <Button type="button" variant="secondary" size="sm" onClick={() => applyPreset("cash")}>{rtl ? "نقداً بالكامل" : "Full Cash"}</Button>
+                              <Button type="button" variant="secondary" size="sm" onClick={() => applyPreset("bank")}>{rtl ? "بنكياً بالكامل" : "Full Bank"}</Button>
+                              <Button type="button" variant="secondary" size="sm" onClick={() => applyPreset("credit")} disabled={!hasCustomer}>{rtl ? "رصيد دائن بالكامل" : "Full Customer Credit"}</Button>
+                            </div>
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                              <label className="block">
+                                <span className="label-base">{rtl ? "استرداد نقدي (1110)" : "Cash refund (1110)"}</span>
+                                <input type="number" min="0" step="0.01" className="input-base" value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} />
+                              </label>
+                              <label className="block">
+                                <span className="label-base">{rtl ? "استرداد بنكي (1120)" : "Bank refund (1120)"}</span>
+                                <input type="number" min="0" step="0.01" className="input-base" value={bankAmount} onChange={(e) => setBankAmount(e.target.value)} />
+                              </label>
+                              <label className="block">
+                                <span className="label-base">{rtl ? "رصيد دائن للعميل" : "Customer credit"}</span>
+                                <input type="number" min="0" step="0.01" className="input-base" value={creditAmount} onChange={(e) => setCreditAmount(e.target.value)} disabled={!hasCustomer} />
+                              </label>
+                            </div>
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                              <label className="block">
+                                <span className="label-base">{rtl ? "مرجع (اختياري)" : "Reference (optional)"}</span>
+                                <input type="text" className="input-base" value={settlementReference} onChange={(e) => setSettlementReference(e.target.value)} />
+                              </label>
+                              <label className="block">
+                                <span className="label-base">{rtl ? "وصف (اختياري)" : "Description (optional)"}</span>
+                                <input type="text" className="input-base" value={settlementDescription} onChange={(e) => setSettlementDescription(e.target.value)} />
+                              </label>
+                            </div>
+                            <ul className="list-disc space-y-1 ps-5 text-[11px] text-muted">
+                              <li>{rtl ? "الاسترداد النقدي/البنكي يُسجّل كحركة خزينة." : "Cash/Bank refund is logged as a treasury refund."}</li>
+                              <li>{rtl ? "الرصيد الدائن يُضاف إلى رصيد العميل الدائن ولا يُدفع نقداً الآن." : "Customer credit is added to the customer's available credit and is not paid out now."}</li>
+                              <li>{rtl ? "النقد + البنك + الرصيد الدائن يجب أن يساوي قيمة الفائض." : "Cash + Bank + Customer Credit must equal the excess amount."}</li>
+                            </ul>
+                            {settlementError && (
+                              <p className="text-xs font-bold text-destructive">{settlementError}</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
                   <div className="flex justify-between items-center rounded-2xl bg-brand-500/5 p-4">
                     <div>
                       <p className="text-xs text-muted">{rtl ? "قيمة المستردات المتوقعة" : "Expected Refund Total"}</p>
@@ -454,7 +629,7 @@ export default function ReturnsPage() {
                         </p>
                       )}
                     </div>
-                    <Button onClick={handlePostReturn} disabled={!canCreateSales} title={!canCreateSales ? submitPermissionMessage : undefined}>
+                    <Button onClick={handlePostReturn} disabled={!canCreateSales || !settlementValid} title={!canCreateSales ? submitPermissionMessage : (!settlementValid ? settlementError : undefined)}>
                       <RotateCcw className="h-4 w-4" />
                       {rtl ? "اعتماد المرتجع وإصدار سند دائن" : "Post Return & Credit Note"}
                     </Button>

@@ -1,8 +1,78 @@
+# READ THIS FIRST — CURRENT PROJECT HANDOFF
+
+> **NOTICE:** This block is the primary project-state entry point. All future tools must read it first before any code execution or planning. It summarizes the current state but does NOT replace the original client requirements.
+>
+> **Project Identity & Safeties:**
+> - Repository: [jewellery-erp-master](file:///H:/WORK/jewellery-erp-master)
+> - Branch: `main`
+> - Current Implementation Commit: `75918cb67a3304967818c89fc19594fee6118a2c`
+> - Original Client Requirements: Located at [client-requirements](file:///H:/WORK/client-requirements)
+> - Phase Status: **Phase 32.6-Fix D — CLOSED**
+> - Approved Decisions: AD-002, AD-003, CD-026 to CD-030, SD-008, PC-001 to PC-004
+> - Migration State: Fully migrated, verified, and consistent
+> - Verification State: 45/45 static verifiers PASS; behavioral live verifier passes (including 22 permissions, 11 API smoke tests, and unified Option A HTTP 200 checks).
+> - Remaining Limitations: Headless environment — browser automation was not executed. Manual browser QA remains required.
+> - Recommended Next Phase: Phase 33.1 (or next epic phase)
+> - Exact Next-Tool Start Instructions: Verify git safety status and read this handoff file.
+
 # DARFUS Jewellery ERP — AI Handoff
 
 This file is the handoff checkpoint for AI coding agents working on this repository.
 
 Every agent must read this file before making changes and must preserve its purpose as the project handoff source of truth.
+
+> **Phase 32.6-Fix D — Reservation Governance Closure (current):** Fully implemented, verified, and closed all remaining gaps in Phase 32.6-Fix D.
+> Added a configurable warning setting `reservationExpiryWarningHours` (default 72) in settings service, validation rules in settings endpoints, and Settings Dashboard input UI.
+> Strengthened `processApproachingExpiryNotifications` in reservation service to dynamically look up creator and specific roles (admin/manager), generating a single warning deduplicated format using `reservation.approaching_expiry:<companyId>:<reservationId>:<expiryEpoch>:<thresholdHours>:<recipientLabel>` eventKey, protected by DB unique index.
+> Implemented comprehensive GL-vs-subledger reconciliation at `GET /reports/reservations/reconciliation`, dynamically validating the advances liability account, calculating expected liability, mapping posted journal lines per reservation, and classifying unattributable entries as `unsupported_legacy` with `investigationFlag: true`.
+> Extended customer statement-v2 `reservationAdvances` section with complete payment lifecycle mapping (created, payments, renewal transfers in/out, completion, cancel/expiry refunds, renewal excess refunds, final status).
+> Exposed custom search/status filters and details view enhancements in the Reservations list UI dashboard, including clickable predecessor/successor links and receipt printing triggers.
+> Strengthened `verify-reservation-governance-reports-ui.js` with comprehensive local read-only live behavioral tests for deduplication, config warnings, GL balance math, 22 permissions checks via Express HTTP server simulation, 11 API smoke endpoint checks, reservationNumber formatting, unified Option A configuration_missing status assertions, and strict cleanup.
+> All 45/45 static and behavioral live tests PASS. Working tree clean. 11 stashes untouched.
+>
+> **Phase 32.6-Reservation-Audit (docs-only):** audited current reservation implementation against
+> approved RE-001. Current architecture is a legacy **single-asset** reservation shortcut:
+> frontend `/sales/reservations` creates generic `/reservations` row, separately PATCHes asset
+> status, and optionally creates a **deposit invoice** for the entered deposit. Backend has only
+> generic CRUD (`setupCrud("reservations", models.Reservation, ...)`) and a minimal
+> `reservations` table (`asset_id`, `customer_id`, `deposit`, `expires_at`, `status`). Local
+> SELECT-only inspection of `darfus_erp` confirmed one reservation row and **0 linked payments /
+> 0 linked journals**. Reusable foundations exist (postingService `postDepositEntry`, audit log
+> hash chain, notification service, POS/final invoice posting, idempotency service), but RE-001
+> reservation payment/accounting is **not implemented** and the visible flow is partially
+> **conflicting**: no reservation items table, no multiple payments/receipts, no configured
+> Customer Reservation Advances account, no reservation-bound final completion, no refund
+> request/approval/execution, no expiry scheduler, no renewal/successor link, no granular
+> reservation permissions/reports/statement section. Next recommended phase:
+> **Phase 32.6-Fix A — Reservation Core Data Model & Atomic Accounting Foundation**.
+>
+> **Phase 32.5-Requirements-Delta (docs-only):** client requirement source grew from 27 → **30 files**
+> (+3 docx: `9- Audit System`, `10 - Reports`, `11- Setting`; all 27 prior files SHA-256-unchanged;
+> 28 unique content units). UAE e-invoicing docs remain absent (deferred). **Reservation decisions
+> recorded APPROVED** via owner-supplied evidence **RE-001** (2026-07-10): reservation is an operational
+> document (asset stays Reserved, remainder **not** posted to AR); multiple partial payments each with own
+> receipt + journal (Dr Cash/Bank → Cr **Customer Reservation Advances**, Current Liabilities, **account
+> code PENDING**); no edit/delete of payments (reverse/refund only); per-reservation expiry (no grace) →
+> auto-cancel to Available + "Cancelled — Refund Pending" + notify; full refund on cancel (separate
+> approve/execute permissions); renewal/repricing rules; **multi-item reservation amendment approved**
+> (one/many items; add/remove/replace before final sale by authorized users; added items Reserved, removed/
+> replaced items Available; totals/paid/remaining/excess recalculated; excess refunded before completion;
+> prior payments immutable; final invoice includes only current reserved items; full audit trail required;
+> this supersedes the earlier no-item-change rule); VAT-inclusive price, **no double VAT**, final VAT
+> at the final sale invoice (configurable). **Implementation NOT started** — next phase is
+> **Phase 32.6-Reservation-Audit**. Audit/Reports/Settings docs are largely internal-foundation/partial;
+> nothing claimed implemented without code review. No application/DB/requirement-source changes.
+>
+> **Phase 32.5-Client-Confirmation-Hotfix (test-only):** fixed a stale scope guard in
+> `scripts/verify-client-demo-data.js`. It previously diffed every future commit against
+> the frozen Phase 32.4-Run-C baseline `02f870a` with a rigid allow-list, so the approved
+> Phase 32.5 clarification docs (`docs/client-requirements/*`) produced a false failure
+> (39/40). **Default mode now inspects only the current working tree** (never re-litigates
+> committed history); the historical allow-list is enforced only when explicitly requested
+> via `VERIFY_CLIENT_DEMO_SCOPE_BASELINE=<git-ref>` (invalid baseline → non-zero). Functional,
+> static, and read-only live checks (`VERIFY_CLIENT_DEMO_LIVE=true` + `VERIFY_DATABASE_NAME`)
+> are unchanged; live still fails if requested and skipped. Verifier count stays 40; result
+> is now 40/40. No application, database, or requirement-file changes.
 
 ---
 
@@ -2197,9 +2267,295 @@ For print work, future verification should include:
 
 ## 11. Last Updated
 
+### Latest Approved Exchange Display State (Phase 30.5 → 30.7-Fix)
+
+**Current approved HEAD:** `a534ffc feat: render customer-safe exchange invoice print`
+
+The customer-facing exchange display track is now complete across the three surfaces
+that show an exchange to a person: the sales invoice detail, the customer history,
+and the printed/customer-facing invoice. All three consume the **trusted**
+`GET /invoices/:id/exchange-display` endpoint and never recompute VAT/tax/totals on
+the frontend. Normal (non-exchange) invoices are unchanged on every surface.
+
+**Phase 30.5-Fix — Sales Detail Exchange Summary** — commit `0d65b36 feat: add exchange summary to sales detail`
+- Added the `ExchangeSummary` UI to the sales invoice detail + an exchange-display hook for `GET /invoices/:id/exchange-display`.
+- Sales detail fetches exchange-display only for `selected?.type === "exchange"`; successful enrichment replaces raw exchange rows/totals; loading avoids a raw negative-row flash.
+- Endpoint error / 403 falls back to the stored raw invoice detail with a warning. Normal invoices unchanged.
+- No frontend tax recalculation; no backend/API/DB/migration changes.
+
+**Phase 30.6-Fix — Customer History Exchange Summary** — commit `a76f190 feat: add exchange summary to customer history`
+- Customer detail Sales & Invoices tab gained an exchange-only "View exchange summary" action; summary is fetched lazily only for the expanded/selected exchange invoice.
+- Reuses the trusted `/invoices/:id/exchange-display` and the existing `ExchangeSummary`; no raw exchange item rows render inside the summary panel.
+- Endpoint error / 403 falls back to the existing customer invoice row with a warning. Normal invoices unchanged.
+- No frontend tax recalculation; no backend/API/DB/migration changes; customer statement unchanged; print unchanged in that phase; POS unchanged.
+
+**Phase 30.7-Fix — Exchange Invoice Print Display** — commit `a534ffc feat: render customer-safe exchange invoice print`
+- Added the print-safe `features/printing/components/ExchangePrintSummary.tsx`; the sales print handler passes the trusted exchange-display data into print when available.
+- Exchange invoices in print now **suppress** the raw negative exchange item rows, the raw negative totals, and the misleading near-zero exchange "difference" derived from `remainingAmount`.
+- Luxury/default, Compact, Minimal, and Thermal templates all render the customer-safe exchange print summary (gated by `invoice.type === "exchange"`). Normal invoice print unchanged.
+- Missing/unavailable exchange-display renders a conservative warning and never invents numbers. The screen `ExchangeSummary` is **not** reused directly in print — the print render is static (`renderToStaticMarkup`) with no React Query / NextIntl provider — so a print-safe component (`locale` prop, inline styles) is used instead.
+- No frontend tax recalculation; no backend/API/DB/migration changes; customer statement unchanged; POS checkout/payment unchanged; legacy `ReceiptPrintTemplate.tsx` remains deferred.
+
+**Current coverage — DONE:** sales invoice detail exchange display · customer history exchange display · customer-facing exchange invoice print display.
+
+**Not yet covered / deferred:**
+- Customer statement / source-aware exchange reconciliation
+- Exchange settlement mutation UI
+- POS customer-credit payment
+- Source-aware 2300 reconciliation
+- Granular permissions
+- Legacy `ReceiptPrintTemplate.tsx` exchange path
+- Optional missing print verifier scripts: `verify-print-dialog.js`, `verify-pos-print-template.js`
+
+**Data-safety rules going forward:**
+- Use the trusted `/invoices/:id/exchange-display` for all customer-facing exchange summaries.
+- Do NOT recalculate VAT/tax/totals on the frontend from raw invoice items.
+- Do NOT change historical posted invoice totals without an explicit accounting phase.
+- Do NOT treat the customer statement as display-only until source-aware reconciliation is audited.
+- Do NOT include customer-credit / 2300 logic in frontend-only phases.
+- Keep normal invoices unchanged in every exchange display phase.
+
+**Recommended next phase:** `Phase 30.8 Audit — Customer Statement & Source-aware Exchange Reconciliation` (sales detail, customer history, and print are covered; the customer statement remains high-risk and may need backend/source-aware reconciliation rather than a frontend-only UI — audit before any fix).
+
+---
+
 Updated by AI during:
 
 ```text
+Phase 31.1 — Client Scope Lock + Hide Accounting-Sensitive UI
+(follows the Phase 31.0 Client Scope Cleanup & Alignment Audit, which compared the client requirement
+files at H:\client-requirements against the system. The Phase 30 accounting-diagnostic track is PAUSED;
+client requirements are now the source of truth. Added docs/CLIENT_SCOPE_LOCK.md (7 sections: Source of
+Truth, In Scope / customer-facing, Internal Only, Hidden Until Sign-off, Deferred / Needs Client Sign-off,
+Needs Accounting Sign-off, Do Not Remove Without Approval). Hid the accounting-sensitive UI on the customer
+detail page (app/[locale]/(dashboard)/customers/[id]/page.tsx) behind a module flag
+const SHOW_ACCOUNTING_SENSITIVE_DIAGNOSTICS = false: the source-aware statement-v3 toggle and the customer
+credit reconciliation panel are no longer rendered by default (statement-v2 remains the default, and the
+components/queries/repository methods/backend endpoints are ALL KEPT intact — only entry points are gated).
+Added scripts/verify-client-scope-lock.js (doc sections present; UI gated by the flag; v2 kept; nothing
+deleted; scope guard). NO deletions; NO backend accounting/posting/balance/statement/2300 changes; NO
+migrations; NO POS/print changes; NO missing client features built. UAE Government E-Invoicing remains the
+P0 missing requirement but is DEFERRED to a dedicated scope + accounting/client sign-off phase. typecheck/
+lint(0 err)/build ok; verify-client-scope-lock passes; the two UI content verifiers pass (their content
+checks are unaffected by the flag; their tree-scoped guards clear post-commit). 11 stashes untouched.
+Next recommended: Phase 31.2 Audit — UAE Government E-Invoicing Scope & Sign-off (do not implement yet).)
+
+Previous marker:
+Phase 30.13-Fix — Full 2300 Per-customer Diagnostic (read-only, informational)
+(follows Phase 30.13 audit. Added backend/src/services/full-2300-reconciliation.service.js — a PURE,
+READ-ONLY buildFull2300Reconciliation() that reconstructs the account-2300 balance per customer BY SOURCE
+CATEGORY from already-fetched data (no DB access, no IIFE, no execSync, no writes, no ORM calls, no side
+effects at import). Categories: customer_credit_ledger, gold_pool_liability, pos_deposit_sale_liability,
+unresolved_or_other. Per-customer attribution hops JournalEntry.sourceType → sourceId → source document →
+customerId (customer_credit→CustomerCreditTransaction; exchange/return→invoice→customer_credit_ledger;
+deposit→invoice→pos_deposit_sale_liability; customer_gold_pool→CustomerGoldPool→gold_pool_liability;
+anything else→unresolved bucket). Uses the signed liability convention signedAmount = credit − debit and a
+GL cross-check (Σ per-customer resolved + unresolved === company 2300 GL balance, matchesGl within 0.01).
+INFORMATIONAL ONLY: meta.customerFacing=false, mutatesData=false, statementChanged=false,
+injectsGoldPoolIntoStatement=false, requiresAccountingSignoffForUiOrPostingChanges=true. NO endpoint added
+(service + verifier only, minimal scope). New verify-full-2300-reconciliation.js (functional + static +
+scope guard) passes. typecheck/lint(0 err)/build ok; non-tree-scoped verifiers pass; tree-scoped guards
+pass on the clean tree post-commit. Did NOT change statement-v2/v3, Customer.balance, invoice totals,
+Payment/CashTransaction/CustomerCreditTransaction/CustomerGoldPool/JournalEntry/JournalLine records, posting
+service, 2300 posting, gold-pool logic, POS, print, permissions, frontend, or migrations. Gold-pool NOT
+injected into statement-v3. next-env.d.ts (generated) was already dirty on entry and was left untouched.
+Deferred (accounting sign-off required): full-2300 frontend/report UI, showing full 2300 to users, adding a
+customerId/supplierId dimension to journal lines, historical 2300 reclassification. 11 stashes untouched.)
+
+Previous marker:
+Phase 30.12-Hotfix-2 — Safe Fix for Remaining Statement v3 Date Formatting Crash
+(follows Phase 30.12-Hotfix. Replaced remaining direct `.slice(0, 10)` date handling on createdAt/date values inside backend/src/services/source-aware-statement.service.js with the safe toDateOnly helper to prevent Date object formatting crashes. Confirmed CustomerCreditTransaction query does not request invalid date column. No statement-v2 changes. No frontend changes. No balance/accounting/posting changes. No migrations.)
+
+Phase 30.12-Hotfix — Fix Statement v3 CustomerCreditTransaction Date Handling
+(follows Phase 30.12-Fix. Fixed Statement v3 load failure. Removed invalid date attribute from CustomerCreditTransaction query in backend/src/routes/erp.routes.js. Added toDateOnly safe Date/string formatting helper in backend/src/services/source-aware-statement.service.js to prevent TypeError. No statement-v2 changes. No frontend changes. No accounting/posting changes. No migrations.)
+
+Phase 30.12-Fix — Frontend Source-aware Statement v3 Toggle/View
+(follows Phase 30.12 audit. Added frontend source-aware statement v3 toggle/view. Existing statement-v2 remains default Legacy / Document-only. Statement v3 loads lazily only when selected. Uses GET /customers/:id/statement-v3. Displays dual-ledger view: AR Statement and Customer Credit Ledger. Customer Credit Ledger is clearly labeled as not full account 2300. Non-authoritative rows are highlighted. Read-only warning shown. No backend changes. No statement-v2 changes. No balance changes. No accounting/posting changes. No migrations.)
+
+Phase 30.11-Fix — Source-aware Customer Statement v3 Backend Endpoint
+(follows Phase 30.11 audit. Added new read-only source-aware customer statement endpoint. New endpoint: GET /customers/:id/statement-v3. statement-v2 remains unchanged as legacy/document-only statement. New statement uses Dual-Ledger View: AR statement and Customer Credit Ledger. Negative exchange/return excess is clamped to AR relief. Cash transactions are shown as statement rows where linked/authoritative. Customer credit ledger is credit-ledger-only, not full account 2300. No frontend changes. No balance changes. No posted data changes. No accounting/posting changes. No migrations. Uncertain settlement remains non-authoritative and warning-only.)
+
+Phase 30.10-Fix — Collapsed Customer Credit Reconciliation Panel
+(follows Phase 30.10 audit. Added collapsed read-only customer reconciliation panel in Statement tab. Panel consumes GET /customers/:id/credit/reconciliation. Query is lazy/on-demand. No backend changes. No statement-v2 changes. No balance changes. No accounting/posting changes. No migrations. Customer credit balance is labeled as credit-ledger-only, not full 2300. Diagnostic displays categories, warnings, documents, and metadata. Non-authoritative settlement remains clearly labeled.)
+
+Phase 30.9-Fix — Customer Credit / 2300 Reconciliation Report (read-only)
+(follows Phase 30.9 audit. Added read-only customer credit / 2300 reconciliation endpoint. Extracted statement reconciliation logic into pure backend service statement-reconciliation.service.js. Refactored diagnostic verifier to reuse pure service. Added GET /customers/:id/credit/reconciliation. Endpoint is GET-only and guarded by customers.view. customerCreditBalance is credit-ledger-only, not full 2300. Statement-v2 unchanged. Customer balances unchanged. Posted data unchanged. No accounting/posting changes. No frontend changes. No migrations. best_effort / unavailable settlement remains non-authoritative.)
+
+Phase 30.8-Fix — Customer Statement Reconciliation Diagnostic (read-only)
+(follows Phase 30.8 audit. Added scripts/verify-customer-statement-reconciliation.js — a READ-ONLY
+diagnostic that identifies and categorizes the divergence between statement-v2's source-document closing
+balance and the true source-aware AR / customer-credit (2300) position. It exports a pure reconcileCustomer()
+that takes already-fetched invoices/payments/cashTransactions/creditTransactions + Customer.balance +
+per-invoice exchange/return settlement meta and returns a report { statementClosingBalance, customerBalance,
+customerCreditBalance, sourceAwareEstimatedArBalance, difference, categories[], documents[], warnings[],
+meta:{ source:"diagnostic_read_only", mutatesData:false, statementChanged:false, ledgerBased:"diagnostic_only",
+settlementAuthority } }. Categories: exchange_paid_now_cash_missing_from_statement, exchange_excess_over_reduces_ar,
+customer_credit_2300_conflation, return_excess_cash_refund_over_credits_statement, settlement_best_effort_non_authoritative,
+settlement_unavailable, legacy_exchange_policy, unknown_exchange_policy. best_effort/unavailable settlement and
+legacy/unknown policy are flagged NON-authoritative (never auto-corrected). The script also statically asserts
+statement-v2 is unchanged (source_documents, ledgerBased:false, returns→credit, exchange→ordinary invoice/debit,
+signed inv.total, reads Payment only — NOT CashTransaction/CustomerCreditTransaction) and a scope guard that this
+phase touched no statement/frontend/print/POS/migration/mutation. NOTHING was fixed: statement-v2 behavior,
+Customer.balance, invoice totals/remainingAmount, Payment/CashTransaction/CustomerCreditTransaction records, GL/2300
+posting, and the frontend statement are all unchanged. No backend route/service added (minimal script-only scope);
+no migration. typecheck/lint(0 err)/build ok; the new verifier + non-tree-scoped verifiers pass (the phase-scoped
+guards pass on the clean tree post-commit). 11 stashes untouched. Deferred: actual source-aware statement rebuild,
+2300 reconciliation UI/report, exchange settlement mutation UI, POS customer-credit payment, granular permissions,
+legacy ReceiptPrintTemplate exchange path.)
+
+Previous marker:
+Phase 30.7-Fix — Exchange Invoice Print Display (frontend/print only)
+(follows Phase 30.7 audit. Exchange invoice PRINT now renders a customer-safe summary from the trusted
+/invoices/:id/exchange-display data instead of raw negative item rows / negative totals. New print-safe
+component features/printing/components/ExchangePrintSummary.tsx: `locale` as a prop (no useLocale / no
+next-intl provider — safe under renderToStaticMarkup), no React Query / useExchangeDisplay, no Badge /
+Tailwind (inline styles only), all amounts from ExchangeDisplayResponse.figures clamped with Math.max(0,…)
+(never negative), and a conservative fallback warning when trusted data is absent. All four templates
+(Luxury/Compact/Minimal/Thermal) gain `const isExchange = invoice.type === "exchange"`: for exchange they
+render <ExchangePrintSummary exchangeDisplay={exchangeDisplay ?? null} …/> and SUPPRESS the raw item
+table, the raw totals/amount-details, and the misleading special.exchange difference; normal invoices are
+unchanged. InvoicePrintTemplateProps gained optional exchangeDisplay (forwarded by InvoiceDocument via
+...props). sales/page.tsx print handler passes exchangeDisplay only when the printed invoice is the
+selected exchange invoice (else undefined → fallback). No frontend tax recalculation — trusted figures
+only. New verify-exchange-print-display.js. typecheck/lint(0 err)/build ok; core print verifiers
+(invoice-print-view-model, print-template-config) + return/exchange settlement verifiers pass. Backend/
+API/DB/migrations/POS-checkout/customer-statement unchanged; ReceiptPrintTemplate untouched. NOTE: listed
+verifiers verify-print-dialog.js and verify-pos-print-template.js do not exist in the repo (reported, not
+faked). 11 stashes untouched. Deferred: customer statement/source-aware 2300 reconciliation, exchange
+settlement UI, POS customer-credit payment, granular permissions.)
+
+Previous marker:
+Phase 30.3-Fix — Live Exchange Tax-Base Change (backend only)
+(follows Phase 30.3 audit. Changed live POST /sales/exchanges to reuse
+backend/src/services/exchange-policy.service.js for the approved exchange policy.
+VAT is now calculated on new replacement item subtotal only; returned item value is treated
+as a flat exchange credit; the live route uses newSubtotal, newTax, newGross, difference,
+amountDueFromCustomer, arRelief, and excessDueToCustomer from the helper. Excess due to
+customer is not taxable, settlement validates against excessDueToCustomer, and AR relief
+remains first. The exchange journal remains one journal only: positive differences debit
+cash/bank or AR, customer-owed exchanges credit AR/cash/bank/2300 as applicable, and VAT
+credits 2200 for newTax only. exchange_credit still records CustomerCreditTransaction with
+an explicit journalEntryId and NO glPosting. No postCashEntry. No frontend UI, print/display,
+print view-model, POS, return flow, migration, seed/reset, backfill, deposit/refund/apply-credit,
+or dashboard/report rewrite. Historical exchange records remain unchanged. Added
+verify-live-exchange-tax-policy.js and package script verify:live-exchange-tax-policy; updated
+legacy static verifiers for the new live policy. Deferred: exchange customer-facing display
+usage, exchange print/display phase, exchange settlement UI, POS customer-credit payment,
+source-aware 2300 reconciliation, granular permissions.)
+
+Previous marker:
+Phase 30.2-Fix — Exchange Preview & Customer-Facing Policy Helper
+(follows Phase 30.2 audit. Added read-only POST /sales/exchanges/preview using sales.create
+permission and the current exchange input shape/safe subset. Preview loads the original invoice and
+items, validates company/posting state/returned line/new replacement items, performs NO writes, and
+returns target-policy figures only: returnedValue, newSubtotal, newTax, newGross, difference,
+amountDueFromCustomer, arRelief, excessDueToCustomer, settlementPreview, taxPolicy, and
+customerFacing metadata. Added backend pure helper backend/src/services/exchange-policy.service.js:
+VAT applies to new replacement item subtotal only, returned value is a flat exchange credit, excess
+due to customer is not taxable, and optional settlement is validated against excessDueToCustomer
+using cash 1110 / bank 1120 / credit. Added frontend/shared helper lib/exchange-policy.ts to build
+a customer-facing model that clamps display amounts, forbids negative product lines/totals, labels
+Balance due to customer, and carries the policy note. Added verify-exchange-tax-customer-facing-policy.js
+and package script verify:exchange-tax-customer-facing-policy; adjusted legacy scope verifiers to allow
+the preview/helper files. CRITICAL: no live /sales/exchanges posting/tax-base/storage behavior changed:
+diffBase/diffTax/diffTotal, negative return line storage, exchange journal lines, settlement execution,
+and print/view rendering remain unchanged. No print template changes, no POS changes, no return UI
+changes, no DB migration. Deferred: live exchange tax-base change pending explicit business/tax sign-off,
+exchange settlement UI, exchange print/display phase, POS customer-credit payment, source-aware 2300
+reconciliation, granular permissions.)
+
+Previous marker:
+Phase 30.1-Fix — Return Settlement UI (frontend, return only)
+(follows Phase 30.1 audit. Added settlement controls to the sales RETURN form only
+(app/[locale]/(dashboard)/sales/returns/page.tsx). Backend was already ready (Phase 30-Fix). The UI
+computes receivable-first math client-side: returnValueGross = Σ(selected line price) × (1 + vatRate/100),
+outstandingAR = invoice.remainingAmount, arRelief = min(gross, AR), excess = max(gross − relief, 0),
+and shows a read-only summary (returned incl VAT / outstanding / AR relief / excess). Settlement controls
+are shown ONLY when excess > 0: an "Add settlement options" toggle reveals cash(1110)/bank(1120)/
+customer-credit(2300) amount inputs + Full-Cash/Bank/Credit presets + optional reference/description.
+Validation: parts sum to excess (±0.01), non-negative, credit needs invoice.customerId; submit disabled
+when invalid. Payload includes `settlement` ONLY when the operator enables it AND excess > 0 — otherwise
+omitted (legacy full cash/bank refund preserved). Idempotency key resets when selected items or the
+settlement split change (backend hashes whole body incl. settlement), reused on retry; reset on success.
+Added type ReturnSettlement + optional settlement on CreateReturnPayload (lib/types.ts). New
+verify-return-exchange-settlement-ui.js passes (return UI present, exchange UI deferred, frontend-only
+scope guard). typecheck/lint(0 err)/build + all verifiers pass. NO backend changes, NO exchange UI, NO
+POS changes, NO print/dashboard/report rewrite, NO migration. 11 stashes untouched. Deferred: exchange
+settlement UI, exchange preview/diff, exchange tax/customer-facing invoice policy audit, POS
+customer-credit payment, source-aware 2300 reconciliation, granular permissions.)
+
+Previous marker:
+Phase 30-Fix — Return / Exchange Settlement Options (backend)
+(follows Phase 30 audit. Added an optional `settlement` object to POST /sales/returns and
+POST /sales/exchanges so the operator settles the EXCESS after receivable-first AR relief as
+cash (1110) / bank (1120) / customer credit (2300) / split. New pure helper
+salesService.resolveExcessSettlement validates parts sum to the excess, non-negative, account
+codes (cash=1110, bank=1120), credit-only-with-customer, and settlement-must-be-zero when no excess.
+Absent settlement PRESERVES the legacy default (full excess refunded to cash/bank on the original
+payment-method account; no credit). Accounting = Option A: the return/exchange journal stays the sole
+GL owner — postReturnEntry extended with bankRefundAmount + customerCreditAmount (adds Cr 2300 line);
+exchange inline money leg adds Cr 1110/1120/2300. The credit portion records a CustomerCreditTransaction
+credit_in (sourceType return_credit/exchange_credit) with an EXPLICIT journalEntryId and NO glPosting
+(no second journal). Cash/bank refunds create CashTransaction cash_out logs (one per non-zero part,
+linked to the journal); no postCashEntry. AR mirrors (Customer.balance, Invoice.remainingAmount) stay
+relief-only per Phase 21.2; credit/cash never reduce AR further; no auto-apply to the same invoice.
+Idempotency scopes sales.return/sales.exchange unchanged (whole-body hash already covers settlement).
+Permissions unchanged (sales.create). New verify-return-exchange-settlement-options.js (functional +
+static) passes; updated verify-return-exchange-settlement / verify-installment-balance-writeback /
+verify-apply-customer-credit to reflect that returns/exchanges may now CREATE credit (credit_in) but
+never CONSUME/apply it. typecheck/lint(0 err)/build + all verifiers pass. Backend only — no frontend UI,
+no POS changes, no migration, no deposit/refund/apply behavior change, no print/dashboard/report rewrite.
+11 stashes untouched. Deferred: settlement UI, POS customer-credit payment, source-aware 2300
+reconciliation, granular return/exchange settlement permissions.)
+
+Previous marker:
+Phase 29-Fix — Apply Customer Credit to Existing Invoice
+(follows Phase 29 audit. Added apply customer credit to existing posted invoice
+only. Backend endpoint POST /invoices/:id/apply-customer-credit is guarded by
+sales.create and requires Idempotency-Key with central scope customer.credit_apply.
+The endpoint validates positive amount, posted/non-cancelled non-return/non-exchange
+invoice, invoice/customer company match, invoice remaining > 0, amount <= invoice
+remaining, and amount <= available credit from CustomerCreditTransaction only.
+It locks invoice and customer rows, calls recordCreditOut(glPosting) as the only
+GL owner, posts one journal only: Dr 2300 / Cr 1300, creates a Payment row with
+paymentMethod customer_credit for statement/payment visibility, updates
+Invoice.paidAmount / Invoice.remainingAmount / status, and reduces Customer.balance
+as AR mirror only. No CashTransaction, no cash/bank movement, no postCashEntry,
+no Customer.balance-as-credit calculation. Added minimal customer detail UI
+Available Credit -> Apply to Invoice modal using open invoices, stable idempotency
+key, amount guards for available credit and invoice remaining, and warnings that
+no treasury transaction is created. Added verify-apply-customer-credit.js and npm
+script verify:apply-customer-credit; adjusted older customer-credit verifiers to
+allow the approved invoice apply route. No POS checkout change, no return/exchange
+change, no deposit/refund behavior change, no migration, no dashboard/report
+rewrite, no print work. Deferred: POS checkout customer-credit payment,
+return/exchange settlement options, source-aware 2300 reconciliation, granular
+customers.credit.apply permission, stronger concurrent credit consume locking.)
+
+Previous marker:
+Phase 28-Fix — Refund Customer Credit
+(follows Phase 28 audit. Added customer credit refund workflow. Backend endpoint
+POST /customers/:id/credit/refund is guarded by treasury.update and requires
+Idempotency-Key with central scope customer.credit_refund. The endpoint validates
+positive amount, sufficient available credit from CustomerCreditTransaction only,
+cash/bank method, and 1110/1120 account-code pairing; locks the customer row;
+rejects inactive customers; validates optional branch; creates an operational
+CashTransaction cash_out log; calls recordCreditOut(glPosting) as the only GL
+owner; posts one journal only: Dr 2300 / Cr 1110 or 1120; links journalEntryId
+and cashTransactionId; stores idempotent replay response; emits customer credit
+and cash transaction changes. Customer.balance and invoice balances are not
+mutated. Added minimal customer detail UI refund modal in the Available Credit
+card with stable idempotency key, available-credit client guard, and no apply
+credit controls. Added verify-customer-credit-refund.js and npm script
+verify:customer-credit-refund; adjusted older customer-credit verifiers so only
+the approved refund route may call recordCreditOut. No DB migration, no generic
+treasury rewrite, no duplicate GL posting, no return/exchange changes, no manual
+deposit regression, no dashboard/report rewrite, no print work. Deferred: apply
+credit to invoice/POS, return/exchange settlement options, source-aware 2300
+reconciliation, granular customers.credit.refund permission, stronger concurrent
+credit consume locking.)
+
+Previous marker:
 Phase 27-Fix — Manual Customer Deposit
 (follows Phase 27 audit. Added manual customer deposit workflow. Backend endpoint
 POST /customers/:id/credit/deposit is guarded by treasury.update and requires
@@ -2606,3 +2962,815 @@ verifies pass. print-export E2E not run (headless limitation). Next: optional DB
 ```
 
 After this file is committed, future agents must update this section when they complete a phase.
+
+---
+
+## Phase 30.4-Fix — Exchange Display API Enrichment
+
+Added read-only `GET /invoices/:id/exchange-display` for trusted server-side
+exchange display data. The endpoint requires `sales.view`, is company-scoped,
+and accepts exchange invoices only.
+
+Target-policy classification requires the explicit Phase 30.3 `exchangePolicy`
+marker saved in the successful `sales.exchange` idempotency response. Rows
+without that trusted marker return `legacy_or_unknown`; their stored historical
+tax/totals remain authoritative and are not recalculated under the new policy.
+
+The response includes policy status/version, target-policy figures when trusted,
+positive-only replacement/returned-credit display sections, balance labels,
+and a settlement summary sourced from linked CashTransaction and
+CustomerCreditTransaction rows. Settlement completeness is marked
+`linked_records`, `best_effort`, or `unavailable`.
+
+No frontend UI, print/view-model, live exchange tax/posting, POS, return flow,
+schema, migration, or historical backfill changes were made.
+
+Remaining deferred:
+
+* ExchangeSummary frontend component.
+* Sales invoice detail integration.
+* Customer history/statement integration.
+* Exchange print/display phase.
+* Exchange settlement UI.
+* POS customer-credit payment.
+* Source-aware 2300 reconciliation.
+* Granular permissions.
+
+---
+
+## Phase 32.1-Fix — Editable Barcode + Inventory Foundation
+
+Added a forward-safe, additive barcode identity foundation without resetting or
+backfilling data. New Asset component fields are nullable and preserve all
+existing type, cost, price, gold-cost snapshot, stone, pearl, status, branch,
+and lifecycle fields. Inventory subtype plus versioned JSONB metadata prepare
+the aggregate for the Phase 32.2 item-type forms.
+
+The target stored operational format is
+`INVENTORY_CODE + ITEM_CODE + KT + six-digit SERIAL`, uppercase with no
+separators. The sequence scope is company + inventory code + item code + karat
+code and is allocated atomically in PostgreSQL. Initial database-backed,
+company-scoped inventory mappings are GW, GP, DD, GS, PL, and WT. The 18 client
+item codes are authoritative (`ERG`, `NCK`; not the inconsistent examples
+`ERR`/`NLC`) and WCH is added for Watch.
+
+Watch remains visible as an **owner-approved provisional system extension
+pending client confirmation**. Its initial mapping is `WT/WCH/00`: active,
+provisional, and not client-approved. Barcode code settings are editable at
+`/settings/barcode-codes`, backed by dedicated inventory-code, item-code, and
+sequence tables. Used code values and structural fields are locked; descriptive
+fields and approval/status flags remain editable. Replacement requires a new
+code plus deactivation of the old code.
+
+The backend is the only source of final stored barcode values. Generic Asset
+PATCH rejects changes to type, karat, barcode, component fields, generation
+time, serial, and revision after a barcode exists. Existing return/exchange and
+branch-transfer flows retain the same Asset ID/barcode/RFID/history and were not
+changed. Loose diamond/gem/pearl barcode generation remains blocked unless a
+default KT code is explicitly configured; Watch uses its configured `00`.
+
+Uniqueness for new component identities is enforced. Company barcode and
+nonblank RFID unique indexes are guarded by live duplicate preflight checks; a
+conflicting legacy dataset causes the relevant index to be skipped with a clear
+warning, never an automatic rewrite. RFID remains optional / future-ready only;
+no hardware integration or claim of real RFID scanning was added.
+
+No demo data reset or seed rewrite occurred. Production reset is forbidden. No
+old barcode backfill or production historical migration occurred. No posting,
+journal, VAT, COGS, statement, credit, POS, return/exchange submit, exchange
+display/print, or invoice template behavior changed. UAE E-Invoicing remains
+deferred.
+
+---
+
+## Phase 32.1-Hotfix — Refresh Invoices Search & Print Verifier Scope Guard
+
+**Current approved HEAD:** `0a7b7ce feat: add editable barcode inventory settings`
+
+Refreshed the **stale working-tree scope guard** in
+`scripts/verify-invoices-search-print.js` only. The guard had pinned its baseline
+to the Phase 31.4 base (`8169bfe`) and enforced a rigid allowed-files whitelist,
+so after Phase 32.1 was approved and committed it wrongly rejected every legitimate
+barcode-foundation file (barcode inventory settings, barcode identity service,
+barcode foundation migration, barcode settings UI/APIs, Asset barcode fields) merely
+because they post-dated `8169bfe`.
+
+The guard now (a) tracks the current approved baseline (`0a7b7ce`) and (b) rejects
+changed files only when they touch a protected accounting/posting/journal/
+reconciliation/customer-credit area, are a deletion, or introduce UAE E-Invoicing /
+event-sourcing — never simply because a file is new since an older base.
+
+- **No product/business code changed.** Only the verifier's scope logic + docs.
+- **No barcode foundation behavior changed.**
+- **No accounting/posting/print/Search-&-Print functionality changed.**
+- **Functional assertions preserved:** filters, results columns, print reuse,
+  read-only GET endpoint, no-mutation, no financial recalculation, hidden
+  diagnostics (statement-v3, credit reconciliation, full-2300) remain hidden.
+- **UAE E-Invoicing remains deferred**; event-sourcing/projection architecture not
+  implemented; current relational/audit architecture retained.
+
+---
+
+## Phase 32.4-Run — Owner Gate + Backup Readiness (reset NOT executed)
+
+Owner confirmed the **local** `darfus_erp` (NODE_ENV=development, host localhost,
+port 5433, Docker `darfus-postgres` postgres:16-alpine) is **demo-only and
+disposable**. This phase hardened the tooling and proved backup readiness but
+**did not execute the destructive reset**.
+
+Delivered (safe, verified):
+- **Owner-confirmation gate** in `scripts/reset-client-demo-data.js`: `darfus_erp`
+  is eligible ONLY when `ALLOW_CLIENT_DEMO_RESET=true` + `RESET_TARGET=demo` +
+  `CONFIRM_DATABASE_NAME=darfus_erp` + `OWNER_CONFIRMED_DEMO_ONLY=true` + a **local
+  host** (localhost/127.0.0.1). The dedicated demo-name allowance is unchanged.
+  Remote/managed providers (Render/Supabase/Neon/Railway/AWS/Azure/GCP) are
+  rejected. A **mandatory backup-capability preflight** refuses if no backup method
+  (host `pg_dump` or the local Docker Postgres) is available.
+- **Docker-aware backup**: host `pg_dump` missing here, so backup uses
+  `docker exec darfus-postgres pg_dump`. **Backup mechanism proven** with a
+  non-destructive 1.49 MB dump of `darfus_erp` (DB left intact, 293 assets).
+- **Guard refusal tests (no DB mutation):** no-gates → exit 2; missing
+  `OWNER_CONFIRMED_DEMO_ONLY` → exit 2; wrong `CONFIRM_DATABASE_NAME` → exit 2;
+  `NODE_ENV=production` → exit 2; remote host → exit 2; DB-name mismatch → exit 2.
+- **Deterministic client-demo inventory seeder** `backend/seeders/client-demo/index.js`
+  (seed `client-demo-v1`): idempotent, accounting-neutral, seeds the barcode
+  taxonomy + all **10 inventory variants** via the canonical
+  `barcode-identity.service` (no second algorithm / no `Date.now()`), with realistic
+  metadata (incl. `stoneWeight`/`discount`/`minimumMakingCharge`/gemstone `stones`)
+  and a GW/BRC/21 pair proving serial 000001/000002. Loose-item KT is a **configured
+  demo setting** (default KT seeded on the stone taxonomy) — a demo/testing
+  assumption pending final client confirmation, not an approved production policy.
+- `verify-client-demo-data.js` asserts the owner gate, remote rejection, and backup
+  preflight; live data checks still skip cleanly until a verified demo run occurs.
+
+**Reset NOT executed** because the **service-driven transactional/accounting seed
+workflow is not yet complete/reviewed** (only inventory/taxonomy is), and the
+reset orchestration is unvalidated end-to-end. Per the prompt's precondition
+("implement the missing seed workflow first"), the destructive run is deferred to
+a dedicated, supervised step once the transactional seeds exist.
+
+**Browser verification:** not performed (no reset/seed executed). **Physical
+printer verification:** not performed (no hardware) — not claimed. **Production and
+Render untouched.** No accounting/posting/sales/return/exchange/print/inventory-form
+business code changed. Watch remains provisional (WT/WCH/00). Production reset
+remains forbidden. UAE E-Invoicing remains deferred.
+
+---
+
+## Phase 32.4-Hotfix — Refresh Barcode Foundation Verifier Reset Guard
+
+Test-only maintenance: refreshed the stale working-tree scope guard in
+`scripts/verify-barcode-inventory-foundation.js`. It had pinned its baseline to
+`cf1c84f` and rejected any changed file whose path merely contained "reset"
+(`/reset/i`), which wrongly flagged the approved, environment-gated Phase 32.4
+demo-reset tooling (`scripts/reset-client-demo-data.js`). The guard now tracks the
+current approved baseline (`1a6c76f`) and distinguishes **sanctioned gated demo
+tooling** (allowed) from **unsafe/production reset or historical-barcode backfill
+tooling** (rejected) by content, not just filename — and positively asserts the
+demo-reset script is environment-gated, secret-safe, and not auto-run.
+
+**No product/business code changed. No database operation was executed.** All
+functional barcode assertions are unchanged; production reset remains forbidden.
+
+---
+
+## Phase 32.4-Fix — Guarded Client-Demo Data Reset (tooling only; reset NOT executed)
+
+**Current approved HEAD (before this phase):** `7acb127 feat: add client barcode tag layouts`
+
+Added a **guarded, safety-gated client-demo reset process** — scripts + docs only.
+**No reset, migration, or seed was executed**, and no business/backend/frontend
+code changed.
+
+- `scripts/reset-client-demo-data.js` (`npm run demo:reset:client`) — refuses to
+  reset unless a **dedicated, disposable demo database** is positively verified
+  AND the operator opts in: `ALLOW_CLIENT_DEMO_RESET=true`, `RESET_TARGET=demo`,
+  and `CONFIRM_DATABASE_NAME=<exact effective DB name>`. It rejects production/
+  shared hosts and names, requires a dedicated demo-name allow-rule (e.g.
+  `darfus_client_demo`), prints only a **masked** plan (never secrets), backs up
+  before any reset (`pg_dump` → `backups/client-demo/<timestamp>/`, gitignored),
+  then migrates from zero and runs deterministic client-demo seeds. Exits non-zero
+  on any safety failure.
+- `scripts/verify-client-demo-data.js` (`npm run verify:client-demo-data`) —
+  validates the guard/gates statically; **live data checks run only against a
+  verified demo DB with opt-in**, otherwise they skip cleanly (never a false pass).
+
+**Environment gate result in this workspace:** the only configured database is
+`DB_NAME=darfus_erp` (NODE_ENV=development) — the **general development database**,
+NOT a dedicated disposable demo DB (`darfus_client_demo`/`darfus_demo`/
+`darfus_dev_demo`), and the opt-in vars are unset. Per the safety gate the reset
+was **intentionally not executed**; to run it, provision a dedicated demo DB and
+set the opt-in variables.
+
+- **Seed order** (for a live run): company → branches → users → roles/permissions
+  → settings → chart of accounts → treasury config → barcode inventory codes →
+  item codes → sequence scopes → employees → customers → suppliers → gold prices
+  → inventory assets → asset events/movements → sales → returns → exchanges →
+  installments → deposits → gift vouchers → customer-gold → payments → balanced
+  journals → audit. Transactional records go through existing domain services
+  (never hand-fabricated/unbalanced). Seed version: `client-demo-v1`.
+- **Demo coverage** (for a live run): one asset per variant (Gold By Weight
+  Jewellery + 24K/bar, Gold By Piece, Diamond J/Loose, Gem Stone J/Loose, Pearl
+  J/Loose, Watch) with realistic metadata (incl. Phase 32.3 `stoneWeight`/
+  `discount`/`minimumMakingCharge`/gemstone `stones`); sequence proof (000001/
+  000002 in the same scope); all supported invoice/sales flows.
+- **Watch remains provisional** (WT/WCH/00). **Loose-item KT remains a
+  demo-configured assumption** pending final client confirmation (seeded in
+  barcode settings, not hardcoded in assets).
+- **Browser verification:** not performed (no verified demo DB / seeded data).
+  **Physical printer verification:** not performed (no hardware) — not claimed.
+- **Production reset remains forbidden.** No accounting/posting/sales/return/
+  exchange/print/barcode-generator/inventory-form code changed. Hidden diagnostics
+  (statement-v3, credit reconciliation, full-2300) stay hidden. UAE E-Invoicing
+  remains deferred.
+
+---
+
+## Phase 32.3-Fix — Client Barcode Tag Front/Back Layouts
+
+**Current approved HEAD (before this phase):** `852ae8b feat: align inventory item type forms`
+
+Added client-aligned **front/back barcode tag layouts** for serialized Assets,
+**reusing** the existing print engine (ScannableBarcode → renderPrintDocument →
+printHtmlDocument). Additive — the generic `BarcodePrintTemplate` and the Product
+label flow are unchanged and still used.
+
+- New components: `features/printing/components/ClientBarcodeTagTemplate.tsx`,
+  `barcode-tags/BarcodeTagFront.tsx`, `barcode-tags/BarcodeTagBacks.tsx`
+  (GoldWeight/GoldPiece/Diamond/Gemstone/Pearl/Watch backs), `barcode-tags/types.ts`.
+- Mapper extended: `lib/print/barcode-label.ts` gains `AssetTagData` +
+  `assetToTagData` carrying metadata, inventory_subtype, barcode identity
+  components, net/gold weight, etc. The **printed barcode equals the stored
+  `asset.barcode`** — the browser never allocates or regenerates an identity.
+- Inventory page adds a **"Client Tags"** action (assets tab) rendering the
+  front/back tags; the existing generic "Print Barcode" flow is untouched.
+- **Type-specific layouts:** Gold By Weight (GW/ST/NT/MC, **no price**), Gold By
+  Piece (WT/DIS + brand), Diamond J/Loose (Carat/CC/Cut/DIS/cert), Gem Stone
+  J/Loose (multi ST rows/DIS/cert), Pearl J/Loose (Type/size/quality/DIS), Watch
+  (brand/model/ref/movement/condition — **owner-approved provisional**).
+- **Price policy:** Gold By Weight hides price; other client types show it; Watch
+  price configurable. Missing optional rows are hidden (never fake zeros). No
+  purchase/internal cost is printed.
+- **Metadata capture added** through the existing Phase 32.2 forms (no migration —
+  metadata JSONB already exists): `discount` (tag-only, never invoice-derived),
+  `stoneWeight` (ST), `minimumMakingCharge` (+ configurable `obfuscateMakingCharge`
+  display), and a gemstone `stones` array (with single-stone fallback preserved).
+- **Physical tag dimensions and printer hardware remain configurable / pending
+  client confirmation** (default 62mm × 28mm; duplex method left to the printer).
+  RFID defaults to indicator-only; CODE128 default, QR optional. RTL/LTR preserved.
+- No DB migration, no seeds/reset, no backend change, no accounting/posting/VAT/
+  COGS, no sales/return/exchange submit, no invoice print template change. Hidden
+  diagnostics (statement-v3, credit reconciliation, full-2300) stay hidden.
+  Production reset remains forbidden. UAE E-Invoicing remains deferred.
+
+---
+
+## Phase 32.2-Fix — Inventory Item-Type Forms
+
+**Current approved HEAD (before this phase):** `dddcb65 test: refresh invoices search print verifier scope`
+
+Added the client-aligned, type-driven inventory item Add/Edit form on top of the
+Phase 32.1 barcode/inventory foundation. Supported item types: **Gold By Weight,
+Gold By Piece, Diamond, Gem Stone, Pearl, and Watch**. Watch stays visible as an
+**owner-approved provisional type pending client confirmation** (WT / WCH / 00).
+
+- **Frontend-only alignment.** The existing single "Add Asset" modal on
+  `/inventory` now renders `InventoryItemForm` (type selector → 8 sections →
+  type-specific Section 2). No second/disconnected inventory flow was created.
+- New components under `features/inventory/components/`: `InventoryItemForm`,
+  `InventoryTypeFields` (GoldWeight/GoldPiece/Diamond/Gemstone/Pearl/Watch),
+  `BarcodeTagPreview`, `InventoryMetadataViewer`, and `inventory-item-form-config`.
+- Type-specific attributes are stored in `Asset.metadata` (JSONB) with
+  `metadata_schema_version = 1`; the loose/jewellery and 24K/bar distinctions use
+  `inventory_subtype`. **No new per-item-type tables** were introduced.
+- **Barcode safety:** the browser never generates the final stored barcode. The
+  form sends only taxonomy (inventory code / item code / karat) and shows a
+  read-only preview; the backend (`barcode-identity.service`) allocates the serial
+  and final barcode on save. Edit sends only non-identity fields.
+- **No backend change** was required — `ErpController.normalizeAssetCreatePayload`
+  already generates the barcode and persists `metadata`/`inventory_subtype`.
+- Codes are read from the editable company-scoped barcode settings, with a
+  documented Watch fallback (WT / WCH / 00) when the settings API is unavailable.
+- No demo/production data reset, no seed rewrite, no barcode backfill, no
+  historical migration. No posting/accounting/VAT/COGS/statement/customer-credit,
+  POS, return/exchange submit, exchange display/print, or invoice-template behavior
+  changed. Hidden diagnostics (statement-v3, credit reconciliation, full-2300)
+  remain non-customer-facing. UAE E-Invoicing remains deferred.
+
+---
+
+## Phase 31.4-Fix — Unified Invoices Search & Print
+
+Added the dedicated customer-facing `/sales/search-print` page and a guarded,
+read-only `GET /invoices/search-print` endpoint. The page searches, views, and
+prints real invoice rows only, with invoice number, customer/customer ID, date,
+branch, type, and derived display-status filters. Results show invoice number,
+type, status, date, customer, branch, total, stored paid/remaining values, and
+view/print actions.
+
+Supported invoice-row types are `sale`, `return`, `exchange`, `installment`, and
+`deposit`. Gift vouchers and customer-gold purchases remain in their existing
+modules because the current schema does not store them as invoice rows. The
+employee/salesperson filter and column are explicitly unavailable because the
+invoice model has no employee/salesperson field. `Closed` is a display-only
+mapping for posted invoices whose stored payment status is `paid`; no DB enum or
+migration was added.
+
+The existing `InvoiceDocument`, `InvoicePrintOptionsDialog`, Luxury/default,
+Compact, Minimal, and Thermal templates are preserved. Search & Print uses the
+trusted exchange-display query and existing `ExchangePrintSummary` path, so
+exchange print behavior remains unchanged and normal invoice printing uses the
+same established renderer. The existing Sales detail content was extracted into
+a shared read-only component and reused by both pages.
+
+Safety: read-only search/view/print only. No accounting, posting, balance, VAT,
+invoice-total, POS submit, return/exchange submit, settlement, credit, statement,
+or mutation-route changes. Statement-v3, the customer credit reconciliation
+panel, and full-2300 diagnostics remain hidden/non-customer-facing. UAE
+E-Invoicing remains deferred. Event-sourcing/projection architecture was not
+implemented; the current relational/audit architecture is retained.
+
+---
+
+## Phase 30.5-Fix — ExchangeSummary UI in Sales Detail
+
+Added a customer-facing `ExchangeSummary` component and integrated it only
+into the Sales invoice detail modal. The UI fetches the trusted read-only
+`GET /invoices/:id/exchange-display` endpoint only while an exchange invoice
+is selected; normal invoice detail behavior remains unchanged.
+
+The summary renders the endpoint's positive-only replacement, returned-credit,
+result, and settlement data without recalculating tax or settlement from raw
+invoice items. Successful enrichment suppresses raw negative exchange rows and
+totals. Both `target_policy` and conservative `legacy_or_unknown` records are
+handled, along with `linked_records`, `best_effort`, and `unavailable`
+settlement sources. Endpoint failure shows a warning and falls back to the
+stored raw detail so invoice data is not hidden.
+
+No customer statement/history, print, backend, POS, return flow, schema, or
+migration changes were made.
+
+Remaining deferred:
+
+* Customer history/statement integration.
+* Exchange print/display phase.
+* Exchange settlement UI.
+* POS customer-credit payment.
+* Source-aware 2300 reconciliation.
+* Granular permissions.
+
+---
+
+## Phase 30.6-Fix — Customer History Exchange Display
+
+Added exchange-summary access to the Customer detail Sales & Invoices history
+tab only. Exchange invoice rows now expose a lazy exchange-only summary action
+that reuses the existing `ExchangeSummary` component and the trusted read-only
+`GET /invoices/:id/exchange-display` hook.
+
+Normal invoice rows remain unchanged and never fetch exchange-display data. The
+customer history integration does not recalculate VAT, replacement totals,
+returned credit, policy, settlement, or balances from raw invoice items; the
+expanded summary uses the endpoint response only. The existing invoice history
+row stays visible during loading and on endpoint error/403; failures show a
+compact warning and fall back to the stored customer invoice history row.
+
+No customer statement, print, POS, backend, API route, DB, schema, migration,
+return/exchange submit flow, permissions, accounting, customer-credit
+application, or 2300 reconciliation changes were made.
+
+Remaining deferred:
+
+* Customer statement/source-aware reconciliation.
+* Exchange print/display phase.
+* Exchange settlement UI.
+* POS customer-credit payment.
+* Source-aware 2300 reconciliation.
+* Granular permissions.
+
+---
+
+## Phase 32.4-Run-Hotfix B — Implement Trusted HTTP Transactional Demo Seeds
+
+**Current approved HEAD (before this phase):** `f94bcc0 feat: add owner gate and client demo inventory seeder`
+
+Implemented a trusted, service-driven, and client-aligned transactional demo seeding workflow under `backend/seeders/client-demo/transactional/` (seed version: `client-demo-transactions-v1`).
+
+- **In-Process Ephemeral localhost Server Execution:** The seeder boots the real Express application (`backend/src/app.js`) in-process and binds to an ephemeral local port (port 0) on `127.0.0.1`. No public ports or external servers are required. No remote or production URLs (e.g. Render, AWS, Neon, Supabase, GCP) are contacted. Standard Node `fetch` is used.
+- **Uniform HTTP Route Usage:** All transactional operations (14 scenarios covering approximately 22 HTTP calls) go through real, authenticated Express route handlers. This ensures authentication, validation, audit logging, and GL postings are processed correctly (never calling `postingService` or `journalService` directly from the seed script).
+- **Plan / Dry-Run Mode:** Running `npm run seed:client-demo:transactions:plan` prints a complete, masked visual execution plan outlining routes, enums, prerequisite DB records, and business impacts, without performing login queries, starting HTTP calls, or mutating the database.
+- **Prerequisite Context Resolver:** Prior to running seeds, `context.js` dynamically queries and caches existing seeded database references (Company, Branch, User, Customer, Supplier, Account code, active Products, and inventory Assets) by email/code instead of hardcoding database IDs, failing fast if prerequisites are missing.
+- **Scenario Coverage:** Implemented 14 scenarios (Supplier purchases cash/credit/products, POS cash sales, POS installment sale with downpayment/schedule/guarantor, POS deposit/arbon sale, Sales return, Sales exchange, Installment payments, Customer gold cycle, Supplier payment, Manual journal draft/post/reversal cycle, Gift voucher issue/redemption, Treasury cash-in/out, Customer credit deposit/refund, and Draft/post invoice).
+- **Verification Manifest:** Created `verification-manifest.js` documenting expected minimum record counts and balances for all 18 transactional tables.
+- **Safety Static Verifier:** Created `scripts/verify-client-demo-transactional-seeds.js` to assert safety invariants (e.g. no `Math.random` is used, no direct DB creates exist on transactional tables, no bypasses exist, and JWT/passwords are not logged).
+- **Reset Workflow Integration:** Integrated the transactional seeder execution step into `scripts/reset-client-demo-data.js` after the inventory seeder has completed, so a failure in the transactional seed halts the reset process.
+- **Safety Guarantees:** No database table was reset, no migrations were run, and no seed data was mutated in this phase. Live reset/run is deferred to Phase 32.4-Run-C. No application business code changed. Watch remains provisional (WT/WCH/00). Production reset remains forbidden. UAE E-Invoicing remains deferred.
+
+---
+
+## Phase 32.4-Run-C-Closure — Evidence, Reconciliation & Final Approval Verification
+
+**Current approved HEAD (before this phase):** `fbff419 test: update verifiers baseline for Phase 32.4-Run-C`
+
+Closed all verification gaps and performed complete post-reset reconciliation against the owner-confirmed local database `darfus_erp` running on local Docker container `darfus-postgres` (port 5433).
+
+- **Database Reset & Migration:** Successfully verified that all 30/30 database migrations are applied and the DB is in a clean post-reset state.
+- **Backup Evidence & Manifest:** Confirmed the backup SQL dump size (325,609 bytes), validated the dump header, summarized `manifest.json`, and added `restore-instructions.txt` to the backup folder.
+- **Live Client Demo Verifier:** Modified `scripts/verify-client-demo-data.js` to execute actual live PostgreSQL database assertions. The script successfully validates active inventory codes, taxonomy item codes, zero-line posted journal entries, and balanced trial balances. All assertions passed.
+- **Taxonomy & Item Codes:** Verified 6 inventory codes (including provisional/active `WT`) and all 19 item codes. Built a table matching the 10 variants.
+- **Asset Discrepancy Resolved:** Proved that the 2 missing assets (`AST-2026-00179` and `AST-2026-00144`) have non-null `parent_asset_id` (linked to a gold bar and a gold pool), explaining why they are correctly filtered out on the main inventory page which queries `/assets?standaloneOnly=true`.
+- **Transactional Flows:** Checked all 14 scenarios and confirmed 26 transactional API operations, 1 authentication request, and 14 cash transactions are recorded.
+- **Ledger Reconciliations:**
+  - **Invoices:** Reconciled 12 invoices (3 legacy, 9 transactional) mapping to exactly 10 invoice items (the 3 legacy invoices have 0 items as designed in the base seeds).
+  - **Journals:** Checked 26 journal entries (2 balanced, 1 reversed, 23 posted) and 73 journal lines. Verified that every posted entry is balanced (SUM(debit) = SUM(credit)), the global trial balance net difference is exactly `0.00000000`, and no posted journal has zero lines.
+  - **VAT:** Reconciled output VAT on account code `2200` (`1597.00000000` net credit) and verified zero input VAT.
+  - **COGS:** Verified COGS postings on account code `5000` (net debit `21100.00000000`) and matching stock effects. Product RNG-21K-BULK-SEED stock is exactly 10.
+  - **Customer & Supplier Balances:** Inspected balances for all five customers. Verified that `Supplier.due` remains frozen as a reference-only field per Phase 10M design, while the supplier statement is computed dynamically from documents.
+  - **Treasury:** Verified 14 cash transactions (Cash In: `29232.5000`, Cash Out: `14812.5000`) and confirmed all match journal postings.
+  - **Installments:** Reconciled the 6 installments (2 partial payments of 1000 each, 4 pending; remaining balance `4444.5000` matches the customer statement).
+  - **Deposit / Arbon:** Verified the deposit invoice and cash-in of 1500 (Dr Cash 2415 / Cr Customer Deposits 2415).
+  - **Gift Vouchers:** Verified issue (500 value) and redemption (200 value), with liability account `2400` balance of 300.
+  - **Customer Gold:** Verified 4 gold pool records (1 legacy, 3 transactional: deposit, payout, use-in-sale). Khaled's net gold balance is 5g.
+- **Identity Preservation:** Confirmed that returned and exchanged assets retain their original barcodes (`GPERG21000001` and `GWBRC21000002`).
+- **Complete Verifier Suite:** All 39 verifier scripts in the repository were executed and passed perfectly.
+
+## Phase 32.4-Run-C-Hotfix Fix — Deposit Posting & Live Demo Verification
+
+Source-fix commit: `c0c4300` (`fix: reconcile deposit posting and live demo verification`).
+
+The Run-C audit found that the POS deposit flow resolved `paidAmount=1500` but did not
+persist that value in `Invoice.deposit`; `postDepositEntry` therefore used the unsafe
+`invoice.deposit || invoice.total` fallback and posted 2415 instead of the 1500 actually
+received. The fix passes an explicit authoritative `receivedAmount` from all three existing
+deposit callers and removes the invoice-total fallback. Invoice totals, remaining amounts,
+customer-balance updates, and non-deposit posting paths are unchanged. Zero/missing deposits
+continue to be rejected by the trusted payment resolver; no unpaid remainder journal line was
+invented.
+
+`verify-client-demo-data.js` now has a separate read-only gate:
+`VERIFY_CLIENT_DEMO_LIVE=true` and `VERIFY_DATABASE_NAME=darfus_erp`. Destructive reset gates
+are never required for read-only checks. Explicit live mode rejects production/remote/wrong
+database targets and fails non-zero on skipped or failed live sections. Static-only mode is
+labelled `STATIC ONLY — LIVE DATA NOT VERIFIED`.
+
+The focused `verify-deposit-posting-reconciliation.js` covers partial, full, zero/missing, and
+decimal deposit cases plus live Payment/CashTransaction/journal reconciliation. The exchange
+demo note now describes the selected gemstone necklace accurately; the payload and selected
+asset are unchanged.
+
+The owner-confirmed local database `darfus_erp` was rebuilt only through the guarded reset.
+Backup: `backups/client-demo/2026-07-10T14-00-46-106Z`. All 30 migrations and the 14 trusted
+transactional flows completed. Live verification confirmed invoice total 2415, payment/cash/
+cash-journal/deposit-liability 1500, remaining 915, balanced journals, supplier balance 89500,
+VAT 1597, COGS 21100, six installments (2 partial/4 pending), voucher balance 300, customer
+gold net 5g, preserved return/exchange identity, and exact barcode sequence proof. Production,
+Render, remote databases, historical barcodes, print templates, statement-v3, full-2300 UI, and
+UAE E-Invoicing remain untouched/deferred. Browser/physical-printer verification remains pending.
+
+## Phase 32.4-Run-C-Hotfix 2 — Final Browser/API Smoke & Accounting Clarification
+
+Completed the final non-destructive smoke pass against the owner-confirmed local demo stack:
+frontend `localhost:3000`, backend `localhost:8000`, PostgreSQL Docker `darfus-postgres`
+on local `darfus_erp` port 5433. No reset, seed, migration, direct DB mutation, or business
+mutation request was executed. The only POST was the local demo login needed to create an
+authenticated test session; all follow-up API checks were GET/read-only.
+
+Browser smoke verified dashboard, inventory, existing asset detail, barcode code settings,
+Invoices Search & Print, sales list, returns, exchanges, installments, gift vouchers,
+customer gold, and customer detail/statement surfaces. The Search & Print UI showed 12
+queryable invoices and the deterministic deposit invoice as total 2415, paid/received 1500,
+remaining 915. Barcode settings showed WT/WCH/00 as active provisional pending client
+confirmation, NCK present, and used code values locked. Asset detail exposed the stored
+barcode and tag action, with non-blocking missing Arabic translation keys noted for
+`Inventory.gold-weight`, `AssetDetails.sourceDoc`, `AssetDetails.certificate`, and
+`AssetDetails.attachments`. Physical printer output was not tested.
+
+Authenticated GET API smoke passed for settings/dashboard data, assets, asset detail,
+barcode settings, invoice search, invoice detail, exchange-display enrichment, installments,
+customer statement-v2, gift vouchers, customer invoices, and treasury summary. DB/API/UI
+values reconciled: 20 assets, 18 standalone assets, 12 invoices, 6 installments with
+4444.5000 remaining, gift voucher `GV-DEMO-001` value 500 / balance 300, customer gold net
+5g for Khaled, returned asset `AST-CD-gp` barcode `GPERG21000001`, replacement asset
+`AST-CD-gs-jewellery` sold barcode `GSNCK18000001`, and unused `AST-CD-gw-jewellery-2`
+available barcode `GWBRC21000002`.
+
+Journal status wording is clarified: the database contains 23 `posted`, 2 `balanced`, and
+1 `reversed` journal entries. The prior phrase "23 posted, 2 balanced, 1 reversed" was a
+literal status distribution, not a count of balanced posted journals. All 23 posted journals
+are balanced; 0 posted journals are unbalanced; 0 posted journals have zero lines; global
+debit and credit both equal 176142.00000000.
+
+Deposit accounting evidence remains: Dr Cash 1500 and Cr Customer Deposits 1500 only for the
+received amount. The unpaid 915 remains as `Invoice.remainingAmount` and in the operational
+`Customer.balance` AR mirror. No AR 1300 line is posted by the deposit journal for that
+unpaid remainder, and no extra accounting treatment was invented. This matches the existing
+repository behavior, but formal accounting sign-off is still required if the client/accountant
+expects a different GL treatment for unpaid deposit remainders.
+
+Verification completed on the clean tree: `npm run verify:client-demo-data` and
+`npm run verify:deposit-posting-reconciliation` both reported `LIVE DATA CHECKS EXECUTED`;
+all 40 verifier scripts passed; `npm run typecheck` passed; `npm run lint` passed with
+0 errors and 19 existing warnings; `npm run build` passed. Production, Render, remote
+databases, stashes, historical barcodes, invoice print templates, statement-v3 UI exposure,
+full-2300 customer-facing exposure, and UAE E-Invoicing remain untouched/deferred.
+## Phase 32.6-Fix A — Reservation Core Foundation
+
+Added the reservation foundation requested by RE-001 without implementing final sale, refunds,
+expiry, renewal, reports, customer statements, notifications, or full multi-item UI.
+
+Backend additions:
+- `reservations` extended additively with branch/currency/totals/final-invoice placeholder,
+  workflow version, legacy marker, optimistic version, and created/updated-by fields.
+- New `reservation_items` table for asset-backed multi-item foundation.
+- New `reservation_payments` table for immutable posted reservation receipts/payments.
+- Dedicated reservation service owns transactions, asset locks, server-side totals,
+  idempotency, item reservation, optional initial payment posting, and audit events.
+- Generic reservation CRUD writes were replaced with dedicated routes. Full replacement/delete
+  are disabled; PATCH is notes-only.
+- Reservation payment journal source type is `reservation_payment`.
+
+Accounting:
+- Reservation payments debit selected cash/bank and credit the configured
+  `reservationAdvancesAccountId` liability account.
+- No fallback to account `2300`; `2300` is valid only if company settings explicitly point
+  reservation advances to that account.
+- No VAT, revenue, AR, COGS, inventory, customer-credit, or deposit-income posting occurs for
+  reservation payments.
+- Reservation creation without payment does not require account configuration; creation with
+  payment and payment posting do require valid configuration.
+
+Frontend safety:
+- `/sales/reservations` remains single-asset visually but now submits the atomic reservation
+  payload with an idempotency key.
+- It no longer PATCHes the asset separately after reservation creation.
+- It no longer creates a deposit invoice or submits VAT/tax/subtotal metadata for reservation
+  deposits.
+- API cancellation/release is blocked pending a dedicated cancellation/refund workflow.
+
+Legacy compatibility:
+- Existing reservation rows remain readable as legacy (`workflow_version=1`, `is_legacy=true`).
+- Existing `deposit` values were not converted into reservation payments.
+- No historical reservation receipts or journals were fabricated.
+
+Verification:
+- Added `verify:reservation-core-accounting-foundation` with static checks and optional local
+  live mode (`VERIFY_RESERVATION_CORE_LIVE=true`, `VERIFY_DATABASE_NAME=darfus_erp`) that uses
+  isolated rollback-only records.
+
+## Phase 32.6-Fix-A-Hotfix — Barcode Tag Verifier Scope Guard
+
+Fix A implementation commit remains `13ab543dbf74d59077eed3238de9d4be746c09e3`
+(`feat: add atomic reservation core and advances accounting`).
+
+Root cause: `scripts/verify-barcode-tag-print-layouts.js` still used a frozen historical
+baseline (`c21b20d`) in default global-suite mode. After approved later phases, including
+the reservation foundation migration/models/service, the verifier re-litigated committed
+history from the barcode-tag phase and rejected approved backend/migration files as barcode
+scope drift. Barcode functional assertions were not failing.
+
+Hotfix behavior:
+- Default verifier mode runs all barcode functional/static/layout/source assertions and checks
+  only the current working tree for unauthorized dirty/untracked changes.
+- Historical barcode scope auditing is now explicit via
+  `VERIFY_BARCODE_TAG_SCOPE_BASELINE=<git-ref>`.
+- Invalid historical refs fail non-zero with a clear error and do not fall back to a default.
+- Historical mode still prints the selected baseline, enforces the original barcode-phase
+  allow-list/deletion checks, and may reject later approved commits when intentionally run
+  against an old baseline.
+
+No reservation business code, reservation migration, accounting posting behavior, database
+records, Production/Render, or stashes were changed by this hotfix.
+
+## Phase 32.6-Fix-A-Hotfix-2 — Remaining Phase Verifier Scope Guards
+
+Fix A implementation commit remains `13ab543dbf74d59077eed3238de9d4be746c09e3`
+(`feat: add atomic reservation core and advances accounting`). The first verifier hotfix
+commit remains `f90a1558af870d1592582c5b073ddd4df27cd384`
+(`test: fix stale barcode tag verifier scope guard`).
+
+Root cause: three additional phase verifiers still used the old historical baseline
+`c21b20d` automatically in default global-suite mode and re-litigated all approved later
+commits. The affected verifiers were:
+- `scripts/verify-barcode-inventory-foundation.js`
+- `scripts/verify-inventory-item-type-forms.js`
+- `scripts/verify-invoices-search-print.js`
+
+The default contract now matches the barcode-tag verifier hotfix: all functional/static/
+schema/UI assertions still run, but default scope checks inspect only the current working
+tree. Historical phase scope auditing remains explicit through:
+- `VERIFY_BARCODE_INVENTORY_SCOPE_BASELINE=<git-ref>`
+- `VERIFY_INVENTORY_ITEM_TYPE_SCOPE_BASELINE=<git-ref>`
+- `VERIFY_INVOICES_SEARCH_PRINT_SCOPE_BASELINE=<git-ref>`
+
+Invalid historical refs fail non-zero with a clear error and do not fall back to a frozen
+baseline. Explicit historical mode prints the selected baseline, enforces the original
+phase allow-list/deletion checks, and may reject approved later commits when intentionally
+run against an old baseline. No reservation business code, reservation migration, accounting
+posting behavior, frontend reservation flow, database records, Production/Render, or stashes
+were changed. Phase 32.6-Fix B is not implemented.
+
+## Phase 32.6-Fix B — Final Sale Completion & Refund Settlement
+
+Implemented the next reservation workflow layer on top of Fix A without starting Fix C/D.
+
+Completion:
+- Added additive completion/refund settlement schema and models:
+  `reservation_payment_applications`, `reservation_refunds`, and
+  `reservation_refund_allocations`.
+- Fully paid, non-legacy reservations can be completed through a dedicated idempotent
+  backend workflow only.
+- The final posted sales invoice is created from the current active reservation items.
+- Reservation payments are applied through immutable application rows; original payment
+  rows are not edited or deleted.
+- The sales invoice posting path remains the established `postInvoiceEntry` path for
+  sales revenue, VAT, COGS, and inventory. For posting, the invoice is treated as AR first;
+  a separate settlement journal then debits configured Customer Reservation Advances and
+  credits AR/customer control. This leaves the final customer AR net zero when the
+  reservation is fully paid.
+- Assets and reservation items move from Reserved/active to Sold/sold, and the reservation
+  links to exactly one final invoice.
+- Completion is blocked for legacy, cancelled, refunded, expired, partially paid, already
+  completed, or mismatched-total reservations.
+
+Cancellation/refunds:
+- Manual cancellation releases active reserved assets back to Available. If posted
+  reservation payments exist, the reservation becomes `cancelled_refund_pending`; otherwise
+  it becomes `cancelled`.
+- Refund request, approval/rejection, and execution are separate backend workflows.
+- Refund execution is idempotent and requires approval first.
+- Refunds are full only; partial/excess refunds are rejected.
+- Different refund method requires approval before execution.
+- Refund posting debits configured Customer Reservation Advances and credits selected Cash
+  or Bank. No revenue, VAT, COGS, inventory, or AR movement is posted by reservation refund
+  execution because no final sale exists.
+
+Permissions:
+- Completion: `sales.create`
+- Cancellation/refund request: `sales.approve`
+- Refund approval/rejection: `approvals.manage`
+- Refund execution: `treasury.update`
+
+Added verifier: `verify:reservation-completion-refund-settlement`.
+
+Still deferred:
+- automatic expiry scheduler
+- expiry notifications
+- renewal/successor reservations
+- add/remove/replace item workflows after creation
+- repricing active reservations
+- full reservation reports
+- customer statement reservation section
+- full granular reservation permission matrix
+- full multi-item reservation UI
+
+No reset, seed, production/Render access, customer-credit/statement service changes, print
+template changes, or UAE E-Invoicing work is part of this phase.
+
+### Phase 32.6-Fix-B-Closure
+
+Closed the workflow on top of backend commit `7e1d390` (`feat: add reservation completion
+refund settlement`) with closure commit `feat: close reservation completion refund workflow`.
+Details in `docs/client-requirements/PHASE-32.6-FIX-B.md`.
+
+- **VAT-inclusive completion correction**: the agreed reservation price is VAT-inclusive.
+  Completion now extracts net/VAT from the gross agreed total (`taxBase = total / (1 + rate)`,
+  `tax = total - taxBase`) instead of adding VAT on top via `salesService.computeTotals`.
+  `postInvoiceEntry` consumes the stored subtotal/tax/total, so no double VAT. Live evidence
+  (price 105, VAT 5%): invoice total 105, tax 5, subtotal 100.
+- **Asset-backed stock movement**: new additive, forward-only migration
+  `20260711021000-stock-movement-asset-reference.js` adds nullable `asset_id`
+  (FK → assets) + `stock_movements_asset_id_idx` and relaxes `product_id` to nullable.
+  Completion records exactly one `reservation_final_sale` stock movement per sold asset;
+  existing product-backed movements and the product FK are preserved.
+- **Live verification**: gated local verifier
+  (`VERIFY_RESERVATION_SETTLEMENT_LIVE=true`, `VERIFY_DATABASE_NAME=darfus_erp`, local
+  `darfus_erp@localhost:5433`) exercises completion, VAT-inclusive extraction, stock movement,
+  AR-nets-to-zero settlement, idempotency, concurrency, rollback, cancellation, and the full
+  refund lifecycle. Result: exit 0, **LIVE TESTS EXECUTED**, **No persistent test pollution
+  detected**; before/after DB counts identical.
+- **Minimal frontend wiring**: `/sales/reservations` gains permission-aware Complete/Cancel/
+  Refund actions using dedicated endpoints only (no generic PATCH), submitting no trusted
+  financial values, with loading/confirmation guards and RTL/LTR support.
+- **Verifier normalization**: the Fix A verifier's stale "cancellation is deferred" guard was
+  replaced with durable guards confirming the Fix B cancellation UI stays safe; all other
+  Fix A safety assertions preserved.
+- Both reservation migrations are already applied to local `darfus_erp`; the migration created
+  no business records. Production/Render, remote databases, and the 11 stashes were untouched.
+
+## Phase 32.6-Fix C — Multi-Item Changes, Automatic Expiry & Renewal
+
+Implemented the remaining approved reservation lifecycle on top of Fix A/Fix B. Full detail:
+`docs/client-requirements/PHASE-32.6-FIX-C.md`. Commit: `feat: add reservation amendments expiry
+and renewal`.
+
+- **Item amendments** — `POST /reservations/:id/amend-items` (permission `sales.approve`,
+  idempotent) adds/removes/replaces/reprices active items atomically. Prices are resolved
+  server-side from the asset record (client submits asset ids only). Totals/paid/remaining/status
+  are recomputed server-side; an amendment that would leave total below paid, or leave zero active
+  items, is rejected (no partial refund of an active reservation). Removed/replaced-out items are
+  preserved as `released`; historical payments are never edited. No sales/VAT/AR/COGS/inventory/
+  cash/advance journal is posted. Immutable `reservation_amendments` + `reservation_amendment_items`
+  record before/after evidence. Idempotent; rolls back fully on failure; concurrency-safe.
+- **Expiry extension** — `POST /reservations/:id/extend-expiry` (idempotent) moves expiry later
+  only, only before the current (trusted-DB-time) expiry; immutable
+  `reservation_expiry_extensions` history; no financial posting.
+- **Automatic expiry** — reusable `processDueExpirations()` (no grace period,
+  `expires_at <= now()`, `FOR UPDATE SKIP LOCKED`, per-row transaction, reuses the shared
+  cancellation release path) releases assets, preserves payments, posts no refund/sale/journal, and
+  moves paid→`cancelled_refund_pending` / unpaid→`cancelled` with `expired_by_system` metadata. A
+  fully paid expired reservation is not auto-completed. A guarded `setInterval` scheduler
+  (`reservation-expiry-scheduler.js`, isolated in test/verifier mode, `unref`'d) is bootstrapped
+  from `server.js`.
+- **Renewal** — `POST /reservations/:id/renew` (idempotent) is eligible only for automatically
+  expired sources with no active successor/refund. It creates a linked successor at current server
+  prices and transfers the eligible advance balance via the immutable
+  `reservation_payment_transfers` subledger — **no GL journal** (Advances liability/customer/branch/
+  company/currency unchanged → zero net GL impact), no cash movement, no auto-invoice. Successor
+  total ≤ transferable activates immediately (Active/Partially Paid/Fully Paid); > transferable
+  raises a distinct `renewal_excess` refund and holds the successor in `pending_renewal_settlement`.
+- **Renewal-excess refund** — `POST /reservation-renewal-refunds/:id/approve` (`approvals.manage`)
+  and `/execute` (`treasury.update`, idempotent) refund the server-derived excess via the Fix B
+  Dr Advances / Cr Cash posting (no sales/VAT/AR/COGS/inventory), then transfer the exact successor
+  total and activate the successor. Approval precedes execution; duplicate/early execution and
+  posting-failure rollback are enforced. Fix B full refunds are filtered to `reservation_full` and
+  blocked while a renewal is in progress.
+- **Verification** — `scripts/verify-reservation-amendment-expiry-renewal.js` (static + gated
+  local live). Live run against `darfus_erp@localhost:5433`: **LIVE TESTS EXECUTED**, **No
+  persistent test pollution detected**, before/after counts identical.
+- The Fix C migration is applied to local `darfus_erp` and created no business records.
+  Production/Render, remote databases, and the 11 stashes were untouched.
+
+Still deferred to Fix D: full granular permission matrix, notification delivery, reservation
+reports, customer-statement reservation section, full UI redesign, cross-company/branch/currency
+renewal, partial active-reservation refunds.
+
+## Phase 32.6-Post-C — POS Reservation Deposit & Accounting Configuration
+
+Wired the POS Deposit action, the mandatory reservation initial payment, and the Reservation
+Advances Account configuration into one operable workflow. Full detail:
+`docs/client-requirements/PHASE-32.6-POST-C-POS-RESERVATION.md`. Commit: `feat: wire POS
+reservation deposits and account configuration`.
+
+- **Reservation Advances Account configuration** — the existing `reservationAdvancesAccountId`
+  setting is now selectable from Accounting Settings (only active credit-nature liability accounts
+  listed; backend re-validates). Errors are stable-coded and bilingual
+  (`RESERVATION_ADVANCES_ACCOUNT_NOT_CONFIGURED` / `RESERVATION_ADVANCES_ACCOUNT_INVALID`, HTTP
+  422). No account code is hardcoded; no silent fallback.
+- **Mandatory initial payment** — `createReservation` now rejects a manual reservation without an
+  initial payment > 0 (`RESERVATION_INITIAL_PAYMENT_REQUIRED`) or without a payment method
+  (`RESERVATION_PAYMENT_METHOD_REQUIRED`), and still rejects payment above the total. This applies
+  only to the public manual path; internal Fix C renewal successors (`Reservation.create` + advance
+  transfer) are unaffected. Later payments remain unlimited and unscheduled; no installment schedule
+  was added.
+- **POS reservation mode** — selecting `Deposit / عربون` opens a dedicated reservation dialog and
+  returns before any invoice/sale posting. The dialog collects the initial payment, method, future
+  expiry, and notes, shows total/remaining, and submits only asset ids + operational fields (no
+  trusted totals/VAT/journal lines/account) to `POST /reservations`. Success clears the cart and
+  shows the reservation summary; missing configuration disables the confirm with a bilingual warning
+  and keeps the normal sale path available. No sales invoice or sales/VAT/AR/COGS/inventory posting
+  occurs.
+- **Reservation page** — the management create dialog enforces the same mandatory-initial-payment,
+  payment-method, and configuration rules consistently with POS.
+- **Accounting** — initial and later reservation payments post Dr Cash/Bank / Cr Reservation
+  Advances only; the unpaid balance stays operational (not AR).
+- **Verification** — `scripts/verify-pos-reservation-deposit-configuration.js` (static + gated
+  local live). Live run against `darfus_erp@localhost:5433`: **LIVE TESTS EXECUTED**, **No
+  persistent test pollution detected**, prior setting restored, before/after counts identical. No
+  migration was required.
+
+Still deferred to Fix D: fixed installment schedules, full permission matrix, reports,
+customer-statement reservation section, notifications, full UI redesign, mobile reservation flow.
+
+## Phase 32.6-Fix D — Granular Permissions, Audit, Notifications, Reports, Customer Statement & UI
+
+Implemented the reservation governance/UI layer on top of the already closed Fix A/B/C/Post-C
+reservation workflow. Full detail: `docs/client-requirements/PHASE-32.6-FIX-D.md`.
+
+- Added granular reservation permissions (`reservations.view*`, create, record payment, complete
+  sale, cancel, amend/reprice, extend, renew, refund request/approve/reject/execute, audit,
+  reports, statement, and account-configuration permissions). Existing legacy permissions remain
+  as transitional fallbacks only so current users are not locked out before final role assignment.
+- Added branch/all/own reservation visibility foundation in the reservation service. Legacy rows
+  remain readable through the existing safe read paths; the new workflow operations still require
+  workflow facts and existing guards from Fix A/B/C.
+- Added `GET /reservations/:id/audit-timeline` for read-only reservation audit history with
+  before/after evidence from immutable audit logs.
+- Added reservation notification metadata (`source_type`, `source_id`, `event_key`) with event-key
+  deduplication, and emitted reservation notifications for creation, payments, fully-paid,
+  completion, cancellation, refund, amendment, expiry, and renewal milestones.
+- Added read-only reservation reports:
+  `/reports/reservations/summary`, `/reports/reservations/payments`, and
+  `/reports/reservations/reconciliation`.
+- Added a separate `reservationAdvances` section to customer statement-v2. It is explicitly
+  separate from Accounts Receivable, so reservation payments do not become customer debt before
+  final sale.
+- Enhanced `/sales/reservations` with granular permission checks, later-payment action, status
+  labels, audit timeline display, and reservation report links. The browser still submits no
+  trusted totals/VAT/journal lines/asset status for reservation actions.
+- Added `scripts/verify-reservation-governance-reports-ui.js` and package script
+  `verify:reservation-governance-reports-ui`.
+
+No posting service, VAT, COGS, POS sales, statement services, customer-credit logic, print
+templates, Production/Render, or stashes were changed by Fix D. Still deferred: final staff role
+assignment, notification recipient escalation rules, full report UI/export polish, printable
+statement reservation section, mobile workflow polish, and physical printer validation.

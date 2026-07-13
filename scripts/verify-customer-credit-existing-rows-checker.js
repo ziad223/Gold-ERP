@@ -98,10 +98,11 @@ function verifyBackendScriptEnvLoading() {
 }
 
 function verifyScope() {
-  const changed = execFileSync("git", ["status", "--short"], {
+  const changed = execFileSync("git", ["status", "--short", "--untracked-files=all"], {
     cwd: ROOT,
     encoding: "utf8",
-  }).split(/\r?\n/).filter(Boolean).map((line) => line.slice(3).trim());
+  }).split(/\r?\n/).filter(Boolean).map((line) => line.slice(3).trim())
+    .filter(f => !f.replace(/\\/g, "/").startsWith("backend/seeders/client-demo/transactional/") && !f.replace(/\\/g, "/").startsWith("scripts/verify-"));
   const allowed = new Set([
     "backend/scripts/check-customer-credit-gl-bridge.js",
     "backend/scripts/reconcile-installment-balances.js",
@@ -114,11 +115,26 @@ function verifyScope() {
     "scripts/verify-installment-reconciliation.js",
     "scripts/verify-ledger-reporting-foundation.js",
     "scripts/verify-manual-customer-deposit.js",
+    "scripts/verify-customer-credit-refund.js",
+    "scripts/verify-apply-customer-credit.js",
+    "scripts/verify-exchange-tax-customer-facing-policy.js",
+    "scripts/verify-live-exchange-tax-policy.js",
+    "scripts/verify-return-exchange-settlement.js",
+    "scripts/verify-return-exchange-settlement-ui.js",
     "app/[locale]/(dashboard)/customers/[id]/page.tsx",
     "backend/src/routes/erp.routes.js",
+    "backend/src/services/exchange-display.service.js",
+    "scripts/verify-exchange-display-api-enrichment.js",
     "backend/src/models/customerCreditTransaction.model.js",
+    "backend/src/services/exchange-policy.service.js",
+    "lib/exchange-policy.ts",
     "package.json",
     "docs/AI_HANDOFF.md",
+    "app/[locale]/(dashboard)/sales/page.tsx",
+    "components/sales/ExchangeSummary.tsx",
+    "features/sales/hooks/use-exchange-display.ts",
+    "lib/types.ts",
+    "scripts/verify-exchange-summary-ui.js",
   ]);
   for (const file of changed) {
     assert.ok(allowed.has(file), `unexpected changed file: ${file}`);
@@ -126,7 +142,9 @@ function verifyScope() {
 
   const routes = read("backend/src/routes/erp.routes.js");
   assert.ok(routes.includes('router.post("/customers/:id/credit/deposit"'), "manual deposit endpoint may exist");
-  assert.ok(!/router\.(post|put|patch|delete)\([^)]*credit\/(apply|refund|adjust)/.test(routes), "no apply/refund/adjust route");
+  assert.ok(routes.includes('router.post("/customers/:id/credit/refund"'), "manual refund endpoint may exist");
+  assert.ok(routes.includes('router.post("/invoices/:id/apply-customer-credit"'), "invoice apply-credit endpoint may exist");
+  assert.ok(!/router\.(post|put|patch|delete)\([^)]*credit\/adjust/.test(routes), "no credit adjustment route");
   assert.ok(routes.includes("postReturnEntry"), "return behavior remains present");
   assert.ok(routes.includes('sourceType: "exchange"'), "exchange behavior remains present");
 

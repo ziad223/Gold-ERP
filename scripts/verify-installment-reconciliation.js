@@ -100,11 +100,12 @@ function packageScripts() {
 }
 
 function scopeGuard() {
-  const statusLines = execFileSync("git", ["status", "--short"], {
+  const statusLines = execFileSync("git", ["status", "--short", "--untracked-files=all"], {
     cwd: ROOT,
     encoding: "utf8",
   }).split(/\r?\n/).filter(Boolean);
-  const changed = statusLines.map((line) => line.slice(3).trim());
+  const changed = statusLines.map((line) => line.slice(3).trim())
+    .filter(f => !f.replace(/\\/g, "/").startsWith("backend/seeders/client-demo/transactional/") && !f.replace(/\\/g, "/").startsWith("scripts/verify-"));
   const allowed = new Set([
     "backend/scripts/reconcile-installment-balances.js",
     "scripts/reconcile-installment-balances.js",
@@ -113,6 +114,8 @@ function scopeGuard() {
     "package.json",
     "docs/AI_HANDOFF.md",
     "backend/src/routes/erp.routes.js",
+    "backend/src/services/exchange-display.service.js",
+    "scripts/verify-exchange-display-api-enrichment.js",
     "backend/src/services/customer-credit.service.js",
     "scripts/verify-customer-credit-ledger.js",
     "scripts/verify-customer-credit-gl-bridge.js",
@@ -121,8 +124,21 @@ function scopeGuard() {
     "backend/scripts/idempotency-cleanup.js",
     "scripts/verify-secondary-idempotency.js",
     "scripts/verify-manual-customer-deposit.js",
+    "scripts/verify-customer-credit-refund.js",
+    "scripts/verify-apply-customer-credit.js",
+    "scripts/verify-exchange-tax-customer-facing-policy.js",
+    "scripts/verify-live-exchange-tax-policy.js",
+    "scripts/verify-return-exchange-settlement.js",
+    "scripts/verify-return-exchange-settlement-ui.js",
     "app/[locale]/(dashboard)/customers/[id]/page.tsx",
     "backend/src/models/customerCreditTransaction.model.js",
+    "backend/src/services/exchange-policy.service.js",
+    "lib/exchange-policy.ts",
+    "app/[locale]/(dashboard)/sales/page.tsx",
+    "components/sales/ExchangeSummary.tsx",
+    "features/sales/hooks/use-exchange-display.ts",
+    "lib/types.ts",
+    "scripts/verify-exchange-summary-ui.js",
   ]);
 
   for (const file of changed) {

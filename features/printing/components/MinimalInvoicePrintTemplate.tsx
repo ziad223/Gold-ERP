@@ -9,6 +9,7 @@ import {
   shouldShowEnglish,
 } from "@/features/printing/lib/print-template-config";
 import type { InvoicePrintTemplateProps } from "@/features/printing/components/InvoicePrintTemplate";
+import { ExchangePrintSummary } from "@/features/printing/components/ExchangePrintSummary";
 import {
   formatLocalizedText,
   LocalizedPrintLabel,
@@ -156,7 +157,10 @@ export function MinimalInvoicePrintTemplate({
   viewModel,
   templateConfig,
   documentTitleOverride,
+  exchangeDisplay,
 }: InvoicePrintTemplateProps) {
+  // Phase 30.7-Fix — customer-safe exchange print (suppress raw negative rows/totals).
+  const isExchange = invoice.type === "exchange";
   const precision = settings?.decimalPrecision ?? 2;
   const currency = settings?.currency ?? company.currency ?? "AED";
   const vm = viewModel ?? buildInvoicePrintViewModel(invoice, {
@@ -288,7 +292,10 @@ export function MinimalInvoicePrintTemplate({
       <CustomPrintTextBlocks blocks={customBlocks.afterInvoiceDetails} />
       <CustomPrintTextBlocks blocks={customBlocks.beforeItems} />
 
-      {tpl.sections.itemsTable && (
+      {isExchange && (
+        <ExchangePrintSummary exchangeDisplay={exchangeDisplay ?? null} locale={locale} currency={currency} variant="minimal" />
+      )}
+      {tpl.sections.itemsTable && !isExchange && (
         <section className="minimal-table-wrap">
           <table className="minimal-table">
             <thead>
@@ -325,14 +332,14 @@ export function MinimalInvoicePrintTemplate({
       )}
       <CustomPrintTextBlocks blocks={customBlocks.afterItems} />
 
-      {tpl.sections.specialSummary && vm.special?.exchange && (
+      {tpl.sections.specialSummary && vm.special?.exchange && !isExchange && (
         <section className="minimal-special">
           <SectionTitle en="Exchange Summary" ar="ملخص الاستبدال" showEnglish={showEn} showArabic={showAr} />
           <Row labelEn="Difference" labelAr="الفرق" value={money(vm.special.exchange.difference)} showEnglish={showEn} showArabic={showAr} />
         </section>
       )}
 
-      {(tpl.sections.paymentMethod || tpl.sections.amountDetails) && (
+      {(tpl.sections.paymentMethod || tpl.sections.amountDetails) && !isExchange && (
         <section className="minimal-summary">
           {tpl.sections.paymentMethod && (
             <div>

@@ -61,6 +61,7 @@ import {
   FIXTURE_SETTINGS,
 } from "@/features/printing/lib/invoice-print-fixture";
 import { usePermissions } from "@/hooks/use-permissions";
+import { apiClient } from "@/lib/api/client";
 import { toast } from "sonner";
 import { getPublicFileUrl } from "@/lib/api/files";
 import { queryKeys } from "@/lib/query-keys";
@@ -147,8 +148,13 @@ export default function SettingsPage() {
   const canDeleteBranches = hasPermission("branches.delete");
   const canDeactivateBranches = hasPermission("branches.deactivate");
   const canReactivateBranches = hasPermission("branches.reactivate");
+  const canUpdateAllSettings = hasPermission("settings.update");
+  const canConfigureReservationAccount = canUpdateAllSettings || hasPermission("reservations.configure_account");
+  const hasGranularReservationAccountOnly = canConfigureReservationAccount && !canUpdateAllSettings;
 
-  const [activeTab, setActiveTab] = useState<"company" | "branches" | "payments" | "printDesign" | "system" | "barcode">("company");
+  const [activeTab, setActiveTab] = useState<"company" | "branches" | "payments" | "printDesign" | "system" | "barcode">(
+    hasGranularReservationAccountOnly ? "system" : "company"
+  );
   const [message, setMessage] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -183,6 +189,10 @@ export default function SettingsPage() {
   const [installmentMaxCount, setInstallmentMaxCount] = useState("24");
   const [installmentMinDownPaymentPercent, setInstallmentMinDownPaymentPercent] = useState("0");
   const [savingSystem, setSavingSystem] = useState(false);
+  // Phase 32.6-Post-C — Reservation Advances Account configuration.
+  const [reservationAdvancesAccountId, setReservationAdvancesAccountId] = useState("");
+  const [reservationExpiryWarningHours, setReservationExpiryWarningHours] = useState("72");
+  const [liabilityAccounts, setLiabilityAccounts] = useState<Array<{ id: string; code?: string; name?: string; nameAr?: string; type?: string; nature?: string; isActive?: boolean }>>([]);
 
   // --- Barcode Settings State ---
   const [barcodeForm, setBarcodeForm] = useState({
@@ -486,6 +496,8 @@ export default function SettingsPage() {
       setInstallmentDefaultFrequency(settings.installmentDefaultFrequency || "monthly");
       setInstallmentMaxCount(toEnglishDigits(settings.installmentMaxCount ?? 24));
       setInstallmentMinDownPaymentPercent(toEnglishDigits(settings.installmentMinDownPaymentPercent ?? 0));
+      setReservationAdvancesAccountId(settings.reservationAdvancesAccountId || "");
+      setReservationExpiryWarningHours(toEnglishDigits(settings.reservationExpiryWarningHours ?? 72));
       setPaymentMethods(settings.paymentMethods || ["cash", "card", "transfer", "installment", "deposit"]);
       if (settings.receipt) {
         setReceiptForm(prev => ({
@@ -510,6 +522,32 @@ export default function SettingsPage() {
       }
     }
   }, [settings, company, savedCompanyInfo]);
+
+  // Load the narrowly-scoped reservation account setting and eligible posting
+  // accounts without granting granular actors access to unrelated settings.
+  useEffect(() => {
+    if (!isApiDataSource() || !canConfigureReservationAccount) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiClient<{
+          success: boolean;
+          data: { reservationAdvancesAccountId: string; accounts: any[] };
+        }>("/settings/reservation-advances-account", { locale, skipBranch: true });
+        if (!cancelled) {
+          setReservationAdvancesAccountId(res.data.reservationAdvancesAccountId || "");
+          setLiabilityAccounts(res.data.accounts || []);
+        }
+      } catch {
+        if (!cancelled) setLiabilityAccounts([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [locale, canConfigureReservationAccount]);
+
+  useEffect(() => {
+    if (hasGranularReservationAccountOnly) setActiveTab("system");
+  }, [hasGranularReservationAccountOnly]);
 
   useEffect(() => {
     setLogoFailed(false);
@@ -706,7 +744,9 @@ export default function SettingsPage() {
         installmentEnabled,
         installmentDefaultFrequency,
         installmentMaxCount: Number(toEnglishDigits(installmentMaxCount)),
-        installmentMinDownPaymentPercent: Number(toEnglishDigits(installmentMinDownPaymentPercent))
+        installmentMinDownPaymentPercent: Number(toEnglishDigits(installmentMinDownPaymentPercent)),
+        reservationAdvancesAccountId: reservationAdvancesAccountId || "",
+        reservationExpiryWarningHours: Number(toEnglishDigits(reservationExpiryWarningHours))
       });
       if (success) {
         toast.success(rtl ? "تم حفظ إعدادات النظام بنجاح" : "System settings saved successfully");
@@ -715,6 +755,24 @@ export default function SettingsPage() {
       }
     } catch (err: any) {
       toast.error(err.message || "Error saving system settings");
+    } finally {
+      setSavingSystem(false);
+    }
+  };
+
+  const handleSaveReservationAccount = async () => {
+    setSavingSystem(true);
+    try {
+      const success = await updateSettings({
+        reservationAdvancesAccountId: reservationAdvancesAccountId || ""
+      });
+      if (success) {
+        toast.success(rtl ? "تم حفظ حساب دفعات الحجوزات بنجاح" : "Reservation advances account saved successfully");
+      } else {
+        toast.error(rtl ? "فشل حفظ حساب دفعات الحجوزات" : "Failed to save reservation advances account");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Error saving reservation advances account");
     } finally {
       setSavingSystem(false);
     }
@@ -939,23 +997,25 @@ export default function SettingsPage() {
         title={t("title")}
         description={t("description")}
         actions={
-          <Button variant="secondary" onClick={resetDemo}>
+          canUpdateAllSettings ? <Button variant="secondary" onClick={resetDemo}>
             <RotateCcw className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
             {t("resetDemo")}
-          </Button>
+          </Button> : undefined
         }
       />
 
       {/* Tabs Selector */}
       <div className="flex border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
-        {[
+        {(hasGranularReservationAccountOnly ? [
+          { id: "system", label: rtl ? "حساب دفعات الحجوزات" : "Reservation Account", icon: Sliders }
+        ] : [
           { id: "company", label: rtl ? "بيانات الشركة" : "Company Profile", icon: Building2 },
           { id: "branches", label: rtl ? "إدارة الفروع" : "Branches Manager", icon: Warehouse },
           { id: "payments", label: rtl ? "طرق الدفع" : "Payment Methods", icon: CreditCard },
           { id: "printDesign", label: rtl ? "تصميم الطباعة والفواتير" : "Print & Invoice Design", icon: Receipt },
           { id: "system", label: rtl ? "إعدادات النظام" : "System Settings", icon: Sliders },
           { id: "barcode", label: rtl ? "إعدادات الباركود" : "Barcode Settings", icon: Tag }
-        ].map((tab) => {
+        ]).map((tab) => {
           const Icon = tab.icon;
           return (
             <button
@@ -2080,12 +2140,14 @@ export default function SettingsPage() {
             <div>
               <h2 className="font-black text-navy-950 dark:text-white">{rtl ? "تكوين إعدادات النظام" : "System Configurations"}</h2>
               <p className="text-xs text-slate-500">
-                {rtl ? "التحكم في نسبة الضريبة، وبادئة تسلسل الفواتير، ودقة الأرقام العشرية للمبالغ والوزن." : "Manage VAT taxes, numbering sequences, decimals and zero down payment policy."}
+                {hasGranularReservationAccountOnly
+                  ? (rtl ? "تكوين حساب دفعات مقدمة العملاء للحجوزات." : "Configure the reservation advances account.")
+                  : (rtl ? "التحكم في نسبة الضريبة، وبادئة تسلسل الفواتير، ودقة الأرقام العشرية للمبالغ والوزن." : "Manage VAT taxes, numbering sequences, decimals and zero down payment policy.")}
               </p>
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          {canUpdateAllSettings && <div className="grid gap-4 sm:grid-cols-2">
             <label className="block">
               <span className="label-base">{rtl ? "نسبة ضريبة القيمة المضافة (%)" : "VAT Rate (%)"}</span>
               <input
@@ -2208,12 +2270,65 @@ export default function SettingsPage() {
                   : "If active, checkout for installments with $0 down payment is permitted without dedicated override permissions."}
               </p>
             </div>
+          </div>}
+
+          <div className="border-t border-border pt-5">
+            <h3 className="text-sm font-black text-foreground">{rtl ? "محاسبة الحجوزات" : "Reservation Accounting"}</h3>
+            <label className="block mt-3 max-w-xl">
+              <span className="label-base">{rtl ? "حساب دفعات مقدمة من العملاء – حجوزات" : "Reservation Advances Account"}</span>
+              <select
+                className="input-base mt-1"
+                value={reservationAdvancesAccountId}
+                onChange={(e) => setReservationAdvancesAccountId(e.target.value)}
+                disabled={!canConfigureReservationAccount}
+              >
+                <option value="">{rtl ? "— غير محدد —" : "— Not configured —"}</option>
+                {liabilityAccounts.map((account) => (
+                  <option key={account.id} value={account.id} className="bg-panel text-foreground">
+                    {(account.code ? `${account.code} · ` : "")}{rtl ? (account.nameAr || account.name) : (account.name || account.nameAr)}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1.5 text-[10px] text-slate-400">
+                {rtl
+                  ? "الحساب الدائن المستخدم لتسجيل الدفعات الأولى والدفعات اللاحقة للحجوزات قبل إتمام البيع النهائي. تُعرض حسابات الخصوم الدائنة النشطة فقط، ويُعاد التحقق منها في الخادم."
+                  : "The liability account credited for reservation payments before final sale completion. Only active credit-nature liability accounts are shown; the backend re-validates the selection."}
+              </p>
+              {reservationAdvancesAccountId === "" && (
+                <p className="mt-1.5 text-[10px] font-bold text-amber-600">
+                  {rtl
+                    ? "بدون هذا الحساب لا يمكن تسجيل حجز بعربون في نقطة البيع أو صفحة الحجوزات."
+                    : "Without this account, reservation deposits cannot be recorded in POS or the Reservations page."}
+                </p>
+              )}
+            </label>
+
+            {canUpdateAllSettings && <label className="block mt-4 max-w-xl">
+              <span className="label-base">{rtl ? "عدد الساعات قبل انتهاء الحجز لإرسال التنبيه" : "Reservation expiry warning hours"}</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                dir="ltr"
+                className="input-base mt-1"
+                value={toEnglishDigits(reservationExpiryWarningHours)}
+                onChange={(e) => setReservationExpiryWarningHours(normalizeNumberInput(e.target.value))}
+              />
+              <p className="mt-1.5 text-[10px] text-slate-400">
+                {rtl
+                  ? "يحدد عدد الساعات قبل موعد انتهاء الحجز التي يُرسل عندها تنبيه واحد للمستخدمين المخولين."
+                  : "Defines how many hours before reservation expiry a single warning notification is sent to authorized users."}
+              </p>
+            </label>}
           </div>
 
           <div className="pt-2">
-            <Button onClick={handleSaveSystem} disabled={savingSystem}>
+            <Button onClick={canUpdateAllSettings ? handleSaveSystem : handleSaveReservationAccount} disabled={savingSystem || !canConfigureReservationAccount}>
               <Save className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
-              {savingSystem ? common("saving") : (rtl ? "حفظ إعدادات النظام" : "Save Settings")}
+              {savingSystem
+                ? common("saving")
+                : hasGranularReservationAccountOnly
+                  ? (rtl ? "حفظ حساب دفعات الحجوزات" : "Save Reservation Account")
+                  : (rtl ? "حفظ إعدادات النظام" : "Save Settings")}
             </Button>
           </div>
         </Card>
@@ -2349,6 +2464,25 @@ export default function SettingsPage() {
 
       {/* Card link for users management */}
       <div className="grid gap-4 md:grid-cols-2">
+        <Link href="/settings/barcode-codes">
+          <Card className="p-5 transition hover:border-brand-300 hover:shadow-soft flex items-center justify-between group">
+            <div className="flex gap-4 items-center">
+              <div className="grid h-10 w-10 place-items-center rounded-2xl bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
+                <Tag className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-black text-xs text-navy-950 dark:text-white group-hover:text-brand-600 transition">
+                  {rtl ? "أكواد الباركود والمخزون" : "Barcode & Inventory Codes"}
+                </h3>
+                <p className="text-[10px] text-slate-500 mt-0.5">
+                  {rtl ? "إدارة أكواد المخزون والقطع وقواعد العيار بأمان." : "Manage inventory, item, and karat-code policies safely."}
+                </p>
+              </div>
+            </div>
+            <span className="text-slate-400 group-hover:translate-x-1 rtl:group-hover:-translate-x-1 transition-transform">→</span>
+          </Card>
+        </Link>
+
         <Link href="/settings/users">
           <Card className="p-5 transition hover:border-brand-300 hover:shadow-soft flex items-center justify-between group">
             <div className="flex gap-4 items-center">

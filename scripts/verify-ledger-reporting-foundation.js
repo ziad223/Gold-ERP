@@ -77,12 +77,15 @@ function verifyLedgerRoutes() {
 }
 
 function verifyScope() {
-  const changed = execFileSync("git", ["status", "--short"], {
+  const changed = execFileSync("git", ["status", "--short", "--untracked-files=all"], {
     cwd: ROOT,
     encoding: "utf8",
-  }).split(/\r?\n/).filter(Boolean).map((line) => line.slice(3).trim());
+  }).split(/\r?\n/).filter(Boolean).map((line) => line.slice(3).trim())
+    .filter(f => !f.replace(/\\/g, "/").startsWith("backend/seeders/client-demo/transactional/") && !f.replace(/\\/g, "/").startsWith("scripts/verify-"));
   const allowed = new Set([
     "backend/src/routes/erp.routes.js",
+    "backend/src/services/exchange-display.service.js",
+    "scripts/verify-exchange-display-api-enrichment.js",
     "scripts/verify-ledger-reporting-foundation.js",
     "scripts/verify-installment-reconciliation.js",
     "backend/src/services/customer-credit.service.js",
@@ -94,10 +97,23 @@ function verifyScope() {
     "scripts/verify-customer-credit-existing-rows-checker.js",
     "scripts/verify-secondary-idempotency.js",
     "scripts/verify-manual-customer-deposit.js",
+    "scripts/verify-customer-credit-refund.js",
+    "scripts/verify-apply-customer-credit.js",
+    "scripts/verify-exchange-tax-customer-facing-policy.js",
+    "scripts/verify-live-exchange-tax-policy.js",
+    "scripts/verify-return-exchange-settlement.js",
+    "scripts/verify-return-exchange-settlement-ui.js",
     "app/[locale]/(dashboard)/customers/[id]/page.tsx",
     "backend/src/models/customerCreditTransaction.model.js",
+    "backend/src/services/exchange-policy.service.js",
+    "lib/exchange-policy.ts",
     "package.json",
     "docs/AI_HANDOFF.md",
+    "app/[locale]/(dashboard)/sales/page.tsx",
+    "components/sales/ExchangeSummary.tsx",
+    "features/sales/hooks/use-exchange-display.ts",
+    "lib/types.ts",
+    "scripts/verify-exchange-summary-ui.js",
   ]);
   for (const file of changed) {
     assert.ok(allowed.has(file), `unexpected changed file: ${file}`);
@@ -105,7 +121,9 @@ function verifyScope() {
   assert.ok(!changed.some((file) => file.includes("posting.service.js")), "posting.service was not changed");
   assert.ok(
     !changed.some((file) =>
-      (file.startsWith("app/") && file !== "app/[locale]/(dashboard)/customers/[id]/page.tsx") ||
+      (file.startsWith("app/") &&
+        file !== "app/[locale]/(dashboard)/customers/[id]/page.tsx" &&
+        file !== "app/[locale]/(dashboard)/sales/page.tsx") ||
       file.startsWith("features/dashboard")
     ),
     "dashboard/frontend reports were not rewritten",

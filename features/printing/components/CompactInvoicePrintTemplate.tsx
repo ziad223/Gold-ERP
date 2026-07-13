@@ -9,6 +9,7 @@ import {
   shouldShowEnglish,
 } from "@/features/printing/lib/print-template-config";
 import type { InvoicePrintTemplateProps } from "@/features/printing/components/InvoicePrintTemplate";
+import { ExchangePrintSummary } from "@/features/printing/components/ExchangePrintSummary";
 import {
   formatLocalizedText,
   LocalizedPrintLabel,
@@ -171,7 +172,10 @@ export function CompactInvoicePrintTemplate({
   viewModel,
   templateConfig,
   documentTitleOverride,
+  exchangeDisplay,
 }: InvoicePrintTemplateProps) {
+  // Phase 30.7-Fix — customer-safe exchange print (suppress raw negative rows/totals).
+  const isExchange = invoice.type === "exchange";
   const precision = settings?.decimalPrecision ?? 2;
   const currency = settings?.currency ?? company.currency ?? "AED";
   const vm = viewModel ?? buildInvoicePrintViewModel(invoice, {
@@ -303,7 +307,10 @@ export function CompactInvoicePrintTemplate({
       <CustomPrintTextBlocks blocks={customBlocks.afterInvoiceDetails} />
       <CustomPrintTextBlocks blocks={customBlocks.beforeItems} />
 
-      {tpl.sections.itemsTable && (
+      {isExchange && (
+        <ExchangePrintSummary exchangeDisplay={exchangeDisplay ?? null} locale={locale} currency={currency} variant="compact" />
+      )}
+      {tpl.sections.itemsTable && !isExchange && (
         <section className="compact-table-wrap">
           <table className="compact-table">
             <thead>
@@ -340,14 +347,14 @@ export function CompactInvoicePrintTemplate({
       )}
       <CustomPrintTextBlocks blocks={customBlocks.afterItems} />
 
-      {tpl.sections.specialSummary && vm.special?.exchange && (
+      {tpl.sections.specialSummary && vm.special?.exchange && !isExchange && (
         <section className="compact-special compact-box">
           <BoxTitle en="EXCHANGE SUMMARY" ar="ملخص الاستبدال" showEnglish={showEn} showArabic={showAr} />
           <Field labelEn="Difference" labelAr="الفرق" value={money(vm.special.exchange.difference)} showEnglish={showEn} showArabic={showAr} />
         </section>
       )}
 
-      {(tpl.sections.paymentMethod || tpl.sections.amountDetails) && (
+      {(tpl.sections.paymentMethod || tpl.sections.amountDetails) && !isExchange && (
         <section className="compact-summary">
           {tpl.sections.paymentMethod && (
             <div className="compact-box">

@@ -20,8 +20,6 @@ const getPurityFromKarat = (karat?: number) => {
   return undefined;
 };
 
-const createBarcode = () => String(Date.now()).slice(-13).padStart(13, "6");
-
 export function useAssets() {
   const { activeBranch, activeBranchId, user } = useAuth();
   const { assets: mockAssets, addAsset: addMockAsset, updateAsset: updateMockAsset } = useErp();
@@ -118,7 +116,6 @@ export function useAssets() {
     const costValue = Number(newAsset.cost) || Math.round(priceValue * 0.72);
     const karat = typeof newAsset.karat === "string" ? Number(newAsset.karat) : newAsset.karat;
     const purity = newAsset.purity ?? getPurityFromKarat(karat);
-    const barcode = newAsset.barcode || createBarcode();
     const branch = newAsset.branch || activeBranch || "Main Branch";
 
     if (dataSource === "mock" || dataSource === "local") {
@@ -137,7 +134,19 @@ export function useAssets() {
         branch,
         location: newAsset.location || "Showroom",
         status: "available",
-        barcode,
+        // Mock/local mode has no authoritative backend allocator. Keep an
+        // explicit non-operational placeholder instead of inventing a final
+        // stored barcode in the browser.
+        barcode: newAsset.barcode || `LOCAL-PENDING-${timestamp}`,
+        inventoryCode: newAsset.inventoryCode,
+        itemCode: newAsset.itemCode,
+        karatCode: newAsset.karatCode,
+        barcodeSerial: newAsset.barcodeSerial,
+        barcodeGeneratedAt: newAsset.barcodeGeneratedAt,
+        barcodeRevision: newAsset.barcodeRevision,
+        inventorySubtype: newAsset.inventorySubtype,
+        metadataSchemaVersion: newAsset.metadataSchemaVersion,
+        metadata: newAsset.metadata,
         source: "Manual entry",
         events: [
           {
@@ -157,8 +166,16 @@ export function useAssets() {
       addMockAsset(mockAsset);
       return mockAsset;
     }
+    const createPayload = { ...newAsset };
+    // Final identity values are backend-owned. Ignore any browser-supplied
+    // barcode/components and send only the taxonomy choices needed to allocate.
+    delete createPayload.barcode;
+    delete createPayload.karatCode;
+    delete createPayload.barcodeSerial;
+    delete createPayload.barcodeGeneratedAt;
+    delete createPayload.barcodeRevision;
     const created = await createMutation.mutateAsync({
-      ...newAsset,
+      ...createPayload,
       branchId: newAsset.branchId || activeBranchId || undefined,
       karat,
       purity,
@@ -168,7 +185,6 @@ export function useAssets() {
       price: priceValue,
       cost: costValue,
       branch,
-      barcode,
       location: newAsset.location || "Showroom",
       status: newAsset.status || "available",
       source: newAsset.source || "Manual entry",
