@@ -137,3 +137,14 @@ Live mode verifies:
 - **Configuration Missing (Option A):** Unifies all advances-account configuration failures under HTTP 200 containing `configured: false`, `reconciliationStatus: "configuration_missing"`, and `configurationIssue` (values: `missing_setting`, `account_not_found`, `inactive_account`, `wrong_company`, `invalid_posting_account`, `invalid_account_type`, `invalid_account_nature`) without leaking details.
 - **Customer Statement Deferral:** Statement print/export of the reservationAdvances section is classified as `DEFERRED WITH EXPLICIT OWNER APPROVAL` (Phase 32.6-Fix D, AD-002).
 - **Cleanup proof:** No persistent test pollution detected (all temp users, roles, company, and accounts deleted; server terminated).
+# Phase 32.6-Fix D final verification integrity closure (2026-07-13)
+
+The nine reservation report routes now share one JSON pagination contract: page `1`, limit `50`, maximum `100`, and metadata `{ total, page, limit, pages }`. Invalid non-positive, non-integer, and nonnumeric values return `422 VALIDATION_FAILED`; oversized limits are capped at `100`. Items use deterministic timestamp plus ID ordering, totals cover the complete authorized filtered set, and authorized exports are not truncated to a UI page.
+
+The contract applies to Summary, Payments, Unsettled Advances, Completions, Cancellations/Refunds, Expiry, Amendments, Renewals, and Reconciliation. Company, authenticated branch, own scope, query narrowing, totals, counts, pages, and export rows use the same visibility boundary. Reconciliation paginates only its final authorized logical rows; company-wide unsupported diagnostics remain excluded from branch, own, and branch-filtered company-wide results.
+
+Write-time reservation advances account validation applies equally to `reservations.configure_account` and `settings.update`: the account must exist, be active, be in the authenticated company, be a posting leaf, and be liability/credit. Invalid or mixed requests are atomic and create no success audit. Payload-aware amendment authorization separately enforces `reservations.amend_items` and `reservations.reprice_items`.
+
+Real HTTP verification proved exact negative permission denials, positive Audit/Reports/Statement access, page 1/page 2 stability, empty results, invalid inputs, complete export, scope isolation, a deliberate GL mismatch, and a genuinely reconciled row (`expected=750`, `GL=750`, `difference=0`, `reconciled`, `investigationFlag=false`). Namespace cleanup returned zero persistent matches and restored `reservationAdvancesAccountId=ACC-2300`. Application commit: `6d12975`. Primary verifier commit: `669b194`; compatibility verifier alignment: `396e255`. Static verification: typecheck PASS, lint PASS with pre-existing warnings, build PASS, and 45/45 verifiers PASS.
+
+MANUAL UI QA REQUIRED.

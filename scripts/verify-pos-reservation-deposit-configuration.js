@@ -32,7 +32,12 @@ function settingsContract() {
   assert.ok(ctx.includes("reservationAdvancesAccountId"), "settings context types the reservation advances account id");
   const page = read(SETTINGS_PAGE);
   assert.ok(page.includes("reservationAdvancesAccountId"), "settings page binds the reservation advances account");
-  assert.ok(page.includes('"/accounts') && /type\s*===\s*"liability"/.test(page) && /nature\s*===\s*"credit"/.test(page), "settings page filters accounts to active credit-nature liability accounts");
+  assert.ok(
+    page.includes('"/settings/reservation-advances-account"')
+      && page.includes("liabilityAccounts")
+      && page.includes("Only active credit-nature liability accounts are shown"),
+    "settings page consumes the backend-filtered active credit-nature liability account contract"
+  );
   assert.ok(page.includes("Reservation Advances Account") || page.includes("حساب دفعات مقدمة"), "settings page shows the reservation advances account label");
 }
 

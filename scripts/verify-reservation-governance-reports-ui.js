@@ -224,14 +224,20 @@ async function runLiveIfRequested() {
   const reservationService = require(path.join(BACKEND, "src/services/reservation.service"));
   models.sequelize.options.logging = false;
 
-  const namespace = `T32FDVA-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const namespace = `T32FDRC-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const q = (sql, r = {}) => models.sequelize.query(sql, { type: QueryTypes.SELECT, replacements: r });
   const exec = (sql, r = {}) => models.sequelize.query(sql, { replacements: r });
   let testCustomer = null;
   let testAsset = null;
   let testReservation = null;
   let testPayment = null;
+  let secondTestPayment = null;
   let originalTestAssetState = null;
+  const amendmentTestAssets = [];
+  const reportTestReservations = [];
+  const reportTestRenewals = [];
+  const reconciliationJournalIds = [];
+  const permissionTestRefunds = [];
   let advancesSetting = null;
   let warningSetting = null;
   let createdAsset = false;
@@ -247,8 +253,21 @@ async function runLiveIfRequested() {
       } catch (_) {}
       httpServer = null;
     }
-    if (testPayment) {
-      await models.ReservationPayment.destroy({ where: { id: testPayment.id } });
+    if (testPayment || secondTestPayment) {
+      await models.ReservationPayment.destroy({ where: { id: [testPayment?.id, secondTestPayment?.id].filter(Boolean) } });
+    }
+    if (reportTestRenewals.length) {
+      await models.ReservationRenewal.destroy({ where: { id: reportTestRenewals.map((row) => row.id) } });
+    }
+    if (permissionTestRefunds.length) {
+      await models.ReservationRefund.destroy({ where: { id: permissionTestRefunds.map((row) => row.id) } });
+    }
+    if (reconciliationJournalIds.length) {
+      await models.JournalLine.destroy({ where: { journalEntryId: reconciliationJournalIds } });
+      await models.JournalEntry.destroy({ where: { id: reconciliationJournalIds } });
+    }
+    if (reportTestReservations.length) {
+      await models.Reservation.destroy({ where: { id: reportTestReservations.map((row) => row.id) } });
     }
     if (testReservation) {
       const amendments = await models.ReservationAmendment.findAll({ where: { reservationId: testReservation.id }, attributes: ["id"] });
@@ -264,9 +283,12 @@ async function runLiveIfRequested() {
       await models.Customer.destroy({ where: { id: testCustomer.id }, force: true });
     }
     if (createdAsset && testAsset) {
-      await models.Asset.destroy({ where: { id: testAsset.id } });
+      await models.Asset.destroy({ where: { id: testAsset.id }, force: true });
     } else if (testAsset && originalTestAssetState) {
       await testAsset.update(originalTestAssetState);
+    }
+    if (amendmentTestAssets.length) {
+      await models.Asset.destroy({ where: { id: amendmentTestAssets.map((asset) => asset.id) }, force: true });
     }
     if (advancesSetting) {
       if (originalSettingValue !== null) {
@@ -290,9 +312,10 @@ async function runLiveIfRequested() {
     // Clean up test users, roles, user roles, role permissions, accounts and companies
     await models.UserRole.destroy({ where: { userId: { [Op.like]: `%${namespace}%` } } });
     await models.RolePermission.destroy({ where: { roleId: { [Op.like]: `%${namespace}%` } } });
-    await models.User.destroy({ where: { id: { [Op.like]: `%${namespace}%` } } });
+    await models.User.destroy({ where: { id: { [Op.like]: `%${namespace}%` } }, force: true });
     await models.Role.destroy({ where: { id: { [Op.like]: `%${namespace}%` } } });
     await models.Account.destroy({ where: { id: { [Op.like]: `%${namespace}%` } } });
+    await models.Branch.destroy({ where: { id: { [Op.like]: `%${namespace}%` } } });
     await models.Company.destroy({ where: { id: { [Op.like]: `%${namespace}%` } } });
   }
 
@@ -410,11 +433,27 @@ async function runLiveIfRequested() {
       paymentMethod: "cash",
       status: "posted",
       receivedBy: "System",
-      receivedAt: new Date(),
+      receivedAt: new Date("2000-01-01T00:00:00.000Z"),
       treasuryAccountCode: "1110",
       advancesAccountId: advancesAccount.id,
       advancesAccountCode: advancesAccount.code,
       receiptNumber: `REC-${namespace}`
+    });
+    secondTestPayment = await models.ReservationPayment.create({
+      id: `RSP2-${namespace}`,
+      companyId,
+      reservationId: testReservation.id,
+      customerId: testCustomer.id,
+      amount: "250.0000",
+      currency: "AED",
+      paymentMethod: "bank",
+      status: "posted",
+      receivedBy: "System",
+      receivedAt: new Date("2000-01-01T00:01:00.000Z"),
+      treasuryAccountCode: "1120",
+      advancesAccountId: advancesAccount.id,
+      advancesAccountCode: advancesAccount.code,
+      receiptNumber: `REC2-${namespace}`
     });
     await testAsset.update({ status: "reserved", price: "1100.0000", branchId });
     const testReservationItem = await models.ReservationItem.create({
@@ -462,7 +501,7 @@ async function runLiveIfRequested() {
     const jwt = require(path.join(BACKEND, "node_modules/jsonwebtoken"));
     const { JWT_SECRET } = require(path.join(BACKEND, "src/config/security"));
 
-    async function apiRequest(path, user, method = "GET", body = null, passToken = true) {
+    async function apiRequest(path, user, method = "GET", body = null, passToken = true, extraHeaders = {}) {
       const token = passToken && user ? jwt.sign({ userId: user.id }, JWT_SECRET) : "invalid-token";
       const headers = {};
       if (passToken) {
@@ -478,6 +517,7 @@ async function runLiveIfRequested() {
           headers["x-branch-id"] = user.branchId;
         }
       }
+      Object.assign(headers, extraHeaders);
       const res = await fetch(`${baseUrl}${path}`, {
         method,
         headers,
@@ -486,7 +526,7 @@ async function runLiveIfRequested() {
       const text = await res.text();
       let data = {};
       try { data = JSON.parse(text); } catch (_) {}
-      return { status: res.status, data };
+      return { status: res.status, data, contentType: res.headers.get("content-type") };
     }
 
     async function createTestUserWithPermissions(suffix, permissionNames, userRole = "sales", otherCompanyId = null, customBranchId = null) {
@@ -719,21 +759,127 @@ async function runLiveIfRequested() {
     await models.Setting.update({ value: advancesAccount.id }, { where: { id: advancesSetting.id } });
     console.log("- Empty-string unconfiguration and reconciliation configuration_missing contract: PASS");
 
-    const repriceIsolationUser = await createTestUserWithPermissions(
-      "missing-reprice",
-      ["reservations.view", "reservations.view_all", "reservations.amend_items"],
-      "sales"
-    );
+    console.log("\n[Behavioral Check] Running payload-aware amendment/repricing permission matrix...");
+    const ordinaryAmendUser = await createTestUserWithPermissions("amend-only", ["reservations.view", "reservations.view_all", "reservations.amend_items"]);
+    const repriceOnlyUser = await createTestUserWithPermissions("reprice-only", ["reservations.view", "reservations.view_all", "reservations.reprice_items"]);
+    const bothAmendUser = await createTestUserWithPermissions("amend-reprice", ["reservations.view", "reservations.view_all", "reservations.amend_items", "reservations.reprice_items"]);
+    const salesApproveUser = await createTestUserWithPermissions("sales-approve", ["reservations.view", "reservations.view_all", "sales.approve"]);
     await testReservation.update({ branchId: null, branch: "Company scope" });
-    const repriceBody = {
-      repriceItemIds: [testReservationItem.id],
-      reason: `Permission isolation ${namespace}`,
-      idempotencyKey: `IDEM-REPRICE-${namespace}`
+
+    const makeAmendmentAsset = async (suffix, price) => {
+      const asset = await models.Asset.create({
+        id: `ASSET-${suffix}-${namespace}`,
+        companyId,
+        name: `${suffix} ${namespace}`,
+        type: "gold-piece",
+        category: "ring",
+        grossWeight: "1.0000",
+        netWeight: "1.0000",
+        status: "available",
+        price: String(price),
+        cost: "50.0000",
+        karat: 18,
+        branch: "Company scope",
+        location: "Verifier",
+        barcode: `BC-${suffix}-${namespace}`
+      });
+      amendmentTestAssets.push(asset);
+      return asset;
     };
-    const repriceDenied = await apiRequest(`/reservations/${testReservation.id}/amend-items`, repriceIsolationUser, "POST", repriceBody);
-    console.log(`- Reprice-items missing permission: actor=${repriceIsolationUser.id} granted=reservations.amend_items missing=reservations.reprice_items target=${testReservation.id} expected=403 actual=${repriceDenied.status}`);
-    assert.equal(repriceDenied.status, 403, "reprice operation must require reservations.reprice_items even when actor may amend other item fields");
-    assert.equal(repriceDenied.data.code, "FORBIDDEN", "reprice permission denial must use FORBIDDEN");
+    const amendmentSnapshot = async (idempotencyKey, candidateAsset = null) => {
+      await testReservationItem.reload();
+      if (candidateAsset) await candidateAsset.reload();
+      return {
+        price: String(testReservationItem.agreedPrice),
+        itemCount: await models.ReservationItem.count({ where: { reservationId: testReservation.id } }),
+        amendmentCount: await models.ReservationAmendment.count({ where: { reservationId: testReservation.id } }),
+        auditCount: await models.AuditLog.count({ where: { sourceDocument: testReservation.id } }),
+        notificationCount: await models.Notification.count({ where: { companyId, message: { [Op.like]: `%${testReservation.id}%` } } }),
+        idempotencyCount: await models.IdempotencyRequest.count({ where: { companyId, key: idempotencyKey } }),
+        candidateStatus: candidateAsset ? candidateAsset.status : null
+      };
+    };
+    const assertAtomicDenial = async ({ label, user, body, candidateAsset = null }) => {
+      const before = await amendmentSnapshot(body.idempotencyKey, candidateAsset);
+      const response = await apiRequest(`/reservations/${testReservation.id}/amend-items`, user, "POST", body);
+      const after = await amendmentSnapshot(body.idempotencyKey, candidateAsset);
+      assert.equal(response.status, 403, `${label}: expected HTTP 403`);
+      assert.equal(response.data.code, "FORBIDDEN", `${label}: expected FORBIDDEN`);
+      assert.deepEqual(after, before, `${label}: denial must leave price, items, amendment, audit, notification, idempotency, and asset state unchanged`);
+      console.log(`- ${label}: actor=${user.id} expected=403/FORBIDDEN actual=${response.status}/${response.data.code} price=${before.price}->${after.price} mutation=none PASS`);
+    };
+
+    const ordinaryAsset = await makeAmendmentAsset("ORDINARY", "100.0000");
+    const ordinaryPriceBefore = String(testReservationItem.agreedPrice);
+    const ordinaryResponse = await apiRequest(`/reservations/${testReservation.id}/amend-items`, ordinaryAmendUser, "POST", {
+      addAssetIds: [ordinaryAsset.id], repriceItemIds: [], reason: `Ordinary amendment ${namespace}`, idempotencyKey: `IDEM-ORDINARY-${namespace}`
+    });
+    assert.equal(ordinaryResponse.status, 200, "ordinary amendment permission must allow add-only request");
+    await testReservationItem.reload();
+    assert.equal(String(testReservationItem.agreedPrice), ordinaryPriceBefore, "ordinary amendment must not reprice existing item");
+    assert.equal((await models.IdempotencyRequest.findOne({ where: { key: `IDEM-ORDINARY-${namespace}` } })).status, "succeeded");
+    console.log(`- Ordinary amendment-only success: actor=${ordinaryAmendUser.id} granted=reservations.amend_items missing=reservations.reprice_items actual=200 price=${ordinaryPriceBefore}->${testReservationItem.agreedPrice} PASS`);
+
+    await assertAtomicDenial({
+      label: "Repricing denied without repricing permission",
+      user: ordinaryAmendUser,
+      body: { repriceItemIds: [testReservationItem.id], reason: `Denied reprice ${namespace}`, idempotencyKey: `IDEM-REPRICE-DENY-${namespace}` }
+    });
+
+    const repriceOnlyResponse = await apiRequest(`/reservations/${testReservation.id}/amend-items`, repriceOnlyUser, "POST", {
+      repriceItemIds: [testReservationItem.id], reason: `Reprice only ${namespace}`, idempotencyKey: `IDEM-REPRICE-ONLY-${namespace}`
+    });
+    assert.equal(repriceOnlyResponse.status, 200, "repricing-only actor must not need ordinary amendment permission");
+    await testReservationItem.reload();
+    assert.equal(String(testReservationItem.agreedPrice), "1100", "repricing-only request uses the current server-side asset price");
+    assert.equal((await models.IdempotencyRequest.findOne({ where: { key: `IDEM-REPRICE-ONLY-${namespace}` } })).status, "succeeded");
+    console.log(`- Repricing-only success: actor=${repriceOnlyUser.id} granted=reservations.reprice_items missing=reservations.amend_items,sales.approve actual=200 price=${ordinaryPriceBefore}->${testReservationItem.agreedPrice} PASS`);
+
+    const mixedNoRepriceAsset = await makeAmendmentAsset("MIX-NO-REPRICE", "120.0000");
+    await assertAtomicDenial({
+      label: "Mixed request missing repricing permission",
+      user: ordinaryAmendUser,
+      candidateAsset: mixedNoRepriceAsset,
+      body: { addAssetIds: [mixedNoRepriceAsset.id], repriceItemIds: [testReservationItem.id], reason: `Mixed denied reprice ${namespace}`, idempotencyKey: `IDEM-MIX-NO-REPRICE-${namespace}` }
+    });
+
+    const mixedNoAmendAsset = await makeAmendmentAsset("MIX-NO-AMEND", "130.0000");
+    await assertAtomicDenial({
+      label: "Mixed request missing ordinary amendment permission",
+      user: repriceOnlyUser,
+      candidateAsset: mixedNoAmendAsset,
+      body: { addAssetIds: [mixedNoAmendAsset.id], repriceItemIds: [testReservationItem.id], reason: `Mixed denied amend ${namespace}`, idempotencyKey: `IDEM-MIX-NO-AMEND-${namespace}` }
+    });
+
+    const mixedBothAsset = await makeAmendmentAsset("MIX-BOTH", "140.0000");
+    await testAsset.update({ price: "1200.0000" });
+    const mixedBothResponse = await apiRequest(`/reservations/${testReservation.id}/amend-items`, bothAmendUser, "POST", {
+      addAssetIds: [mixedBothAsset.id], repriceItemIds: [testReservationItem.id], reason: `Mixed allowed ${namespace}`, idempotencyKey: `IDEM-MIX-BOTH-${namespace}`
+    });
+    assert.equal(mixedBothResponse.status, 200, "mixed request with both permissions must succeed");
+    await testReservationItem.reload();
+    assert.equal(String(testReservationItem.agreedPrice), "1200", "mixed authorized request reprices the target item");
+    assert.equal((await models.IdempotencyRequest.findOne({ where: { key: `IDEM-MIX-BOTH-${namespace}` } })).status, "succeeded");
+    console.log(`- Mixed request with both permissions: actor=${bothAmendUser.id} actual=200 price=1100->${testReservationItem.agreedPrice} PASS`);
+
+    const fallbackAsset = await makeAmendmentAsset("FALLBACK", "150.0000");
+    const fallbackResponse = await apiRequest(`/reservations/${testReservation.id}/amend-items`, salesApproveUser, "POST", {
+      addAssetIds: [fallbackAsset.id], reason: `Fallback ordinary ${namespace}`, idempotencyKey: `IDEM-FALLBACK-${namespace}`
+    });
+    assert.equal(fallbackResponse.status, 200, "sales.approve fallback remains valid for ordinary amendments");
+    await testAsset.update({ price: "1300.0000" });
+    await assertAtomicDenial({
+      label: "sales.approve does not grant repricing",
+      user: salesApproveUser,
+      body: { repriceItemIds: [testReservationItem.id], reason: `Fallback reprice denied ${namespace}`, idempotencyKey: `IDEM-FALLBACK-REPRICE-${namespace}` }
+    });
+
+    const emptyRepriceAsset = await makeAmendmentAsset("EMPTY-REPRICE", "160.0000");
+    const emptyRepriceResponse = await apiRequest(`/reservations/${testReservation.id}/amend-items`, ordinaryAmendUser, "POST", {
+      addAssetIds: [emptyRepriceAsset.id], repriceItemIds: [], reason: `Empty reprice ${namespace}`, idempotencyKey: `IDEM-EMPTY-REPRICE-${namespace}`
+    });
+    assert.equal(emptyRepriceResponse.status, 200, "empty reprice array must not require repricing permission");
+    console.log(`- Empty reprice array ordinary amendment: actor=${ordinaryAmendUser.id} actual=200 PASS`);
 
     // ─────────────────────────────────────────────────────────────────────────
     // 22 MANDATORY PERMISSION TESTS MATRIX
@@ -743,9 +889,9 @@ async function runLiveIfRequested() {
     console.log("======================================================================\n");
 
     const noViewUser = await createTestUserWithPermissions("noview", []);
-    const crossCompanyUser = await createTestUserWithPermissions("crossco", ["reservations.view", "reservations.view_all"], "sales", `CMP-${namespace}-OTHER`);
-    const crossBranchUser = await createTestUserWithPermissions("crossbr", ["reservations.view", "reservations.view_branch"], "sales", companyId, `BR-${namespace}-OTHER`);
-    const ownScopeUser = await createTestUserWithPermissions("ownscope", ["reservations.view", "reservations.view_own"], "sales", null, branchId);
+    const crossCompanyUser = await createTestUserWithPermissions("crossco", ["reservations.view", "reservations.view_all", "reservations.reports_view"], "sales", `CMP-${namespace}-OTHER`);
+    const crossBranchUser = await createTestUserWithPermissions("crossbr", ["reservations.view", "reservations.view_branch", "reservations.reports_view", "reservations.reports_export"], "sales", companyId, `BR-${namespace}-OTHER`);
+    const ownScopeUser = await createTestUserWithPermissions("ownscope", ["reservations.view", "reservations.view_own", "reservations.reports_view"], "sales", null, branchId);
     const onlyCreateUser = await createTestUserWithPermissions("onlycreate", ["reservations.create"], "sales", null, branchId);
     const onlyPaymentUser = await createTestUserWithPermissions("onlypay", ["reservations.record_payment"], "sales", null, branchId);
     const onlyCompleteUser = await createTestUserWithPermissions("onlycomp", ["reservations.complete_sale"], "sales", null, branchId);
@@ -764,28 +910,116 @@ async function runLiveIfRequested() {
     const onlyStatementUser = await createTestUserWithPermissions("onlystmt", ["reservations.statement_view"]);
     const onlyConfigUser = await createTestUserWithPermissions("onlycfg", ["reservations.configure_account"]);
 
+    const actionDeniedUser = await createTestUserWithPermissions(
+      "action-denied",
+      ["reservations.view", "reservations.view_all"],
+      "sales",
+      null,
+      branchId
+    );
+    const auditDeniedUser = await createTestUserWithPermissions(
+      "audit-denied",
+      ["reservations.view", "reservations.view_all"],
+      "sales",
+      null,
+      branchId
+    );
+    const reportsDeniedUser = await createTestUserWithPermissions(
+      "reports-denied",
+      ["reservations.view", "reservations.view_all"],
+      "sales",
+      null,
+      branchId
+    );
+    const statementDeniedUser = await createTestUserWithPermissions(
+      "statement-denied",
+      ["reservations.view", "reservations.view_all"],
+      "sales",
+      null,
+      branchId
+    );
+    const makeRefundPermissionReservation = async (suffix) => {
+      const reservation = await models.Reservation.create({
+        id: `RES-RRF-${suffix}-${namespace}`,
+        companyId,
+        assetId: testAsset.id,
+        assetName: testAsset.name,
+        customerId: testCustomer.id,
+        customerName: testCustomer.name,
+        branch: branchName,
+        branchId,
+        currency: "AED",
+        deposit: 0,
+        agreedTotal: "750.0000",
+        paidTotal: "750.0000",
+        remainingTotal: "0.0000",
+        excessTotal: "0.0000",
+        expiresAt: "2099-12-31T23:59:59.000Z",
+        workflowVersion: 2,
+        isLegacy: false,
+        version: 1,
+        createdBy: `Verifier ${namespace}`,
+        updatedBy: `Verifier ${namespace}`,
+        status: "cancelled_refund_pending",
+        cancelledAt: new Date(),
+        cancellationReason: namespace,
+        refundStatus: "requested"
+      });
+      reportTestReservations.push(reservation);
+      return reservation;
+    };
+    const makePermissionRefund = async (suffix, status, reservation) => {
+      const refund = await models.ReservationRefund.create({
+        id: `RRF-PERM-${suffix}-${namespace}`,
+        companyId,
+        reservationId: reservation.id,
+        customerId: testCustomer.id,
+        branchId,
+        amount: "750.0000",
+        currency: "AED",
+        status,
+        refundType: "reservation_full",
+        requestedRefundMethod: "cash",
+        treasuryAccountCode: "1100",
+        originalPaymentMethodsSummary: [{ paymentMethod: "cash", amount: "750.0000" }],
+        methodDiffersFromOriginal: false,
+        methodOverrideApproved: false,
+        reason: `Permission target ${namespace}`,
+        requestedBy: `Verifier ${namespace}`,
+        requestedAt: new Date(),
+        ...(status === "approved" ? { approvedBy: `Verifier ${namespace}`, approvedAt: new Date() } : {}),
+        version: 1
+      });
+      permissionTestRefunds.push(refund);
+      return refund;
+    };
+    const approvalTarget = await makePermissionRefund("APPROVE", "requested", await makeRefundPermissionReservation("APPROVE"));
+    const rejectionTarget = await makePermissionRefund("REJECT", "requested", await makeRefundPermissionReservation("REJECT"));
+    const executionTarget = await makePermissionRefund("EXECUTE", "approved", await makeRefundPermissionReservation("EXECUTE"));
+
     const testRecords = [
       { id: 1, desc: "1. No reservation-view permission", user: noViewUser, path: "/reservations", method: "GET", expected: 403 },
       { id: 2, desc: "2. Cross-company reservation access", user: crossCompanyUser, path: `/reservations/${testReservation.id}`, method: "GET", expected: [403, 404] },
       { id: 3, desc: "3. Cross-branch reservation access", user: crossBranchUser, path: `/reservations/${testReservation.id}`, method: "GET", expected: [403, 404] },
       { id: 4, desc: "4. Own-scope user accessing another user’s reservation", user: ownScopeUser, path: `/reservations/${testReservation.id}`, method: "GET", expected: [403, 404] },
-      { id: 5, desc: "5. Create permission without record-payment permission", user: onlyCreateUser, path: `/reservations/${testReservation.id}/payments`, method: "POST", body: { amount: 100 }, expected: 403 },
-      { id: 6, desc: "6. Record-payment permission without completion permission", user: onlyPaymentUser, path: `/reservations/${testReservation.id}/complete-sale`, method: "POST", expected: 403 },
-      { id: 7, desc: "7. Completion permission isolation", user: onlyCompleteUser, path: `/reservations/${testReservation.id}/complete-sale`, method: "POST", expected: [400, 409, 422] },
-      { id: 8, desc: "8. Cancellation permission isolation", user: onlyCancelUser, path: `/reservations/${testReservation.id}/cancel`, method: "POST", expected: [400, 409, 422] },
-      { id: 9, desc: "9. Amendment permission isolation", user: onlyAmendUser, path: `/reservations/${testReservation.id}/amend-items`, method: "POST", expected: [400, 409, 422] },
-      { id: 10, desc: "10. Reprice permission isolation", user: onlyRepriceUser, path: `/reservations/${testReservation.id}/amend-items`, method: "POST", expected: 403 },
-      { id: 11, desc: "11. Extension permission isolation", user: onlyExtendUser, path: `/reservations/${testReservation.id}/extend-expiry`, method: "POST", expected: [400, 409, 422] },
-      { id: 12, desc: "12. Renewal permission isolation", user: onlyRenewUser, path: `/reservations/${testReservation.id}/renew`, method: "POST", expected: [400, 409, 422] },
-      { id: 13, desc: "13. Refund-request permission isolation", user: onlyRefundReqUser, path: `/reservations/${testReservation.id}/refunds`, method: "POST", expected: [400, 409, 422] },
-      { id: 14, desc: "14. Refund-approval permission isolation", user: onlyRefundAppUser, path: "/reservation-refunds/REF-NONEXIST/approve", method: "POST", expected: [404, 422] },
-      { id: 15, desc: "15. Refund-rejection permission isolation", user: onlyRefundRejUser, path: "/reservation-refunds/REF-NONEXIST/reject", method: "POST", expected: [404, 422] },
-      { id: 16, desc: "16. Refund-execution permission isolation", user: onlyRefundExeUser, path: "/reservation-refunds/REF-NONEXIST/execute", method: "POST", expected: [404, 422] },
-      { id: 17, desc: "17. Audit timeline permission", user: onlyAuditUser, path: `/reservations/${testReservation.id}/audit-timeline`, method: "GET", expected: 200 },
-      { id: 18, desc: "18. Report-view permission", user: onlyReportViewUser, path: "/reports/reservations/summary", method: "GET", expected: 200 },
-      { id: 19, desc: "19. Report-export permission", user: onlyReportViewUser, path: "/reports/reservations/summary?export=true", method: "GET", expected: 403 },
-      { id: 20, desc: "20. Customer-statement permission", user: onlyStatementUser, path: `/customers/${testCustomer.id}/statement-v2`, method: "GET", expected: 200 },
-      { id: 21, desc: "21. Account-configuration permission", user: onlyConfigUser, path: "/settings", method: "POST", body: { key: "reservationAdvancesAccountId", value: "x" }, expected: [200, 400, 403, 404] },
+      { id: 5, desc: "5. Missing record-payment permission", user: actionDeniedUser, path: `/reservations/${testReservation.id}/payments`, method: "POST", body: { amount: 1, paymentMethod: "cash", idempotencyKey: `IDEM-DENY-PAY-${namespace}` }, expected: 403 },
+      { id: 6, desc: "6. Missing completion permission", user: actionDeniedUser, path: `/reservations/${testReservation.id}/complete-sale`, method: "POST", body: { idempotencyKey: `IDEM-DENY-COMP-${namespace}` }, expected: 403 },
+      { id: 7, desc: "7. Missing cancellation permission", user: actionDeniedUser, path: `/reservations/${testReservation.id}/cancel`, method: "POST", body: { reason: namespace, idempotencyKey: `IDEM-DENY-CANCEL-${namespace}` }, expected: 403 },
+      { id: 8, desc: "8. Missing ordinary-amendment permission", user: actionDeniedUser, path: `/reservations/${testReservation.id}/amend-items`, method: "POST", body: { addAssetIds: [testAsset.id], reason: namespace, idempotencyKey: `IDEM-DENY-AMEND-${namespace}` }, expected: 403 },
+      { id: 9, desc: "9. Missing repricing permission", user: ordinaryAmendUser, path: `/reservations/${testReservation.id}/amend-items`, method: "POST", body: { repriceItemIds: [testReservationItem.id], reason: namespace, idempotencyKey: `IDEM-DENY-REPRICE-MATRIX-${namespace}` }, expected: 403 },
+      { id: 10, desc: "10. Missing extension permission", user: actionDeniedUser, path: `/reservations/${testReservation.id}/extend-expiry`, method: "POST", body: { newExpiry: "2099-12-31T23:59:59.000Z", reason: namespace, idempotencyKey: `IDEM-DENY-EXT-${namespace}` }, expected: 403 },
+      { id: 11, desc: "11. Missing renewal permission", user: actionDeniedUser, path: `/reservations/${testReservation.id}/renew`, method: "POST", body: { successorAssetIds: [testAsset.id], newExpiry: "2099-12-31T23:59:59.000Z", reason: namespace, idempotencyKey: `IDEM-DENY-RENEW-${namespace}` }, expected: 403 },
+      { id: 12, desc: "12. Missing refund-request permission", user: actionDeniedUser, path: `/reservations/${testReservation.id}/refunds`, method: "POST", body: { reason: namespace, refundMethod: "cash" }, expected: 403 },
+      { id: 13, desc: "13. Missing refund-approval permission", user: actionDeniedUser, path: `/reservation-refunds/${approvalTarget.id}/approve`, method: "POST", body: { reason: namespace }, expected: 403 },
+      { id: 14, desc: "14. Missing refund-rejection permission", user: actionDeniedUser, path: `/reservation-refunds/${rejectionTarget.id}/reject`, method: "POST", body: { reason: namespace }, expected: 403 },
+      { id: 15, desc: "15. Missing refund-execution permission", user: actionDeniedUser, path: `/reservation-refunds/${executionTarget.id}/execute`, method: "POST", body: { idempotencyKey: `IDEM-DENY-EXEC-${namespace}` }, expected: 403 },
+      { id: 16, desc: "16. Missing audit-timeline permission", user: auditDeniedUser, path: `/reservations/${testReservation.id}/audit-timeline`, method: "GET", expected: 403 },
+      { id: 17, desc: "17. Positive authorized audit timeline", user: onlyAuditUser, path: `/reservations/${testReservation.id}/audit-timeline`, method: "GET", expected: 200 },
+      { id: 18, desc: "18. Missing report-view permission", user: reportsDeniedUser, path: "/reports/reservations/summary", method: "GET", expected: 403 },
+      { id: 19, desc: "19. Positive authorized report view", user: onlyReportViewUser, path: "/reports/reservations/summary", method: "GET", expected: 200 },
+      { id: 20, desc: "20. Missing report-export permission", user: onlyReportViewUser, path: "/reports/reservations/summary?export=true", method: "GET", expected: 403 },
+      { id: 21, desc: "21. Missing customer-statement permission", user: statementDeniedUser, path: `/customers/${testCustomer.id}/statement-v2`, method: "GET", expected: 403 },
+      { id: 22, desc: "22. Positive authorized customer statement", user: onlyStatementUser, path: `/customers/${testCustomer.id}/statement-v2`, method: "GET", expected: 200 },
       { id: 22, desc: "22. Backend denial when the frontend action is hidden", user: noViewUser, path: `/reservations/${testReservation.id}`, method: "DELETE", expected: 403 }
     ];
 
@@ -798,6 +1032,7 @@ async function runLiveIfRequested() {
       console.log(`  Actual HTTP status: ${res.status}`);
       console.log(`  Result: ${pass ? "PASS" : "FAIL"}`);
       assert.ok(pass, `Mandatory Permission Test #${test.id} failed! Expected ${JSON.stringify(test.expected)}, got ${res.status}`);
+      if (test.expected === 403) assert.equal(res.data.code, "FORBIDDEN", `${test.desc} must fail at permission middleware`);
     }
 
     // Unauthenticated (HTTP 401) check
@@ -815,6 +1050,418 @@ async function runLiveIfRequested() {
     const superUser = await createTestUserWithPermissions("superuser", [
       "reservations.view", "reservations.view_all", "reservations.audit_view", "reservations.reports_view", "reservations.reports_export", "reservations.statement_view"
     ]);
+
+    const createReportReservation = async (suffix, overrides = {}) => {
+      const row = await models.Reservation.create({
+        id: `RES-RPT-${suffix}-${namespace}`,
+        companyId,
+        assetId: testAsset.id,
+        assetName: testAsset.name,
+        customerId: testCustomer.id,
+        customerName: testCustomer.name,
+        branch: branchName,
+        branchId,
+        currency: "AED",
+        deposit: 0,
+        agreedTotal: "100.0000",
+        paidTotal: "0.0000",
+        remainingTotal: "100.0000",
+        excessTotal: "0.0000",
+        expiresAt: "2099-12-31T23:59:59.000Z",
+        workflowVersion: 2,
+        isLegacy: false,
+        version: 1,
+        createdBy: `Report Fixture ${namespace}`,
+        updatedBy: `Report Fixture ${namespace}`,
+        status: "active",
+        ...overrides
+      });
+      reportTestReservations.push(row);
+      return row;
+    };
+
+    const reportFixtures = {
+      summary: await createReportReservation("SUMMARY"),
+      unsettled: await createReportReservation("UNSETTLED", { status: "partially_paid", paidTotal: "20.0000", remainingTotal: "80.0000" }),
+      completion1: await createReportReservation("COMP-1", { status: "completed", paidTotal: "100.0000", remainingTotal: "0.0000", completedAt: new Date("2099-01-02T00:00:00.000Z") }),
+      completion2: await createReportReservation("COMP-2", { status: "completed", paidTotal: "100.0000", remainingTotal: "0.0000", completedAt: new Date("2099-01-01T00:00:00.000Z") }),
+      cancellation1: await createReportReservation("CANCEL-1", { status: "cancelled", cancelledAt: new Date("2099-02-02T00:00:00.000Z"), cancellationReason: namespace }),
+      cancellation2: await createReportReservation("CANCEL-2", { status: "cancelled", cancelledAt: new Date("2099-02-01T00:00:00.000Z"), cancellationReason: namespace }),
+      expiry1: await createReportReservation("EXPIRY-1", { status: "cancelled", expiredBySystem: true, expiredAt: new Date("2099-03-02T00:00:00.000Z") }),
+      expiry2: await createReportReservation("EXPIRY-2", { status: "cancelled", expiredBySystem: true, expiredAt: new Date("2099-03-01T00:00:00.000Z") })
+    };
+    for (let index = 1; index <= 2; index += 1) {
+      const renewal = await models.ReservationRenewal.create({
+        id: `RRN-RPT-${index}-${namespace}`,
+        companyId,
+        sourceReservationId: reportFixtures[`cancellation${index}`].id,
+        successorReservationId: reportFixtures[`completion${index}`].id,
+        customerId: testCustomer.id,
+        branchId,
+        currency: "AED",
+        sourceTransferableBalance: "20.0000",
+        successorTotal: "100.0000",
+        transferAmount: "20.0000",
+        excessRefundAmount: "0.0000",
+        status: "activated",
+        reason: namespace,
+        requestedBy: `Report Fixture ${namespace}`,
+        requestedAt: new Date(`2099-04-0${3 - index}T00:00:00.000Z`),
+        version: 1
+      });
+      reportTestRenewals.push(renewal);
+    }
+
+    console.log("\n[Behavioral Check] Running reservation payments report contract matrix...");
+    await testReservation.update({ branchId, branch: branchName });
+    await models.ReservationPayment.update({ branchId }, { where: { id: [testPayment.id, secondTestPayment.id] } });
+    const paymentFilter = "from=2000-01-01&to=2000-01-01";
+    const paymentPage1 = await apiRequest(`/reports/reservations/payments?${paymentFilter}&page=1&limit=1`, superUser);
+    assert.equal(paymentPage1.status, 200);
+    assert.equal(paymentPage1.data.data.items.length, 1);
+    assert.deepEqual(paymentPage1.data.data.pagination, { total: 2, page: 1, limit: 1, pages: 2 });
+    assert.equal(paymentPage1.data.data.items[0].id, testPayment.id);
+    assert.equal(paymentPage1.data.data.totals.count, 2);
+    assert.equal(paymentPage1.data.data.totals.amount, 750);
+    assert.equal(paymentPage1.data.data.totals.byMethod.cash, 500);
+    assert.equal(paymentPage1.data.data.totals.byMethod.bank, 250);
+
+    const paymentPage2 = await apiRequest(`/reports/reservations/payments?${paymentFilter}&page=2&limit=1`, superUser);
+    assert.equal(paymentPage2.status, 200);
+    assert.equal(paymentPage2.data.data.items.length, 1);
+    assert.equal(paymentPage2.data.data.items[0].id, secondTestPayment.id);
+    assert.notEqual(paymentPage1.data.data.items[0].id, paymentPage2.data.data.items[0].id);
+    assert.deepEqual(paymentPage2.data.data.pagination, { total: 2, page: 2, limit: 1, pages: 2 });
+    assert.deepEqual(paymentPage2.data.data.totals, paymentPage1.data.data.totals, "full-filter totals must not change by page");
+
+    for (const row of [paymentPage1.data.data.items[0], paymentPage2.data.data.items[0]]) {
+      assert.equal(row.reservationId, testReservation.id);
+      assert.equal(row.reservationNumber, testReservation.id);
+      assert.equal(row.customerId, testCustomer.id);
+      assert.equal(row.customerName, testCustomer.name);
+      assert.ok(row.amount);
+      assert.ok(row.paymentMethod);
+      assert.ok(row.receivedAt);
+      assert.equal(row.companyId, companyId);
+      assert.equal(row.branchId, branchId);
+    }
+
+    const paymentOversized = await apiRequest(`/reports/reservations/payments?${paymentFilter}&page=1&limit=999`, superUser);
+    assert.equal(paymentOversized.status, 200);
+    assert.equal(paymentOversized.data.data.pagination.limit, 100);
+    assert.ok(paymentOversized.data.data.items.length <= 100);
+    for (const invalidQuery of ["page=0", "page=-1", "page=nope", "page=1.5", "limit=0", "limit=-1", "limit=nope", "limit=1.5"]) {
+      const invalidPage = await apiRequest(`/reports/reservations/payments?${paymentFilter}&${invalidQuery}`, superUser);
+      assert.equal(invalidPage.status, 422, `invalid pagination ${invalidQuery} must return 422`);
+      assert.equal(invalidPage.data.code, "VALIDATION_FAILED");
+    }
+
+    const paymentEmpty = await apiRequest("/reports/reservations/payments?from=1900-01-01&to=1900-01-01&page=1&limit=1", superUser);
+    assert.equal(paymentEmpty.status, 200);
+    assert.deepEqual(paymentEmpty.data.data.items, []);
+    assert.deepEqual(paymentEmpty.data.data.pagination, { total: 0, page: 1, limit: 1, pages: 0 });
+    assert.deepEqual(paymentEmpty.data.data.totals, { count: 0, amount: 0, byMethod: {} });
+
+    const invalidDate = await apiRequest("/reports/reservations/payments?from=not-a-date", superUser);
+    assert.equal(invalidDate.status, 422);
+    assert.equal(invalidDate.data.code, "VALIDATION_FAILED");
+    const reversedDates = await apiRequest("/reports/reservations/payments?from=2000-01-02&to=2000-01-01", superUser);
+    assert.equal(reversedDates.status, 422);
+    assert.equal(reversedDates.data.code, "VALIDATION_FAILED");
+    const invalidBranch = await apiRequest(`/reports/reservations/payments?${paymentFilter}&branchId=BR-NOT-FOUND-${namespace}`, superUser);
+    assert.equal(invalidBranch.status, 422);
+    assert.equal(invalidBranch.data.code, "VALIDATION_FAILED");
+
+    const validBranch = await apiRequest(`/reports/reservations/payments?${paymentFilter}&branchId=${encodeURIComponent(branchId)}`, superUser);
+    assert.equal(validBranch.status, 200);
+    assert.equal(validBranch.data.data.pagination.total, 2);
+    const crossCompanyPayments = await apiRequest(`/reports/reservations/payments?${paymentFilter}`, crossCompanyUser);
+    assert.equal(crossCompanyPayments.status, 200);
+    assert.equal(crossCompanyPayments.data.data.pagination.total, 0);
+    assert.equal(crossCompanyPayments.data.data.totals.amount, 0);
+    const otherBranchId = `BR-${namespace}-OTHER`;
+    const crossBranchPayments = await apiRequest(
+      `/reports/reservations/payments?${paymentFilter}&branchId=${encodeURIComponent(branchId)}`,
+      crossBranchUser,
+      "GET",
+      null,
+      true,
+      { "x-branch-id": otherBranchId }
+    );
+    assert.equal(crossBranchPayments.status, 200);
+    assert.equal(crossBranchPayments.data.data.pagination.total, 0);
+    assert.equal(crossBranchPayments.data.data.totals.amount, 0);
+
+    const sameBranchSummary = await apiRequest(
+      `/reports/reservations/summary?branchId=${encodeURIComponent(branchId)}&customerId=${encodeURIComponent(testCustomer.id)}`,
+      crossBranchUser,
+      "GET",
+      null,
+      true,
+      { "x-branch-id": branchId }
+    );
+    assert.equal(sameBranchSummary.status, 200);
+    const namespaceReservationCount = reportTestReservations.length + 1;
+    assert.equal(sameBranchSummary.data.data.totals.count, namespaceReservationCount);
+    assert.ok(sameBranchSummary.data.data.items.some((row) => row.id === testReservation.id));
+
+    const noBranchSummary = await apiRequest(
+      `/reports/reservations/summary?customerId=${encodeURIComponent(testCustomer.id)}`,
+      crossBranchUser,
+      "GET",
+      null,
+      true,
+      { "x-branch-id": branchId }
+    );
+    assert.equal(noBranchSummary.status, 200);
+    assert.equal(noBranchSummary.data.data.totals.count, namespaceReservationCount);
+
+    const crossBranchSummary = await apiRequest(
+      `/reports/reservations/summary?branchId=${encodeURIComponent(branchId)}&customerId=${encodeURIComponent(testCustomer.id)}`,
+      crossBranchUser,
+      "GET",
+      null,
+      true,
+      { "x-branch-id": otherBranchId }
+    );
+    assert.equal(crossBranchSummary.status, 200);
+    assert.equal(crossBranchSummary.data.data.totals.count, 0, "branch-scoped report actor must not widen scope with branchId query");
+    assert.deepEqual(crossBranchSummary.data.data.items, [], "cross-branch summary must not leak target rows");
+    assert.doesNotMatch(JSON.stringify(crossBranchSummary.data), new RegExp(testReservation.id));
+
+    const crossBranchSummaryExport = await apiRequest(
+      `/reports/reservations/summary?branchId=${encodeURIComponent(branchId)}&customerId=${encodeURIComponent(testCustomer.id)}&export=true`,
+      crossBranchUser,
+      "GET",
+      null,
+      true,
+      { "x-branch-id": otherBranchId }
+    );
+    assert.equal(crossBranchSummaryExport.status, 200);
+    assert.equal(crossBranchSummaryExport.data.data.totals.count, 0);
+    assert.deepEqual(crossBranchSummaryExport.data.data.items, []);
+
+    const companyWideSummary = await apiRequest(
+      `/reports/reservations/summary?branchId=${encodeURIComponent(branchId)}&customerId=${encodeURIComponent(testCustomer.id)}`,
+      superUser
+    );
+    assert.equal(companyWideSummary.status, 200);
+    assert.equal(companyWideSummary.data.data.totals.count, namespaceReservationCount);
+
+    const crossCompanyBranchId = `BR-${namespace}-CROSS-COMPANY`;
+    await models.Branch.create({
+      id: crossCompanyBranchId,
+      companyId: crossCompanyUser.companyId,
+      name: `Cross-company ${namespace}`,
+      code: `XC-${namespace.slice(-8)}`,
+      isActive: true
+    });
+    const crossCompanyBranchSummary = await apiRequest(
+      `/reports/reservations/summary?branchId=${encodeURIComponent(crossCompanyBranchId)}&customerId=${encodeURIComponent(testCustomer.id)}`,
+      superUser
+    );
+    assert.equal(crossCompanyBranchSummary.status, 422);
+    assert.equal(crossCompanyBranchSummary.data.code, "VALIDATION_FAILED");
+    assert.doesNotMatch(JSON.stringify(crossCompanyBranchSummary.data), new RegExp(testReservation.id));
+
+    await testReservation.update({ createdBy: "Test User ownscope", updatedBy: "Test User ownscope" });
+    const ownScopeVisible = await apiRequest(
+      `/reports/reservations/summary?branchId=${encodeURIComponent(branchId)}&customerId=${encodeURIComponent(testCustomer.id)}`,
+      ownScopeUser,
+      "GET",
+      null,
+      true,
+      { "x-branch-id": branchId }
+    );
+    assert.equal(ownScopeVisible.status, 200);
+    assert.equal(ownScopeVisible.data.data.totals.count, 1);
+    const ownReconciliationVisible = await apiRequest(
+      `/reports/reservations/reconciliation?branchId=${encodeURIComponent(branchId)}`,
+      ownScopeUser,
+      "GET",
+      null,
+      true,
+      { "x-branch-id": branchId }
+    );
+    assert.equal(ownReconciliationVisible.status, 200);
+    assert.equal(ownReconciliationVisible.data.data.totals.unsupportedCount, 0);
+    assert.ok(ownReconciliationVisible.data.data.items.some((item) => item.reservationId === testReservation.id));
+    await testReservation.update({ createdBy: "System", updatedBy: "System" });
+    const ownScopeDenied = await apiRequest(
+      `/reports/reservations/summary?branchId=${encodeURIComponent(branchId)}&customerId=${encodeURIComponent(testCustomer.id)}`,
+      ownScopeUser,
+      "GET",
+      null,
+      true,
+      { "x-branch-id": branchId }
+    );
+    assert.equal(ownScopeDenied.status, 200);
+    assert.equal(ownScopeDenied.data.data.totals.count, 0);
+    assert.deepEqual(ownScopeDenied.data.data.items, []);
+    const ownReconciliationDenied = await apiRequest(
+      `/reports/reservations/reconciliation?branchId=${encodeURIComponent(branchId)}`,
+      ownScopeUser,
+      "GET",
+      null,
+      true,
+      { "x-branch-id": branchId }
+    );
+    assert.equal(ownReconciliationDenied.status, 200);
+    assert.deepEqual(ownReconciliationDenied.data.data.items, []);
+    assert.equal(ownReconciliationDenied.data.data.totals.unsupportedCount, 0);
+    assert.equal(ownReconciliationDenied.data.data.totals.glSum, 0);
+    assert.equal(ownReconciliationDenied.data.data.totals.netDifference, 0);
+
+    const companyWideReconciliation = await apiRequest("/reports/reservations/reconciliation", superUser);
+    assert.equal(companyWideReconciliation.status, 200);
+    assert.ok(companyWideReconciliation.data.data.totals.unsupportedCount > 0, "company-wide unfiltered reconciliation retains unsupported diagnostics");
+    const companyWideBranchReconciliation = await apiRequest(
+      `/reports/reservations/reconciliation?branchId=${encodeURIComponent(branchId)}`,
+      superUser
+    );
+    assert.equal(companyWideBranchReconciliation.status, 200);
+    assert.equal(companyWideBranchReconciliation.data.data.totals.unsupportedCount, 0);
+    assert.ok(companyWideBranchReconciliation.data.data.items.every((item) => item.reservationId));
+
+    const affectedReportPaths = [
+      "/reports/reservations/unsettled-advances",
+      "/reports/reservations/completions",
+      "/reports/reservations/cancellations-refunds",
+      "/reports/reservations/expiry",
+      "/reports/reservations/amendments",
+      "/reports/reservations/renewals",
+      "/reports/reservations/reconciliation"
+    ];
+    for (const reportPath of affectedReportPaths) {
+      const separator = reportPath.includes("?") ? "&" : "?";
+      const scopedResponse = await apiRequest(
+        `${reportPath}${separator}branchId=${encodeURIComponent(branchId)}`,
+        crossBranchUser,
+        "GET",
+        null,
+        true,
+        { "x-branch-id": otherBranchId }
+      );
+      assert.equal(scopedResponse.status, 200, `${reportPath} cross-branch request must use secure empty contract`);
+      assert.deepEqual(scopedResponse.data.data.items, [], `${reportPath} must not return cross-branch rows`);
+      assert.doesNotMatch(JSON.stringify(scopedResponse.data), new RegExp(testReservation.id), `${reportPath} must not leak reservation id`);
+      assert.doesNotMatch(JSON.stringify(scopedResponse.data), new RegExp(testCustomer.id), `${reportPath} must not leak customer id`);
+      if (scopedResponse.data.data.pagination) assert.equal(scopedResponse.data.data.pagination.total, 0);
+      if (reportPath.endsWith("/reconciliation")) {
+        assert.equal(scopedResponse.data.data.totals.reconciledCount, 0);
+        assert.equal(scopedResponse.data.data.totals.mismatchCount, 0);
+        assert.equal(scopedResponse.data.data.totals.unsupportedCount, 0);
+        assert.equal(scopedResponse.data.data.totals.subledgerSum, 0);
+        assert.equal(scopedResponse.data.data.totals.glSum, 0);
+        assert.equal(scopedResponse.data.data.totals.netDifference, 0);
+        assert.equal(scopedResponse.data.data.glReconciliation.glBalance, 0);
+        assert.equal(scopedResponse.data.data.glReconciliation.subledgerBalance, 0);
+      }
+    }
+
+    const crossBranchReconciliationExport = await apiRequest(
+      `/reports/reservations/reconciliation?branchId=${encodeURIComponent(branchId)}&export=true`,
+      crossBranchUser,
+      "GET",
+      null,
+      true,
+      { "x-branch-id": otherBranchId }
+    );
+    assert.equal(crossBranchReconciliationExport.status, 200);
+    assert.deepEqual(crossBranchReconciliationExport.data.data.items, []);
+    assert.equal(crossBranchReconciliationExport.data.data.totals.unsupportedCount, 0);
+    assert.equal(crossBranchReconciliationExport.data.data.totals.glSum, 0);
+    assert.equal(crossBranchReconciliationExport.data.data.pagination.total, 0);
+
+    const paymentExport = await apiRequest(`/reports/reservations/payments?${paymentFilter}&export=true&limit=1`, superUser);
+    assert.equal(paymentExport.status, 200);
+    assert.match(paymentExport.contentType || "", /^application\/json/);
+    assert.equal(paymentExport.data.data.items.length, 2, "export must not be restricted by UI limit");
+    assert.equal(paymentExport.data.data.pagination.total, 2);
+    const paymentExportDenied = await apiRequest(`/reports/reservations/payments?${paymentFilter}&export=true`, onlyReportViewUser);
+    assert.equal(paymentExportDenied.status, 403);
+    assert.equal(paymentExportDenied.data.code, "FORBIDDEN");
+    console.log("- Payments report pagination, totals, shape, dates, branch/company isolation, and export: PASS");
+    console.log("- Payments filters customerId, reservationId, paymentMethod: NOT SUPPORTED BY CONTRACT");
+
+    console.log("\n[Behavioral Check] Running common nine-route reservation report pagination matrix...");
+    const reportContractCases = [
+      { name: "Summary", path: "/reports/reservations/summary", filter: `customerId=${encodeURIComponent(testCustomer.id)}`, key: (row) => row.id },
+      { name: "Payments", path: "/reports/reservations/payments", filter: paymentFilter, key: (row) => row.id },
+      { name: "Unsettled advances", path: "/reports/reservations/unsettled-advances", filter: `customerId=${encodeURIComponent(testCustomer.id)}`, key: (row) => row.id },
+      { name: "Completions", path: "/reports/reservations/completions", filter: `customerId=${encodeURIComponent(testCustomer.id)}`, key: (row) => row.id },
+      { name: "Cancellations/refunds", path: "/reports/reservations/cancellations-refunds", filter: `customerId=${encodeURIComponent(testCustomer.id)}`, key: (row) => row.id },
+      { name: "Expiry", path: "/reports/reservations/expiry", filter: `customerId=${encodeURIComponent(testCustomer.id)}`, key: (row) => row.id },
+      { name: "Amendments", path: "/reports/reservations/amendments", filter: `branchId=${encodeURIComponent(branchId)}`, key: (row) => row.id },
+      { name: "Renewals", path: "/reports/reservations/renewals", filter: `branchId=${encodeURIComponent(branchId)}`, key: (row) => row.id },
+      { name: "Reconciliation", path: "/reports/reservations/reconciliation", filter: `customerId=${encodeURIComponent(testCustomer.id)}&branchId=${encodeURIComponent(branchId)}`, key: (row) => row.reservationId || row.details?.journalLineId }
+    ];
+    const joinQuery = (filter, query) => `${filter ? `${filter}&` : ""}${query}`;
+    for (const reportCase of reportContractCases) {
+      const defaultResponse = await apiRequest(`${reportCase.path}?${reportCase.filter}`, superUser);
+      assert.equal(defaultResponse.status, 200, `${reportCase.name} default request`);
+      assert.equal(defaultResponse.data.data.pagination.page, 1);
+      assert.equal(defaultResponse.data.data.pagination.limit, 50);
+      assert.ok(defaultResponse.data.data.items.length <= 50);
+      assert.equal(
+        defaultResponse.data.data.pagination.pages,
+        defaultResponse.data.data.pagination.total === 0 ? 0 : Math.ceil(defaultResponse.data.data.pagination.total / 50)
+      );
+
+      const page1 = await apiRequest(`${reportCase.path}?${joinQuery(reportCase.filter, "page=1&limit=1")}`, superUser);
+      const page2 = await apiRequest(`${reportCase.path}?${joinQuery(reportCase.filter, "page=2&limit=1")}`, superUser);
+      const page1Repeat = await apiRequest(`${reportCase.path}?${joinQuery(reportCase.filter, "page=1&limit=1")}`, superUser);
+      for (const response of [page1, page2, page1Repeat]) assert.equal(response.status, 200);
+      assert.equal(page1.data.data.pagination.page, 1);
+      assert.equal(page1.data.data.pagination.limit, 1);
+      assert.equal(page2.data.data.pagination.page, 2);
+      assert.equal(page2.data.data.pagination.limit, 1);
+      assert.ok(page1.data.data.pagination.total >= 2, `${reportCase.name} fixture must expose two logical rows`);
+      assert.equal(page1.data.data.items.length, 1);
+      assert.equal(page2.data.data.items.length, 1);
+      assert.notEqual(reportCase.key(page1.data.data.items[0]), reportCase.key(page2.data.data.items[0]), `${reportCase.name} pages must be distinct`);
+      assert.equal(reportCase.key(page1.data.data.items[0]), reportCase.key(page1Repeat.data.data.items[0]), `${reportCase.name} ordering must be stable`);
+      assert.deepEqual(page1.data.data.totals, page2.data.data.totals, `${reportCase.name} totals must be page-independent`);
+      assert.equal(page1.data.data.pagination.total, page2.data.data.pagination.total);
+
+      const oversized = await apiRequest(`${reportCase.path}?${joinQuery(reportCase.filter, "page=1&limit=999")}`, superUser);
+      assert.equal(oversized.status, 200);
+      assert.equal(oversized.data.data.pagination.limit, 100);
+      assert.ok(oversized.data.data.items.length <= 100);
+
+      for (const invalidQuery of ["page=0", "page=-1", "page=nope", "page=1.5", "limit=0", "limit=-1", "limit=nope", "limit=1.5"]) {
+        const invalid = await apiRequest(`${reportCase.path}?${joinQuery(reportCase.filter, invalidQuery)}`, superUser);
+        assert.equal(invalid.status, 422, `${reportCase.name} ${invalidQuery}`);
+        assert.equal(invalid.data.code, "VALIDATION_FAILED");
+      }
+
+      const emptyFilter = `from=1900-01-01&to=1900-01-01&branchId=${encodeURIComponent(branchId)}`;
+      const empty = await apiRequest(`${reportCase.path}?${emptyFilter}`, superUser);
+      assert.equal(empty.status, 200);
+      assert.deepEqual(empty.data.data.items, [], `${reportCase.name} empty items`);
+      assert.equal(empty.data.data.pagination.total, 0);
+      assert.equal(empty.data.data.pagination.pages, 0);
+
+      const exported = await apiRequest(`${reportCase.path}?${joinQuery(reportCase.filter, "export=true&page=1&limit=1")}`, superUser);
+      assert.equal(exported.status, 200);
+      assert.equal(exported.data.data.items.length, exported.data.data.pagination.total, `${reportCase.name} export must contain the full filtered set`);
+      assert.ok(exported.data.data.items.length >= 2);
+      const exportDenied = await apiRequest(`${reportCase.path}?${joinQuery(reportCase.filter, "export=true")}`, onlyReportViewUser);
+      assert.equal(exportDenied.status, 403);
+      assert.equal(exportDenied.data.code, "FORBIDDEN");
+
+      const first = page1.data.data.items[0];
+      if (reportCase.name === "Summary") assert.ok(first.id && first.customerId && first.status && first.agreedTotal !== undefined);
+      if (reportCase.name === "Payments") assert.ok(first.reservationId && first.customerId && first.amount && first.paymentMethod && first.receivedAt);
+      if (reportCase.name === "Unsettled advances") assert.ok(first.id && first.customerId && first.paidTotal !== undefined && first.remainingTotal !== undefined);
+      if (reportCase.name === "Completions") assert.ok(first.id && first.customerId && first.completedAt && Object.hasOwn(first, "finalInvoiceId"));
+      if (reportCase.name === "Cancellations/refunds") assert.ok(first.id && first.customerId && first.status && Object.hasOwn(first, "cancellationReason"));
+      if (reportCase.name === "Expiry") assert.ok(first.id && first.customerId && first.expiresAt && first.expiredBySystem === true);
+      if (reportCase.name === "Amendments") assert.ok(first.reservationId && first.amendmentType && first.reason && first.createdAt);
+      if (reportCase.name === "Renewals") assert.ok(first.sourceReservationId && first.successorReservationId && first.transferAmount !== undefined && first.requestedAt);
+      if (reportCase.name === "Reconciliation") assert.ok(first.reservationId && first.expectedLiabilityBalance !== undefined && first.glLiabilityBalance !== undefined && first.reconciliationStatus && typeof first.investigationFlag === "boolean");
+      console.log(`- ${reportCase.name}: default/page1/page2/stability/invalid/empty/totals/export/shape PASS`);
+    }
 
     const smokeEndpoints = [
       { path: "/reports/reservations/summary", query: "?limit=1&page=1" },
@@ -834,6 +1481,25 @@ async function runLiveIfRequested() {
       const resSuccess = await apiRequest(ep.path + ep.query, superUser);
       console.log(`Smoke endpoint: GET ${ep.path} -> Status: ${resSuccess.status} (Expected: 200) | PASS`);
       assert.equal(resSuccess.status, 200, `Smoke endpoint GET ${ep.path} failed`);
+
+      if (ep.path === "/reports/reservations/summary") {
+        const summaryData = resSuccess.data?.data;
+        assert.ok(summaryData?.pagination, "summary report must include pagination metadata");
+        assert.equal(summaryData.pagination.page, 1, "summary report must honor page=1");
+        assert.equal(summaryData.pagination.limit, 1, "summary report must honor limit=1");
+        assert.ok(summaryData.items.length <= 1, "summary report item count must not exceed limit");
+      }
+
+      if (ep.path === "/reports/reservations/payments") {
+        const paymentsData = resSuccess.data?.data;
+        assert.ok(paymentsData?.pagination, "payments report must include pagination metadata");
+        const paymentRow = paymentsData.items?.find((item) => item.reservationId === testReservation.id);
+        assert.ok(paymentRow, "payments report must include the namespace reservation payment");
+        assert.ok(
+          paymentRow.customerId || paymentRow.customerName || paymentRow.customer,
+          "payments report row must include customer identity"
+        );
+      }
       
       const resEpUnauth = await apiRequest(ep.path, null, "GET", null, false);
       assert.equal(resEpUnauth.status, 401, `Smoke endpoint GET ${ep.path} unauthenticated check failed`);
@@ -965,6 +1631,69 @@ async function runLiveIfRequested() {
     const testItem = items.find((i) => i.reservationId === testReservation.id);
     assert.ok(testItem, "Should find our test reservation in items");
     assert.equal(testItem.reservationNumber, testItem.reservationId, "reservationNumber should match reservationId compatibility alias");
+    assert.equal(testItem.expectedLiabilityBalance, 750);
+    assert.notEqual(testItem.difference, 0);
+    assert.equal(testItem.reconciliationStatus, "mismatch");
+    assert.equal(testItem.investigationFlag, true);
+    const balancingAccount = await models.Account.findOne({
+      where: { companyId, id: { [Op.ne]: advancesAccount.id }, isActive: true }
+    });
+    assert.ok(balancingAccount, "balancing account exists for reconciled fixture");
+    const reconciliationJournalId = `JE-RECON-${namespace}`;
+    reconciliationJournalIds.push(reconciliationJournalId);
+    await models.JournalEntry.create({
+      id: reconciliationJournalId,
+      companyId,
+      branchId,
+      description: `Reconciled reservation ${namespace}`,
+      date: "2000-01-01",
+      status: "posted",
+      amount: "750.0000",
+      totalDebit: "750.0000",
+      totalCredit: "750.0000",
+      sourceType: "reservation_settlement",
+      sourceId: testReservation.id,
+      postedBy: `Verifier ${namespace}`,
+      postedAt: "2000-01-01T00:00:00.000Z"
+    });
+    await models.JournalLine.bulkCreate([
+      {
+        id: `JL-RECON-DR-${namespace}`,
+        journalEntryId: reconciliationJournalId,
+        accountId: balancingAccount.id,
+        accountCode: balancingAccount.code,
+        accountName: balancingAccount.name,
+        debit: "750.0000",
+        credit: "0.0000",
+        description: namespace
+      },
+      {
+        id: `JL-RECON-CR-${namespace}`,
+        journalEntryId: reconciliationJournalId,
+        accountId: advancesAccount.id,
+        accountCode: advancesAccount.code,
+        accountName: advancesAccount.name,
+        debit: "0.0000",
+        credit: "750.0000",
+        description: namespace
+      }
+    ]);
+    const reconciledResponse = await apiRequest(
+      `/reports/reservations/reconciliation?branchId=${encodeURIComponent(branchId)}`,
+      superUser
+    );
+    assert.equal(reconciledResponse.status, 200);
+    assert.equal(reconciledResponse.data.data.glReconciliation.configured, true);
+    const reconciledItem = reconciledResponse.data.data.items.find((item) => item.reservationId === testReservation.id);
+    assert.ok(reconciledItem, "reconciled namespace row exists in actual response");
+    assert.equal(reconciledItem.reservationNumber, testReservation.id);
+    assert.equal(reconciledItem.details.paymentsReceived, 750);
+    assert.equal(reconciledItem.expectedLiabilityBalance, 750);
+    assert.equal(reconciledItem.glLiabilityBalance, 750);
+    assert.equal(reconciledItem.difference, 0);
+    assert.equal(reconciledItem.reconciliationStatus, "reconciled");
+    assert.equal(reconciledItem.investigationFlag, false);
+    console.log("- Genuine reconciled GL/subledger row and deliberate mismatch row: PASS");
     console.log("- Reconciliation alias matching check: PASS");
 
     // ─────────────────────────────────────────────────────────────────────────

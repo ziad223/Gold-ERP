@@ -178,6 +178,7 @@ export default function ReservationsPage() {
   const [amendTarget, setAmendTarget] = useState<Reservation | null>(null);
   const [amendAddIds, setAmendAddIds] = useState<string[]>([]);
   const [amendRemoveIds, setAmendRemoveIds] = useState<string[]>([]);
+  const [amendRepriceIds, setAmendRepriceIds] = useState<string[]>([]);
   const [amendReason, setAmendReason] = useState("");
   const [renewSource, setRenewSource] = useState<Reservation | null>(null);
   const [renewAssetIds, setRenewAssetIds] = useState<string[]>([]);
@@ -210,6 +211,7 @@ export default function ReservationsPage() {
   const canRejectRefund = hasPermission("reservations.refund_reject") || hasPermission("approvals.manage");
   const canExecuteRefund = hasPermission("reservations.refund_execute") || hasPermission("treasury.update");
   const canAmendItems = hasPermission("reservations.amend_items") || hasPermission("sales.approve");
+  const canRepriceItems = hasPermission("reservations.reprice_items");
   const canExtendExpiry = hasPermission("reservations.extend_expiry") || hasPermission("sales.approve");
   const canRenew = hasPermission("reservations.renew") || hasPermission("sales.approve");
   const canApproveRenewalRefund = hasPermission("reservations.refund_approve") || hasPermission("approvals.manage");
@@ -550,6 +552,7 @@ export default function ReservationsPage() {
     setAmendTarget(reservation);
     setAmendAddIds([]);
     setAmendRemoveIds([]);
+    setAmendRepriceIds([]);
     setAmendReason("");
   };
 
@@ -558,9 +561,9 @@ export default function ReservationsPage() {
   const submitAmend = async () => {
     if (!amendTarget) return;
     if (!amendReason.trim()) { setErrorMsg(rtl ? "سبب التعديل مطلوب." : "Amendment reason is required."); return; }
-    if (amendAddIds.length === 0 && amendRemoveIds.length === 0) { setErrorMsg(rtl ? "اختر قطعاً للإضافة أو الإزالة." : "Select items to add or remove."); return; }
+    if (amendAddIds.length === 0 && amendRemoveIds.length === 0 && amendRepriceIds.length === 0) { setErrorMsg(rtl ? "اختر عملية إضافة أو إزالة أو إعادة تسعير." : "Select items to add, remove, or reprice."); return; }
     try {
-      await amendItemsMutation.mutateAsync({ reservation: amendTarget, addAssetIds: amendAddIds, removeItemIds: amendRemoveIds, repriceItemIds: [], reason: amendReason.trim() });
+      await amendItemsMutation.mutateAsync({ reservation: amendTarget, addAssetIds: amendAddIds, removeItemIds: amendRemoveIds, repriceItemIds: amendRepriceIds, reason: amendReason.trim() });
       setAmendTarget(null);
       setSuccessMsg(rtl ? "تم تعديل قطع الحجز." : "Reservation items amended.");
     } catch (err: any) {
@@ -656,7 +659,7 @@ export default function ReservationsPage() {
 
   const amendableStatuses = ["active", "partially_paid", "fully_paid"];
   const canShowAmend = (reservation: Reservation) =>
-    canAmendItems && amendableStatuses.includes(reservation.status) && !reservation.isLegacy && !reservation.finalInvoiceId;
+    (canAmendItems || canRepriceItems) && amendableStatuses.includes(reservation.status) && !reservation.isLegacy && !reservation.finalInvoiceId;
   const canShowExtend = (reservation: Reservation) =>
     canExtendExpiry && amendableStatuses.includes(reservation.status) && !reservation.isLegacy;
   const canShowRenew = (reservation: Reservation) =>
@@ -1129,15 +1132,18 @@ export default function ReservationsPage() {
         {amendTarget && (
           <div className="space-y-4 text-sm">
             <p className="text-xs text-muted">{rtl ? "تُحتسب الأسعار والإجماليات على الخادم من أسعار القطع الحالية. لا يُرسل أي مبلغ من الواجهة." : "Prices and totals are computed on the server from current asset prices. No amounts are submitted from the UI."}</p>
-            <Section title={rtl ? "إزالة قطع نشطة" : "Remove active items"}>
+            {canAmendItems && <Section title={rtl ? "إزالة قطع نشطة" : "Remove active items"}>
               {(amendTarget.items ?? []).filter((i) => i.status === "active").map((item) => (
                 <label key={item.id} className="flex items-center gap-2 rounded-2xl border border-border p-3 text-xs">
-                  <input type="checkbox" checked={amendRemoveIds.includes(item.id)} onChange={() => setAmendRemoveIds((prev) => toggleId(prev, item.id))} />
+                  <input type="checkbox" checked={amendRemoveIds.includes(item.id)} onChange={() => {
+                    setAmendRemoveIds((prev) => toggleId(prev, item.id));
+                    setAmendRepriceIds((prev) => prev.filter((id) => id !== item.id));
+                  }} />
                   <span>{item.assetName || item.assetId} · {money(item.agreedPrice)}</span>
                 </label>
               ))}
-            </Section>
-            <Section title={rtl ? "إضافة قطع متاحة" : "Add available assets"}>
+            </Section>}
+            {canAmendItems && <Section title={rtl ? "إضافة قطع متاحة" : "Add available assets"}>
               <div className="max-h-48 overflow-y-auto space-y-1">
                 {availableAssets.map((asset) => (
                   <label key={asset.id} className="flex items-center gap-2 rounded-2xl border border-border p-3 text-xs">
@@ -1146,7 +1152,20 @@ export default function ReservationsPage() {
                   </label>
                 ))}
               </div>
-            </Section>
+            </Section>}
+            {canRepriceItems && <Section title={rtl ? "إعادة تسعير القطع النشطة" : "Reprice active items"}>
+              {(amendTarget.items ?? []).filter((i) => i.status === "active").map((item) => (
+                <label key={item.id} className="flex items-center gap-2 rounded-2xl border border-border p-3 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={amendRepriceIds.includes(item.id)}
+                    disabled={amendRemoveIds.includes(item.id)}
+                    onChange={() => setAmendRepriceIds((prev) => toggleId(prev, item.id))}
+                  />
+                  <span>{item.assetName || item.assetId} · {money(item.agreedPrice)}</span>
+                </label>
+              ))}
+            </Section>}
             <label className="block">
               <span className="label-base">{rtl ? "سبب التعديل" : "Amendment reason"}</span>
               <input className="input-base" value={amendReason} onChange={(e) => setAmendReason(e.target.value)} />

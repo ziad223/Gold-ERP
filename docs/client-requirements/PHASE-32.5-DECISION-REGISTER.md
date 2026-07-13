@@ -70,3 +70,12 @@ Sign-off tracker for every open decision. **Status starts PENDING; Answer/Date a
   Cash/Bank / Cr Reservation Advances only. **APPROVED**.
 - **PC-004 (POS deposit):** The POS `Deposit / عربون` action **creates a reservation, not a sales
   invoice**, through the dedicated reservation API. **APPROVED**.
+# DR-32.6-FD-FINAL — Reservation governance final contract closure (2026-07-13)
+
+- Reservation report JSON pagination is standardized at page 1, limit 50, maximum 100, with `{ total, page, limit, pages }`.
+- Invalid pagination returns `422 VALIDATION_FAILED`; totals are full-filter totals; ordering is deterministic; authorized export is complete and unpaginated.
+- Authenticated company/branch/own visibility is the maximum scope. Query filters narrow only, and the same scope governs rows, totals, counts, pages, reconciliation balances, diagnostics, and exports.
+- Reservation advances account configuration accepts the granular permission or broad settings fallback, validates active same-company posting liability/credit accounts before mutation, and rejects invalid or mixed payloads atomically without success audit.
+- Repricing requires `reservations.reprice_items`; mixed amendment/repricing requests require both applicable authorities.
+- Behavioral closure evidence includes exact permission denials, all nine report contracts, reconciliation mismatch and reconciled rows, 45/45 static verifiers, and zero namespace pollution.
+- MANUAL UI QA REQUIRED.

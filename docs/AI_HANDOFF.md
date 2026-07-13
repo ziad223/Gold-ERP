@@ -3774,3 +3774,10 @@ No posting service, VAT, COGS, POS sales, statement services, customer-credit lo
 templates, Production/Render, or stashes were changed by Fix D. Still deferred: final staff role
 assignment, notification recipient escalation rules, full report UI/export polish, printable
 statement reservation section, mobile workflow polish, and physical printer validation.
+# Phase 32.6-Fix D final closure handoff (2026-07-13)
+
+Reservation governance application closure is implemented in `6d12975`, behavioral verification in `669b194`, and the backend-filtered settings verifier alignment in `396e255`. All nine reservation reports now enforce common pagination (`page=1`, `limit=50`, max `100`, `{total,page,limit,pages}`), deterministic ordering, full-filter totals, complete authorized export, and identical company/branch/own visibility for rows and aggregates. Reconciliation retains secure unsupported-diagnostic rules and paginates only authorized logical rows.
+
+The gated verifier uses real Express HTTP and local `darfus_erp@localhost:5433`, proves exact negative permissions, account permission/validation atomicity, payload-aware repricing, page and export behavior, scope isolation, a real 750/750 reconciled row plus mismatch, and zero namespace pollution with `ACC-2300` restored. Typecheck, lint, build, and 45/45 verifiers pass.
+
+MANUAL UI QA REQUIRED. Do not start Phase 33 without owner direction.

@@ -328,3 +328,19 @@ Phase 32.6-Fix D is now **APPROVED — IMPLEMENTED & CLOSED** (verified live aga
 - Granular permission matrices (22 test scenarios) and API smoke matrices (11 endpoints) are fully verified and integrated.
 - Option A configuration missing protocol is fully enforced returning HTTP 200 with structured status and machine-readable `configurationIssue` fields.
 - Reservation `id` acts as the human-readable business key `reservationNumber`.
+# Phase 32.6-Fix D final traceability addendum (2026-07-13)
+
+| Requirement | Implementation/evidence |
+|---|---|
+| Common report pagination | Nine reservation report handlers use page 1, limit 50, max 100 and `{total,page,limit,pages}` |
+| Stable pages and full totals | Timestamp plus ID ordering; page-independent totals asserted through real HTTP |
+| Export | Positive full-filter export and exact negative `403 FORBIDDEN` asserted for every reservation report |
+| Scope security | Company, branch, own, query-narrowing, counts, pages, totals, GL diagnostics and export isolation asserted |
+| Account permission/validation | Granular/broad/both success; neither/mixed denial; six invalid-account cases return 422 without mutation or success audit |
+| Repricing | Ordinary, repricing-only, mixed, fallback, empty-array, and atomic denial matrix asserted |
+| Reconciliation | Deliberate mismatch plus actual posted matching GL row: 750/750, difference 0, reconciled, no investigation flag |
+| Permission integrity | Exact 403/FORBIDDEN negative middleware tests with real targets; positive Audit/Reports/Statement tests kept separate |
+| Cleanup | Exact `T32FDRC-*` namespace cleanup, zero persistent matches, setting restored to ACC-2300 |
+| Verification | Typecheck, lint, build, 45/45 verifiers, gated live verifier |
+
+Commits: application `6d12975`; primary verifier `669b194`; verifier compatibility `396e255`. MANUAL UI QA REQUIRED.
