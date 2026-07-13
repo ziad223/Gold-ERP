@@ -344,3 +344,22 @@ Phase 32.6-Fix D is now **APPROVED — IMPLEMENTED & CLOSED** (verified live aga
 | Verification | Typecheck, lint, build, 45/45 verifiers, gated live verifier |
 
 Commits: application `6d12975`; primary verifier `669b194`; verifier compatibility `396e255`. MANUAL UI QA REQUIRED.
+
+# Phase 33B traceability addendum (2026-07-13)
+
+| Requirement | Implementation/evidence |
+|---|---|
+| Separate aggregates | Dedicated CGP and IGP document/item tables, models, services, and routes |
+| Draft workflow | Create/read/update/validate/soft-void; only draft and validated are active states |
+| Measurements | Backend decimal net and pure-weight calculation with approved storage precision |
+| IGP scope | Physical, serialized bullion, and bullion lot pass; pool/custom/unsupported return exact 422 |
+| Identity | Company-scoped serialized bullion and lot duplicate rejection |
+| Security | Exact 401/403, secure detail 404, same-company references, authenticated branch maximum, hidden counts excluded |
+| Reliability | Idempotent create/validate/void, payload conflict, optimistic version conflict, immutable audit |
+| No downstream effects | Real HTTP assertions show zero asset, stock, journal, cash, gold-pool, order, notification, and barcode rows |
+| UI | CGP Sales workspace and IGP Supplier workspace; no posting or deferred operation controls |
+| Migration safety | Additive migration only; local backup 349.5 KB; no legacy backfill |
+| Verification | Typecheck/lint/build, 46/46 verifier files, gated live HTTP suite, zero namespace pollution |
+
+Dedicated permissions/maker-checker are deferred to Phase 33C. Accounting/tax/value policy is
+deferred to Phase 33D and requires accountant/client decisions. MANUAL UI QA REQUIRED.

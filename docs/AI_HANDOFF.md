@@ -3781,3 +3781,25 @@ Reservation governance application closure is implemented in `6d12975`, behavior
 The gated verifier uses real Express HTTP and local `darfus_erp@localhost:5433`, proves exact negative permissions, account permission/validation atomicity, payload-aware repricing, page and export behavior, scope isolation, a real 750/750 reconciled row plus mismatch, and zero namespace pollution with `ACC-2300` restored. Typecheck, lint, build, and 45/45 verifiers pass.
 
 MANUAL UI QA REQUIRED. Do not start Phase 33 without owner direction.
+
+## Phase 33B — Gold Purchase Core Data and Draft Workflow
+
+Phase 33B is implemented as an additive, non-accounting CGP/IGP draft foundation. Full contract:
+`docs/client-requirements/PHASE-33B.md`.
+
+- Separate CGP and IGP document/item aggregates, server draft numbers, draft/validated states,
+  optimistic versions, audited soft void, and backend decimal weight calculations.
+- IGP supports physical gold, serialized bullion, and bullion lots; pool/custom are rejected.
+- New bounded APIs live under `/api/v1/gold-purchases`; authenticated company/branch is the
+  maximum scope and query filters only narrow it.
+- Minimal bilingual workspaces live at `/sales/customer-gold/drafts` and
+  `/suppliers/investment-gold`.
+- The local additive migration was backed up and applied to `darfus_erp@localhost:5433` only.
+- `scripts/verify-gold-purchase-draft-workflow.js` passed real HTTP behavior, exact cleanup, and
+  zero posting/inventory/asset/barcode/pool/order effects. All 46 verifiers pass.
+
+Do not start Phase 33C without owner direction. Dedicated gold-purchase permissions and
+maker-checker remain a Phase 33C decision. Final value/accounting/tax/settlement require
+accountant/client approval before Phase 33D.
+
+MANUAL UI QA REQUIRED.

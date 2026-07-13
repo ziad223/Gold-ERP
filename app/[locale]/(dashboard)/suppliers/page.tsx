@@ -348,6 +348,9 @@ export default function SuppliersPage() {
                 {rtl ? "طلبات الشراء والاستلام" : "Purchase Orders"}
               </Button>
             </Link>
+            <Link href="/suppliers/investment-gold">
+              <Button variant="secondary">{rtl ? "مسودات الذهب الاستثماري" : "Investment Gold Drafts"}</Button>
+            </Link>
             {canCreateSuppliers && (
               <Button onClick={handleOpenAdd}>
                 <Plus className="h-4 w-4" />

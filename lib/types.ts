@@ -664,6 +664,62 @@ export interface Transfer {
 
 export type AdjustmentType = "weight-correction" | "entry-error" | "quality-inspection" | "management-approval" | "other";
 
+// Phase 33B — additive Gold Purchase draft contracts. These are deliberately
+// non-posting: no asset, inventory, accounting or treasury fields belong here.
+export type GoldPurchaseDraftStatus = "draft" | "validated";
+export type InvestmentGoldType = "physical" | "bullion";
+export type BullionIdentityType = "serialized_unit" | "bullion_lot";
+
+export interface GoldPurchaseDraftItem {
+  id?: string;
+  lineNumber?: number;
+  goldType: string;
+  karat: number | string;
+  fineness: number | string;
+  purityFactor: number | string;
+  grossWeight: number | string;
+  stoneWeight: number | string;
+  netWeight?: number | string;
+  pureGoldWeight?: number | string;
+  referenceMarketRate?: number | string | null;
+  proposedRate?: number | string | null;
+  investmentType?: InvestmentGoldType;
+  bullionIdentityType?: BullionIdentityType | null;
+  serialNumber?: string | null;
+  lotNumber?: string | null;
+  quantity?: number | string;
+  proposedPurchaseRate?: number | string | null;
+  proposedCharges?: number | string | null;
+  proposedDiscount?: number | string | null;
+  notes?: string | null;
+}
+
+export interface GoldPurchaseDraft {
+  id: string;
+  draftNumber: string;
+  companyId: string;
+  branchId: string;
+  customerId?: string;
+  supplierId?: string;
+  customer?: { id: string; name: string };
+  supplier?: { id: string; name: string };
+  branch?: { id: string; name: string };
+  transactionDate?: string;
+  purchaseDate?: string;
+  currency: string;
+  exchangeRate: number | string;
+  status: GoldPurchaseDraftStatus;
+  version: number;
+  notes?: string | null;
+  validatedAt?: string | null;
+  validatedBy?: string | null;
+  voidedAt?: string | null;
+  voidedBy?: string | null;
+  voidReason?: string | null;
+  voided: boolean;
+  items: GoldPurchaseDraftItem[];
+}
+
 export interface InventoryAdjustment {
   id: string;
   assetId: string;

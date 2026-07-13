@@ -79,3 +79,23 @@ Sign-off tracker for every open decision. **Status starts PENDING; Answer/Date a
 - Repricing requires `reservations.reprice_items`; mixed amendment/repricing requests require both applicable authorities.
 - Behavioral closure evidence includes exact permission denials, all nine report contracts, reconciliation mismatch and reconciled rows, 45/45 static verifiers, and zero namespace pollution.
 - MANUAL UI QA REQUIRED.
+
+# DR-33B — Gold Purchase draft foundation (2026-07-13)
+
+- **APPROVED/IMPLEMENTED:** CGP and IGP are separate aggregates with separate temporary
+  company-scoped draft numbering. They are not reinterpretations of legacy gold pools or
+  purchase orders.
+- **APPROVED/IMPLEMENTED:** Phase 33B active states are `draft` and `validated`; delete means
+  audited soft void. Editing a validated draft returns it to draft.
+- **APPROVED/IMPLEMENTED:** IGP initial types are physical gold, serialized bullion, and
+  bullion lots. Pool and custom investment remain deferred.
+- **APPROVED/IMPLEMENTED:** Storage precision is weight 6, purity/fineness 6, exchange rate 8,
+  proposed money 4 decimals. Only net and pure-gold weight formulas are authoritative here.
+- **TRANSITIONAL:** Existing Sales and Supplier permissions protect draft operations only.
+- **OWNER DECISION REQUIRED BEFORE PHASE 33C:** dedicated CGP/IGP permission matrix and
+  maker-checker boundaries.
+- **ACCOUNTANT/CLIENT DECISION REQUIRED BEFORE PHASE 33D:** final price basis, tax/VAT/RCM,
+  valuation, account categories, settlement, payments, returns, and reversals.
+- **EXPLICITLY DEFERRED:** posting, receipt, assets, barcodes, inventory, liquidity transfer,
+  transformation, withdrawal, attachments/documents, and final reporting.
+- MANUAL UI QA REQUIRED.

@@ -242,6 +242,7 @@ export default function SalesPage() {
             <Link href="/sales/exchanges"><Button variant="secondary">{rtl ? "استبدال قطع" : "Exchanges"}</Button></Link>
             <Link href="/sales/reservations"><Button variant="secondary">{rtl ? "الحجوزات" : "Reservations"}</Button></Link>
             <Link href="/sales/customer-gold"><Button variant="secondary">{rtl ? "شراء كسر" : "Customer Gold"}</Button></Link>
+            <Link href="/sales/customer-gold/drafts"><Button variant="secondary">{rtl ? "مسودات شراء الذهب" : "CGP Drafts"}</Button></Link>
             <Link href="/sales/installments"><Button variant="secondary">{rtl ? "التقسيط" : "Installments"}</Button></Link>
             <Link href="/sales/gift-vouchers"><Button variant="secondary">{rtl ? "قسائم الهدايا" : "Gift Vouchers"}</Button></Link>
             <Button variant="secondary" onClick={() => refetch()}>{common("refresh")}</Button>
