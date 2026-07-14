@@ -1550,7 +1550,7 @@ async function runLiveIfRequested() {
       id: otherCompanyId,
       businessName: "Other Company",
       workspace: `workspace-${otherCompanyId}`
-    });
+    }, { returning: false });
     const wrongCoAcc = await models.Account.create({
       id: `ACC-T32FD-${namespace}-wrongco`,
       companyId: otherCompanyId,

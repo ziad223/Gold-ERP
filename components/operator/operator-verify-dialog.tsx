@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { useOperator } from "@/contexts/operator-context";
 
@@ -11,12 +11,27 @@ export function OperatorVerifyDialog() {
   const [pin, setPin] = useState("");
   const [open, setOpen] = useState(false);
 
+  const clearSensitiveOperatorFormState = useCallback(() => setPin(""), []);
+
+  const closeDialog = useCallback(() => {
+    clearSensitiveOperatorFormState();
+    setEmployeeCode("");
+    setOpen(false);
+  }, [clearSensitiveOperatorFormState]);
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    await operator.verify({ employeeCode, pin, branchId: activeBranchId || "", requestedLevel: 1 });
-    setPin("");
-    setOpen(false);
+    try {
+      await operator.verify({ employeeCode, pin, branchId: activeBranchId || "", requestedLevel: 1 });
+      closeDialog();
+    } finally {
+      clearSensitiveOperatorFormState();
+    }
   };
+
+  useEffect(() => {
+    if (operator.active) closeDialog();
+  }, [closeDialog, operator.active]);
 
   if (operator.active) return null;
 
@@ -24,7 +39,13 @@ export function OperatorVerifyDialog() {
     <div className="relative">
       <button
         type="button"
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => {
+          if (open) closeDialog();
+          else {
+            clearSensitiveOperatorFormState();
+            setOpen(true);
+          }
+        }}
         className="hidden h-10 rounded-2xl border border-border bg-panel px-3 text-xs font-bold text-muted-foreground hover:border-brand-500 hover:text-brand-700 md:block"
       >
         Operator

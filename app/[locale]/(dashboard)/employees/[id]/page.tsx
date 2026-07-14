@@ -1,59 +1,167 @@
 "use client";
 
-import { use, useState, useEffect, useMemo } from "react";
-import { isApiDataSource } from "@/lib/data-source";
-import { useLocale, useTranslations } from "next-intl";
+import { FormEvent, use, useEffect, useMemo, useState } from "react";
 import {
-  FileText,
-  History,
-  ShieldAlert,
-  Laptop,
-  User,
+  Activity,
   ArrowLeft,
   Calendar,
-  Lock,
   CheckCircle,
-  XCircle,
+  History,
+  KeyRound,
+  Laptop,
+  ListChecks,
+  Lock,
+  MapPin,
+  Search,
+  ShieldAlert,
+  ShieldCheck,
   Sliders,
+  User,
+  UsersRound,
+  X,
+  XCircle,
 } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
+import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useEmployee, useEmployeeAuthorization, useEmployeeMutations } from "@/hooks/use-employees";
+import { useAuth } from "@/contexts/auth-context";
 import { useErp } from "@/contexts/erp-context";
 import { Link } from "@/i18n/navigation";
-import { formatCurrency } from "@/lib/utils";
-import { useAuth } from "@/contexts/auth-context";
-import { toast } from "sonner";
-import type { AuditLog, EmployeeApprovalLimits } from "@/lib/types";
-import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
+import { isApiDataSource } from "@/lib/data-source";
+import { formatCurrency } from "@/lib/utils";
+import type {
+  AuditLog,
+  Employee,
+  EmployeeApprovalLimits,
+  EmployeeBranchAccess,
+  EmployeeOperationalSessionHistory,
+  EmployeePermissionState,
+  EmployeeVerificationAttempt,
+} from "@/lib/types";
 
 interface PageProps {
   params: Promise<{ id: string; locale: string }>;
 }
 
+type TabId =
+  | "overview"
+  | "operational"
+  | "branches"
+  | "roles"
+  | "direct-permissions"
+  | "effective-permissions"
+  | "credential"
+  | "attempts"
+  | "operator-sessions"
+  | "audit"
+  | "hr";
+
+type BranchOption = { id: string; name?: string | null; code?: string | null };
+type PermissionOption = { id: string; name: string; module?: string; action?: string };
+
+const TAB_IDS: Array<{ id: TabId; icon: any; en: string; ar: string }> = [
+  { id: "overview", icon: User, en: "Overview", ar: "نظرة عامة" },
+  { id: "operational", icon: ShieldCheck, en: "Operational Access", ar: "الوصول التشغيلي" },
+  { id: "branches", icon: MapPin, en: "Branch Access", ar: "فروع التفويض" },
+  { id: "roles", icon: UsersRound, en: "Role Templates", ar: "قوالب الأدوار" },
+  { id: "direct-permissions", icon: ListChecks, en: "Direct Permissions", ar: "الصلاحيات المباشرة" },
+  { id: "effective-permissions", icon: ShieldCheck, en: "Effective Permissions", ar: "الصلاحيات الفعالة" },
+  { id: "credential", icon: KeyRound, en: "Credential & PIN", ar: "الاعتماد و PIN" },
+  { id: "attempts", icon: History, en: "Verification Attempts", ar: "محاولات التحقق" },
+  { id: "operator-sessions", icon: Laptop, en: "Operational Sessions", ar: "جلسات المشغل" },
+  { id: "audit", icon: Activity, en: "Audit / Activity", ar: "التدقيق والنشاط" },
+  { id: "hr", icon: Sliders, en: "HR / Payroll / Attendance", ar: "الموارد والرواتب والحضور" },
+];
+
+function hasPermission(user: ReturnType<typeof useAuth>["user"], permission: string) {
+  return Boolean(user?.role === "admin" || user?.roles?.some((role) => role.isAdmin) || user?.permissions?.includes(permission));
+}
+
+function normalizeItems<T>(response: any): T[] {
+  const data = response?.data ?? response;
+  return data?.items ?? response?.items ?? [];
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "—";
+  return new Date(value).toLocaleString();
+}
+
+function groupPermissionName(name: string) {
+  return name.includes(".") ? name.split(".")[0] : "general";
+}
+
+function toPermissionOptions(permissionState: EmployeePermissionState | null): PermissionOption[] {
+  const byName = new Map<string, PermissionOption>();
+  for (const permission of [...(permissionState?.grants ?? []), ...(permissionState?.denials ?? [])]) {
+    byName.set(permission.name, permission);
+  }
+  for (const name of [
+    ...(permissionState?.authorization?.rolePermissionNames ?? []),
+    ...(permissionState?.authorization?.effectivePermissionNames ?? []),
+    ...(permissionState?.authorization?.directGrantNames ?? []),
+    ...(permissionState?.authorization?.directDenialNames ?? []),
+  ]) {
+    if (!byName.has(name)) byName.set(name, { id: name, name, module: groupPermissionName(name), action: name.split(".").slice(1).join(".") });
+  }
+  return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function Chip({ children, onRemove }: { children: React.ReactNode; onRemove?: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-[11px] font-bold text-foreground">
+      {children}
+      {onRemove && (
+        <button type="button" onClick={onRemove} aria-label="Remove" className="rounded-full text-muted-foreground hover:text-rose-600">
+          <X className="h-3 w-3" />
+        </button>
+      )}
+    </span>
+  );
+}
+
+function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) {
+  return (
+    <label className="relative block">
+      <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="input-base ps-10" />
+    </label>
+  );
+}
+
 export default function EmployeeProfilePage({ params }: PageProps) {
   const { id } = use(params);
-  const t = useTranslations("Employees");
   const common = useTranslations("Common");
   const locale = useLocale();
   const rtl = locale === "ar";
-  const { company } = useAuth();
+  const { company, user } = useAuth();
   const { auditLogs } = useErp();
+  const isApi = isApiDataSource();
 
   const { employee, operatorSessions, loading, error, refresh } = useEmployee(id);
-  const { branchAccess, permissionState, verificationAttempts, resetCredential, updateBranches, updatePermissions } = useEmployeeAuthorization(id);
+  const {
+    branchAccess,
+    permissionState,
+    verificationAttempts,
+    loading: authorizationLoading,
+    resetCredential,
+    updateBranches,
+    updatePermissions,
+    refreshAuthorization,
+  } = useEmployeeAuthorization(id);
   const { updateEmployee } = useEmployeeMutations();
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>([]);
+  const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
+  const [grantPermissionIds, setGrantPermissionIds] = useState<string[]>([]);
+  const [denialPermissionIds, setDenialPermissionIds] = useState<string[]>([]);
   const [pin, setPin] = useState("");
   const [pinConfirm, setPinConfirm] = useState("");
-  const [branchIds, setBranchIds] = useState("");
-  const [roleIds, setRoleIds] = useState("");
-  const [grantIds, setGrantIds] = useState("");
-  const [denialIds, setDenialIds] = useState("");
-
-  // Approval Limits form state
   const [limits, setLimits] = useState<EmployeeApprovalLimits>({
     discountLimit: 0,
     priceOverrideLimit: 0,
@@ -63,11 +171,41 @@ export default function EmployeeProfilePage({ params }: PageProps) {
     goldPurchaseLimit: 0,
   });
 
-  // Load limits state when employee is fetched
+  const canManageCredentials = hasPermission(user, "employees.credentials.manage");
+  const canManageBranches = hasPermission(user, "employees.branches.manage");
+  const canManagePermissions = hasPermission(user, "employees.permissions.manage");
+
+  const { data: branchOptions = [] } = useQuery<BranchOption[]>({
+    queryKey: ["employee-branch-selector-options"],
+    queryFn: async () => normalizeItems<BranchOption>(await apiClient("/branches?page=1&pageSize=100")),
+    enabled: isApi && canManageBranches,
+  });
+
+  const { data: apiLogs = [] } = useQuery<AuditLog[]>({
+    queryKey: ["employee-audit-logs", id],
+    queryFn: async () => {
+      const res = await apiClient<{ items?: AuditLog[]; data?: { items?: AuditLog[] } }>(
+        `/audit-logs?filters=${encodeURIComponent(JSON.stringify({ employeeId: id }))}`,
+        { locale },
+      );
+      return res.data?.items || res.items || [];
+    },
+    enabled: isApi && !!id,
+  });
+
   useEffect(() => {
-    if (employee?.approvalLimitsDetail) {
-      setLimits(employee.approvalLimitsDetail);
-    } else if (employee) {
+    setSelectedBranchIds(branchAccess.map((row) => row.branchId));
+  }, [branchAccess]);
+
+  useEffect(() => {
+    setSelectedRoleIds(permissionState?.roles?.map((role: { id: string }) => role.id) ?? []);
+    setGrantPermissionIds(permissionState?.grants?.map((permission: { id: string }) => permission.id) ?? []);
+    setDenialPermissionIds(permissionState?.denials?.map((permission: { id: string }) => permission.id) ?? []);
+  }, [permissionState]);
+
+  useEffect(() => {
+    if (employee?.approvalLimitsDetail) setLimits(employee.approvalLimitsDetail);
+    else if (employee) {
       setLimits({
         discountLimit: employee.approvalLimit || 5000,
         priceOverrideLimit: 10000,
@@ -79,39 +217,63 @@ export default function EmployeeProfilePage({ params }: PageProps) {
     }
   }, [employee]);
 
+  const employeeLogs = useMemo(() => {
+    if (isApi) return apiLogs;
+    return auditLogs.filter((log) => log.userId === id || log.user === employee?.name);
+  }, [apiLogs, auditLogs, employee?.name, id, isApi]);
+
   const currency = company?.currency ?? "AED";
   const money = (val: number) => formatCurrency(val, currency, locale);
 
-  const isApi = isApiDataSource();
-  const { data: apiLogs } = useQuery<AuditLog[]>({
-    queryKey: ["employee-audit-logs", id],
-    queryFn: async () => {
-      const res = await apiClient<{ items: AuditLog[] }>(
-        `/audit-logs?filters=${encodeURIComponent(JSON.stringify({ employeeId: id }))}`,
-        { locale }
-      );
-      return res.items || [];
-    },
-    enabled: isApi && !!id,
-  });
+  const clearCredentialForm = () => {
+    setPin("");
+    setPinConfirm("");
+  };
 
-  // Filter audit logs for this employee
-  const employeeLogs = useMemo(() => {
-    if (isApi) return apiLogs || [];
-    return auditLogs.filter(
-      (log) => log.userId === id || log.user === employee?.name
-    );
-  }, [isApi, apiLogs, auditLogs, id, employee?.name]);
+  const saveCredential = async (event: FormEvent) => {
+    event.preventDefault();
+    try {
+      if (!/^\d{6}$/.test(pin) || pin !== pinConfirm) {
+        toast.error(rtl ? "أدخل رمز PIN من 6 أرقام وتأكيد مطابق" : "Enter a matching 6-digit PIN");
+        return;
+      }
+      const result = await resetCredential(pin, false);
+      if (result.success) toast.success(rtl ? "تم تحديث PIN" : "PIN updated");
+      else toast.error(result.error?.message || "PIN update failed");
+    } finally {
+      clearCredentialForm();
+      refresh();
+    }
+  };
 
-  const handleUpdateLimits = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const saveBranches = async () => {
+    const result = await updateBranches(selectedBranchIds);
+    if (result.success) {
+      toast.success(rtl ? "تم تحديث الفروع" : "Branch access updated");
+      refresh();
+    } else toast.error(result.error?.message || "Branch update failed");
+  };
+
+  const savePermissions = async () => {
+    const overlap = grantPermissionIds.filter((idValue) => denialPermissionIds.includes(idValue));
+    if (overlap.length) {
+      toast.error(rtl ? "لا يمكن منح ومنع نفس الصلاحية" : "A permission cannot be both granted and denied");
+      return;
+    }
+    const result = await updatePermissions({ roleIds: selectedRoleIds, grantPermissionIds, denialPermissionIds });
+    if (result.success) {
+      toast.success(rtl ? "تم تحديث التفويض" : "Authorization updated");
+      refreshAuthorization();
+    } else toast.error(result.error?.message || "Permission update failed");
+  };
+
+  const handleUpdateLimits = async (event: FormEvent) => {
+    event.preventDefault();
     if (!employee) return;
-
     const res = await updateEmployee(employee.id, {
       approvalLimitsDetail: limits,
-      approvalLimit: limits.discountLimit, // update deprecated top-level field for compat
+      approvalLimit: limits.discountLimit,
     });
-
     if (res.success) {
       toast.success(rtl ? "تم تحديث حدود الصلاحيات بنجاح" : "Approval limits updated successfully");
       refresh();
@@ -120,24 +282,14 @@ export default function EmployeeProfilePage({ params }: PageProps) {
     }
   };
 
-  const parseIdList = (value: string) => value.split(/\s+/).map((x) => x.trim()).filter(Boolean);
-
-  if (loading) {
-    return <div className="p-8 text-center text-xs text-slate-500">{common("loading")}</div>;
-  }
+  if (loading) return <div className="p-8 text-center text-xs text-slate-500">{common("loading")}</div>;
 
   if (error || !employee) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
         <ShieldAlert className="h-12 w-12 text-rose-500" />
-        <h2 className="mt-4 text-lg font-black text-navy-950 dark:text-white">
-          {rtl ? "الموظف غير موجود" : "Employee Not Found"}
-        </h2>
-        <p className="mt-2 text-xs text-slate-500">
-          {rtl
-            ? "عذرًا، لم نتمكن من العثور على ملف هذا الموظف."
-            : "Sorry, we couldn't find this employee profile."}
-        </p>
+        <h2 className="mt-4 text-lg font-black text-navy-950 dark:text-white">{rtl ? "الموظف غير موجود" : "Employee Not Found"}</h2>
+        <p className="mt-2 text-xs text-slate-500">{rtl ? "عذرًا، لم نتمكن من العثور على ملف هذا الموظف." : "Sorry, we couldn't find this employee profile."}</p>
         <Link href="/employees" className="mt-6">
           <Button variant="secondary">
             <ArrowLeft className="mr-2 h-4 w-4" /> {common("back")}
@@ -162,357 +314,583 @@ export default function EmployeeProfilePage({ params }: PageProps) {
           <h1 className="text-xl font-black text-navy-950 dark:text-white">{employee.name}</h1>
         </div>
         <div className="ml-auto flex gap-2 rtl:mr-auto rtl:ml-0">
-          <Badge tone={employee.status === "inactive" ? "rose" : "green"}>
-            {employee.status === "inactive"
-              ? (rtl ? "غير نشط" : "Inactive")
-              : t(employee.status)}
-          </Badge>
+          <Badge tone={employee.status === "inactive" ? "rose" : "green"}>{employee.status === "inactive" ? (rtl ? "غير نشط" : "Inactive") : employee.status}</Badge>
           <Badge tone="blue">{employee.role}</Badge>
         </div>
       </div>
 
-      {/* Tabs Selector */}
-      <div className="flex border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
-        {[
-          { id: "overview", label: rtl ? "نظرة عامة" : "Overview", icon: User },
-          { id: "permissions", label: rtl ? "الصلاحيات الأمنية" : "Security Permissions", icon: Lock },
-          { id: "limits", label: rtl ? "حدود الاعتماد" : "Approval Limits", icon: Sliders },
-          { id: "activity", label: rtl ? "سجل النشاط" : "Activity History", icon: History },
-          { id: "sessions", label: rtl ? "الأجهزة والجلسات" : "Sessions & Devices", icon: Laptop },
-        ].map((tab) => {
+      <div className="flex overflow-x-auto border-b border-slate-200 dark:border-slate-800" role="tablist" aria-label={rtl ? "أقسام ملف الموظف" : "Employee detail sections"}>
+        {TAB_IDS.map((tab) => {
           const Icon = tab.icon;
           return (
             <button
               key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 border-b-2 px-5 py-3 text-xs font-bold transition-all whitespace-nowrap ${
+              className={`flex items-center gap-2 whitespace-nowrap border-b-2 px-5 py-3 text-xs font-bold transition-all ${
                 activeTab === tab.id
                   ? "border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-400"
                   : "border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-slate-300"
               }`}
             >
               <Icon className="h-4 w-4" />
-              {tab.label}
+              {rtl ? tab.ar : tab.en}
             </button>
           );
         })}
       </div>
 
-      {/* Tab Panels */}
-      {activeTab === "overview" && (
-        <Card className="p-5">
-          <h3 className="font-black text-navy-950 dark:text-white">
-            {rtl ? "بيانات الموظف والتوظيف" : "Employee & Work Details"}
-          </h3>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 text-xs">
-            <div>
-              <p className="text-slate-400">{rtl ? "كود الموظف" : "Employee Code"}</p>
-              <p className="mt-1 font-mono font-bold text-navy-900 dark:text-slate-200">{employee.employeeCode || "—"}</p>
-            </div>
-            <div>
-              <p className="text-slate-400">{t("role")}</p>
-              <p className="mt-1 font-bold text-navy-900 dark:text-slate-200">{employee.role} / {employee.jobTitle || "—"}</p>
-            </div>
-            <div>
-              <p className="text-slate-400">{t("branch")}</p>
-              <p className="mt-1 font-bold text-navy-900 dark:text-slate-200">{employee.branch}</p>
-            </div>
-            <div>
-              <p className="text-slate-400">{common("email")}</p>
-              <p className="mt-1 font-bold text-navy-900 dark:text-slate-200">{employee.email || "—"}</p>
-            </div>
-            <div>
-              <p className="text-slate-400">{t("phone")}</p>
-              <p className="mt-1 font-bold text-navy-900 dark:text-slate-200">{employee.phone || "—"}</p>
-            </div>
-            <div>
-              <p className="text-slate-400">{rtl ? "تاريخ الانضمام" : "Join Date"}</p>
-              <p className="mt-1 font-bold text-navy-900 dark:text-slate-200">{employee.joinDate || "—"}</p>
-            </div>
-            <div>
-              <p className="text-slate-400">{rtl ? "الدور في النظام" : "System Security Role"}</p>
-              <p className="mt-1 font-bold text-navy-900 dark:text-slate-200 capitalize">{employee.systemRole || "sales"}</p>
-            </div>
-            {employee.status === "inactive" && (
-              <div className="sm:col-span-2 rounded-xl bg-rose-50 p-4 border border-rose-100 text-rose-800">
-                <p className="font-bold">{rtl ? "سبب التعطيل:" : "Deactivation Reason:"}</p>
-                <p className="mt-1">{employee.deactivateReason || "—"}</p>
-              </div>
-            )}
-            <div className="sm:col-span-2">
-              <p className="text-slate-400">{rtl ? "ملاحظات" : "Notes"}</p>
-              <p className="mt-1 text-slate-600 dark:text-slate-400">{employee.notes || "—"}</p>
-            </div>
-          </div>
-        </Card>
+      {activeTab === "overview" && <EmployeeOverviewTab employee={employee} rtl={rtl} />}
+      {activeTab === "operational" && <EmployeeOperationalAccessTab employee={employee} branchAccess={branchAccess} permissionState={permissionState} operatorSessions={operatorSessions} rtl={rtl} />}
+      {activeTab === "branches" && (
+        <EmployeeBranchAccessTab
+          employee={employee}
+          branchAccess={branchAccess}
+          branchOptions={branchOptions}
+          selectedBranchIds={selectedBranchIds}
+          setSelectedBranchIds={setSelectedBranchIds}
+          canManage={canManageBranches}
+          onSave={saveBranches}
+          loading={authorizationLoading}
+          rtl={rtl}
+        />
       )}
+      {activeTab === "roles" && (
+        <EmployeeRoleTemplatesTab
+          permissionState={permissionState}
+          selectedRoleIds={selectedRoleIds}
+          setSelectedRoleIds={setSelectedRoleIds}
+          canManage={canManagePermissions}
+          onSave={savePermissions}
+          loading={authorizationLoading}
+          rtl={rtl}
+        />
+      )}
+      {activeTab === "direct-permissions" && (
+        <EmployeeDirectPermissionsTab
+          permissionState={permissionState}
+          grantPermissionIds={grantPermissionIds}
+          denialPermissionIds={denialPermissionIds}
+          setGrantPermissionIds={setGrantPermissionIds}
+          setDenialPermissionIds={setDenialPermissionIds}
+          canManage={canManagePermissions}
+          onSave={savePermissions}
+          loading={authorizationLoading}
+          rtl={rtl}
+        />
+      )}
+      {activeTab === "effective-permissions" && <EmployeeEffectivePermissionsTab permissionState={permissionState} rtl={rtl} />}
+      {activeTab === "credential" && (
+        <EmployeeCredentialTab
+          employee={employee}
+          canManage={canManageCredentials}
+          pin={pin}
+          pinConfirm={pinConfirm}
+          setPin={setPin}
+          setPinConfirm={setPinConfirm}
+          onSubmit={saveCredential}
+          onCancel={clearCredentialForm}
+          rtl={rtl}
+        />
+      )}
+      {activeTab === "attempts" && <EmployeeVerificationAttemptsTab attempts={verificationAttempts} rtl={rtl} />}
+      {activeTab === "operator-sessions" && <EmployeeOperationalSessionsTab sessions={operatorSessions} rtl={rtl} />}
+      {activeTab === "audit" && <EmployeeAuditActivityTab logs={employeeLogs} rtl={rtl} />}
+      {activeTab === "hr" && <EmployeeHrPayrollAttendanceTab limits={limits} setLimits={setLimits} onSubmit={handleUpdateLimits} money={money} rtl={rtl} />}
+    </div>
+  );
+}
 
-      {activeTab === "permissions" && (
-        <div className="space-y-5">
-          <Card className="p-5">
-            <div className="border-b border-slate-100 pb-4 mb-4 dark:border-slate-800">
-              <h3 className="font-black text-navy-950 dark:text-white">
-                {rtl ? "مؤسسة تفويض الموظف" : "Employee Authorization Foundation"}
-              </h3>
-              <p className="text-[10px] text-slate-400 mt-1">
-                {rtl
-                  ? "هذه البيانات من واجهات التفويض الخلفية، وليست حسابات واجهة ثابتة."
-                  : "These values come from backend Employee authorization APIs, not static frontend role maps."}
+function EmployeeOverviewTab({ employee, rtl }: { employee: Employee; rtl: boolean }) {
+  return (
+    <Card className="p-5">
+      <h3 className="font-black text-navy-950 dark:text-white">{rtl ? "بيانات الموظف والتوظيف" : "Employee & Work Details"}</h3>
+      <div className="mt-5 grid gap-4 text-xs sm:grid-cols-2">
+        <Info label={rtl ? "كود الموظف" : "Employee Code"} value={employee.employeeCode || "—"} mono />
+        <Info label={rtl ? "الدور الوظيفي" : "Work Role"} value={`${employee.role} / ${employee.jobTitle || "—"}`} />
+        <Info label={rtl ? "الفرع الأساسي" : "Primary Branch"} value={employee.branch || "—"} />
+        <Info label={rtl ? "البريد الإلكتروني" : "Email"} value={employee.email || "—"} />
+        <Info label={rtl ? "الهاتف" : "Phone"} value={employee.phone || "—"} />
+        <Info label={rtl ? "تاريخ الانضمام" : "Join Date"} value={employee.joinDate || "—"} />
+        <Info label={rtl ? "الدور التقني في النظام" : "System Security Role"} value={employee.systemRole || "sales"} />
+        <div className="sm:col-span-2 rounded-xl border border-amber-100 bg-amber-50 p-4 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+          {rtl
+            ? "الفرع الأساسي للموظف معلومة تعريفية فقط. التفويض الفعلي يعتمد على خريطة فروع التفويض في تبويب Branch Access."
+            : "The primary branch is identity metadata only. Actual authorization is controlled by the Branch Access tab."}
+        </div>
+        <div className="sm:col-span-2">
+          <p className="text-slate-400">{rtl ? "ملاحظات" : "Notes"}</p>
+          <p className="mt-1 text-slate-600 dark:text-slate-400">{employee.notes || "—"}</p>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function EmployeeOperationalAccessTab({
+  employee,
+  branchAccess,
+  permissionState,
+  operatorSessions,
+  rtl,
+}: {
+  employee: Employee;
+  branchAccess: EmployeeBranchAccess[];
+  permissionState: EmployeePermissionState | null;
+  operatorSessions: EmployeeOperationalSessionHistory[];
+  rtl: boolean;
+}) {
+  const summary = employee.authorizationSummary;
+  return (
+    <Card className="p-5">
+      <h3 className="font-black text-navy-950 dark:text-white">{rtl ? "ملخص الوصول التشغيلي" : "Operational Access Summary"}</h3>
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        {rtl ? "ملخص خادمي للهوية التشغيلية دون عرض إصدارات الاعتماد أو بصمات الجلسة." : "Server-backed operational identity summary. Credential versions and fingerprints are not editable or displayed."}
+      </p>
+      <div className="mt-5 grid gap-4 text-xs sm:grid-cols-2 lg:grid-cols-3">
+        <Metric label={rtl ? "حالة الاعتماد" : "Credential state"} value={summary?.credentialState || "not_configured"} />
+        <Metric label={rtl ? "فروع التفويض" : "Allowed branches"} value={String(summary?.branchAccessCount ?? branchAccess.length)} />
+        <Metric label={rtl ? "قوالب الأدوار" : "Role templates"} value={String(summary?.roleTemplateCount ?? permissionState?.roles?.length ?? 0)} />
+        <Metric label={rtl ? "الصلاحيات الفعالة" : "Effective permissions"} value={String(permissionState?.authorization?.effectivePermissionNames?.length ?? 0)} />
+        <Metric label={rtl ? "الجلسات النشطة" : "Active operator sessions"} value={String(summary?.activeOperatorSessionCount ?? operatorSessions.filter((session) => session.state?.startsWith("active")).length)} />
+        <Metric label={rtl ? "آخر تحقق" : "Last verified"} value={summary?.lastVerifiedAt ? formatDate(summary.lastVerifiedAt) : "—"} />
+      </div>
+    </Card>
+  );
+}
+
+function EmployeeBranchAccessTab({
+  employee,
+  branchAccess,
+  branchOptions,
+  selectedBranchIds,
+  setSelectedBranchIds,
+  canManage,
+  onSave,
+  loading,
+  rtl,
+}: {
+  employee: Employee;
+  branchAccess: EmployeeBranchAccess[];
+  branchOptions: BranchOption[];
+  selectedBranchIds: string[];
+  setSelectedBranchIds: (ids: string[]) => void;
+  canManage: boolean;
+  onSave: () => Promise<void>;
+  loading: boolean;
+  rtl: boolean;
+}) {
+  const [search, setSearch] = useState("");
+  const selectedSet = new Set(selectedBranchIds);
+  const visibleBranches = branchOptions.filter((branch) => `${branch.name || ""} ${branch.code || ""} ${branch.id}`.toLowerCase().includes(search.toLowerCase()));
+  const labelFor = (id: string) => {
+    const option = branchOptions.find((branch) => branch.id === id) || branchAccess.find((row) => row.branchId === id)?.branch;
+    return option?.name || option?.code || id;
+  };
+  return (
+    <Card className="p-5">
+      <h3 className="font-black text-navy-950 dark:text-white">{rtl ? "فروع تفويض الموظف" : "Employee Branch Access"}</h3>
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        {rtl ? "اختر الفروع من قائمة بحث خاضعة للشركة. الفرع الأساسي لا يمنح التفويض وحده." : "Use the same-company searchable branch selector. Primary branch does not grant authorization by itself."}
+      </p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Chip>{rtl ? "الفرع الأساسي" : "Primary branch"}: {employee.branch || employee.branchId || "—"}</Chip>
+        {selectedBranchIds.map((branchId) => (
+          <Chip key={branchId} onRemove={canManage ? () => setSelectedBranchIds(selectedBranchIds.filter((id) => id !== branchId)) : undefined}>
+            {labelFor(branchId)}
+          </Chip>
+        ))}
+      </div>
+      {canManage ? (
+        <div className="mt-5 space-y-4">
+          <SearchBox value={search} onChange={setSearch} placeholder={rtl ? "ابحث عن فرع بالاسم أو الكود" : "Search branch by name or code"} />
+          <div className="max-h-72 space-y-2 overflow-auto rounded-2xl border border-border p-3">
+            {visibleBranches.length ? visibleBranches.map((branch) => (
+              <label key={branch.id} className="flex cursor-pointer items-center gap-3 rounded-xl p-2 text-xs hover:bg-background">
+                <input
+                  type="checkbox"
+                  checked={selectedSet.has(branch.id)}
+                  onChange={(event) => {
+                    if (event.target.checked) setSelectedBranchIds([...selectedBranchIds, branch.id]);
+                    else setSelectedBranchIds(selectedBranchIds.filter((id) => id !== branch.id));
+                  }}
+                />
+                <span className="font-bold">{branch.name || branch.id}</span>
+                <span className="text-muted-foreground">{branch.code || branch.id}</span>
+              </label>
+            )) : <p className="p-4 text-center text-xs text-muted-foreground">{rtl ? "لا توجد فروع مطابقة." : "No matching branches."}</p>}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setSelectedBranchIds(branchAccess.map((row) => row.branchId))}>{rtl ? "إلغاء" : "Cancel"}</Button>
+            <Button type="button" disabled={loading} onClick={() => void onSave()}>{rtl ? "حفظ الفروع" : "Save Branches"}</Button>
+          </div>
+        </div>
+      ) : (
+        <p className="mt-5 rounded-2xl bg-background p-4 text-xs text-muted-foreground">{rtl ? "لا تملك صلاحية إدارة الفروع." : "You do not have branch-management permission."}</p>
+      )}
+    </Card>
+  );
+}
+
+function EmployeeRoleTemplatesTab({
+  permissionState,
+  selectedRoleIds,
+  setSelectedRoleIds,
+  canManage,
+  onSave,
+  loading,
+  rtl,
+}: {
+  permissionState: EmployeePermissionState | null;
+  selectedRoleIds: string[];
+  setSelectedRoleIds: (ids: string[]) => void;
+  canManage: boolean;
+  onSave: () => Promise<void>;
+  loading: boolean;
+  rtl: boolean;
+}) {
+  const [search, setSearch] = useState("");
+  const roleOptions = permissionState?.roles ?? [];
+  const visibleRoles = roleOptions.filter((role) => `${role.name} ${role.slug}`.toLowerCase().includes(search.toLowerCase()));
+  return (
+    <Card className="p-5">
+      <h3 className="font-black text-navy-950 dark:text-white">{rtl ? "قوالب أدوار الموظف" : "Employee Role Templates"}</h3>
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        {rtl ? "هذه قوالب تفويض للموظف، وليست أدوار الحساب التقني في صفحة System Accounts." : "These are Employee authorization templates, not technical User roles from System Accounts."}
+      </p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {roleOptions.map((role) => <Chip key={role.id}>{role.name} · {role.slug}</Chip>)}
+        {!roleOptions.length && <Chip>{rtl ? "لا توجد أدوار حالية" : "No assigned role templates"}</Chip>}
+      </div>
+      {canManage ? (
+        <div className="mt-5 space-y-4">
+          <SearchBox value={search} onChange={setSearch} placeholder={rtl ? "ابحث في الأدوار الحالية" : "Search current role templates"} />
+          <div className="rounded-2xl border border-border p-3">
+            {visibleRoles.length ? visibleRoles.map((role) => (
+              <label key={role.id} className="flex cursor-pointer items-center justify-between gap-3 rounded-xl p-2 text-xs hover:bg-background">
+                <span><strong>{role.name}</strong><span className="ms-2 text-muted-foreground">{role.slug}</span></span>
+                <input
+                  type="checkbox"
+                  checked={selectedRoleIds.includes(role.id)}
+                  onChange={(event) => {
+                    if (event.target.checked) setSelectedRoleIds([...selectedRoleIds, role.id]);
+                    else setSelectedRoleIds(selectedRoleIds.filter((id) => id !== role.id));
+                  }}
+                />
+              </label>
+            )) : <p className="p-4 text-center text-xs text-muted-foreground">{rtl ? "لا توجد قوالب أدوار مطابقة." : "No matching role templates."}</p>}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setSelectedRoleIds(roleOptions.map((role) => role.id))}>{rtl ? "إلغاء" : "Cancel"}</Button>
+            <Button type="button" disabled={loading} onClick={() => void onSave()}>{rtl ? "حفظ الأدوار" : "Save Roles"}</Button>
+          </div>
+        </div>
+      ) : (
+        <p className="mt-5 rounded-2xl bg-background p-4 text-xs text-muted-foreground">{rtl ? "لا تملك صلاحية إدارة أدوار الموظف." : "You do not have Employee permission-management access."}</p>
+      )}
+    </Card>
+  );
+}
+
+function EmployeeDirectPermissionsTab({
+  permissionState,
+  grantPermissionIds,
+  denialPermissionIds,
+  setGrantPermissionIds,
+  setDenialPermissionIds,
+  canManage,
+  onSave,
+  loading,
+  rtl,
+}: {
+  permissionState: EmployeePermissionState | null;
+  grantPermissionIds: string[];
+  denialPermissionIds: string[];
+  setGrantPermissionIds: (ids: string[]) => void;
+  setDenialPermissionIds: (ids: string[]) => void;
+  canManage: boolean;
+  onSave: () => Promise<void>;
+  loading: boolean;
+  rtl: boolean;
+}) {
+  const [search, setSearch] = useState("");
+  const options = toPermissionOptions(permissionState);
+  const filtered = options.filter((permission) => `${permission.name} ${permission.module || ""}`.toLowerCase().includes(search.toLowerCase()));
+  const grouped = filtered.reduce<Record<string, PermissionOption[]>>((acc, permission) => {
+    const group = permission.module || groupPermissionName(permission.name);
+    acc[group] = [...(acc[group] || []), permission];
+    return acc;
+  }, {});
+  const toggleGrant = (permission: PermissionOption, checked: boolean) => {
+    if (checked) {
+      setGrantPermissionIds([...grantPermissionIds.filter((id) => id !== permission.id), permission.id]);
+      setDenialPermissionIds(denialPermissionIds.filter((id) => id !== permission.id));
+    } else setGrantPermissionIds(grantPermissionIds.filter((id) => id !== permission.id));
+  };
+  const toggleDenial = (permission: PermissionOption, checked: boolean) => {
+    if (checked) {
+      setDenialPermissionIds([...denialPermissionIds.filter((id) => id !== permission.id), permission.id]);
+      setGrantPermissionIds(grantPermissionIds.filter((id) => id !== permission.id));
+    } else setDenialPermissionIds(denialPermissionIds.filter((id) => id !== permission.id));
+  };
+  return (
+    <Card className="p-5">
+      <h3 className="font-black text-navy-950 dark:text-white">{rtl ? "المنح والمنع المباشر" : "Direct Grants and Denials"}</h3>
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        {rtl ? "المنع المباشر له الأولوية، ولا يمكن اختيار نفس الصلاحية في القائمتين." : "Direct denial wins. The same permission cannot be selected as both grant and denial."}
+      </p>
+      <div className="mt-5 space-y-4">
+        <SearchBox value={search} onChange={setSearch} placeholder={rtl ? "ابحث باسم الصلاحية أو الوحدة" : "Search permission name or module"} />
+        <div className="space-y-4">
+          {Object.entries(grouped).map(([module, permissions]) => (
+            <div key={module} className="rounded-2xl border border-border p-3">
+              <p className="text-xs font-black uppercase text-muted-foreground">{module}</p>
+              <div className="mt-3 space-y-2">
+                {permissions.map((permission) => (
+                  <div key={permission.id} className="grid gap-2 rounded-xl p-2 text-xs hover:bg-background sm:grid-cols-[1fr_auto_auto]">
+                    <span className="font-bold">{permission.name}</span>
+                    <label className="inline-flex items-center gap-2 text-emerald-700"><input disabled={!canManage} type="checkbox" checked={grantPermissionIds.includes(permission.id)} onChange={(event) => toggleGrant(permission, event.target.checked)} /> {rtl ? "منح" : "Grant"}</label>
+                    <label className="inline-flex items-center gap-2 text-rose-700"><input disabled={!canManage} type="checkbox" checked={denialPermissionIds.includes(permission.id)} onChange={(event) => toggleDenial(permission, event.target.checked)} /> {rtl ? "منع" : "Deny"}</label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          {!options.length && <p className="rounded-2xl bg-background p-4 text-xs text-muted-foreground">{rtl ? "لا توجد صلاحيات مباشرة حالية. الصلاحيات الفعالة ما زالت تُقرأ من الخادم فقط." : "No current direct permission rows. Effective authority remains backend-resolved only."}</p>}
+        </div>
+        {canManage ? (
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => {
+              setGrantPermissionIds(permissionState?.grants?.map((permission) => permission.id) ?? []);
+              setDenialPermissionIds(permissionState?.denials?.map((permission) => permission.id) ?? []);
+            }}>{rtl ? "إلغاء" : "Cancel"}</Button>
+            <Button type="button" disabled={loading} onClick={() => void onSave()}>{rtl ? "حفظ الصلاحيات" : "Save Permissions"}</Button>
+          </div>
+        ) : (
+          <p className="rounded-2xl bg-background p-4 text-xs text-muted-foreground">{rtl ? "لا تملك صلاحية إدارة الصلاحيات." : "You do not have permission-management access."}</p>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function EmployeeEffectivePermissionsTab({ permissionState, rtl }: { permissionState: EmployeePermissionState | null; rtl: boolean }) {
+  const effective = permissionState?.authorization?.effectivePermissionNames ?? [];
+  const denied = permissionState?.authorization?.directDenialNames ?? [];
+  return (
+    <Card className="p-5">
+      <h3 className="font-black text-navy-950 dark:text-white">{rtl ? "الصلاحيات الفعالة من الخادم" : "Backend-Resolved Effective Permissions"}</h3>
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        {rtl ? "لا تقوم الواجهة بحساب الصلاحيات. يتم عرض نتيجة الخادم فقط." : "The frontend does not calculate authority. This tab displays the backend-resolved result only."}
+      </p>
+      <div className="mt-5 grid gap-4 lg:grid-cols-2">
+        <PermissionNameList title={rtl ? "صلاحيات فعالة" : "Effective permissions"} names={effective} tone="green" empty={rtl ? "لا توجد صلاحيات فعالة." : "No effective permissions."} />
+        <PermissionNameList title={rtl ? "منع مباشر" : "Direct denials"} names={denied} tone="rose" empty={rtl ? "لا يوجد منع مباشر." : "No direct denials."} />
+      </div>
+    </Card>
+  );
+}
+
+function EmployeeCredentialTab({
+  employee,
+  canManage,
+  pin,
+  pinConfirm,
+  setPin,
+  setPinConfirm,
+  onSubmit,
+  onCancel,
+  rtl,
+}: {
+  employee: Employee;
+  canManage: boolean;
+  pin: string;
+  pinConfirm: string;
+  setPin: (value: string) => void;
+  setPinConfirm: (value: string) => void;
+  onSubmit: (event: FormEvent) => Promise<void>;
+  onCancel: () => void;
+  rtl: boolean;
+}) {
+  const credentialState = employee.authorizationSummary?.credentialState || "not_configured";
+  return (
+    <Card className="p-5">
+      <h3 className="font-black text-navy-950 dark:text-white">{rtl ? "إدارة الاعتماد و PIN" : "Credential & PIN Management"}</h3>
+      <div className="mt-4 grid gap-4 text-xs sm:grid-cols-3">
+        <Metric label={rtl ? "حالة الاعتماد" : "Credential state"} value={credentialState} />
+        <Metric label={rtl ? "مقفول حتى" : "Locked until"} value={employee.authorizationSummary?.lockedUntil ? formatDate(employee.authorizationSummary.lockedUntil) : "—"} />
+        <Metric label={rtl ? "آخر نجاح" : "Last success"} value={employee.authorizationSummary?.lastVerifiedAt ? formatDate(employee.authorizationSummary.lastVerifiedAt) : "—"} />
+      </div>
+      {canManage ? (
+        <form onSubmit={(event) => void onSubmit(event)} className="mt-5 max-w-lg space-y-3">
+          <input className="input-base" inputMode="numeric" type="password" maxLength={6} value={pin} autoComplete="new-password" onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="PIN · 6 digits" />
+          <input className="input-base" inputMode="numeric" type="password" maxLength={6} value={pinConfirm} autoComplete="new-password" onChange={(event) => setPinConfirm(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder={rtl ? "تأكيد PIN" : "Confirm PIN"} />
+          <p className="text-[11px] text-muted-foreground">{rtl ? "لا يتم عرض أو حفظ PIN في المتصفح بعد الإرسال." : "PIN values are never revealed and are cleared after every submit outcome."}</p>
+          <div className="flex gap-2">
+            <Button type="submit">{rtl ? "حفظ PIN" : "Save PIN"}</Button>
+            <Button type="button" variant="secondary" onClick={onCancel}>{rtl ? "إلغاء" : "Cancel"}</Button>
+          </div>
+        </form>
+      ) : (
+        <p className="mt-5 rounded-2xl bg-background p-4 text-xs text-muted-foreground">{rtl ? "لا تملك صلاحية إدارة الاعتماد." : "You do not have credential-management access."}</p>
+      )}
+    </Card>
+  );
+}
+
+function EmployeeVerificationAttemptsTab({ attempts, rtl }: { attempts: EmployeeVerificationAttempt[]; rtl: boolean }) {
+  return (
+    <Card className="p-5">
+      <h3 className="font-black text-navy-950 dark:text-white">{rtl ? "محاولات التحقق" : "Verification Attempts"}</h3>
+      <div className="mt-4 space-y-2 text-xs">
+        {attempts.length ? attempts.map((attempt) => (
+          <div key={attempt.id} className="rounded-xl border border-slate-100 p-3 dark:border-slate-800">
+            <div className="flex justify-between gap-3">
+              <span className={attempt.result === "success" ? "font-bold text-emerald-600" : "font-bold text-rose-600"}>{attempt.result}</span>
+              <span className="text-[10px] text-slate-400">{formatDate(attempt.createdAt)}</span>
+            </div>
+            <p className="mt-1 text-[10px] text-slate-500">
+              {attempt.requestedPermission || attempt.requestedOperation || "—"} · L{attempt.requestedLevel} · {attempt.failureCode || "OK"}
+            </p>
+            <p className="mt-1 text-[10px] text-slate-400">
+              {rtl ? "الفرع" : "Branch"}: {attempt.branchId || "—"} · {rtl ? "المستخدم التقني" : "Technical User"}: {attempt.technicalUserId || "—"} · IP: {attempt.ipAddress || "masked"} · UA: {attempt.userAgent || "summarized"}
+            </p>
+          </div>
+        )) : <p className="py-10 text-center text-xs text-slate-400">{rtl ? "لا توجد محاولات بعد." : "No attempts yet."}</p>}
+      </div>
+    </Card>
+  );
+}
+
+function EmployeeOperationalSessionsTab({ sessions, rtl }: { sessions: EmployeeOperationalSessionHistory[]; rtl: boolean }) {
+  return (
+    <Card className="p-5">
+      <div className="mb-4 border-b border-slate-100 pb-4 dark:border-slate-800">
+        <h3 className="font-black text-navy-950 dark:text-white">{rtl ? "سجل جلسات المشغل التشغيلية" : "Operational Operator Session History"}</h3>
+        <p className="mt-1 text-[10px] text-slate-400">
+          {rtl ? "قراءة فقط من جلسات المشغل المخزنة في الخادم. لا يتم عرض معرف الجهاز الخام." : "Read-only server-backed operator sessions. Raw device identifiers are not displayed."}
+        </p>
+      </div>
+      {sessions.length ? (
+        <div className="space-y-3">
+          {sessions.map((session) => (
+            <div key={session.id} className="rounded-2xl border border-slate-100 p-4 text-xs dark:border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="grid h-10 w-10 place-items-center rounded-xl bg-slate-50 font-black text-slate-500 dark:bg-navy-950">PC</div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-bold text-navy-900 dark:text-white">{session.maskedDeviceLabel || "device-••••"}</p>
+                    <Badge tone={session.state?.startsWith("active") ? "green" : "slate"}>{session.state}</Badge>
+                    <Badge tone={session.verificationLevel >= 2 ? "green" : "blue"}>L{session.verificationLevel}</Badge>
+                  </div>
+                  <p className="mt-1 text-[10px] text-slate-400">{session.branch?.name || session.branch?.id || "—"} · {session.technicalUser?.name || session.technicalUser?.email || "—"}</p>
+                </div>
+              </div>
+              <div className="mt-3 grid gap-2 text-[10px] text-slate-500 sm:grid-cols-3">
+                <span>{rtl ? "تحقق" : "Verified"}: {formatDate(session.verifiedAt)}</span>
+                <span>{rtl ? "L2" : "Level 2"}: {formatDate(session.level2VerifiedAt)}</span>
+                <span>{rtl ? "آخر نشاط" : "Last activity"}: {formatDate(session.lastActivityAt)}</span>
+                <span>{rtl ? "انتهاء الخمول" : "Idle expiry"}: {formatDate(session.idleExpiresAt)}</span>
+                <span>{rtl ? "قفل" : "Locked"}: {formatDate(session.lockedAt)}</span>
+                <span>{rtl ? "إلغاء" : "Revoked"}: {formatDate(session.revokedAt)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : <p className="py-10 text-center text-xs text-slate-400">{rtl ? "لا توجد جلسات حالياً." : "No sessions."}</p>}
+    </Card>
+  );
+}
+
+function EmployeeAuditActivityTab({ logs, rtl }: { logs: AuditLog[]; rtl: boolean }) {
+  return (
+    <Card className="p-5">
+      <h3 className="font-black text-navy-950 dark:text-white">{rtl ? "سجل العمليات والنشاط الأمني" : "Operational Activity Audit Logs"}</h3>
+      <p className="mt-1 text-[11px] text-muted-foreground">{rtl ? "يستخدم هذا العرض حقل هوية الموظف التشغيلي عند توفره ويعرض المستخدم التقني منفصلاً." : "This view filters by Employee audit identity when available and keeps technical User identity distinct."}</p>
+      {logs.length ? (
+        <div className="mt-5 space-y-4 text-xs">
+          {logs.map((log: any) => (
+            <div key={log.id} className="space-y-1 border-l-2 border-brand-500 py-1 pl-4 dark:border-brand-400">
+              <div className="flex justify-between"><span className="font-bold capitalize text-navy-900 dark:text-white">{log.action}</span><span className="text-[10px] text-slate-400">{log.date || log.createdAt}</span></div>
+              <p className="text-slate-600 dark:text-slate-300">{log.description}</p>
+              <p className="text-[9px] text-slate-400">
+                {rtl ? "المستخدم التقني" : "Technical User"}: {log.technicalUserId || log.userId || log.user || "—"} · {rtl ? "الموظف" : "Employee"}: {log.employeeId || log.employeeCodeSnapshot || "legacy/user-only"}
               </p>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 text-xs">
-              <form
-                className="rounded-xl border border-slate-100 p-4 dark:border-slate-800"
-                onSubmit={async (event) => {
-                  event.preventDefault();
-                  if (!/^\d{6}$/.test(pin) || pin !== pinConfirm) {
-                    toast.error(rtl ? "أدخل رمز PIN من 6 أرقام وتأكيد مطابق" : "Enter a matching 6-digit PIN");
-                    return;
-                  }
-                  const result = await resetCredential(pin, false);
-                  setPin("");
-                  setPinConfirm("");
-                  if (result.success) toast.success(rtl ? "تم تحديث PIN" : "PIN updated");
-                  else toast.error(result.error?.message || "PIN update failed");
-                }}
-              >
-                <h4 className="font-black">{rtl ? "إعداد PIN" : "PIN Management"}</h4>
-                <input className="input-base mt-3" inputMode="numeric" type="password" maxLength={6} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="••••••" />
-                <input className="input-base mt-2" inputMode="numeric" type="password" maxLength={6} value={pinConfirm} onChange={(e) => setPinConfirm(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder={rtl ? "تأكيد PIN" : "Confirm PIN"} />
-                <Button className="mt-3" type="submit">{rtl ? "حفظ PIN" : "Save PIN"}</Button>
-              </form>
-              <form
-                className="rounded-xl border border-slate-100 p-4 dark:border-slate-800"
-                onSubmit={async (event) => {
-                  event.preventDefault();
-                  const result = await updateBranches(parseIdList(branchIds));
-                  if (result.success) toast.success(rtl ? "تم تحديث الفروع" : "Branch access updated");
-                  else toast.error(result.error?.message || "Branch update failed");
-                }}
-              >
-                <h4 className="font-black">{rtl ? "فروع الموظف" : "Employee Branch Access"}</h4>
-                <p className="mt-2 text-[10px] text-slate-400">{branchAccess.map((b: any) => b.branch?.name || b.branchId).join(", ") || "—"}</p>
-                <textarea className="input-base mt-3 min-h-20" value={branchIds} onChange={(e) => setBranchIds(e.target.value)} placeholder={rtl ? "معرّف فرع في كل سطر" : "One branch ID per line"} />
-                <Button className="mt-3" type="submit">{rtl ? "حفظ الفروع" : "Save Branches"}</Button>
-              </form>
-            </div>
-          </Card>
-          <Card className="p-5">
-            <h3 className="font-black text-navy-950 dark:text-white">{rtl ? "الأدوار والمنح والمنع" : "Roles, Grants and Denials"}</h3>
-            <form
-              className="mt-4 grid gap-3 text-xs"
-              onSubmit={async (event) => {
-                event.preventDefault();
-                const result = await updatePermissions({
-                  roleIds: parseIdList(roleIds),
-                  grantPermissionIds: parseIdList(grantIds),
-                  denialPermissionIds: parseIdList(denialIds),
-                });
-                if (result.success) toast.success(rtl ? "تم تحديث الصلاحيات" : "Permissions updated");
-                else toast.error(result.error?.message || "Permission update failed");
-              }}
-            >
-              <textarea className="input-base min-h-20" value={roleIds} onChange={(e) => setRoleIds(e.target.value)} placeholder={rtl ? "معرّف دور في كل سطر" : "One role ID per line"} />
-              <textarea className="input-base min-h-20" value={grantIds} onChange={(e) => setGrantIds(e.target.value)} placeholder={rtl ? "معرّف صلاحية ممنوحة في كل سطر" : "One granted permission ID per line"} />
-              <textarea className="input-base min-h-20" value={denialIds} onChange={(e) => setDenialIds(e.target.value)} placeholder={rtl ? "معرّف صلاحية ممنوعة في كل سطر — المنع له الأولوية" : "One denied permission ID per line — denial wins"} />
-              <Button type="submit">{rtl ? "حفظ التفويض" : "Save Authorization"}</Button>
-            </form>
-            <div className="mt-5 grid gap-3 sm:grid-cols-3 text-[10px]">
-              <div><p className="font-black">{rtl ? "صلاحيات الأدوار" : "Role permissions"}</p><p className="mt-2 text-slate-500 break-words">{permissionState?.authorization?.rolePermissionNames?.join(", ") || "—"}</p></div>
-              <div><p className="font-black text-emerald-600">{rtl ? "منح مباشرة" : "Direct grants"}</p><p className="mt-2 text-slate-500 break-words">{permissionState?.authorization?.directGrantNames?.join(", ") || "—"}</p></div>
-              <div><p className="font-black text-rose-600">{rtl ? "منع مباشر" : "Direct denials"}</p><p className="mt-2 text-slate-500 break-words">{permissionState?.authorization?.directDenialNames?.join(", ") || "—"}</p></div>
-            </div>
-            <div className="mt-4 rounded-xl bg-slate-50 p-4 text-[10px] dark:bg-navy-950">
-              <p className="font-black">{rtl ? "الصلاحيات الفعّالة من الخادم" : "Backend effective permissions"}</p>
-              <p className="mt-2 text-slate-500 break-words">{permissionState?.authorization?.effectivePermissionNames?.join(", ") || "—"}</p>
-            </div>
-          </Card>
-          <Card className="p-5">
-            <h3 className="font-black text-navy-950 dark:text-white">{rtl ? "محاولات التحقق" : "Verification Attempts"}</h3>
-            <div className="mt-4 space-y-2 text-xs">
-              {verificationAttempts.length ? verificationAttempts.map((attempt: any) => (
-                <div key={attempt.id} className="rounded-xl border border-slate-100 p-3 dark:border-slate-800">
-                  <div className="flex justify-between gap-3"><span className={attempt.result === "success" ? "text-emerald-600 font-bold" : "text-rose-600 font-bold"}>{attempt.result}</span><span className="text-[10px] text-slate-400">{attempt.createdAt}</span></div>
-                  <p className="mt-1 text-[10px] text-slate-500">{attempt.requestedPermission || attempt.requestedOperation || "—"} · L{attempt.requestedLevel} · {attempt.failureCode || "OK"}</p>
-                </div>
-              )) : <p className="text-slate-400">{rtl ? "لا توجد محاولات بعد." : "No attempts yet."}</p>}
-            </div>
-          </Card>
+          ))}
         </div>
-      )}
+      ) : <p className="py-10 text-center text-xs text-slate-400">{rtl ? "لا توجد نشاطات مسجلة لهذا الموظف." : "No recorded audit activity logs."}</p>}
+    </Card>
+  );
+}
 
-      {activeTab === "limits" && (
-        <Card className="p-5">
-          <div className="border-b border-slate-100 pb-4 mb-4 dark:border-slate-800">
-            <h3 className="font-black text-navy-950 dark:text-white">
-              {rtl ? "تعديل حدود اعتمادات العمليات" : "Configure Transaction Approval Limits"}
-            </h3>
-            <p className="text-[10px] text-slate-400 mt-1">
-              {rtl
-                ? "حدد الحد المالي أو الكمي الأقصى للموظف قبل أن يتطلب الإجراء اعتماداً من المدير."
-                : "Set maximum threshold limits for transactions before requiring manager approvals."}
-            </p>
-          </div>
+function EmployeeHrPayrollAttendanceTab({
+  limits,
+  setLimits,
+  onSubmit,
+  money,
+  rtl,
+}: {
+  limits: EmployeeApprovalLimits;
+  setLimits: React.Dispatch<React.SetStateAction<EmployeeApprovalLimits>>;
+  onSubmit: (event: FormEvent) => Promise<void>;
+  money: (value: number) => string;
+  rtl: boolean;
+}) {
+  return (
+    <Card className="p-5">
+      <h3 className="font-black text-navy-950 dark:text-white">{rtl ? "الموارد والرواتب والحضور" : "HR / Payroll / Attendance"}</h3>
+      <p className="mt-1 text-[11px] text-muted-foreground">{rtl ? "تم الاحتفاظ بحدود الاعتماد الحالية هنا كقسم موارد/تشغيل لاحق." : "Existing approval limits are retained here as the HR/payroll/attendance adjacent section."}</p>
+      <form onSubmit={(event) => void onSubmit(event)} className="mt-5 grid gap-5 text-xs sm:grid-cols-2">
+        {[
+          ["discountLimit", rtl ? "حد خصم المبيعات الفردي" : "Sales Discount Limit"],
+          ["priceOverrideLimit", rtl ? "حد تعديل السعر اليدوي" : "Price Override Limit"],
+          ["refundLimit", rtl ? "حد المرتجعات الفوري" : "Instant Refund Limit"],
+          ["journalLimit", rtl ? "حد القيود اليومية الأقصى" : "Journal Entry Limit"],
+          ["adjustmentLimit", rtl ? "حد الفروق/تعديل المخزن المسموح" : "Max Inventory Adjustments Count"],
+          ["goldPurchaseLimit", rtl ? "حد شراء الذهب" : "Gold Purchase Limit"],
+        ].map(([key, label]) => (
+          <label key={key} className="block">
+            <span className="label-base">{label}</span>
+            <input type="number" className="input-base mt-1" value={limits[key as keyof EmployeeApprovalLimits]} onChange={(event) => setLimits((prev) => ({ ...prev, [key]: Number(event.target.value) || 0 }))} />
+            {key !== "adjustmentLimit" && <span className="mt-1 block text-[10px] text-muted-foreground">{money(Number(limits[key as keyof EmployeeApprovalLimits] || 0))}</span>}
+          </label>
+        ))}
+        <div className="flex justify-end gap-2 sm:col-span-2">
+          <Button type="submit">{rtl ? "تحديث حدود الصلاحيات" : "Update Limits"}</Button>
+        </div>
+      </form>
+    </Card>
+  );
+}
 
-          <form onSubmit={handleUpdateLimits} className="grid gap-5 sm:grid-cols-2 text-xs">
-            <label className="block">
-              <span className="label-base">
-                {rtl ? "حد خصم المبيعات الفردي" : "Sales Discount Limit"}
-              </span>
-              <input
-                type="number"
-                className="input-base mt-1"
-                value={limits.discountLimit}
-                onChange={(e) => setLimits((prev) => ({ ...prev, discountLimit: Number(e.target.value) || 0 }))}
-              />
-            </label>
-            <label className="block">
-              <span className="label-base">
-                {rtl ? "حد تعديل السعر اليدوي" : "Price Override Limit"}
-              </span>
-              <input
-                type="number"
-                className="input-base mt-1"
-                value={limits.priceOverrideLimit}
-                onChange={(e) => setLimits((prev) => ({ ...prev, priceOverrideLimit: Number(e.target.value) || 0 }))}
-              />
-            </label>
-            <label className="block">
-              <span className="label-base">
-                {rtl ? "حد المرتجعات الفوري" : "Instant Refund Limit"}
-              </span>
-              <input
-                type="number"
-                className="input-base mt-1"
-                value={limits.refundLimit}
-                onChange={(e) => setLimits((prev) => ({ ...prev, refundLimit: Number(e.target.value) || 0 }))}
-              />
-            </label>
-            <label className="block">
-              <span className="label-base">
-                {rtl ? "حد القيود اليومية الأقصى" : "Journal Entry Limit"}
-              </span>
-              <input
-                type="number"
-                className="input-base mt-1"
-                value={limits.journalLimit}
-                onChange={(e) => setLimits((prev) => ({ ...prev, journalLimit: Number(e.target.value) || 0 }))}
-              />
-            </label>
-            <label className="block">
-              <span className="label-base">
-                {rtl ? "حد الفروق/تعديل المخزن المسموح" : "Max Inventory Adjustments Count"}
-              </span>
-              <input
-                type="number"
-                className="input-base mt-1"
-                value={limits.adjustmentLimit}
-                onChange={(e) => setLimits((prev) => ({ ...prev, adjustmentLimit: Number(e.target.value) || 0 }))}
-              />
-            </label>
-            <label className="block">
-              <span className="label-base">
-                {rtl ? "حد شراء الذهب من العملاء" : "Gold Purchase Limit"}
-              </span>
-              <input
-                type="number"
-                className="input-base mt-1"
-                value={limits.goldPurchaseLimit}
-                onChange={(e) => setLimits((prev) => ({ ...prev, goldPurchaseLimit: Number(e.target.value) || 0 }))}
-              />
-            </label>
-            <div className="flex justify-end gap-2 sm:col-span-2">
-              <Button type="submit">{rtl ? "تحديث حدود الصلاحيات" : "Update Limits"}</Button>
-            </div>
-          </form>
-        </Card>
-      )}
+function PermissionNameList({ title, names, tone, empty }: { title: string; names: string[]; tone: "green" | "rose"; empty: string }) {
+  return (
+    <div className="rounded-2xl border border-border p-4">
+      <p className="text-xs font-black">{title}</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {names.length ? names.map((name) => <Badge key={name} tone={tone}>{name}</Badge>) : <p className="text-xs text-muted-foreground">{empty}</p>}
+      </div>
+    </div>
+  );
+}
 
-      {activeTab === "activity" && (
-        <Card className="p-5">
-          <h3 className="font-black text-navy-950 dark:text-white">
-            {rtl ? "سجل العمليات والنشاط الأمني" : "Operational Activity Audit Logs"}
-          </h3>
-          {employeeLogs.length ? (
-            <div className="mt-5 space-y-4 text-xs">
-              {employeeLogs.map((log) => (
-                <div
-                  key={log.id}
-                  className="border-l-2 border-brand-500 pl-4 py-1 space-y-1 dark:border-brand-400"
-                >
-                  <div className="flex justify-between">
-                    <span className="font-bold text-navy-900 dark:text-white capitalize">
-                      {log.action}
-                    </span>
-                    <span className="text-[10px] text-slate-400">{log.date}</span>
-                  </div>
-                  <p className="text-slate-600 dark:text-slate-300">{log.description}</p>
-                  <p className="text-[9px] text-slate-400">
-                    {log.place} {log.device && `· Device: ${log.device}`}
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-5 text-center text-xs text-slate-400 py-10">
-              {rtl ? "لا توجد نشاطات مسجلة لهذا الموظف." : "No recorded audit activity logs."}
-            </p>
-          )}
-        </Card>
-      )}
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-border bg-background p-4">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p className="mt-1 break-words text-sm font-black text-foreground">{value}</p>
+    </div>
+  );
+}
 
-      {activeTab === "sessions" && (
-        <Card className="p-5">
-          <div className="border-b border-slate-100 pb-4 mb-4 dark:border-slate-800">
-            <h3 className="font-black text-navy-950 dark:text-white">
-              {rtl ? "سجل جلسات المشغل التشغيلية" : "Operational Operator Session History"}
-            </h3>
-            <p className="text-[10px] text-slate-400 mt-1">
-              {rtl
-                ? "قراءة فقط من جلسات المشغل المخزنة في الخادم. لا يتم عرض معرف الجهاز الخام."
-                : "Read-only server-backed operator sessions. Raw device identifiers are not displayed."}
-            </p>
-          </div>
-
-          {operatorSessions && operatorSessions.length ? (
-            <div className="space-y-3">
-              {operatorSessions.map((ses) => (
-                <div
-                  key={ses.id}
-                  className="rounded-2xl border border-slate-100 p-4 text-xs dark:border-slate-800"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="grid h-10 w-10 place-items-center rounded-xl bg-slate-50 font-black text-slate-500 dark:bg-navy-950">
-                      PC
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-bold text-navy-900 dark:text-white">{ses.maskedDeviceLabel || "device-••••"}</p>
-                        <Badge tone={ses.state?.startsWith("active") ? "green" : "slate"}>{ses.state}</Badge>
-                      </div>
-                      <p className="mt-1 text-[10px] text-slate-400">
-                        {ses.branch?.name || ses.branch?.id || "—"} · {ses.technicalUser?.name || ses.technicalUser?.email || "—"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-3 grid gap-2 text-[10px] text-slate-500 sm:grid-cols-3">
-                    <span>{rtl ? "تحقق" : "Verified"}: {ses.verifiedAt || "—"}</span>
-                    <span>{rtl ? "آخر نشاط" : "Last activity"}: {ses.lastActivityAt || "—"}</span>
-                    <span>{rtl ? "انتهاء الخمول" : "Idle expiry"}: {ses.idleExpiresAt || "—"}</span>
-                    <span>{rtl ? "انتهاء مطلق" : "Absolute expiry"}: {ses.absoluteExpiresAt || "—"}</span>
-                    <span>{rtl ? "قفل" : "Locked"}: {ses.lockedAt || "—"}</span>
-                    <span>{rtl ? "إلغاء" : "Revoked"}: {ses.revokedAt || "—"}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-center text-xs text-slate-400 py-10">
-              {rtl ? "لا توجد جلسات نشطة حالياً." : "No active sessions."}
-            </p>
-          )}
-        </Card>
-      )}
+function Info({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div>
+      <p className="text-slate-400">{label}</p>
+      <p className={`mt-1 font-bold text-navy-900 dark:text-slate-200 ${mono ? "font-mono" : ""}`}>{value}</p>
     </div>
   );
 }

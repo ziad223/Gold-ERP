@@ -18,6 +18,7 @@ interface OperatorContextValue {
 
 const OperatorContext = createContext<OperatorContextValue | null>(null);
 const OPERATOR_CHANNEL = "darfus-operator-session-v1";
+export const OPERATOR_LIFECYCLE_EVENT = "darfus-operator-lifecycle";
 
 const inactiveState: OperatorSessionState = {
   state: "inactive",
@@ -38,6 +39,11 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
   const broadcast = useCallback((event: string) => {
     if (typeof window === "undefined") return;
     const payload = { event, at: Date.now() };
+    try {
+      window.dispatchEvent(new CustomEvent(OPERATOR_LIFECYCLE_EVENT, { detail: payload }));
+    } catch {
+      // Same-tab event dispatch is best-effort and carries no secrets.
+    }
     try {
       const channel = new BroadcastChannel(OPERATOR_CHANNEL);
       channel.postMessage(payload);
@@ -141,7 +147,14 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const handleEvent = () => void refresh();
+    const handleEvent = () => {
+      void refresh();
+      try {
+        window.dispatchEvent(new CustomEvent(OPERATOR_LIFECYCLE_EVENT, { detail: { event: "operator:remote-refresh", at: Date.now() } }));
+      } catch {
+        // No secrets are emitted; this only invalidates UI state.
+      }
+    };
     let channel: BroadcastChannel | null = null;
     try {
       channel = new BroadcastChannel(OPERATOR_CHANNEL);

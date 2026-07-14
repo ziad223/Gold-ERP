@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useOperator } from "@/contexts/operator-context";
 
 export function OperatorStepUpDialog({ requiredPermission, requestedOperation, triggerLabel = "Authorize" }: { requiredPermission?: string; requestedOperation?: string; triggerLabel?: string }) {
@@ -8,16 +8,40 @@ export function OperatorStepUpDialog({ requiredPermission, requestedOperation, t
   const [open, setOpen] = useState(false);
   const [pin, setPin] = useState("");
 
+  const clearSensitiveOperatorFormState = useCallback(() => setPin(""), []);
+
+  const closeDialog = useCallback(() => {
+    clearSensitiveOperatorFormState();
+    setOpen(false);
+  }, [clearSensitiveOperatorFormState]);
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    await operator.authorizeAction({ pin, requiredPermission, requestedOperation });
-    setPin("");
-    setOpen(false);
+    try {
+      await operator.authorizeAction({ pin, requiredPermission, requestedOperation });
+      closeDialog();
+    } finally {
+      clearSensitiveOperatorFormState();
+    }
   };
+
+  useEffect(() => {
+    if (!operator.active) closeDialog();
+  }, [closeDialog, operator.active]);
 
   return (
     <div className="relative">
-      <button type="button" onClick={() => setOpen((current) => !current)} className="rounded-2xl border border-border px-3 py-2 text-xs font-bold">
+      <button
+        type="button"
+        onClick={() => {
+          if (open) closeDialog();
+          else {
+            clearSensitiveOperatorFormState();
+            setOpen(true);
+          }
+        }}
+        className="rounded-2xl border border-border px-3 py-2 text-xs font-bold"
+      >
         {triggerLabel}
       </button>
       {open && (

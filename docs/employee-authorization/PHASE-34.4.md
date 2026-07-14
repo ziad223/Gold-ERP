@@ -238,3 +238,35 @@ Required coverage:
 - historical attribution rewrite
 - Phase 33D
 - Phase 33C-HF2
+
+## Browser QA hotfix closure
+
+Phase 34.4 browser QA hotfix resolved the three blocking manual QA defects:
+
+- `P344QA-BQA-001` — PIN/modal lifecycle: operator verify, failed verify, Level 2 step-up and lock now clear PIN state through guaranteed `finally` paths. Level 2 success closes the step-up panel, Lock closes the operator panel, and inactive/stale operator transitions clear sensitive local form state.
+- `P344QA-BQA-002` — Employee detail management contract: the detail page now exposes the accepted focused tab structure: Overview, Operational Access, Branch Access, Role Templates, Direct Permissions, Effective Permissions, Credential & PIN, Verification Attempts, Operational Sessions, Audit / Activity, and HR / Payroll / Attendance. Branch, role and permission management use searchable structured controls rather than raw ID textareas. Direct grants and denials are separated, overlap is blocked, denial precedence is explicit, and effective permissions remain backend-resolved.
+- `P344QA-BQA-003` — stale operational-session panel: operator lifecycle events are dispatched in-tab and cross-tab, and Employee detail hooks refresh authorization/session data after verify, switch, step-up, lock, credential reset, branch access update and permission update.
+
+Additional closure fix:
+
+- `GET /employees/:id` now returns the same safe `authorizationSummary` used by the Employee list, including credential state and active operator-session count, so the Credential & PIN detail tab renders backend-authoritative state after PIN reset.
+
+Browser QA evidence was collected against local `darfus_erp@localhost:5433` only:
+
+- failed PIN attempt returned the generic failed verification state while clearing attempted PIN input;
+- successful verify moved the header to `L1`, closed the verify panel, and removed the operator PIN input;
+- Level 2 step-up moved the header to `L2`, closed the step-up panel, and cleared PIN input;
+- Operational Sessions refreshed without page reload to show `active_level_2`;
+- Lock closed operator dialogs, returned the header to Employee verification required, and refreshed Operational Sessions to `locked`;
+- visible session rows display masked device labels and do not render raw `deviceSessionId`, `authSessionFingerprint`, raw token, PIN, or PIN hash;
+- Credential & PIN fields use password inputs and clear after submit.
+
+Verifier and regression evidence:
+
+- `scripts/verify-employee-management-operator-ui-contract.js` now asserts the hotfix PIN lifecycle, focused detail tabs, searchable controls, backend detail `authorizationSummary`, lifecycle invalidation and privacy exclusions.
+- Existing live verifier setup scripts were aligned to use `returning: false` for local Company fixture inserts, preventing PostgreSQL `RETURNING` from requesting model-only Company fields that are not present in the local Phase 34 schema.
+- Typecheck, lint, build, targeted Phase 34.2/34.3/34.4 verifiers, and full verifier suite must be run with the documented local DB environment.
+
+No migration was added. Permission count remains 111. Gold Purchase permission count remains 24. Business execution routes remain free of operator middleware wiring.
+
+MANUAL UI QA REQUIRED evidence is now recorded for the browser hotfix pass, but future Phase 34.5 Sales/POS operator-enforcement work still requires a new owner-approved phase.

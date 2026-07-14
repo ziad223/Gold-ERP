@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useErp } from "@/contexts/erp-context";
+import { OPERATOR_LIFECYCLE_EVENT } from "@/contexts/operator-context";
 import type { Employee, EmployeeOperationalSessionHistory, EmployeeSession } from "@/lib/types";
 import type { ListQuery, PaginatedResult } from "@/lib/repositories/interfaces";
 
@@ -77,6 +78,15 @@ export function useEmployee(id: string | undefined) {
     fetchEmployeeDetails();
   }, [fetchEmployeeDetails, rawEmployees]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const refreshOnOperatorLifecycle = () => {
+      void fetchEmployeeDetails();
+    };
+    window.addEventListener(OPERATOR_LIFECYCLE_EVENT, refreshOnOperatorLifecycle);
+    return () => window.removeEventListener(OPERATOR_LIFECYCLE_EVENT, refreshOnOperatorLifecycle);
+  }, [fetchEmployeeDetails]);
+
   const revokeSession = useCallback(async (sessionId: string) => {
     if (!id) return { success: false };
     const res = await employeeRepository.revokeSession(id, sessionId);
@@ -125,26 +135,43 @@ export function useEmployeeAuthorization(id: string | undefined) {
     refreshAuthorization();
   }, [refreshAuthorization]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const refreshOnOperatorLifecycle = () => {
+      void refreshAuthorization();
+    };
+    window.addEventListener(OPERATOR_LIFECYCLE_EVENT, refreshOnOperatorLifecycle);
+    return () => window.removeEventListener(OPERATOR_LIFECYCLE_EVENT, refreshOnOperatorLifecycle);
+  }, [refreshAuthorization]);
+
+  const emitEmployeeAuthorizationLifecycle = useCallback((event: string) => {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(new CustomEvent(OPERATOR_LIFECYCLE_EVENT, { detail: { event, employeeId: id, at: Date.now() } }));
+  }, [id]);
+
   const resetCredential = useCallback(async (pin: string, resetRequired = false) => {
     if (!id) return { success: false };
     const result = await employeeRepository.resetCredential(id, pin, resetRequired);
     await refreshAuthorization();
+    emitEmployeeAuthorizationLifecycle("employee:credential-reset");
     return result;
-  }, [id, employeeRepository, refreshAuthorization]);
+  }, [id, employeeRepository, emitEmployeeAuthorizationLifecycle, refreshAuthorization]);
 
   const updateBranches = useCallback(async (branchIds: string[]) => {
     if (!id) return { success: false };
     const result = await employeeRepository.updateBranchAccess(id, branchIds);
     await refreshAuthorization();
+    emitEmployeeAuthorizationLifecycle("employee:branch-access-updated");
     return result;
-  }, [id, employeeRepository, refreshAuthorization]);
+  }, [id, employeeRepository, emitEmployeeAuthorizationLifecycle, refreshAuthorization]);
 
   const updatePermissions = useCallback(async (input: { roleIds: string[]; grantPermissionIds: string[]; denialPermissionIds: string[] }) => {
     if (!id) return { success: false };
     const result = await employeeRepository.updatePermissionState(id, input);
     await refreshAuthorization();
+    emitEmployeeAuthorizationLifecycle("employee:permissions-updated");
     return result;
-  }, [id, employeeRepository, refreshAuthorization]);
+  }, [id, employeeRepository, emitEmployeeAuthorizationLifecycle, refreshAuthorization]);
 
   return { branchAccess, permissionState, verificationAttempts, loading, refreshAuthorization, resetCredential, updateBranches, updatePermissions };
 }

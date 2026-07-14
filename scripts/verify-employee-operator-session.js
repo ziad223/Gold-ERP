@@ -130,7 +130,7 @@ async function makeRoleWithPermissions(roleId, permissionNames) {
 }
 
 async function setup() {
-  await models.Company.create({ id: ids.company, businessName: namespace, workspace: namespace.toLowerCase(), currency: "AED", country: "AE" });
+  await models.Company.create({ id: ids.company, businessName: namespace, workspace: namespace.toLowerCase(), currency: "AED", country: "AE" }, { returning: false });
   await models.Branch.bulkCreate([
     { id: ids.branchA, companyId: ids.company, name: `${namespace} A`, code: `${namespace}A`, type: "store", isActive: true },
     { id: ids.branchB, companyId: ids.company, name: `${namespace} B`, code: `${namespace}B`, type: "store", isActive: true }

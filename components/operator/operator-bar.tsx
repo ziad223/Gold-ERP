@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { LockKeyhole, RefreshCw, ShieldCheck, UserRoundCheck } from "lucide-react";
 import { useLocale } from "next-intl";
 import { useAuth } from "@/contexts/auth-context";
@@ -40,6 +40,17 @@ export function OperatorBar() {
   const [pin, setPin] = useState("");
   const [tick, setTick] = useState(Date.now());
 
+  const clearSensitiveOperatorFormState = useCallback(() => {
+    setPin("");
+  }, []);
+
+  const resetOperatorDialogState = useCallback(() => {
+    clearSensitiveOperatorFormState();
+    setEmployeeCode("");
+    setMode("verify");
+    setOpen(false);
+  }, [clearSensitiveOperatorFormState]);
+
   useEffect(() => {
     const timer = window.setInterval(() => setTick(Date.now()), 1000);
     return () => window.clearInterval(timer);
@@ -66,11 +77,22 @@ export function OperatorBar() {
   }, [mode, rtl]);
 
   const openDialog = (nextMode: DialogMode) => {
+    clearSensitiveOperatorFormState();
     setMode(nextMode);
-    setPin("");
     if (nextMode !== "switch") setEmployeeCode("");
     setOpen(true);
   };
+
+  const toggleStatusPanel = () => {
+    if (open) resetOperatorDialogState();
+    else setOpen(true);
+  };
+
+  useEffect(() => {
+    const inactive = !operator.active || operator.state?.state === "locked" || operator.state?.state === "inactive";
+    if (inactive && mode !== "verify") resetOperatorDialogState();
+    if (inactive) clearSensitiveOperatorFormState();
+  }, [mode, operator.active, operator.state?.state, operator.reason, resetOperatorDialogState, clearSensitiveOperatorFormState]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -80,9 +102,17 @@ export function OperatorBar() {
       } else {
         await operator.verify({ employeeCode, pin, branchId: activeBranchId || "", requestedLevel: mode === "verify" ? 1 : 1 });
       }
-      setOpen(false);
+      resetOperatorDialogState();
     } finally {
-      setPin("");
+      clearSensitiveOperatorFormState();
+    }
+  };
+
+  const lockOperator = async () => {
+    try {
+      await operator.lock("manual_lock");
+    } finally {
+      resetOperatorDialogState();
     }
   };
 
@@ -90,7 +120,7 @@ export function OperatorBar() {
     <div className="relative">
       <button
         type="button"
-        onClick={() => setOpen((current) => !current)}
+        onClick={toggleStatusPanel}
         className={cn(
           "flex h-10 max-w-[220px] items-center gap-2 rounded-2xl border bg-panel px-3 text-xs font-black shadow-sm transition hover:border-brand-500",
           tone === "emerald" && "border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-300",
@@ -161,7 +191,7 @@ export function OperatorBar() {
               <>
                 <button type="button" onClick={() => openDialog("switch")} className="rounded-xl border border-border px-3 py-2 font-bold">{rtl ? "تبديل" : "Switch"}</button>
                 <button type="button" onClick={() => openDialog("step-up")} className="rounded-xl border border-border px-3 py-2 font-bold">{rtl ? "مستوى 2" : "Step-up"}</button>
-                <button type="button" onClick={() => void operator.lock("manual_lock")} className="inline-flex items-center gap-1 rounded-xl border border-amber-300 px-3 py-2 font-bold text-amber-700">
+                <button type="button" onClick={() => void lockOperator()} className="inline-flex items-center gap-1 rounded-xl border border-amber-300 px-3 py-2 font-bold text-amber-700">
                   <LockKeyhole className="h-3.5 w-3.5" /> {rtl ? "قفل" : "Lock"}
                 </button>
               </>

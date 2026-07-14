@@ -120,7 +120,7 @@ async function setup() {
   await models.Company.bulkCreate([
     { id: ids.company, businessName: namespace, workspace: namespace.toLowerCase(), currency: "AED", country: "AE" },
     { id: ids.otherCompany, businessName: `${namespace} Other`, workspace: `${namespace}-other`.toLowerCase(), currency: "AED", country: "AE" }
-  ]);
+  ], { returning: false });
   await models.Branch.bulkCreate([
     { id: ids.branchA, companyId: ids.company, name: `${namespace} A`, code: `${namespace}A`, type: "store", isActive: true },
     { id: ids.branchB, companyId: ids.company, name: `${namespace} B`, code: `${namespace}B`, type: "store", isActive: true },

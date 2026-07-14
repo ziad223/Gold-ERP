@@ -101,8 +101,8 @@ async function addUser(password, id, branchId, suffix, permissions, { isAdmin = 
 
 async function setup() {
   const password = await bcrypt.hash("Verifier-Only-33C!", 4);
-  await models.Company.create({ id: ids.company, businessName: namespace, workspace: namespace.toLowerCase(), currency: "AED", country: "AE" });
-  await models.Company.create({ id: ids.otherCompany, businessName: `${namespace} Other`, workspace: `${namespace}-other`.toLowerCase(), currency: "AED", country: "AE" });
+  await models.Company.create({ id: ids.company, businessName: namespace, workspace: namespace.toLowerCase(), currency: "AED", country: "AE" }, { returning: false });
+  await models.Company.create({ id: ids.otherCompany, businessName: `${namespace} Other`, workspace: `${namespace}-other`.toLowerCase(), currency: "AED", country: "AE" }, { returning: false });
   await models.Branch.bulkCreate([
     { id: ids.branchA, companyId: ids.company, name: `${namespace} A`, code: `${namespace}A`, type: "store", isActive: true },
     { id: ids.branchB, companyId: ids.company, name: `${namespace} B`, code: `${namespace}B`, type: "store", isActive: true },
