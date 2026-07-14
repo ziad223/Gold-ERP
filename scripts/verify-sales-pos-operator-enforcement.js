@@ -135,9 +135,9 @@ async function databaseContract(models) {
   const [[connection]] = await models.sequelize.query("select current_database() as database, inet_server_addr()::text as server_addr, inet_server_port()::int as server_port");
   assert.equal(connection.database, "darfus_erp", "connected database is darfus_erp");
   const [migrations] = await models.sequelize.query('select count(*)::int c from "SequelizeMeta"');
-  assert.equal(Number(migrations[0].c), 41, "migration count is 41");
+  assert.equal(Number(migrations[0].c), 42, "migration count is 42");
   const permissionCount = await models.Permission.count();
-  assert.equal(permissionCount, 114, "permission count is 114");
+  assert.equal(permissionCount, 120, "permission count is 120");
   const pos = await models.Permission.findAll({ where: { name: ["pos.view", "pos.sell", "pos.discount.approve"] } });
   assert.equal(pos.length, 3, "all POS permissions exist once");
   const gold = await models.Permission.count({ where: { name: { [Op.like]: "gold_purchase.%" } } });
@@ -194,8 +194,24 @@ const state = {
   deviceCounter: 0
 };
 
-function tokenFor(userId) {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: "15m" });
+async function tokenFor(user) {
+  const session = await models.TechnicalAccountSession.create({
+    id: `TAS-${ns}-${user.id}`.slice(0, 190),
+    userId: user.id,
+    companyId: user.companyId,
+    branchId: user.branchId || null,
+    refreshTokenHash: `verifier-${ns}-${user.id}`.slice(0, 128),
+    passwordVersion: Number(user.passwordVersion || 1),
+    sessionVersion: Number(user.sessionVersion || 1),
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    lastUsedAt: new Date()
+  });
+  return jwt.sign({
+    userId: user.id,
+    passwordVersion: Number(user.passwordVersion || 1),
+    sessionVersion: Number(user.sessionVersion || 1),
+    technicalSessionId: session.id
+  }, JWT_SECRET, { expiresIn: "15m" });
 }
 
 function nextDevice(label) {
@@ -292,7 +308,7 @@ async function createUser(key, role, branchId = ids.branchA) {
   });
   await models.UserRole.create({ userId: user.id, roleId: state.roles[role].id });
   state.users[key] = user;
-  state.tokens[key] = tokenFor(user.id);
+  state.tokens[key] = await tokenFor(user);
   return user;
 }
 
@@ -500,6 +516,7 @@ async function createFixtures() {
   await createUser("salesOnly", "salesOnly", ids.branchA);
   await createUser("posNoDiscount", "posNoDiscount", ids.branchA);
   await createUser("noSales", "noSales", ids.branchA);
+  await createUser("legacyFull", "full", ids.branchLegacy);
 
   await createEmployee("all", ["sales.create", "sales.print", "pos.sell", "pos.discount.approve"], { branches: [ids.branchA, ids.branchB, ids.branchLegacy] });
   await createEmployee("pos", ["pos.sell"], { branches: [ids.branchA, ids.branchB] });
@@ -779,7 +796,7 @@ async function testLegacyModeCompatibility() {
   const customer = await createCustomer("legacy");
   const product = await createProduct("legacy-pos", ids.branchLegacy, 3, 90);
   const response = await request("POST", "/pos/checkout", {
-    token: state.tokens.full,
+    token: state.tokens.legacyFull,
     branchId: ids.branchLegacy,
     body: posBody(customer, product),
     idempotencyKey: `IDEM-${ns}-legacy-pos`
@@ -848,6 +865,7 @@ async function namespaceCount() {
     + (select count(*) from payments where company_id = :companyId or invoice_id like :likeNs or reference like :likeNs)
     + (select count(*) from stock_movements where company_id = :companyId or reference_id like :likeNs or product_id like :likeNs or asset_id like :likeNs)
     + (select count(*) from settings where company_id = :companyId)
+    + (select count(*) from technical_account_sessions where company_id = :companyId or user_id like :likeNs)
     + (select count(*) from employee_operational_sessions where company_id = :companyId or id like :likeNs)
     + (select count(*) from employee_verification_attempts where company_id = :companyId or id like :likeNs)
     + (select count(*) from invoice_print_events where company_id = :companyId or id like :likeNs)
@@ -881,6 +899,7 @@ async function cleanupNamespace() {
   await models.sequelize.query("delete from products where company_id = :companyId or id like :likeNs or product_code like :likeNs", { replacements });
   await models.sequelize.query("delete from assets where company_id = :companyId or id like :likeNs or barcode like :likeNs", { replacements });
   await models.sequelize.query("delete from settings where company_id = :companyId", { replacements });
+  await models.sequelize.query("delete from technical_account_sessions where company_id = :companyId or user_id like :likeNs", { replacements });
   await models.sequelize.query("delete from employee_permission_grants where company_id = :companyId or employee_id like :likeNs", { replacements });
   await models.sequelize.query("delete from employee_permission_denials where company_id = :companyId or employee_id like :likeNs", { replacements });
   await models.sequelize.query("delete from employee_role_assignments where company_id = :companyId or employee_id like :likeNs", { replacements });

@@ -77,19 +77,19 @@ export function permissionMeta(code: string): PermissionMeta {
   const parts = code.split(".");
   const action = parts.pop() || code;
   const moduleName = parts.join(".");
-  const module = MODULE_LABELS[moduleName] || MODULE_LABELS[parts[0]] || { ar: "صلاحيات", en: "Permissions" };
+  const moduleLabels = MODULE_LABELS[moduleName] || MODULE_LABELS[parts[0]] || { ar: "صلاحيات", en: "Permissions" };
   const exact = EXACT_LABELS[code];
   const genericAction = ACTION_LABELS[action] || {
     ar: action.replace(/_/g, " "),
     en: action.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
   };
   const label = exact?.label || {
-    ar: `${genericAction.ar} ${module.ar}`,
-    en: `${genericAction.en} ${module.en}`,
+    ar: `${genericAction.ar} ${moduleLabels.ar}`,
+    en: `${genericAction.en} ${moduleLabels.en}`,
   };
   return {
     moduleKey: moduleName,
-    module,
+    module: moduleLabels,
     label,
     description: exact?.description || label,
     sensitivity: exact?.sensitivity || (/(delete|approve|manage|reset|revoke|post|update|void)/.test(action) ? "level_2" : "level_1"),

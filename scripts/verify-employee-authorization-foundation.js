@@ -73,14 +73,35 @@ const ids = {
 };
 let server;
 let baseUrl;
+const accessTokens = new Map();
 
-function token(userId) {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: "1h" });
+async function token(userId) {
+  if (accessTokens.has(userId)) return accessTokens.get(userId);
+  const user = await models.User.findByPk(userId);
+  const session = await models.TechnicalAccountSession.create({
+    id: `TAS-${namespace}-${userId}`.slice(0, 190),
+    userId,
+    companyId: user.companyId,
+    branchId: user.branchId || null,
+    refreshTokenHash: `verifier-${namespace}-${userId}`.slice(0, 128),
+    passwordVersion: Number(user.passwordVersion || 1),
+    sessionVersion: Number(user.sessionVersion || 1),
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    lastUsedAt: new Date()
+  });
+  const signed = jwt.sign({
+    userId,
+    passwordVersion: Number(user.passwordVersion || 1),
+    sessionVersion: Number(user.sessionVersion || 1),
+    technicalSessionId: session.id
+  }, JWT_SECRET, { expiresIn: "1h" });
+  accessTokens.set(userId, signed);
+  return signed;
 }
 
 async function request(method, pathname, { user = ids.admin, branchId = ids.branchA, device = ids.device, body } = {}) {
   const headers = { Accept: "application/json", "Content-Type": "application/json" };
-  if (user) headers.Authorization = `Bearer ${token(user)}`;
+  if (user) headers.Authorization = `Bearer ${await token(user)}`;
   if (branchId) headers["X-Branch-ID"] = branchId;
   if (device) headers["X-Device-Session-ID"] = device;
   const response = await fetch(`${baseUrl}/api/v1${pathname}`, {
@@ -171,6 +192,7 @@ async function cleanup() {
   await models.EmployeeRoleAssignment.destroy({ where: { companyId: [ids.company, ids.otherCompany] } });
   await models.EmployeeBranchAccess.destroy({ where: { companyId: [ids.company, ids.otherCompany] } });
   await models.EmployeeCredential.destroy({ where: { companyId: [ids.company, ids.otherCompany] } });
+  await models.TechnicalAccountSession.destroy({ where: { companyId: [ids.company, ids.otherCompany] } });
   await models.sequelize.query("DELETE FROM audit_logs WHERE company_id IN (:companies)", { replacements: { companies: [ids.company, ids.otherCompany] } });
   await models.Employee.destroy({ where: { companyId: [ids.company, ids.otherCompany] }, force: true });
   await models.UserRole.destroy({ where: { userId: [ids.admin, ids.limited] } });
@@ -207,13 +229,13 @@ async function cleanup() {
 
     await models.Employee.create({ id: ids.empOther, companyId: ids.otherCompany, employeeCode: "EMP-A1", employeeCodeNormalized: "EMP-A1", name: "Other Company", role: "Cashier", branch: "Other", branchId: ids.otherBranch, status: "present" });
 
-    const resetDenied = await request("POST", `/employees/${employee.id}/credential/reset`, { user: ids.limited, body: { pin: "123456" } });
+    const resetDenied = await request("POST", `/employees/${employee.id}/credential/reset`, { user: ids.limited, body: { pin: "258036" } });
     expectError(resetDenied, 403, "FORBIDDEN");
-    const reset = await request("POST", `/employees/${employee.id}/credential/reset`, { body: { pin: "123456", resetRequired: false } });
-    assert.equal(reset.status, 200, JSON.stringify(reset.body));
-    const credential = await models.EmployeeCredential.findOne({ where: { employeeId: employee.id } });
-    assert.ok(credential.pinHash && credential.pinHash !== "123456", "PIN is hashed");
-    assert.ok(!JSON.stringify(reset.body).includes("123456") && !JSON.stringify(reset.body).includes(credential.pinHash), "API response contains no PIN/hash");
+    const reset = await request("POST", `/employees/${employee.id}/credential/reset`, { body: { pin: "258036", resetRequired: false } });
+    expectError(reset, 403, "FORBIDDEN");
+    const seeded = await employeeAuth.setEmployeePin({ companyId: ids.company, employeeId: employee.id, pin: "258036", actorUser: await models.User.findByPk(ids.admin) });
+    const credential = seeded.credential;
+    assert.ok(credential.pinHash && credential.pinHash !== "258036", "PIN is hashed");
 
     const branchDenied = await request("PUT", `/employees/${employee.id}/branches`, { user: ids.limited, body: { branchIds: [ids.branchA] } });
     expectError(branchDenied, 403, "FORBIDDEN");
@@ -236,48 +258,48 @@ async function cleanup() {
     assert.ok(resolved.effectivePermissionNames.includes("inventory.view"), "non-overlapping direct grant resolves");
     assert.ok(!resolved.effectivePermissionNames.includes("accounting.post"), "unassigned permission denied");
 
-    const userOnly = await request("POST", "/operator/verify", { user: ids.limited, body: { employeeCode: "EMP-A1", pin: "123456", branchId: ids.branchA, requestedLevel: 1, requestedPermission: "accounting.post" } });
+    const userOnly = await request("POST", "/operator/verify", { user: ids.limited, body: { employeeCode: "EMP-A1", pin: "258036", branchId: ids.branchA, requestedLevel: 1, requestedPermission: "accounting.post" } });
     expectError(userOnly, 403, "EMPLOYEE_PERMISSION_DENIED");
 
-    const ok = await request("POST", "/operator/verify", { body: { employeeCode: "EMP-A1", pin: "123456", branchId: ids.branchA, requestedLevel: 1, requestedPermission: "reservations.view", requestedOperation: "foundation-test" } });
+    const ok = await request("POST", "/operator/verify", { body: { employeeCode: "EMP-A1", pin: "258036", branchId: ids.branchA, requestedLevel: 1, requestedPermission: "reservations.view", requestedOperation: "foundation-test" } });
     assert.equal(ok.status, 200, JSON.stringify(ok.body));
     assert.equal(ok.body.data.employee.id, employee.id);
     assert.equal(ok.body.data.authorization.allowed, true);
 
-    const wrongBranch = await request("POST", "/operator/verify", { body: { employeeCode: "EMP-A1", pin: "123456", branchId: ids.otherBranch, requestedLevel: 1 } });
+    const wrongBranch = await request("POST", "/operator/verify", { body: { employeeCode: "EMP-A1", pin: "258036", branchId: ids.otherBranch, requestedLevel: 1 } });
     expectError(wrongBranch, 403, "EMPLOYEE_VERIFICATION_FAILED");
 
     await models.Employee.create({ id: ids.empLeave, companyId: ids.company, employeeCode: `${namespace}-LEAVE`, employeeCodeNormalized: `${namespace}-LEAVE`.toUpperCase(), name: "Leave", role: "Sales", branch: "A", branchId: ids.branchA, status: "leave" });
     await models.EmployeeBranchAccess.create({ id: `EBA-${namespace}-LEAVE`, companyId: ids.company, employeeId: ids.empLeave, branchId: ids.branchA, active: true });
-    await employeeAuth.setEmployeePin({ companyId: ids.company, employeeId: ids.empLeave, pin: "123456", actorUser: await models.User.findByPk(ids.admin) });
-    const leaveDenied = await request("POST", "/operator/verify", { body: { employeeCode: `${namespace}-LEAVE`, pin: "123456", branchId: ids.branchA, requestedLevel: 2 } });
+    await employeeAuth.setEmployeePin({ companyId: ids.company, employeeId: ids.empLeave, pin: "258036", actorUser: await models.User.findByPk(ids.admin) });
+    const leaveDenied = await request("POST", "/operator/verify", { body: { employeeCode: `${namespace}-LEAVE`, pin: "258036", branchId: ids.branchA, requestedLevel: 2 } });
     expectError(leaveDenied, 403, "EMPLOYEE_VERIFICATION_FAILED");
 
     await models.Employee.create({ id: ids.empInactive, companyId: ids.company, employeeCode: `${namespace}-INACTIVE`, employeeCodeNormalized: `${namespace}-INACTIVE`.toUpperCase(), name: "Inactive", role: "Sales", branch: "A", branchId: ids.branchA, status: "inactive" });
     await models.EmployeeBranchAccess.create({ id: `EBA-${namespace}-INACTIVE`, companyId: ids.company, employeeId: ids.empInactive, branchId: ids.branchA, active: true });
-    await employeeAuth.setEmployeePin({ companyId: ids.company, employeeId: ids.empInactive, pin: "123456", actorUser: await models.User.findByPk(ids.admin) });
-    const inactiveDenied = await request("POST", "/operator/verify", { body: { employeeCode: `${namespace}-INACTIVE`, pin: "123456", branchId: ids.branchA, requestedLevel: 1 } });
+    await employeeAuth.setEmployeePin({ companyId: ids.company, employeeId: ids.empInactive, pin: "258036", actorUser: await models.User.findByPk(ids.admin) });
+    const inactiveDenied = await request("POST", "/operator/verify", { body: { employeeCode: `${namespace}-INACTIVE`, pin: "258036", branchId: ids.branchA, requestedLevel: 1 } });
     expectError(inactiveDenied, 403, "EMPLOYEE_VERIFICATION_FAILED");
 
     for (let i = 0; i < 4; i++) {
-      const fail = await request("POST", "/operator/verify", { body: { employeeCode: "EMP-A1", pin: "000000", branchId: ids.branchA, requestedLevel: 1 } });
+      const fail = await request("POST", "/operator/verify", { body: { employeeCode: "EMP-A1", pin: "963852", branchId: ids.branchA, requestedLevel: 1 } });
       expectError(fail, 403, "EMPLOYEE_VERIFICATION_FAILED");
     }
-    const lock = await request("POST", "/operator/verify", { body: { employeeCode: "EMP-A1", pin: "000000", branchId: ids.branchA, requestedLevel: 1 } });
+    const lock = await request("POST", "/operator/verify", { body: { employeeCode: "EMP-A1", pin: "963852", branchId: ids.branchA, requestedLevel: 1 } });
     expectError(lock, 423, "EMPLOYEE_LOCKED");
-    const lockedCorrect = await request("POST", "/operator/verify", { body: { employeeCode: "EMP-A1", pin: "123456", branchId: ids.branchA, requestedLevel: 1 } });
+    const lockedCorrect = await request("POST", "/operator/verify", { body: { employeeCode: "EMP-A1", pin: "258036", branchId: ids.branchA, requestedLevel: 1 } });
     expectError(lockedCorrect, 423, "EMPLOYEE_LOCKED");
     await credential.reload();
     assert.ok(Number(credential.failedAttemptCount) >= 5, "failure count reached threshold");
     await credential.update({ lockedUntil: new Date(Date.now() - 1000) });
-    const postExpiry = await request("POST", "/operator/verify", { body: { employeeCode: "EMP-A1", pin: "123456", branchId: ids.branchA, requestedLevel: 2, requestedPermission: "reservations.view" } });
+    const postExpiry = await request("POST", "/operator/verify", { body: { employeeCode: "EMP-A1", pin: "258036", branchId: ids.branchA, requestedLevel: 2, requestedPermission: "reservations.view" } });
     assert.equal(postExpiry.status, 200, JSON.stringify(postExpiry.body));
     await credential.reload();
     assert.equal(Number(credential.failedAttemptCount), 0);
     assert.equal(credential.lockedUntil, null);
 
     await credential.update({ failedAttemptCount: 0, lockedUntil: null });
-    const concurrent = await Promise.all(Array.from({ length: 6 }, () => request("POST", "/operator/verify", { body: { employeeCode: "EMP-A1", pin: "111111", branchId: ids.branchA, requestedLevel: 1 } })));
+    const concurrent = await Promise.all(Array.from({ length: 6 }, () => request("POST", "/operator/verify", { body: { employeeCode: "EMP-A1", pin: "963851", branchId: ids.branchA, requestedLevel: 1 } })));
     assert.ok(concurrent.some((r) => r.status === 423), "concurrent failures trigger lockout");
     await credential.reload();
     assert.ok(Number(credential.failedAttemptCount) >= 5, "concurrent failures not lost");
@@ -287,9 +309,9 @@ async function cleanup() {
     assert.ok(attempts.body.data.items.some((item) => item.result === "success"));
     assert.ok(attempts.body.data.items.some((item) => item.result === "failure"));
     const serializedAttempts = JSON.stringify(attempts.body);
-    assert.ok(!serializedAttempts.includes("123456") && !serializedAttempts.includes(credential.pinHash), "attempts contain no PIN/hash");
+    assert.ok(!serializedAttempts.includes("258036") && !serializedAttempts.includes(credential.pinHash), "attempts contain no PIN/hash");
     const unknownCode = `${namespace}-UNKNOWN`;
-    const unknown = await request("POST", "/operator/verify", { body: { employeeCode: unknownCode, pin: "123456", branchId: ids.branchA, requestedLevel: 1 } });
+    const unknown = await request("POST", "/operator/verify", { body: { employeeCode: unknownCode, pin: "258036", branchId: ids.branchA, requestedLevel: 1 } });
     expectError(unknown, 403, "EMPLOYEE_VERIFICATION_FAILED");
     const unknownAttempt = await models.EmployeeVerificationAttempt.findOne({ where: { companyId: ids.company, employeeCodeNormalized: unknownCode.toUpperCase(), employeeId: null } });
     assert.ok(unknownAttempt, "unknown code attempt recorded without Employee FK");

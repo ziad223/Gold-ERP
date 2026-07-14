@@ -95,14 +95,35 @@ const ids = {
 
 let server;
 let baseUrl;
+const accessTokens = new Map();
 
-function token(userId = ids.user) {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: "1h" });
+async function token(userId = ids.user) {
+  if (accessTokens.has(userId)) return accessTokens.get(userId);
+  const user = await models.User.findByPk(userId);
+  const session = await models.TechnicalAccountSession.create({
+    id: `TAS-${namespace}-${userId}`.slice(0, 190),
+    userId,
+    companyId: user.companyId,
+    branchId: user.branchId || null,
+    refreshTokenHash: `verifier-${namespace}-${userId}`.slice(0, 128),
+    passwordVersion: Number(user.passwordVersion || 1),
+    sessionVersion: Number(user.sessionVersion || 1),
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    lastUsedAt: new Date()
+  });
+  const signed = jwt.sign({
+    userId,
+    passwordVersion: Number(user.passwordVersion || 1),
+    sessionVersion: Number(user.sessionVersion || 1),
+    technicalSessionId: session.id
+  }, JWT_SECRET, { expiresIn: "1h" });
+  accessTokens.set(userId, signed);
+  return signed;
 }
 
 async function request(method, pathname, { user = ids.user, branchId = ids.branchA, device = ids.device, body } = {}) {
   const headers = { Accept: "application/json", "Content-Type": "application/json" };
-  if (user) headers.Authorization = `Bearer ${token(user)}`;
+  if (user) headers.Authorization = `Bearer ${await token(user)}`;
   if (branchId) headers["X-Branch-ID"] = branchId;
   if (device) headers["X-Device-Session-ID"] = device;
   const response = await fetch(`${baseUrl}/api/v1${pathname}`, {
@@ -175,8 +196,8 @@ async function setup() {
     { id: `EBA-${namespace}-A`, companyId: ids.company, employeeId: ids.employee, branchId: ids.branchA, active: true, validFrom: new Date(), createdByUserId: ids.user },
     { id: `EBA-${namespace}-LV`, companyId: ids.company, employeeId: ids.employeeLeave, branchId: ids.branchA, active: true, validFrom: new Date(), createdByUserId: ids.user }
   ]);
-  await employeeAuth.setEmployeePin({ companyId: ids.company, employeeId: ids.employee, pin: "123456", actorUser: await models.User.findByPk(ids.user) });
-  await employeeAuth.setEmployeePin({ companyId: ids.company, employeeId: ids.employeeLeave, pin: "123456", actorUser: await models.User.findByPk(ids.user) });
+  await employeeAuth.setEmployeePin({ companyId: ids.company, employeeId: ids.employee, pin: "258036", actorUser: await models.User.findByPk(ids.user) });
+  await employeeAuth.setEmployeePin({ companyId: ids.company, employeeId: ids.employeeLeave, pin: "258036", actorUser: await models.User.findByPk(ids.user) });
   await makeRoleWithPermissions(ids.roleEmployee, ["sales.view"]);
   await models.EmployeeRoleAssignment.create({ id: `ERA-${namespace}`, companyId: ids.company, employeeId: ids.employee, roleId: ids.roleEmployee, assignedByUserId: ids.user, active: true });
   return employee;
@@ -221,6 +242,7 @@ async function cleanup() {
   await models.EmployeeRoleAssignment.destroy({ where: { companyId: ids.company } });
   await models.EmployeeBranchAccess.destroy({ where: { companyId: ids.company } });
   await models.EmployeeCredential.destroy({ where: { companyId: ids.company } });
+  await models.TechnicalAccountSession.destroy({ where: { companyId: ids.company } });
   await models.sequelize.query("DELETE FROM audit_logs WHERE company_id = :companyId OR description LIKE :ns", { replacements: { companyId: ids.company, ns: `%${namespace}%` } });
   await models.Employee.destroy({ where: { companyId: ids.company }, force: true });
   await models.UserRole.destroy({ where: { userId: ids.user } });
@@ -255,10 +277,10 @@ async function pollutionCount() {
     const employee = await setup();
     assertNoBusinessMutation(await businessCounts(), "before");
 
-    const noDevice = await request("POST", "/operator/verify", { device: null, body: { employeeCode: employee.employeeCode, pin: "123456", branchId: ids.branchA } });
+    const noDevice = await request("POST", "/operator/verify", { device: null, body: { employeeCode: employee.employeeCode, pin: "258036", branchId: ids.branchA } });
     expectError(noDevice, 422, "VALIDATION_FAILED");
 
-    const verify = await request("POST", "/operator/verify", { body: { employeeCode: employee.employeeCode, pin: "123456", branchId: ids.branchA, requestedLevel: 1 } });
+    const verify = await request("POST", "/operator/verify", { body: { employeeCode: employee.employeeCode, pin: "258036", branchId: ids.branchA, requestedLevel: 1 } });
     assert.equal(verify.status, 200, JSON.stringify(verify.body));
     assert.equal(verify.body.data.employee.id, ids.employee);
     assert.equal(verify.body.data.operatorSession.verificationLevel, 1);
@@ -274,16 +296,16 @@ async function pollutionCount() {
     assert.equal(current.body.data.active, true);
     assert.equal(current.body.data.operatorSession.employee.id, ids.employee);
 
-    const stepDenied = await request("POST", "/operator/authorize-action", { body: { pin: "123456", requiredPermission: "accounting.post", requestedOperation: "manual-journal-post" } });
+    const stepDenied = await request("POST", "/operator/authorize-action", { body: { pin: "258036", requiredPermission: "accounting.post", requestedOperation: "manual-journal-post" } });
     expectError(stepDenied, 403, "EMPLOYEE_PERMISSION_DENIED");
 
-    const stepUp = await request("POST", "/operator/authorize-action", { body: { pin: "123456", requiredPermission: "sales.view", requestedOperation: "sales-view" } });
+    const stepUp = await request("POST", "/operator/authorize-action", { body: { pin: "258036", requiredPermission: "sales.view", requestedOperation: "sales-view" } });
     assert.equal(stepUp.status, 200, JSON.stringify(stepUp.body));
     assert.equal(stepUp.body.data.operatorSession.verificationLevel, 2);
     const stepped = await models.EmployeeOperationalSession.findByPk(sessionId);
     assert.ok(stepped.level2VerifiedAt, "level 2 timestamp persisted");
 
-    const leaveVerify = await request("POST", "/operator/verify", { device: ids.secondDevice, body: { employeeCode: `${namespace}-LV`, pin: "123456", branchId: ids.branchA, requestedLevel: 2 } });
+    const leaveVerify = await request("POST", "/operator/verify", { device: ids.secondDevice, body: { employeeCode: `${namespace}-LV`, pin: "258036", branchId: ids.branchA, requestedLevel: 2 } });
     expectError(leaveVerify, 403, "EMPLOYEE_VERIFICATION_FAILED");
 
     const staleBefore = await models.Employee.findByPk(ids.employee);
@@ -303,7 +325,7 @@ async function pollutionCount() {
     assert.equal(staleCurrent.body.data.active, false);
     assert.equal(staleCurrent.body.data.reason, "OPERATOR_SESSION_STALE_AUTHORIZATION");
 
-    const reverify = await request("POST", "/operator/verify", { body: { employeeCode: employee.employeeCode, pin: "123456", branchId: ids.branchA } });
+    const reverify = await request("POST", "/operator/verify", { body: { employeeCode: employee.employeeCode, pin: "258036", branchId: ids.branchA } });
     assert.equal(reverify.status, 200, JSON.stringify(reverify.body));
     const lock = await request("POST", "/operator/lock", { body: { reason: "verifier_lock" } });
     assert.equal(lock.status, 200, JSON.stringify(lock.body));

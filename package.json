@@ -54,6 +54,7 @@
     "verify:reservation-amendment-expiry-renewal": "node scripts/verify-reservation-amendment-expiry-renewal.js",
     "verify:pos-reservation-deposit-configuration": "node scripts/verify-pos-reservation-deposit-configuration.js",
     "verify:reservation-governance-reports-ui": "node scripts/verify-reservation-governance-reports-ui.js",
+    "verify:super-admin-branch-shell-recovery": "node scripts/verify-super-admin-branch-shell-recovery.js",
     "demo:reset:client": "node scripts/reset-client-demo-data.js",
     "seed:client-demo:transactions": "node backend/seeders/client-demo/transactional/index.js",
     "seed:client-demo:transactions:plan": "node backend/seeders/client-demo/transactional/index.js --plan",

@@ -37,7 +37,8 @@ const handoff = read("docs/AI_HANDOFF.md");
 console.log("Phase 34.4 employee management/operator UI static contract");
 
 check(userPage.includes("System Accounts") && userPage.includes("technical login accounts"), "System Accounts page is reframed as technical login account management");
-check(!/accountType|account type|Linked Employee|linked Employee/.test(userPage), "System Accounts page does not infer account type or fake User-to-Employee linkage");
+check(!/Linked Employee|linked Employee|auto-verify|auto verify/i.test(userPage) && userPage.includes("No heuristic mapping"), "System Accounts page does not fake User-to-Employee linkage or automatic mapping");
+check(userPage.includes("Super Admin Accounts") && userPage.includes("Branch Shell Accounts") && userPage.includes("Legacy Accounts"), "System Accounts page shows approved account-type sections");
 check(userPage.includes("Employee operational") || userPage.includes("صلاحيات الموظفين التشغيلية"), "System Accounts page separates technical roles from Employee operational permissions");
 check(sidebar.includes("systemAccounts") && sidebar.includes("/settings/users"), "sidebar keeps /settings/users route and labels System Accounts");
 

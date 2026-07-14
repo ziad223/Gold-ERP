@@ -88,7 +88,6 @@ export function useUserManagement() {
       apiClient(`/system-accounts/${encodeURIComponent(id)}/${action}`, {
         method: "POST",
         body: JSON.stringify(body || {}),
-        skipBranch: true,
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["system-accounts"] });
