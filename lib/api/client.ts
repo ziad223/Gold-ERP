@@ -3,19 +3,23 @@ import { getDataSourceMode, assertProductionDataSource } from "@/lib/data-source
 export interface ApiErrorPayload {
   success: boolean;
   message: string;
+  code?: string;
+  errorCode?: string;
   errors?: Record<string, string[]>;
   correlationId?: string;
 }
 
 export class DarfusApiError extends Error {
   status: number;
+  errorCode?: string;
   errors?: Record<string, string[]>;
   correlationId?: string;
 
-  constructor(status: number, message: string, errors?: Record<string, string[]>, correlationId?: string) {
+  constructor(status: number, message: string, errors?: Record<string, string[]>, correlationId?: string, errorCode?: string) {
     super(message);
     this.name = "DarfusApiError";
     this.status = status;
+    this.errorCode = errorCode;
     this.errors = errors;
     this.correlationId = correlationId;
   }
@@ -170,11 +174,14 @@ export async function apiClient<T>(path: string, options: ApiClientOptions = {})
 
     if (!response.ok) {
       const message = payload?.message || getFallbackErrorMessage(response.status, options.locale || "ar");
+      const errorCode = payload?.errorCode || payload?.code;
+      emitOperatorRecoverySignal(errorCode);
       throw new DarfusApiError(
         response.status,
         message,
         payload?.errors,
         correlationId,
+        errorCode,
       );
     }
 
@@ -187,6 +194,28 @@ export async function apiClient<T>(path: string, options: ApiClientOptions = {})
       ? "Network error. Please verify server connection." 
       : "خطأ في الاتصال بالشبكة. يرجى التحقق من اتصال الخادم.";
     throw new DarfusApiError(503, netErrorMessage, undefined, correlationId);
+  }
+}
+
+const OPERATOR_RECOVERY_CODES = new Set([
+  "OPERATOR_SESSION_REQUIRED",
+  "OPERATOR_SESSION_EXPIRED",
+  "OPERATOR_SESSION_STALE",
+  "OPERATOR_BRANCH_MISMATCH",
+  "OPERATOR_PERMISSION_DENIED",
+  "OPERATOR_STEP_UP_REQUIRED",
+  "OPERATOR_STEP_UP_EXPIRED",
+]);
+
+export const OPERATOR_ACTION_REQUIRED_EVENT = "darfus-operator-action-required";
+
+function emitOperatorRecoverySignal(errorCode?: string) {
+  if (!errorCode || typeof window === "undefined" || !OPERATOR_RECOVERY_CODES.has(errorCode)) return;
+  const mode = errorCode.includes("STEP_UP") ? "step-up" : "verify";
+  try {
+    window.dispatchEvent(new CustomEvent(OPERATOR_ACTION_REQUIRED_EVENT, { detail: { errorCode, mode, at: Date.now() } }));
+  } catch {
+    // UI recovery is best-effort; the API error still surfaces to the caller.
   }
 }
 

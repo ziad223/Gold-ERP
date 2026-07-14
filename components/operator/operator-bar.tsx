@@ -5,6 +5,7 @@ import { LockKeyhole, RefreshCw, ShieldCheck, UserRoundCheck } from "lucide-reac
 import { useLocale } from "next-intl";
 import { useAuth } from "@/contexts/auth-context";
 import { useOperator } from "@/contexts/operator-context";
+import { OPERATOR_ACTION_REQUIRED_EVENT } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 
 type DialogMode = "verify" | "switch" | "step-up";
@@ -76,12 +77,22 @@ export function OperatorBar() {
     return rtl ? "تحقق من الموظف" : "Verify employee";
   }, [mode, rtl]);
 
-  const openDialog = (nextMode: DialogMode) => {
+  const openDialog = useCallback((nextMode: DialogMode) => {
     clearSensitiveOperatorFormState();
     setMode(nextMode);
     if (nextMode !== "switch") setEmployeeCode("");
     setOpen(true);
-  };
+  }, [clearSensitiveOperatorFormState]);
+
+  useEffect(() => {
+    const handleOperatorActionRequired = (event: Event) => {
+      const detail = (event as CustomEvent<{ mode?: DialogMode }>).detail;
+      openDialog(detail?.mode === "step-up" ? "step-up" : "verify");
+      void operator.refresh();
+    };
+    window.addEventListener(OPERATOR_ACTION_REQUIRED_EVENT, handleOperatorActionRequired);
+    return () => window.removeEventListener(OPERATOR_ACTION_REQUIRED_EVENT, handleOperatorActionRequired);
+  }, [openDialog, operator]);
 
   const toggleStatusPanel = () => {
     if (open) resetOperatorDialogState();
