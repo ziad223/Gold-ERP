@@ -8,7 +8,7 @@ import { GuestGuard } from "@/components/auth/guest-guard";
 import { LanguageSwitcher } from "@/components/auth/language-switcher";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
-import { useRouter } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 
 export default function LoginPage() {
   const t = useTranslations("Auth");
@@ -32,7 +32,7 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
-    router.replace("/dashboard");
+    router.replace(result.forcePasswordChange ? "/change-password" : "/dashboard");
   };
 
   return (
@@ -118,9 +118,9 @@ export default function LoginPage() {
                     />
                     {t("remember")}
                   </label>
-                  <button type="button" className="font-extrabold text-brand-700 hover:underline dark:text-brand-300">
+                  <Link href="/forgot-password" className="font-extrabold text-brand-700 hover:underline dark:text-brand-300">
                     {t("forgot")}
-                  </button>
+                  </Link>
                 </div>
 
                 {error && (

@@ -33,6 +33,7 @@ import { useErp } from "@/contexts/erp-context";
 import { Link } from "@/i18n/navigation";
 import { apiClient } from "@/lib/api/client";
 import { isApiDataSource } from "@/lib/data-source";
+import { permissionLabel, permissionMeta, permissionModuleLabel } from "@/lib/permissions/catalog";
 import { formatCurrency } from "@/lib/utils";
 import type {
   AuditLog,
@@ -617,7 +618,11 @@ function EmployeeDirectPermissionsTab({
 }) {
   const [search, setSearch] = useState("");
   const options = toPermissionOptions(permissionState);
-  const filtered = options.filter((permission) => `${permission.name} ${permission.module || ""}`.toLowerCase().includes(search.toLowerCase()));
+  const uiLocale = rtl ? "ar" : "en";
+  const filtered = options.filter((permission) => {
+    const meta = permissionMeta(permission.name);
+    return `${meta.label[uiLocale]} ${meta.description[uiLocale]} ${meta.module[uiLocale]}`.toLowerCase().includes(search.toLowerCase());
+  });
   const grouped = filtered.reduce<Record<string, PermissionOption[]>>((acc, permission) => {
     const group = permission.module || groupPermissionName(permission.name);
     acc[group] = [...(acc[group] || []), permission];
@@ -646,13 +651,16 @@ function EmployeeDirectPermissionsTab({
         <div className="space-y-4">
           {Object.entries(grouped).map(([module, permissions]) => (
             <div key={module} className="rounded-2xl border border-border p-3">
-              <p className="text-xs font-black uppercase text-muted-foreground">{module}</p>
+              <p className="text-xs font-black uppercase text-muted-foreground">{permissionModuleLabel(module, uiLocale)}</p>
               <div className="mt-3 space-y-2">
                 {permissions.map((permission) => (
                   <div key={permission.id} className="grid gap-2 rounded-xl p-2 text-xs hover:bg-background sm:grid-cols-[1fr_auto_auto]">
-                    <span className="font-bold">{permission.name}</span>
-                    <label className="inline-flex items-center gap-2 text-emerald-700"><input disabled={!canManage} type="checkbox" checked={grantPermissionIds.includes(permission.id)} onChange={(event) => toggleGrant(permission, event.target.checked)} /> {rtl ? "منح" : "Grant"}</label>
-                    <label className="inline-flex items-center gap-2 text-rose-700"><input disabled={!canManage} type="checkbox" checked={denialPermissionIds.includes(permission.id)} onChange={(event) => toggleDenial(permission, event.target.checked)} /> {rtl ? "منع" : "Deny"}</label>
+                    <span className="font-bold">
+                      {permissionLabel(permission.name, uiLocale)}
+                      {permissionMeta(permission.name).sensitivity === "level_2" && <span className="ms-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-800">{rtl ? "يتطلب المستوى 2" : "Requires Level 2"}</span>}
+                    </span>
+                    <label className="inline-flex items-center gap-2 text-emerald-700"><input disabled={!canManage} type="checkbox" checked={grantPermissionIds.includes(permission.id)} onChange={(event) => toggleGrant(permission, event.target.checked)} /> {rtl ? "سماح مباشر" : "Direct grant"}</label>
+                    <label className="inline-flex items-center gap-2 text-rose-700"><input disabled={!canManage} type="checkbox" checked={denialPermissionIds.includes(permission.id)} onChange={(event) => toggleDenial(permission, event.target.checked)} /> {rtl ? "منع مباشر" : "Direct denial"}</label>
                   </div>
                 ))}
               </div>
@@ -686,8 +694,8 @@ function EmployeeEffectivePermissionsTab({ permissionState, rtl }: { permissionS
         {rtl ? "لا تقوم الواجهة بحساب الصلاحيات. يتم عرض نتيجة الخادم فقط." : "The frontend does not calculate authority. This tab displays the backend-resolved result only."}
       </p>
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        <PermissionNameList title={rtl ? "صلاحيات فعالة" : "Effective permissions"} names={effective} tone="green" empty={rtl ? "لا توجد صلاحيات فعالة." : "No effective permissions."} />
-        <PermissionNameList title={rtl ? "منع مباشر" : "Direct denials"} names={denied} tone="rose" empty={rtl ? "لا يوجد منع مباشر." : "No direct denials."} />
+        <PermissionNameList title={rtl ? "صلاحيات فعالة" : "Effective permissions"} names={effective} tone="green" empty={rtl ? "لا توجد صلاحيات فعالة." : "No effective permissions."} rtl={rtl} />
+        <PermissionNameList title={rtl ? "منع مباشر" : "Direct denials"} names={denied} tone="rose" empty={rtl ? "لا يوجد منع مباشر." : "No direct denials."} rtl={rtl} />
       </div>
     </Card>
   );
@@ -866,12 +874,13 @@ function EmployeeHrPayrollAttendanceTab({
   );
 }
 
-function PermissionNameList({ title, names, tone, empty }: { title: string; names: string[]; tone: "green" | "rose"; empty: string }) {
+function PermissionNameList({ title, names, tone, empty, rtl }: { title: string; names: string[]; tone: "green" | "rose"; empty: string; rtl: boolean }) {
+  const uiLocale = rtl ? "ar" : "en";
   return (
     <div className="rounded-2xl border border-border p-4">
       <p className="text-xs font-black">{title}</p>
       <div className="mt-3 flex flex-wrap gap-2">
-        {names.length ? names.map((name) => <Badge key={name} tone={tone}>{name}</Badge>) : <p className="text-xs text-muted-foreground">{empty}</p>}
+        {names.length ? names.map((name) => <Badge key={name} tone={tone}>{permissionLabel(name, uiLocale)}</Badge>) : <p className="text-xs text-muted-foreground">{empty}</p>}
       </div>
     </div>
   );

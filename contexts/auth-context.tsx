@@ -15,6 +15,8 @@ export interface DarfusUser {
   role: "admin" | "owner" | "manager" | "accountant" | "sales";
   roles?: Array<{ id: string; name: string; slug: string; isAdmin?: boolean }>;
   permissions?: string[];
+  accountType?: "legacy" | "super_admin" | "branch_shell";
+  forcePasswordChange?: boolean;
 }
 
 export interface DarfusCompany {
@@ -72,7 +74,7 @@ interface AuthContextValue {
   activeBranch: string;
   activeBranchId: string;
   switchBranch: (branchId: string, branchName?: string) => void;
-  login: (email: string, password: string, remember?: boolean) => Promise<{ ok: boolean; message?: string }>;
+  login: (email: string, password: string, remember?: boolean) => Promise<{ ok: boolean; message?: string; forcePasswordChange?: boolean }>;
   register: (payload: RegistrationPayload) => Promise<{ ok: boolean; message?: RegisterError }>;
   logout: () => void;
   updateCompany: (updates: Partial<DarfusCompany>) => void;
@@ -325,7 +327,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setToken(res.data.token);
           setUser(res.data.user);
           setCompany(res.data.company);
-          return { ok: true };
+          return { ok: true, forcePasswordChange: Boolean(res.data.user.forcePasswordChange) };
         } catch (err) {
           const msg = err instanceof DarfusApiError ? err.message : "خطأ في الاتصال بالخادم";
           return { ok: false, message: msg };
