@@ -3807,6 +3807,25 @@ value/accounting/tax/settlement still require accountant/client approval before 
 
 MANUAL UI QA REQUIRED.
 
+## Phase 34.3 — Operator Session and Dual Audit Identity
+
+Phase 34.3 adds the employee operator-session foundation while preserving existing business execution route boundaries.
+
+- Added additive migration `20260714040000-employee-operator-session-dual-audit.js`.
+- Added durable `employee_operational_sessions` with idle timeout, absolute timeout, credential-version snapshot, authorization-version snapshot, branch scope, device session id, and employee identity snapshots.
+- Added `employees.authorization_version` and incrementing logic for material permission, branch-access, role/status/branch, and employee-code changes.
+- Extended audit logs with dual technical-user / employee-operator identity fields and `hash_version`.
+- Preserved legacy audit hash verification as v1 and added v2 canonical hashing for dual-identity rows.
+- `/operator/verify` remains compatible and now creates/replaces a server-side session.
+- Added `/operator/current`, `/operator/authorize-action`, and `/operator/lock`.
+- Added frontend device-session header handling, operator provider/repository, and minimal header verify/lock controls.
+- Added `scripts/verify-employee-operator-session.js`; verifier inventory is 49.
+- Verified real HTTP behavior for session creation, current state, Level-2 step-up, permission denial, stale authorization invalidation, lock, dual audit hashing, zero business mutation, and zero namespace pollution.
+
+Business execution routes are not converted by Phase 34.3. Gold Purchase, Sales, POS, returns/exchanges, reservations, purchases, inventory, treasury, accounting, payroll, and attendance command enforcement remains unchanged until a later explicitly approved phase.
+
+MANUAL UI QA REQUIRED. Phase 33D and Phase 33C-HF2 are not started.
+
 ## Phase 33C — Gold Purchase Permissions, Submission and Maker–Checker
 
 Phase 33C is implemented and verified. Full contract and evidence:

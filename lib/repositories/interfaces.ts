@@ -6,6 +6,10 @@ import type {
   EmployeeBranchAccess,
   EmployeePermissionState,
   EmployeeVerificationAttempt,
+  OperatorSessionState,
+  OperatorStepUpInput,
+  OperatorVerifyInput,
+  OperatorVerifyResult,
   AuditLog,
   Transfer,
   ManufacturingOrder,
@@ -105,6 +109,13 @@ export interface EmployeeRepository {
   getPermissionState(employeeId: string): Promise<EmployeePermissionState>;
   updatePermissionState(employeeId: string, input: { roleIds: string[]; grantPermissionIds: string[]; denialPermissionIds: string[] }): Promise<MutationResult<{ authorization: EmployeePermissionState["authorization"] }>>;
   getVerificationAttempts(employeeId: string, query?: { page?: number; pageSize?: number }): Promise<PaginatedResult<EmployeeVerificationAttempt>>;
+}
+
+export interface OperatorRepository {
+  current(): Promise<{ active: boolean; reason?: string | null; operatorSession: OperatorSessionState }>;
+  verify(input: OperatorVerifyInput): Promise<MutationResult<OperatorVerifyResult>>;
+  authorizeAction(input: OperatorStepUpInput): Promise<MutationResult<{ operatorSession: OperatorSessionState; employee: OperatorVerifyResult["employee"]; verificationAttemptId?: string }>>;
+  lock(reason?: string): Promise<MutationResult<{ operatorSession: OperatorSessionState }>>;
 }
 
 export interface AssetRepository {

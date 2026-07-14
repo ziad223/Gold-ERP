@@ -2,6 +2,7 @@ import type {
   CustomerRepository,
   SupplierRepository,
   EmployeeRepository,
+  OperatorRepository,
   AssetRepository,
   InventoryRepository,
   SalesRepository,
@@ -39,6 +40,10 @@ import type {
   EmployeeBranchAccess,
   EmployeePermissionState,
   EmployeeVerificationAttempt,
+  OperatorSessionState,
+  OperatorStepUpInput,
+  OperatorVerifyInput,
+  OperatorVerifyResult,
   AuditAction,
 } from "../types";
 
@@ -807,6 +812,59 @@ export class LocalEmployeeRepository implements EmployeeRepository {
       query,
       (attempt) => [attempt.id, attempt.result, attempt.createdAt || ""]
     );
+  }
+}
+
+export class LocalOperatorRepository implements OperatorRepository {
+  private session: OperatorSessionState = {
+    state: "inactive",
+    reason: "LOCAL_MODE",
+    sessionId: null,
+    employee: null,
+    verificationLevel: 0,
+  };
+
+  async current(): Promise<{ active: boolean; reason?: string | null; operatorSession: OperatorSessionState }> {
+    return { active: this.session.state === "active", reason: this.session.reason, operatorSession: this.session };
+  }
+
+  async verify(input: OperatorVerifyInput): Promise<MutationResult<OperatorVerifyResult>> {
+    const now = new Date().toISOString();
+    this.session = {
+      state: "active",
+      sessionId: `LOCAL-EOS-${Date.now()}`,
+      employee: {
+        id: input.employeeCode,
+        employeeCode: input.employeeCode,
+        name: input.employeeCode,
+        status: "present",
+        branchId: input.branchId,
+      },
+      verificationLevel: input.requestedLevel || 1,
+      verifiedAt: now,
+      level2VerifiedAt: input.requestedLevel === 2 ? now : null,
+      idleExpiresAt: now,
+      absoluteExpiresAt: now,
+    };
+    return {
+      success: true,
+      data: {
+        employee: this.session.employee!,
+        verification: { level: this.session.verificationLevel, verifiedAt: now, expiresAt: now },
+        operatorSession: this.session,
+      },
+    };
+  }
+
+  async authorizeAction(_input: OperatorStepUpInput): Promise<MutationResult<{ operatorSession: OperatorSessionState; employee: OperatorVerifyResult["employee"]; verificationAttemptId?: string }>> {
+    const now = new Date().toISOString();
+    this.session = { ...this.session, state: "active", verificationLevel: 2, level2VerifiedAt: now };
+    return { success: true, data: { operatorSession: this.session, employee: this.session.employee! } };
+  }
+
+  async lock(reason = "manual_lock"): Promise<MutationResult<{ operatorSession: OperatorSessionState }>> {
+    this.session = { ...this.session, state: "locked", reason, lockedAt: new Date().toISOString() };
+    return { success: true, data: { operatorSession: this.session } };
   }
 }
 

@@ -45,6 +45,8 @@ interface ApiClientOptions extends RequestInit {
 
 // Token storage key — must match auth-context.tsx
 const TOKEN_KEY = "darfus-token-v1";
+const DEVICE_SESSION_KEY = "darfus-device-session-v1";
+const DEVICE_SESSION_RE = /^[A-Za-z0-9._:-]{16,128}$/;
 
 function readStoredToken(): string | undefined {
   if (typeof window === "undefined") return undefined;
@@ -65,6 +67,28 @@ function readStoredBranchId(): string | undefined {
     return window.localStorage.getItem("darfus-active-branch-id-v1") ?? undefined;
   } catch {
     return undefined;
+  }
+}
+
+export function getOrCreateDeviceSessionId(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  try {
+    const existing = window.localStorage.getItem(DEVICE_SESSION_KEY);
+    if (existing && DEVICE_SESSION_RE.test(existing)) return existing;
+    const next = `DS-${generateUUID()}`;
+    window.localStorage.setItem(DEVICE_SESSION_KEY, next);
+    return next;
+  } catch {
+    return undefined;
+  }
+}
+
+export function clearDeviceSessionId(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(DEVICE_SESSION_KEY);
+  } catch {
+    // Ignore storage failures during logout/session cleanup.
   }
 }
 
@@ -100,6 +124,10 @@ export async function apiClient<T>(path: string, options: ApiClientOptions = {})
   const authToken = options.token ?? readStoredToken();
   if (authToken) {
     headers["Authorization"] = `Bearer ${authToken}`;
+    const deviceSessionId = getOrCreateDeviceSessionId();
+    if (deviceSessionId) {
+      headers["X-Device-Session-ID"] = deviceSessionId;
+    }
   }
   const activeBranchId = options.branchId ?? readStoredBranchId();
   if (!options.skipBranch && activeBranchId && activeBranchId.startsWith("BR-")) {

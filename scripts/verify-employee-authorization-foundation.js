@@ -30,7 +30,7 @@ function staticContract() {
   for (const model of ["EmployeeCredential", "EmployeeBranchAccess", "EmployeeRoleAssignment", "EmployeePermissionGrant", "EmployeePermissionDenial", "EmployeeVerificationAttempt"]) {
     assert.ok(models.includes(model), `model index registers ${model}`);
   }
-  assert.ok(!routes.includes("/operator/current"), "operator current endpoint remains deferred");
+  assert.ok(routes.includes("/operator/current"), "operator current endpoint implemented by Phase 34.3");
   console.log("Phase 34.2 static contract: PASS");
 }
 
@@ -68,7 +68,8 @@ const ids = {
   emp: `EMP-${namespace}-1`,
   empLeave: `EMP-${namespace}-LEAVE`,
   empInactive: `EMP-${namespace}-INACTIVE`,
-  empOther: `EMP-${namespace}-OTHER`
+  empOther: `EMP-${namespace}-OTHER`,
+  device: `DS-${namespace}-PH34-2`.replace(/[^A-Za-z0-9._:-]/g, "-").slice(0, 80)
 };
 let server;
 let baseUrl;
@@ -77,10 +78,11 @@ function token(userId) {
   return jwt.sign({ userId }, JWT_SECRET, { expiresIn: "1h" });
 }
 
-async function request(method, pathname, { user = ids.admin, branchId = ids.branchA, body } = {}) {
+async function request(method, pathname, { user = ids.admin, branchId = ids.branchA, device = ids.device, body } = {}) {
   const headers = { Accept: "application/json", "Content-Type": "application/json" };
   if (user) headers.Authorization = `Bearer ${token(user)}`;
   if (branchId) headers["X-Branch-ID"] = branchId;
+  if (device) headers["X-Device-Session-ID"] = device;
   const response = await fetch(`${baseUrl}/api/v1${pathname}`, {
     method,
     headers,

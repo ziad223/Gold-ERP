@@ -27,6 +27,8 @@ import { Link, useRouter } from "@/i18n/navigation";
 import { filterData } from "@/hooks/use-data-filters";
 import { useNotifications } from "@/hooks/use-notifications";
 import { toEnglishDigits } from "@/lib/formatters/numbers";
+import { OperatorLockButton } from "@/components/operator/operator-lock-button";
+import { OperatorVerifyDialog } from "@/components/operator/operator-verify-dialog";
 
 export function Header({ onOpenSidebar, onOpenCommandPalette }: { onOpenSidebar: () => void; onOpenCommandPalette?: () => void }) {
   const t = useTranslations("Header");
@@ -115,6 +117,8 @@ export function Header({ onOpenSidebar, onOpenCommandPalette }: { onOpenSidebar:
 
       <div className="ms-auto flex items-center gap-2">
         <BranchSwitcher />
+        <OperatorVerifyDialog />
+        <OperatorLockButton />
 
         <LanguageSwitcher compact />
 

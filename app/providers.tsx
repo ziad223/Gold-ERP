@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
-import { DarfusApiError } from "@/lib/api/client";
+import { clearDeviceSessionId, DarfusApiError } from "@/lib/api/client";
 import { AuthProvider } from "@/contexts/auth-context";
 import { ErpProvider } from "@/contexts/erp-context";
+import { OperatorProvider } from "@/contexts/operator-context";
 import { ThemeProvider } from "@/contexts/theme-context";
 
 import { SettingsProvider } from "@/contexts/settings-context";
@@ -31,6 +32,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
                   window.sessionStorage.removeItem("darfus-token-v1");
                   window.sessionStorage.removeItem("darfus-refresh-v1");
                   window.sessionStorage.removeItem("darfus-api-session-v1");
+                  clearDeviceSessionId();
                   window.location.reload();
                 }, 2000);
               }
@@ -62,7 +64,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <AuthProvider>
           <SettingsProvider>
             <ErpProvider>
-              {children}
+              <OperatorProvider>
+                {children}
+              </OperatorProvider>
               <Toaster position="top-right" richColors />
             </ErpProvider>
           </SettingsProvider>

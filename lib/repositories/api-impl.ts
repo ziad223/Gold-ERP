@@ -2,6 +2,7 @@ import type {
   CustomerRepository,
   SupplierRepository,
   EmployeeRepository,
+  OperatorRepository,
   AssetRepository,
   InventoryRepository,
   SalesRepository,
@@ -46,6 +47,10 @@ import type {
   EmployeeBranchAccess,
   EmployeePermissionState,
   EmployeeVerificationAttempt,
+  OperatorSessionState,
+  OperatorStepUpInput,
+  OperatorVerifyInput,
+  OperatorVerifyResult,
 } from "../types";
 import { apiClient } from "../api/client";
 import { normalizeEntity, normalizeItems, normalizePage } from "../api/normalize";
@@ -332,6 +337,37 @@ export class ApiEmployeeRepository implements EmployeeRepository {
       total: data.total || 0,
       totalPages: data.totalPages || 0,
     };
+  }
+}
+
+export class ApiOperatorRepository implements OperatorRepository {
+  async current(): Promise<{ active: boolean; reason?: string | null; operatorSession: OperatorSessionState }> {
+    const res = await apiClient<any>("/operator/current", auth());
+    return res.data ?? res;
+  }
+
+  async verify(input: OperatorVerifyInput): Promise<MutationResult<OperatorVerifyResult>> {
+    return apiClient<MutationResult<OperatorVerifyResult>>("/operator/verify", {
+      method: "POST",
+      body: JSON.stringify(input),
+      ...auth(),
+    });
+  }
+
+  async authorizeAction(input: OperatorStepUpInput): Promise<MutationResult<{ operatorSession: OperatorSessionState; employee: OperatorVerifyResult["employee"]; verificationAttemptId?: string }>> {
+    return apiClient<MutationResult<{ operatorSession: OperatorSessionState; employee: OperatorVerifyResult["employee"]; verificationAttemptId?: string }>>("/operator/authorize-action", {
+      method: "POST",
+      body: JSON.stringify(input),
+      ...auth(),
+    });
+  }
+
+  async lock(reason = "manual_lock"): Promise<MutationResult<{ operatorSession: OperatorSessionState }>> {
+    return apiClient<MutationResult<{ operatorSession: OperatorSessionState }>>("/operator/lock", {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+      ...auth(),
+    });
   }
 }
 

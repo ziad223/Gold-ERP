@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { apiClient, DarfusApiError } from "@/lib/api/client";
+import { apiClient, clearDeviceSessionId, DarfusApiError } from "@/lib/api/client";
 import { DATA_SOURCE } from "@/lib/data-source";
 
 export interface DarfusUser {
@@ -437,6 +437,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     setCompany(null);
     setToken(null);
+    clearDeviceSessionId();
     if (isApiMode) {
       clearApiSession();
     } else {

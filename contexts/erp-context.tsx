@@ -43,6 +43,7 @@ import {
   CustomerRepository,
   SupplierRepository,
   EmployeeRepository,
+  OperatorRepository,
   AssetRepository,
   InventoryRepository,
   SalesRepository,
@@ -56,6 +57,7 @@ import {
   LocalCustomerRepository,
   LocalSupplierRepository,
   LocalEmployeeRepository,
+  LocalOperatorRepository,
   LocalAssetRepository,
   LocalInventoryRepository,
   LocalSalesRepository,
@@ -70,6 +72,7 @@ import {
   ApiCustomerRepository,
   ApiSupplierRepository,
   ApiEmployeeRepository,
+  ApiOperatorRepository,
   ApiAssetRepository,
   ApiAccountingRepository,
 } from "@/lib/repositories/api-impl";
@@ -108,6 +111,7 @@ interface ErpContextValue {
   customerRepository: CustomerRepository;
   supplierRepository: SupplierRepository;
   employeeRepository: EmployeeRepository;
+  operatorRepository: OperatorRepository;
   assetRepository: AssetRepository;
   inventoryRepository: InventoryRepository;
   salesRepository: SalesRepository;
@@ -284,6 +288,7 @@ export function ErpProvider({ children }: { children: React.ReactNode }) {
         customerRepository: new ApiCustomerRepository(),
         supplierRepository: new ApiSupplierRepository(),
         employeeRepository: new ApiEmployeeRepository(),
+        operatorRepository: new ApiOperatorRepository(),
         assetRepository: new ApiAssetRepository(),
         inventoryRepository: new LocalInventoryRepository(localContext),
         salesRepository: new LocalSalesRepository(localContext),
@@ -298,6 +303,7 @@ export function ErpProvider({ children }: { children: React.ReactNode }) {
         customerRepository: new LocalCustomerRepository(localContext),
         supplierRepository: new LocalSupplierRepository(localContext),
         employeeRepository: new LocalEmployeeRepository(localContext),
+        operatorRepository: new LocalOperatorRepository(),
         assetRepository: new LocalAssetRepository(localContext),
         inventoryRepository: new LocalInventoryRepository(localContext),
         salesRepository: new LocalSalesRepository(localContext),

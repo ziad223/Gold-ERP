@@ -683,6 +683,57 @@ export interface EmployeeVerificationAttempt {
   createdAt: string;
 }
 
+export interface OperatorEmployee {
+  id: string;
+  employeeCode?: string | null;
+  name: string;
+  status: EmployeeStatus;
+  branchId?: string | null;
+}
+
+export interface OperatorSessionState {
+  state: "active" | "inactive" | "locked" | string;
+  reason?: string | null;
+  sessionId?: string | null;
+  employee?: OperatorEmployee | null;
+  verificationLevel: number;
+  verifiedAt?: string | null;
+  level2VerifiedAt?: string | null;
+  lastActivityAt?: string | null;
+  idleExpiresAt?: string | null;
+  absoluteExpiresAt?: string | null;
+  lockedAt?: string | null;
+  revokedAt?: string | null;
+}
+
+export interface OperatorVerifyInput {
+  employeeCode: string;
+  pin: string;
+  branchId: string;
+  requestedLevel?: 1 | 2;
+  requestedPermission?: string | null;
+  requestedOperation?: string | null;
+}
+
+export interface OperatorStepUpInput {
+  pin: string;
+  requiredPermission?: string | null;
+  requestedOperation?: string | null;
+}
+
+export interface OperatorVerifyResult {
+  employee: OperatorEmployee;
+  verification: {
+    level: number;
+    verifiedAt: string;
+    expiresAt: string;
+    absoluteExpiresAt?: string;
+    verificationAttemptId?: string;
+  };
+  operatorSession: OperatorSessionState;
+  authorization?: unknown;
+}
+
 // ─── Transfer Domain ──────────────────────────────────────────────────────────
 
 export type TransferStatus = "pending" | "approved" | "in-transit" | "received" | "cancelled";

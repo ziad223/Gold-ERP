@@ -157,7 +157,12 @@ function verifyPackageAndScope() {
     cwd: ROOT,
     encoding: "utf8",
   }).split(/\r?\n/).filter(Boolean).map((line) => line.slice(3).trim());
-  assert.ok(!changed.some((file) => /backend\/migrations|migrations\//.test(file)), "no migration added");
+  const migrationChanges = changed.filter((file) => /backend\/migrations|migrations\//.test(file));
+  const allowedPhase343Migration = "backend/migrations/20260714040000-employee-operator-session-dual-audit.js";
+  assert.ok(
+    migrationChanges.every((file) => file === allowedPhase343Migration),
+    "no unrelated migration added"
+  );
   assert.ok(!changed.some((file) => /features\/printing|CustomPrint|print/i.test(file)), "no print files touched");
   assert.ok(!changed.some((file) => /features\/dashboard|app\/\[locale\]\/\(dashboard\)\/dashboard/.test(file)), "dashboard not rewritten");
   assert.ok(!changed.some((file) => /reports/i.test(file) && !/verify/.test(file)), "reports not rewritten");
