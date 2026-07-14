@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation is in place for the controlled Sales/POS pilot. Automated static, typecheck, lint, build, migration, schema/catalog and targeted verifier evidence has passed. Full browser QA and exhaustive business-flow verifier coverage are still required before this phase can be marked `PHASE 34.5 VERIFIED CLOSED`.
+Implementation is in place for the controlled Sales/POS pilot. Automated static, typecheck, lint, build, migration, schema/catalog, real HTTP business-flow verifier evidence, failure atomicity evidence and local browser QA have passed. Final clean-tree 51/51 verifier execution is performed after the closure commit per the Phase 34.5 handoff procedure.
 
 ## Scope Implemented
 
@@ -109,6 +109,14 @@ Passed:
 - `npm run build`
 - `git diff --check`
 
+The upgraded Phase 34.5 verifier now uses real Express HTTP against the local
+`darfus_erp@localhost:5433` database and emits:
+
+- `LIVE HTTP TESTS EXECUTED`
+- `FAILURE ATOMICITY PASSED`
+- `No persistent business test pollution detected`
+- `SALES/POS OPERATOR ENFORCEMENT PASSED`
+
 Local DB evidence:
 
 - migrations: 41
@@ -117,13 +125,38 @@ Local DB evidence:
 - POS permissions exist once
 - approved columns/table exist
 
+Behavioral evidence covered:
+
+- shared-mode POS checkout without operator session returns exact `401 OPERATOR_SESSION_REQUIRED`;
+- employee missing `pos.sell` and employee direct denial return exact `403 OPERATOR_PERMISSION_DENIED`;
+- technical user missing `pos.sell` returns exact `403 FORBIDDEN`;
+- operator branch mismatch returns exact `403 OPERATOR_BRANCH_MISMATCH`;
+- shared-mode POS checkout succeeds only after Level 2 Employee verification and persists
+  `Invoice.finalizedByEmployeeId` and `Payment.receivedByEmployeeId`;
+- discount override requires both technical `pos.discount.approve` and Employee
+  `pos.discount.approve`, with denied attempts producing zero business mutation;
+- draft create is Level 1 and persists `Invoice.createdByEmployeeId`;
+- draft post requires Level 2 and persists `Invoice.finalizedByEmployeeId`;
+- generic invoice mutation is blocked with `GENERIC_INVOICE_MUTATION_FORBIDDEN`;
+- official print/reprint authorization records copy metadata and enforces duplicate/reason rules;
+- legacy branch mode preserves no-Employee POS checkout behavior.
+
+Local browser QA evidence used an isolated `T34-5-BQA-*` namespace against the
+local frontend, local backend and local DB. Evidence included:
+
+- API-mode login with isolated technical user;
+- English POS shared-mode page rendering with the Employee verification banner,
+  product/customer visibility and checkout controls;
+- shared-mode no-operator checkout denial with `OPERATOR_SESSION_REQUIRED`;
+- shared-mode Level 2 Employee verification followed by employee-attributed POS checkout;
+- legacy branch POS checkout without Employee finalizer;
+- Arabic POS RTL smoke;
+- exact browser-QA namespace cleanup with zero remaining records.
+
 ## Remaining Limitations
 
-- Full real HTTP business-flow verifier coverage is not complete.
-- Manual browser QA is not complete.
-- Full clean-tree 51/51 verifier suite has not been run after a Phase 34.5 commit.
-
-Do not mark this phase `VERIFIED CLOSED` until those are completed.
+- Final clean-tree 51/51 verifier suite must be run after the closure commit.
+- Broader Phase 34.5B business surfaces remain deferred.
 
 ## Deferred Work
 

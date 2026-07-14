@@ -29,6 +29,15 @@ export interface ManagedUser {
   phone?: string;
   jobTitle?: string;
   role: string;
+  accountType?: "legacy" | "super_admin" | "branch_shell";
+  branchId?: string | null;
+  recoveryEmailMasked?: string | null;
+  lockedUntil?: string | null;
+  lastLoginAt?: string | null;
+  lastPasswordChangeAt?: string | null;
+  activeSessions?: number;
+  forcePasswordChange?: boolean;
+  defaultEmployeeId?: string | null;
   roles?: ManagedRole[];
 }
 
@@ -69,6 +78,23 @@ export function useUserManagement() {
     },
   });
 
+  const systemAccountsQuery = useQuery({
+    queryKey: ["system-accounts"],
+    queryFn: async () => normalizeItems<ManagedUser>(await apiClient("/system-accounts", { skipBranch: true })),
+  });
+
+  const systemAccountAction = useMutation({
+    mutationFn: ({ id, action, body }: { id: string; action: string; body?: Record<string, unknown> }) =>
+      apiClient(`/system-accounts/${encodeURIComponent(id)}/${action}`, {
+        method: "POST",
+        body: JSON.stringify(body || {}),
+        skipBranch: true,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["system-accounts"] });
+    },
+  });
+
   const updateRolePermissions = useMutation({
     mutationFn: ({ roleId, permissions }: { roleId: string; permissions: string[] }) =>
       apiClient(`/roles/${encodeURIComponent(roleId)}/permissions`, {
@@ -87,11 +113,13 @@ export function useUserManagement() {
 
   return {
     users: usersQuery.data ?? [],
+    systemAccounts: systemAccountsQuery.data ?? [],
     roles: rolesQuery.data ?? [],
     permissions: permissionsQuery.data ?? [],
-    isLoading: usersQuery.isLoading || rolesQuery.isLoading || permissionsQuery.isLoading,
+    isLoading: usersQuery.isLoading || rolesQuery.isLoading || permissionsQuery.isLoading || systemAccountsQuery.isLoading,
     createUser: createUser.mutateAsync,
+    systemAccountAction: systemAccountAction.mutateAsync,
     updateRolePermissions: updateRolePermissions.mutateAsync,
-    isSaving: createUser.isPending || updateRolePermissions.isPending,
+    isSaving: createUser.isPending || updateRolePermissions.isPending || systemAccountAction.isPending,
   };
 }
