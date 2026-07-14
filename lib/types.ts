@@ -621,10 +621,13 @@ export type EmployeeDeviceSession = EmployeeSession;
 
 export interface Employee {
   id: string;
+  employeeCode?: string | null;
+  employeeCodeNormalized?: string | null;
   name: string;
   role: string;
   systemRole?: DarfusRole;
   branch: string;
+  branchId?: string | null;
   status: EmployeeStatus;
   // Extended
   email?: string;
@@ -638,6 +641,46 @@ export interface Employee {
   approvalLimitsDetail?: EmployeeApprovalLimits;
   sessions?: EmployeeSession[];
   deactivateReason?: string;
+}
+
+export interface EmployeeBranchAccess {
+  id: string;
+  employeeId: string;
+  branchId: string;
+  active: boolean;
+  validFrom?: string | null;
+  validTo?: string | null;
+  branch?: { id: string; name?: string; code?: string | null } | null;
+}
+
+export interface EmployeeAuthorizationSummary {
+  rolePermissionNames: string[];
+  directGrantNames: string[];
+  directDenialNames: string[];
+  effectivePermissionNames: string[];
+}
+
+export interface EmployeePermissionState {
+  roles: Array<{ id: string; name: string; slug: string; isAdmin?: boolean }>;
+  grants: Array<{ id: string; name: string; module: string; action: string }>;
+  denials: Array<{ id: string; name: string; module: string; action: string }>;
+  authorization: EmployeeAuthorizationSummary;
+}
+
+export interface EmployeeVerificationAttempt {
+  id: string;
+  branchId?: string | null;
+  technicalUserId?: string | null;
+  employeeId?: string | null;
+  employeeCodeNormalized?: string | null;
+  requestedPermission?: string | null;
+  requestedOperation?: string | null;
+  requestedLevel: number;
+  result: "success" | "failure";
+  failureCode?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  createdAt: string;
 }
 
 // ─── Transfer Domain ──────────────────────────────────────────────────────────

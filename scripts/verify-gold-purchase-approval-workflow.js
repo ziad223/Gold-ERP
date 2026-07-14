@@ -53,7 +53,7 @@ const bcrypt = require(path.join(ROOT, "backend/node_modules/bcryptjs"));
 const app = require(path.join(ROOT, "backend/src/app"));
 const models = require(path.join(ROOT, "backend/src/models"));
 const { JWT_SECRET } = require(path.join(ROOT, "backend/src/config/security"));
-const { QueryTypes } = require(path.join(ROOT, "backend/node_modules/sequelize"));
+const { Op, QueryTypes } = require(path.join(ROOT, "backend/node_modules/sequelize"));
 models.sequelize.options.logging = false;
 
 const namespace = `T33C-HF1-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -69,6 +69,10 @@ const userIds = [ids.maker, ids.reviewer, ids.ownReviewer, ids.ownMaker, ids.all
 const roleIds = [];
 let server;
 let baseUrl;
+let zeroPostingBefore;
+let zeroPostingAfter;
+let zeroPostingFinal;
+let runCompleted = false;
 
 const token = (id) => jwt.sign({ userId: id }, JWT_SECRET, { expiresIn: "1h" });
 async function request(method, pathname, { user = ids.maker, branchId = ids.branchA, body, key } = {}) {
@@ -128,12 +132,69 @@ async function setup() {
 
 async function zeroPostingCounts() {
   const result = {};
-  for (const [name, Model] of Object.entries({ assets: models.Asset, stockMovements: models.StockMovement, journals: models.JournalEntry, cash: models.CashTransaction, cgpPools: models.CustomerGoldPool, igpPools: models.InventoryGoldPool, purchaseOrders: models.PurchaseOrder, notifications: models.Notification, barcodeInventoryCodes: models.BarcodeInventoryCode, barcodeItemCodes: models.BarcodeItemCode, barcodeSequences: models.BarcodeSequence })) result[name] = await Model.count({ where: { companyId: ids.company } });
+  for (const [name, Model] of Object.entries({ assets: models.Asset, stockMovements: models.StockMovement, journals: models.JournalEntry, cash: models.CashTransaction, cgpPools: models.CustomerGoldPool, igpPools: models.InventoryGoldPool, purchaseOrders: models.PurchaseOrder, notifications: models.Notification, barcodeInventoryCodes: models.BarcodeInventoryCode, barcodeItemCodes: models.BarcodeItemCode, barcodeSequences: models.BarcodeSequence, payments: models.Payment, customerCreditTransactions: models.CustomerCreditTransaction, reservationPayments: models.ReservationPayment, reservationPaymentApplications: models.ReservationPaymentApplication, reservationPaymentTransfers: models.ReservationPaymentTransfer, reservationRefunds: models.ReservationRefund, reservationRefundAllocations: models.ReservationRefundAllocation, goldPrices: models.GoldPrice, goldFixings: models.GoldFixing })) result[name] = await Model.count({ where: { companyId: ids.company } });
   result.journalLines = await models.JournalLine.count({ include: [{ model: models.JournalEntry, as: "journalEntry", required: true, where: { companyId: ids.company } }] });
+  result.supplierPayments = await models.CashTransaction.count({ where: { companyId: ids.company, type: "cash_out", category: "supplier_purchase" } });
+  result.customerPaymentsSettlements = result.payments + result.customerCreditTransactions + result.reservationPayments + result.reservationPaymentApplications + result.reservationPaymentTransfers + result.reservationRefunds + result.reservationRefundAllocations;
+  result.treasury = result.cash;
+  result.goldCenter = result.goldPrices + result.goldFixings;
+  result.accountingPostingLinks = (await models.JournalEntry.count({ where: { companyId: ids.company, [Op.or]: [{ sourceType: { [Op.ne]: null } }, { sourceId: { [Op.ne]: null } }] } })) + (await models.CashTransaction.count({ where: { companyId: ids.company, journalEntryId: { [Op.ne]: null } } })) + (await models.CustomerCreditTransaction.count({ where: { companyId: ids.company, journalEntryId: { [Op.ne]: null } } }));
   return result;
 }
 
+const zeroPostingMatrix = (before, after, final) => [
+  ["Assets", "Asset (assets)", "assets"],
+  ["Stock movements", "StockMovement (stock_movements)", "stockMovements"],
+  ["Journal entries", "JournalEntry (journal_entries)", "journals"],
+  ["Journal lines", "JournalLine (journal_lines) joined to JournalEntry.company_id", "journalLines"],
+  ["Cash transactions", "CashTransaction (cash_transactions)", "cash"],
+  ["Treasury", "CashTransaction (cash_transactions); Treasury is persisted through cash transactions", "treasury"],
+  ["Supplier payments", "CashTransaction (cash_transactions), type=cash_out, category=supplier_purchase, reference=purchase_orders.id", "supplierPayments"],
+  ["Customer payments/settlements", "Payment (payments), CustomerCreditTransaction (customer_credit_transactions), ReservationPayment and application/transfer/refund tables", "customerPaymentsSettlements"],
+  ["Customer Gold Pools", "CustomerGoldPool (customer_gold_pools)", "cgpPools"],
+  ["Inventory Gold Pools", "InventoryGoldPool (inventory_gold_pools)", "igpPools"],
+  ["Purchase orders", "PurchaseOrder (purchase_orders)", "purchaseOrders"],
+  ["Gold Center", "GoldPrice (gold_prices) and GoldFixing (gold_fixings); pools and stock movements are separately checked above", "goldCenter"],
+  ["Barcode business records", "BarcodeInventoryCode and BarcodeItemCode", "barcodeBusinessRecords"],
+  ["Barcode sequence consumption", "BarcodeSequence (barcode_sequences)", "barcodeSequences"],
+  ["Posting/receipt notifications", "Notification (notifications)", "notifications"],
+  ["Accounting posting links", "JournalEntry.source_type/source_id plus CashTransaction.journal_entry_id and CustomerCreditTransaction.journal_entry_id", "accountingPostingLinks"]
+].map(([subsystem, persistence, key]) => {
+  const value = key === "barcodeBusinessRecords" ? (counts) => counts.barcodeInventoryCodes + counts.barcodeItemCodes : (counts) => counts[key];
+  const beforeValue = value(before);
+  const afterValue = value(after);
+  const finalValue = value(final);
+  return { subsystem, persistence, before: beforeValue, after: afterValue, final: finalValue, result: beforeValue === 0 && afterValue === 0 && finalValue === 0 ? "PASS" : "FAIL" };
+});
+
+function assertZeroPosting(counts, phase) {
+  assert.ok(Object.values(counts).every((value) => value === 0), `${phase} zero-posting invariant failed: ${JSON.stringify(counts)}`);
+}
+
 async function cleanup() {
+  // The verifier expects these rows never to exist. Exact company-scoped removal
+  // keeps cleanup safe if a failing regression produced one before an assertion.
+  await models.ReservationRefundAllocation.destroy({ where: { companyId: [ids.company, ids.otherCompany] } });
+  await models.ReservationRefund.destroy({ where: { companyId: [ids.company, ids.otherCompany] } });
+  await models.ReservationPaymentTransfer.destroy({ where: { companyId: [ids.company, ids.otherCompany] } });
+  await models.ReservationPaymentApplication.destroy({ where: { companyId: [ids.company, ids.otherCompany] } });
+  await models.ReservationPayment.destroy({ where: { companyId: [ids.company, ids.otherCompany] } });
+  await models.CustomerCreditTransaction.destroy({ where: { companyId: [ids.company, ids.otherCompany] } });
+  await models.Payment.destroy({ where: { companyId: [ids.company, ids.otherCompany] } });
+  await models.CashTransaction.destroy({ where: { companyId: [ids.company, ids.otherCompany] } });
+  await models.GoldFixing.destroy({ where: { companyId: [ids.company, ids.otherCompany] } });
+  await models.GoldPrice.destroy({ where: { companyId: [ids.company, ids.otherCompany] } });
+  await models.CustomerGoldPool.destroy({ where: { companyId: [ids.company, ids.otherCompany] } });
+  await models.InventoryGoldPool.destroy({ where: { companyId: [ids.company, ids.otherCompany] } });
+  await models.Notification.destroy({ where: { companyId: [ids.company, ids.otherCompany] } });
+  await models.BarcodeInventoryCode.destroy({ where: { companyId: [ids.company, ids.otherCompany] } });
+  await models.BarcodeItemCode.destroy({ where: { companyId: [ids.company, ids.otherCompany] } });
+  await models.BarcodeSequence.destroy({ where: { companyId: [ids.company, ids.otherCompany] } });
+  await models.StockMovement.destroy({ where: { companyId: [ids.company, ids.otherCompany] } });
+  await models.Asset.destroy({ where: { companyId: [ids.company, ids.otherCompany] } });
+  await models.sequelize.query("DELETE FROM journal_lines WHERE journal_entry_id IN (SELECT id FROM journal_entries WHERE company_id IN (:companies))", { replacements: { companies: [ids.company, ids.otherCompany] }, type: QueryTypes.DELETE });
+  await models.JournalEntry.destroy({ where: { companyId: [ids.company, ids.otherCompany] } });
+  await models.PurchaseOrder.destroy({ where: { companyId: [ids.company, ids.otherCompany] }, force: true });
   await models.sequelize.query("DELETE FROM audit_logs WHERE company_id IN (:companies)", { replacements: { companies: [ids.company, ids.otherCompany] }, type: QueryTypes.DELETE });
   await models.IdempotencyRequest.destroy({ where: { companyId: [ids.company, ids.otherCompany] } });
   await models.GoldPurchaseApprovalRequest.destroy({ where: { companyId: [ids.company, ids.otherCompany] }, force: true });
@@ -265,7 +326,7 @@ async function run() {
   await setup();
   server = await new Promise((resolve) => { const s = app.listen(0, "127.0.0.1", () => resolve(s)); });
   baseUrl = `http://127.0.0.1:${server.address().port}`;
-  const before = await zeroPostingCounts(); assert.ok(Object.values(before).every((value) => value === 0), JSON.stringify(before));
+  zeroPostingBefore = await zeroPostingCounts(); assertZeroPosting(zeroPostingBefore, "before");
 
   expectError(await request("GET", "/gold-purchases/cgp/drafts", { user: null }), 401, "UNAUTHORIZED");
   expectError(await request("GET", "/gold-purchases/cgp/drafts", { user: ids.noPerm }), 403, "FORBIDDEN");
@@ -316,11 +377,12 @@ async function run() {
   assert.equal([approveResult, rejectResult].filter((result) => result.status === 200).length, 1, JSON.stringify([approveResult, rejectResult]));
   assert.equal([approveResult, rejectResult].filter((result) => result.status === 409).length, 1, JSON.stringify([approveResult, rejectResult]));
 
-  const after = await zeroPostingCounts(); assert.deepEqual(after, before, `zero-posting invariant failed: ${JSON.stringify(after)}`);
+  zeroPostingAfter = await zeroPostingCounts(); assert.deepEqual(zeroPostingAfter, zeroPostingBefore, `zero-posting invariant failed: ${JSON.stringify(zeroPostingAfter)}`);
   const actions = new Set((await models.AuditLog.findAll({ where: { companyId: ids.company }, attributes: ["action"] })).map((row) => row.action));
   for (const action of ["cgp.draft.submitted", "cgp.draft.approved", "cgp.draft.rejected", "cgp.draft.revision_created", "igp.draft.submitted", "igp.draft.approved", "igp.draft.rejected", "igp.draft.revision_created"]) assert.ok(actions.has(action), `audit ${action}`);
-  console.log(JSON.stringify({ namespace, permissions: "24/24 PASS", cgp: "PASS", igp: "PASS", makerChecker: "PASS", immutableSnapshots: "PASS", revisions: "PASS", approvalQueue: "PASS", branchScope: "PASS", concurrency: "PASS", zeroPosting: after }, null, 2));
+  console.log(JSON.stringify({ namespace, permissions: "24/24 PASS", cgp: "PASS", igp: "PASS", makerChecker: "PASS", immutableSnapshots: "PASS", revisions: "PASS", approvalQueue: "PASS", branchScope: "PASS", concurrency: "PASS", zeroPosting: zeroPostingAfter }, null, 2));
   console.log("LIVE TESTS EXECUTED");
+  runCompleted = true;
 }
 
 (async () => {
@@ -328,8 +390,16 @@ async function run() {
   finally {
     if (server) await new Promise((resolve) => server.close(resolve));
     await cleanup().catch((error) => console.error("cleanup error", error));
+    zeroPostingFinal = await zeroPostingCounts();
+    assertZeroPosting(zeroPostingFinal, "final cleanup");
     const residual = await models.sequelize.query("SELECT (SELECT count(*) FROM customer_gold_purchase_documents WHERE company_id=:company) + (SELECT count(*) FROM investment_gold_purchase_documents WHERE company_id=:company) + (SELECT count(*) FROM gold_purchase_approval_requests WHERE company_id=:company) + (SELECT count(*) FROM idempotency_requests WHERE company_id=:company) + (SELECT count(*) FROM audit_logs WHERE company_id=:company) + (SELECT count(*) FROM users WHERE company_id=:company) + (SELECT count(*) FROM roles WHERE company_id=:company) AS count", { replacements: { company: ids.company }, type: QueryTypes.SELECT }).catch(() => [{ count: 0 }]);
     assert.equal(Number(residual[0]?.count || 0), 0, "persistent namespace pollution detected");
+    if (runCompleted) {
+      const matrix = zeroPostingMatrix(zeroPostingBefore, zeroPostingAfter, zeroPostingFinal);
+      assert.ok(matrix.every((row) => row.result === "PASS"), `complete zero-posting matrix failed: ${JSON.stringify(matrix)}`);
+      console.log(JSON.stringify({ zeroPostingMatrix: matrix }, null, 2));
+      console.log("COMPLETE ZERO-POSTING MATRIX PASSED");
+    }
     await models.sequelize.close();
   }
   console.log("No persistent test pollution detected");

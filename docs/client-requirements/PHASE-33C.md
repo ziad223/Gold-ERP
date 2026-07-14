@@ -1,6 +1,6 @@
 # Phase 33C — Gold Purchase Permissions, Submission and Maker–Checker
 
-Status: IMPLEMENTED — VERIFIED (manual browser QA remains required)
+Status: VERIFIED CLOSED (manual browser QA remains required)
 
 Starting HEAD: `c83985f7e7689a9a9f844e0d2c438d5ea9bab1`  
 Application commit: `be14c304472c86e776be41646d4d7aeb5dfca059`  
@@ -64,7 +64,7 @@ The approval queue supports aggregate, status, branch, requester, date, document
 
 Migration: `20260714010000-gold-purchase-approval-governance.js` (additive only).
 
-- Applied migration count: 37 (36 prior + Phase 33C).
+- Applied migration count: 38 (including the one-time HF1 self-review permission migration).
 - Backup: `H:\WORK\jewellery-erp-master\backend\backups\darfus_erp_phase33c_20260714-004524.dump`.
 - Backup size: 383,582 bytes; PostgreSQL custom archive, validated with `pg_restore --list`.
 - Local target only: `darfus_erp@localhost:5433`, development environment.
@@ -77,9 +77,9 @@ Migration: `20260714010000-gold-purchase-approval-governance.js` (additive only)
 - Production build: PASS.
 - `git diff --check`: PASS.
 - Static verifier suite: 47/47 PASS at verifier commit HEAD.
-- Gated real HTTP verifier: PASS, `LIVE TESTS EXECUTED` and `No persistent test pollution detected`.
+- Gated real HTTP verifier: PASS, `LIVE TESTS EXECUTED`, `COMPLETE ZERO-POSTING MATRIX PASSED`, and `No persistent test pollution detected`.
 - Behavioral coverage: 22/22 catalog keys; CGP and IGP submission/approval/rejection; exact permission denials; self-review and own-only review denial; branch, own, and company-wide scope; duplicate pending request; stale/invalid transitions; snapshot tamper rejection; immutable submitted/approved records; rejection/resubmission history; revision idempotency; concurrent terminal review; audit actions.
-- Zero-posting proof: zero Phase 33C assets, stock movements, journals, cash transactions, CGP/IGP legacy pools, purchase orders, and notifications.
+- Complete zero-posting proof: all required namespace-scoped before/after/final counts are `0/0/0`: assets, stock movements, journal entries and journal lines, cash transactions/Treasury, supplier payments, customer payments/settlements, CGP/IGP pools, purchase orders, Gold Center, barcode business records and sequence consumption, posting/receipt notifications, and accounting posting links.
 - Cleanup: exact `T33C-*` fixtures removed; zero approval, document/item, audit, idempotency, role, user, customer, supplier, branch, or company pollution.
 
 ## Deferred and blocked work
@@ -95,3 +95,9 @@ Manual scope includes permission labels, CGP/IGP scope, button visibility, submi
 `gold_purchase.cgp.self_approve` and `gold_purchase.igp.self_approve` bring the catalog to 24 permissions. Persisted `Role.isAdmin` is the canonical trusted all-permissions mechanism; ordinary non-isAdmin roles do not receive either key automatically. Missing override returns exact `403 SELF_APPROVAL_FORBIDDEN`; controlled self-review remains explicit, scope-bound, idempotent, snapshot/version checked, reason-required, and audited.
 
 Migration `20260714020000-gold-purchase-self-approval-permissions.js` was applied once. The failed zero-byte HF1 dump remains incident evidence. Valid pre-HF1 backup: `backend/backups/darfus_erp_phase33c_20260714-004524.dump`. Valid post-migration backup: `backend/backups/darfus_erp_post_hf1_migration_2026-07-14T00-20-59-656Z.dump`, SHA-256 `953CC2E5B5CD48AAD95AFA0F1A35E3430603DA3587B85FAE2BC5CA744D9AFC0B`. No rollback or migration rerun occurred. MANUAL UI QA REQUIRED; Phase 33D remains blocked.
+
+## HF1 — Complete zero-posting persistence evidence
+
+`scripts/verify-gold-purchase-approval-workflow.js` now queries every applicable persisted area directly using the unique HF1 company/branch/customer/supplier/document namespace. Supplier payment persistence is shared `CashTransaction` (`cash_transactions`) with `type=cash_out`, `category=supplier_purchase`, and purchase-order reference. Treasury is persisted through `CashTransaction`; there is no separate Treasury table. Customer payment/settlement evidence directly covers `Payment` (`payments`), `CustomerCreditTransaction` (`customer_credit_transactions`), and the separate reservation payment, application, transfer, refund, and refund-allocation ledgers.
+
+Gold Center has no separate movement ledger: price/fixing activity is persisted in `GoldPrice` (`gold_prices`) and `GoldFixing` (`gold_fixings`), while customer/inventory gold pools and stock movements are independently checked. Accounting posting links are persisted through `JournalEntry.sourceType/sourceId`, `CashTransaction.journalEntryId`, and `CustomerCreditTransaction.journalEntryId`; no separate posting-link table exists. Each applicable table was verified at fixture baseline, after CGP/IGP submit/review/reject/resubmit/revision/concurrency actions, and after `finally` cleanup: every count was zero. The gated verifier prints the complete 16-row matrix and fails on a missing mapping, skipped table, nonzero count, or cleanup residue.

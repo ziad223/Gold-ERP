@@ -85,6 +85,7 @@ Sign-off tracker for every open decision. **Status starts PENDING; Answer/Date a
 - **OWNER APPROVED/IMPLEMENTED:** `gold_purchase.{cgp|igp}.self_approve` permits explicit self-approval or self-rejection only alongside ordinary approve/reject and branch/all visibility; it never widens scope.
 - **OWNER APPROVED/IMPLEMENTED:** absent override is exact `403 SELF_APPROVAL_FORBIDDEN`; authorized self-review requires a reason and immutable audit metadata.
 - **SAFETY RECORD:** the additive permission migration was applied once, with valid pre-HF1 and post-migration archives retained; no rollback or migration rerun occurred.
+- **VERIFICATION CLOSURE:** Direct namespace-scoped `0/0/0` before/after/final evidence is required and recorded for supplier payments, customer payments/settlements, Treasury, Gold Center, and accounting posting links. Treasury is shared `CashTransaction`; Gold Center is `GoldPrice`/`GoldFixing` plus separately checked pools/stock; accounting links are source/link fields on existing journal, cash, and customer-credit rows. No separate supplier-payment, Treasury, Gold-Center-movement, or posting-link table is asserted where the repository has none.
 - MANUAL UI QA REQUIRED. Phase 33D accounting/client decisions remain pending.
 
 # DR-33B — Gold Purchase draft foundation (2026-07-13)

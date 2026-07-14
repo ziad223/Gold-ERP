@@ -20,13 +20,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { useEmployee, useEmployeeMutations } from "@/hooks/use-employees";
+import { useEmployee, useEmployeeAuthorization, useEmployeeMutations } from "@/hooks/use-employees";
 import { useErp } from "@/contexts/erp-context";
 import { Link } from "@/i18n/navigation";
 import { formatCurrency } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import { toast } from "sonner";
-import { ROLE_PERMISSIONS, DarfusRole } from "@/lib/permissions/permissions";
 import type { AuditLog, EmployeeApprovalLimits } from "@/lib/types";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
@@ -45,8 +44,15 @@ export default function EmployeeProfilePage({ params }: PageProps) {
   const { auditLogs } = useErp();
 
   const { employee, sessions, loading, error, revokeSession, refresh } = useEmployee(id);
+  const { branchAccess, permissionState, verificationAttempts, resetCredential, updateBranches, updatePermissions } = useEmployeeAuthorization(id);
   const { updateEmployee } = useEmployeeMutations();
   const [activeTab, setActiveTab] = useState("overview");
+  const [pin, setPin] = useState("");
+  const [pinConfirm, setPinConfirm] = useState("");
+  const [branchIds, setBranchIds] = useState("");
+  const [roleIds, setRoleIds] = useState("");
+  const [grantIds, setGrantIds] = useState("");
+  const [denialIds, setDenialIds] = useState("");
 
   // Approval Limits form state
   const [limits, setLimits] = useState<EmployeeApprovalLimits>({
@@ -149,10 +155,6 @@ export default function EmployeeProfilePage({ params }: PageProps) {
     );
   }
 
-  // Get permissions for current system role
-  const sysRole = employee.systemRole || ("sales" as DarfusRole);
-  const permissions = ROLE_PERMISSIONS[sysRole] || ROLE_PERMISSIONS.sales;
-
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -163,7 +165,7 @@ export default function EmployeeProfilePage({ params }: PageProps) {
         </Link>
         <div>
           <span className="text-xs text-slate-400">
-            {rtl ? "ملف الموظف" : "Employee Profile"} · {employee.id}
+            {rtl ? "ملف الموظف" : "Employee Profile"} · {employee.id} · {employee.employeeCode || "NO-CODE"}
           </span>
           <h1 className="text-xl font-black text-navy-950 dark:text-white">{employee.name}</h1>
         </div>
@@ -212,6 +214,10 @@ export default function EmployeeProfilePage({ params }: PageProps) {
           </h3>
           <div className="mt-5 grid gap-4 sm:grid-cols-2 text-xs">
             <div>
+              <p className="text-slate-400">{rtl ? "كود الموظف" : "Employee Code"}</p>
+              <p className="mt-1 font-mono font-bold text-navy-900 dark:text-slate-200">{employee.employeeCode || "—"}</p>
+            </div>
+            <div>
               <p className="text-slate-400">{t("role")}</p>
               <p className="mt-1 font-bold text-navy-900 dark:text-slate-200">{employee.role} / {employee.jobTitle || "—"}</p>
             </div>
@@ -250,59 +256,97 @@ export default function EmployeeProfilePage({ params }: PageProps) {
       )}
 
       {activeTab === "permissions" && (
-        <Card className="p-5">
-          <div className="border-b border-slate-100 pb-4 mb-4 dark:border-slate-800">
-            <h3 className="font-black text-navy-950 dark:text-white">
-              {rtl ? `الصلاحيات الأمنية للدور: ${employee.systemRole || "sales"}` : `Security Permissions for: ${employee.systemRole || "sales"}`}
-            </h3>
-            <p className="text-[10px] text-slate-400 mt-1">
-              {rtl
-                ? "تتحدد هذه الصلاحيات تلقائياً بناءً على الدور الأمني الموكل للموظف في النظام."
-                : "These permission sets are derived from the system security role."}
-            </p>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 text-xs">
-            {Object.entries(permissions).map(([key, val]) => {
-              const permTranslations: Record<string, { ar: string; en: string }> = {
-                viewCosts: { ar: "عرض التكاليف", en: "View Costs" },
-                viewMargins: { ar: "عرض هوامش الربح", en: "View Margins" },
-                overrideGoldRate: { ar: "تجاوز سعر الذهب اليومي", en: "Override Gold Rate" },
-                overrideManualPrice: { ar: "تجاوز تسعير القطع اليدوي", en: "Override Manual Price" },
-                applyLargeDiscount: { ar: "تطبيق خصومات كبرى", en: "Apply Large Discount" },
-                approveReverseCharge: { ar: "اعتماد الاحتساب العكسي للضريبة", en: "Approve Reverse Charge" },
-                reopenAccountingPeriod: { ar: "إعادة فتح فترة محاسبية", en: "Reopen Accounting Period" },
-                postJournalEntries: { ar: "ترحيل القيود المحاسبية", en: "Post Journal Entries" },
-                manageSettings: { ar: "إدارة إعدادات النظام", en: "Manage Settings" },
-                performInventoryAdjustments: { ar: "إجراء تسويات جرد المخزون", en: "Perform Inventory Adjustments" },
-                viewAuditLogs: { ar: "عرض سجل التدقيق", en: "View Audit Logs" },
-              };
-              const permName = permTranslations[key] ? (rtl ? permTranslations[key].ar : permTranslations[key].en) : key.replace(/([A-Z])/g, " $1");
-              
-              return (
-              <div
-                key={key}
-                className="flex items-center justify-between rounded-xl border border-slate-100 p-4 dark:border-slate-800"
+        <div className="space-y-5">
+          <Card className="p-5">
+            <div className="border-b border-slate-100 pb-4 mb-4 dark:border-slate-800">
+              <h3 className="font-black text-navy-950 dark:text-white">
+                {rtl ? "مؤسسة تفويض الموظف" : "Employee Authorization Foundation"}
+              </h3>
+              <p className="text-[10px] text-slate-400 mt-1">
+                {rtl
+                  ? "هذه البيانات من واجهات التفويض الخلفية، وليست حسابات واجهة ثابتة."
+                  : "These values come from backend Employee authorization APIs, not static frontend role maps."}
+              </p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 text-xs">
+              <form
+                className="rounded-xl border border-slate-100 p-4 dark:border-slate-800"
+                onSubmit={async (event) => {
+                  event.preventDefault();
+                  if (!/^\d{6}$/.test(pin) || pin !== pinConfirm) {
+                    toast.error(rtl ? "أدخل رمز PIN من 6 أرقام وتأكيد مطابق" : "Enter a matching 6-digit PIN");
+                    return;
+                  }
+                  const result = await resetCredential(pin, false);
+                  setPin("");
+                  setPinConfirm("");
+                  if (result.success) toast.success(rtl ? "تم تحديث PIN" : "PIN updated");
+                  else toast.error(result.error?.message || "PIN update failed");
+                }}
               >
-                <span className="font-bold text-navy-950 dark:text-white capitalize">
-                  {permName}
-                </span>
-                {val ? (
-                  <span className="flex items-center gap-1 font-bold text-emerald-600">
-                    <CheckCircle className="h-4 w-4" />
-                    {rtl ? "مسموح" : "Allowed"}
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1 font-bold text-rose-600">
-                    <XCircle className="h-4 w-4" />
-                    {rtl ? "مرفوض" : "Denied"}
-                  </span>
-                )}
-              </div>
-              );
-            })}
-          </div>
-        </Card>
+                <h4 className="font-black">{rtl ? "إعداد PIN" : "PIN Management"}</h4>
+                <input className="input-base mt-3" inputMode="numeric" type="password" maxLength={6} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="••••••" />
+                <input className="input-base mt-2" inputMode="numeric" type="password" maxLength={6} value={pinConfirm} onChange={(e) => setPinConfirm(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder={rtl ? "تأكيد PIN" : "Confirm PIN"} />
+                <Button className="mt-3" type="submit">{rtl ? "حفظ PIN" : "Save PIN"}</Button>
+              </form>
+              <form
+                className="rounded-xl border border-slate-100 p-4 dark:border-slate-800"
+                onSubmit={async (event) => {
+                  event.preventDefault();
+                  const result = await updateBranches(branchIds.split(",").map((x) => x.trim()).filter(Boolean));
+                  if (result.success) toast.success(rtl ? "تم تحديث الفروع" : "Branch access updated");
+                  else toast.error(result.error?.message || "Branch update failed");
+                }}
+              >
+                <h4 className="font-black">{rtl ? "فروع الموظف" : "Employee Branch Access"}</h4>
+                <p className="mt-2 text-[10px] text-slate-400">{branchAccess.map((b: any) => b.branch?.name || b.branchId).join(", ") || "—"}</p>
+                <input className="input-base mt-3" value={branchIds} onChange={(e) => setBranchIds(e.target.value)} placeholder={rtl ? "BR-1, BR-2" : "BR-1, BR-2"} />
+                <Button className="mt-3" type="submit">{rtl ? "حفظ الفروع" : "Save Branches"}</Button>
+              </form>
+            </div>
+          </Card>
+          <Card className="p-5">
+            <h3 className="font-black text-navy-950 dark:text-white">{rtl ? "الأدوار والمنح والمنع" : "Roles, Grants and Denials"}</h3>
+            <form
+              className="mt-4 grid gap-3 text-xs"
+              onSubmit={async (event) => {
+                event.preventDefault();
+                const result = await updatePermissions({
+                  roleIds: roleIds.split(",").map((x) => x.trim()).filter(Boolean),
+                  grantPermissionIds: grantIds.split(",").map((x) => x.trim()).filter(Boolean),
+                  denialPermissionIds: denialIds.split(",").map((x) => x.trim()).filter(Boolean),
+                });
+                if (result.success) toast.success(rtl ? "تم تحديث الصلاحيات" : "Permissions updated");
+                else toast.error(result.error?.message || "Permission update failed");
+              }}
+            >
+              <input className="input-base" value={roleIds} onChange={(e) => setRoleIds(e.target.value)} placeholder={rtl ? "معرّفات الأدوار مفصولة بفواصل" : "Role IDs, comma-separated"} />
+              <input className="input-base" value={grantIds} onChange={(e) => setGrantIds(e.target.value)} placeholder={rtl ? "معرّفات الصلاحيات الممنوحة" : "Grant permission IDs"} />
+              <input className="input-base" value={denialIds} onChange={(e) => setDenialIds(e.target.value)} placeholder={rtl ? "معرّفات الصلاحيات الممنوعة — المنع له الأولوية" : "Denial permission IDs — denial wins"} />
+              <Button type="submit">{rtl ? "حفظ التفويض" : "Save Authorization"}</Button>
+            </form>
+            <div className="mt-5 grid gap-3 sm:grid-cols-3 text-[10px]">
+              <div><p className="font-black">{rtl ? "صلاحيات الأدوار" : "Role permissions"}</p><p className="mt-2 text-slate-500 break-words">{permissionState?.authorization?.rolePermissionNames?.join(", ") || "—"}</p></div>
+              <div><p className="font-black text-emerald-600">{rtl ? "منح مباشرة" : "Direct grants"}</p><p className="mt-2 text-slate-500 break-words">{permissionState?.authorization?.directGrantNames?.join(", ") || "—"}</p></div>
+              <div><p className="font-black text-rose-600">{rtl ? "منع مباشر" : "Direct denials"}</p><p className="mt-2 text-slate-500 break-words">{permissionState?.authorization?.directDenialNames?.join(", ") || "—"}</p></div>
+            </div>
+            <div className="mt-4 rounded-xl bg-slate-50 p-4 text-[10px] dark:bg-navy-950">
+              <p className="font-black">{rtl ? "الصلاحيات الفعّالة من الخادم" : "Backend effective permissions"}</p>
+              <p className="mt-2 text-slate-500 break-words">{permissionState?.authorization?.effectivePermissionNames?.join(", ") || "—"}</p>
+            </div>
+          </Card>
+          <Card className="p-5">
+            <h3 className="font-black text-navy-950 dark:text-white">{rtl ? "محاولات التحقق" : "Verification Attempts"}</h3>
+            <div className="mt-4 space-y-2 text-xs">
+              {verificationAttempts.length ? verificationAttempts.map((attempt: any) => (
+                <div key={attempt.id} className="rounded-xl border border-slate-100 p-3 dark:border-slate-800">
+                  <div className="flex justify-between gap-3"><span className={attempt.result === "success" ? "text-emerald-600 font-bold" : "text-rose-600 font-bold"}>{attempt.result}</span><span className="text-[10px] text-slate-400">{attempt.createdAt}</span></div>
+                  <p className="mt-1 text-[10px] text-slate-500">{attempt.requestedPermission || attempt.requestedOperation || "—"} · L{attempt.requestedLevel} · {attempt.failureCode || "OK"}</p>
+                </div>
+              )) : <p className="text-slate-400">{rtl ? "لا توجد محاولات بعد." : "No attempts yet."}</p>}
+            </div>
+          </Card>
+        </div>
       )}
 
       {activeTab === "limits" && (

@@ -36,6 +36,9 @@ import type {
   SupplierConsignment,
   SupplierDocument,
   EmployeeSession,
+  EmployeeBranchAccess,
+  EmployeePermissionState,
+  EmployeeVerificationAttempt,
   AuditAction,
 } from "../types";
 
@@ -715,6 +718,95 @@ export class LocalEmployeeRepository implements EmployeeRepository {
     );
 
     return { success: true };
+  }
+
+  async resetCredential(employeeId: string, pin: string): Promise<MutationResult<any>> {
+    if (!/^\d{6}$/.test(pin)) {
+      return { success: false, error: { code: "VALIDATION_FAILED", message: "PIN must be exactly 6 digits" } };
+    }
+    const employee = this.ctx.employees.find((e) => e.id === employeeId);
+    if (!employee) {
+      return { success: false, error: { code: "NOT_FOUND", message: "الموظف غير موجود / Employee not found" } };
+    }
+    return {
+      success: true,
+      data: {
+        employee: {
+          id: employeeId,
+          employeeCode: employee.employeeCode || employee.id,
+          credentialStatus: "active",
+        },
+      },
+    };
+  }
+
+  async getBranchAccess(employeeId: string): Promise<EmployeeBranchAccess[]> {
+    const employee = this.ctx.employees.find((e) => e.id === employeeId);
+    if (!employee?.branchId) return [];
+    return [{
+      id: `LOCAL-EBA-${employeeId}-${employee.branchId}`,
+      employeeId,
+      branchId: employee.branchId,
+      active: true,
+    }];
+  }
+
+  async updateBranchAccess(employeeId: string, branchIds: string[]): Promise<MutationResult<{ items: EmployeeBranchAccess[] }>> {
+    const employee = this.ctx.employees.find((e) => e.id === employeeId);
+    if (!employee) {
+      return { success: false, error: { code: "NOT_FOUND", message: "الموظف غير موجود / Employee not found" } };
+    }
+    const items = branchIds.map((branchId) => ({
+      id: `LOCAL-EBA-${employeeId}-${branchId}`,
+      employeeId,
+      branchId,
+      active: true,
+    }));
+    return { success: true, data: { items } };
+  }
+
+  async getPermissionState(employeeId: string): Promise<EmployeePermissionState> {
+    return {
+      roles: [],
+      grants: [],
+      denials: [],
+      authorization: {
+        rolePermissionNames: [],
+        directGrantNames: [],
+        directDenialNames: [],
+        effectivePermissionNames: [],
+      },
+    };
+  }
+
+  async updatePermissionState(
+    employeeId: string,
+    payload: { roleIds: string[]; grantPermissionIds: string[]; denialPermissionIds: string[] }
+  ): Promise<MutationResult<{ authorization: EmployeePermissionState["authorization"] }>> {
+    const grantIds = payload.grantPermissionIds || [];
+    const denialIds = payload.denialPermissionIds || [];
+    if (grantIds.some((id) => denialIds.includes(id))) {
+      return { success: false, error: { code: "VALIDATION_FAILED", message: "Permission cannot be both granted and denied" } };
+    }
+    return {
+      success: true,
+      data: {
+        authorization: {
+          rolePermissionNames: [],
+          directGrantNames: grantIds,
+          directDenialNames: denialIds,
+          effectivePermissionNames: grantIds.filter((id) => !denialIds.includes(id)),
+        },
+      },
+    };
+  }
+
+  async getVerificationAttempts(employeeId: string, query: { page?: number; pageSize?: number } = {}): Promise<PaginatedResult<EmployeeVerificationAttempt>> {
+    return paginateAndSort(
+      [] as EmployeeVerificationAttempt[],
+      query,
+      (attempt) => [attempt.id, attempt.result, attempt.createdAt || ""]
+    );
   }
 }
 

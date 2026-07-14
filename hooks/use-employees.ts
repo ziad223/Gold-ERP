@@ -91,6 +91,58 @@ export function useEmployee(id: string | undefined) {
   };
 }
 
+export function useEmployeeAuthorization(id: string | undefined) {
+  const { employeeRepository } = useErp();
+  const [branchAccess, setBranchAccess] = useState<any[]>([]);
+  const [permissionState, setPermissionState] = useState<any>(null);
+  const [verificationAttempts, setVerificationAttempts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const refreshAuthorization = useCallback(async () => {
+    if (!id) return;
+    setLoading(true);
+    try {
+      const [branches, permissions, attempts] = await Promise.allSettled([
+        employeeRepository.getBranchAccess(id),
+        employeeRepository.getPermissionState(id),
+        employeeRepository.getVerificationAttempts(id, { page: 1, pageSize: 25 }),
+      ]);
+      if (branches.status === "fulfilled") setBranchAccess(branches.value);
+      if (permissions.status === "fulfilled") setPermissionState(permissions.value);
+      if (attempts.status === "fulfilled") setVerificationAttempts(attempts.value.items);
+    } finally {
+      setLoading(false);
+    }
+  }, [id, employeeRepository]);
+
+  useEffect(() => {
+    refreshAuthorization();
+  }, [refreshAuthorization]);
+
+  const resetCredential = useCallback(async (pin: string, resetRequired = false) => {
+    if (!id) return { success: false };
+    const result = await employeeRepository.resetCredential(id, pin, resetRequired);
+    await refreshAuthorization();
+    return result;
+  }, [id, employeeRepository, refreshAuthorization]);
+
+  const updateBranches = useCallback(async (branchIds: string[]) => {
+    if (!id) return { success: false };
+    const result = await employeeRepository.updateBranchAccess(id, branchIds);
+    await refreshAuthorization();
+    return result;
+  }, [id, employeeRepository, refreshAuthorization]);
+
+  const updatePermissions = useCallback(async (input: { roleIds: string[]; grantPermissionIds: string[]; denialPermissionIds: string[] }) => {
+    if (!id) return { success: false };
+    const result = await employeeRepository.updatePermissionState(id, input);
+    await refreshAuthorization();
+    return result;
+  }, [id, employeeRepository, refreshAuthorization]);
+
+  return { branchAccess, permissionState, verificationAttempts, loading, refreshAuthorization, resetCredential, updateBranches, updatePermissions };
+}
+
 export function useEmployeeMutations() {
   const { employeeRepository } = useErp();
   const [loading, setLoading] = useState(false);

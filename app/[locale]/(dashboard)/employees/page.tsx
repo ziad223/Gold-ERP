@@ -33,6 +33,7 @@ import type { Employee, EmployeeStatus, DarfusRole } from "@/lib/types";
 
 const initialForm = {
   id: "",
+  employeeCode: "",
   name: "",
   role: "",
   systemRole: "sales" as DarfusRole,
@@ -102,6 +103,7 @@ export default function EmployeesPage() {
     setIsEdit(true);
     setForm({
       id: emp.id,
+      employeeCode: emp.employeeCode || emp.id,
       name: emp.name,
       role: emp.role,
       systemRole: emp.systemRole || "sales",
@@ -118,13 +120,14 @@ export default function EmployeesPage() {
 
   const handleSave = async (event: FormEvent) => {
     event.preventDefault();
-    if (!form.name.trim() || !form.role.trim() || !form.branch.trim()) {
+    if (!form.name.trim() || !form.role.trim() || !form.branch.trim() || !form.employeeCode.trim()) {
       toast.error(common("required"));
       return;
     }
 
     if (isEdit) {
       const res = await updateEmployee(form.id, {
+        employeeCode: form.employeeCode.trim(),
         name: form.name.trim(),
         role: form.role.trim(),
         systemRole: form.systemRole,
@@ -141,9 +144,9 @@ export default function EmployeesPage() {
         toast.error(res.error?.message || "Error saving employee");
       }
     } else {
-      const generatedId = `EMP-${String(employees.length + 1).padStart(3, "0")}`;
       const res = await addEmployee({
-        id: generatedId,
+        id: `EMP-${Date.now()}`,
+        employeeCode: form.employeeCode.trim(),
         name: form.name.trim(),
         role: form.role.trim(),
         systemRole: form.systemRole,
@@ -199,6 +202,7 @@ export default function EmployeesPage() {
       locale,
       columns: [
         { key: "id", header: exportT("id") },
+        { key: "employeeCode", header: locale === "ar" ? "كود الموظف" : "Employee Code", value: (item) => item.employeeCode || item.id },
         { key: "name", header: t("name") },
         { key: "role", header: t("role") },
         { key: "systemRole", header: exportT("systemRole"), value: (item) => item.systemRole || "" },
@@ -339,7 +343,7 @@ export default function EmployeesPage() {
                 {employees.map((person) => (
                   <div
                     key={person.id}
-                    className="grid grid-cols-[60px_1.5fr_1fr_1fr_1.2fr_1.2fr] items-center gap-4 p-4 text-xs transition hover:bg-slate-50 dark:hover:bg-navy-950/60"
+                    className="grid grid-cols-[60px_1.3fr_.9fr_1fr_1fr_1.2fr_1.2fr] items-center gap-4 p-4 text-xs transition hover:bg-slate-50 dark:hover:bg-navy-950/60"
                   >
                     <span className="grid h-10 w-10 place-items-center rounded-2xl bg-brand-50 font-black text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
                       {person.name[0]}
@@ -353,6 +357,7 @@ export default function EmployeesPage() {
                       </Link>
                       <p className="mt-1 text-[10px] text-slate-400">{person.id}</p>
                     </div>
+                    <span className="font-mono text-[11px] font-bold text-slate-600 dark:text-slate-300">{person.employeeCode || "—"}</span>
                     <span className="text-slate-500">{person.role}</span>
                     <span className="text-slate-500">{person.branch}</span>
                     <div>{statusBadge(person.status)}</div>
@@ -447,6 +452,16 @@ export default function EmployeesPage() {
               className="input-base"
               value={form.name}
               onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
+            />
+          </label>
+          <label>
+            <span className="label-base">{locale === "ar" ? "كود الموظف" : "Employee Code"}</span>
+            <input
+              required
+              className="input-base font-mono"
+              value={form.employeeCode}
+              onChange={(event) => setForm((prev) => ({ ...prev, employeeCode: event.target.value }))}
+              placeholder="EMP-001"
             />
           </label>
           <label>

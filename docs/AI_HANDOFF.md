@@ -2,19 +2,21 @@
 
 > **NOTICE:** This block is the primary project-state entry point. All future tools must read it first before any code execution or planning. It summarizes the current state but does NOT replace the original client requirements.
 >
-> **Phase 33C-HF1 — Controlled Self-Review Closure:** Added the CGP/IGP `self_approve` keys (24 Gold Purchase permissions total). `Role.isAdmin` is the canonical trusted path; missing override is exact `403 SELF_APPROVAL_FORBIDDEN`; authorized self review is explicit, reason-required and audited. Migration `20260714020000-gold-purchase-self-approval-permissions.js` was applied once. The zero-byte initial HF1 dump remains incident evidence; valid pre-HF1 backup is `backend/backups/darfus_erp_phase33c_20260714-004524.dump`; valid post-migration backup SHA-256 is `953CC2E5B5CD48AAD95AFA0F1A35E3430603DA3587B85FAE2BC5CA744D9AFC0B`. No rollback/rerun. MANUAL UI QA REQUIRED. Do not start Phase 33D.
+> **Phase 34.2 — Employee Authorization Foundation:** Implemented an additive Employee Code/PIN/branch-access/employee-role/direct-grant/direct-denial/verification-attempt foundation. Added migration `20260714030000-employee-authorization-foundation.js`, created pre-migration backup `backend/backups/darfus_erp_phase34_2_pre_migration_20260714-102411.dump` (git-ignored), and added exactly four permissions: `employees.credentials.manage`, `employees.permissions.manage`, `employees.branches.manage`, `employees.verification.view`. Employee Code is company-scoped and backend-normalized; PINs are bcrypt-hashed and never returned; direct denial wins in employee permission resolution; technical `User` permissions do not create employee permissions. New verifier `scripts/verify-employee-authorization-foundation.js` passes via real HTTP and proves code normalization, uniqueness, credential reset, branch/permission management, Level 1/2 verification, lockout, audit attempts, cleanup, and zero business mutation side effects. Verifier inventory is now 48. This foundation is not integrated into Gold Purchase, Sales, POS, Returns, Exchanges, Reservations, Suppliers, Inventory, Treasury, Accounting, or Payroll business execution. No `User.accountType`, no operational employee sessions, no `/operator/current`, and no local/session storage current-employee state were introduced. MANUAL UI QA REQUIRED. Do not start Phase 33D or Phase 33C-HF2 without a new owner-approved phase.
+>
+> **Phase 33C-HF1 — Controlled Self-Review Closure:** Added the CGP/IGP `self_approve` keys (24 Gold Purchase permissions total). `Role.isAdmin` is the canonical trusted path; missing override is exact `403 SELF_APPROVAL_FORBIDDEN`; authorized self review is explicit, reason-required and audited. Migration `20260714020000-gold-purchase-self-approval-permissions.js` was applied once. The zero-byte initial HF1 dump remains incident evidence; valid pre-HF1 backup is `backend/backups/darfus_erp_phase33c_20260714-004524.dump`; valid post-migration backup SHA-256 is `953CC2E5B5CD48AAD95AFA0F1A35E3430603DA3587B85FAE2BC5CA744D9AFC0B`. Verifier commit `3e54fdd` adds direct, namespace-scoped `0/0/0` before/after/final evidence for supplier payments, customer settlements/payments, Treasury, Gold Center, and accounting posting links; the complete 16-row matrix, 47/47 suite, and gated live verifier pass. No rollback/rerun. MANUAL UI QA REQUIRED. Do not start Phase 33D.
 >
 > **Project Identity & Safeties:**
 > - Repository: [jewellery-erp-master](file:///H:/WORK/jewellery-erp-master)
 > - Branch: `main`
-> - Current Implementation Commit: `007435c991abeb8f0bed5b35b48439188db8f15d` (Phase 33C application + verifier; documentation commit follows this record)
+> - Current Implementation Commit: Phase 34.2 employee authorization foundation commit in current git history
 > - Original Client Requirements: Located at [client-requirements](file:///H:/WORK/client-requirements)
-> - Phase Status: **Phase 33C — IMPLEMENTED & VERIFIED; MANUAL UI QA REQUIRED**
+> - Phase Status: **Phase 34.2 — IMPLEMENTED & VERIFIED; MANUAL UI QA REQUIRED**
 > - Approved Decisions: AD-002, AD-003, CD-026 to CD-030, SD-008, PC-001 to PC-004
-> - Migration State: 37 migrations applied locally; Phase 33C additive approval-governance migration verified
-> - Verification State: 47/47 verifier files PASS; Phase 33C gated real HTTP verifier passes with zero persistent pollution and zero posting side effects.
+> - Migration State: 39 migrations applied locally; Phase 34.2 additive employee authorization migration verified
+> - Verification State: 48 verifier files expected; Phase 34.2 gated real HTTP verifier passes with zero persistent pollution and zero business mutation side effects.
 > - Remaining Limitations: Browser automation/manual UI smoke was not executed. MANUAL UI QA REQUIRED.
-> - Recommended Next Phase: Phase 33D only after accountant/client decisions; do not start accounting implementation while blocked.
+> - Recommended Next Phase: Do not start Phase 33D, Phase 33C-HF2, or business-flow employee authorization integration without a new owner-approved phase.
 > - Exact Next-Tool Start Instructions: Verify git safety status and read this handoff file.
 
 # DARFUS Jewellery ERP — AI Handoff

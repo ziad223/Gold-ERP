@@ -43,6 +43,9 @@ import type {
   SupplierConsignment,
   SupplierDocument,
   EmployeeSession,
+  EmployeeBranchAccess,
+  EmployeePermissionState,
+  EmployeeVerificationAttempt,
 } from "../types";
 import { apiClient } from "../api/client";
 import { normalizeEntity, normalizeItems, normalizePage } from "../api/normalize";
@@ -283,6 +286,52 @@ export class ApiEmployeeRepository implements EmployeeRepository {
       method: "DELETE",
       ...auth(),
     });
+  }
+
+  async resetCredential(employeeId: string, pin: string, resetRequired = false): Promise<MutationResult<any>> {
+    return apiClient<MutationResult<any>>(`/employees/${employeeId}/credential/reset`, {
+      method: "POST",
+      body: JSON.stringify({ pin, resetRequired }),
+      ...auth(),
+    });
+  }
+
+  async getBranchAccess(employeeId: string): Promise<EmployeeBranchAccess[]> {
+    const res = await apiClient<any>(`/employees/${employeeId}/branches`, auth());
+    return normalizeItems<EmployeeBranchAccess>(res);
+  }
+
+  async updateBranchAccess(employeeId: string, branchIds: string[]): Promise<MutationResult<{ items: EmployeeBranchAccess[] }>> {
+    return apiClient<MutationResult<{ items: EmployeeBranchAccess[] }>>(`/employees/${employeeId}/branches`, {
+      method: "PUT",
+      body: JSON.stringify({ branchIds }),
+      ...auth(),
+    });
+  }
+
+  async getPermissionState(employeeId: string): Promise<EmployeePermissionState> {
+    const res = await apiClient<any>(`/employees/${employeeId}/permissions`, auth());
+    return (res?.data ?? res) as EmployeePermissionState;
+  }
+
+  async updatePermissionState(employeeId: string, input: { roleIds: string[]; grantPermissionIds: string[]; denialPermissionIds: string[] }): Promise<MutationResult<{ authorization: EmployeePermissionState["authorization"] }>> {
+    return apiClient<MutationResult<{ authorization: EmployeePermissionState["authorization"] }>>(`/employees/${employeeId}/permissions`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+      ...auth(),
+    });
+  }
+
+  async getVerificationAttempts(employeeId: string, query: { page?: number; pageSize?: number } = {}): Promise<PaginatedResult<EmployeeVerificationAttempt>> {
+    const res = await apiClient<any>(`/employees/${employeeId}/verification-attempts${buildQueryString(query)}`, auth());
+    const data = res?.data ?? res;
+    return {
+      items: data.items || [],
+      page: data.page || query.page || 1,
+      pageSize: data.pageSize || query.pageSize || 25,
+      total: data.total || 0,
+      totalPages: data.totalPages || 0,
+    };
   }
 }
 

@@ -3,6 +3,9 @@ import type {
   Customer,
   Supplier,
   Employee,
+  EmployeeBranchAccess,
+  EmployeePermissionState,
+  EmployeeVerificationAttempt,
   AuditLog,
   Transfer,
   ManufacturingOrder,
@@ -96,6 +99,12 @@ export interface EmployeeRepository {
   reactivate(id: string): Promise<MutationResult<Employee>>;
   getSessions(employeeId: string): Promise<any[]>;
   revokeSession(employeeId: string, sessionId: string): Promise<MutationResult<void>>;
+  resetCredential(employeeId: string, pin: string, resetRequired?: boolean): Promise<MutationResult<any>>;
+  getBranchAccess(employeeId: string): Promise<EmployeeBranchAccess[]>;
+  updateBranchAccess(employeeId: string, branchIds: string[]): Promise<MutationResult<{ items: EmployeeBranchAccess[] }>>;
+  getPermissionState(employeeId: string): Promise<EmployeePermissionState>;
+  updatePermissionState(employeeId: string, input: { roleIds: string[]; grantPermissionIds: string[]; denialPermissionIds: string[] }): Promise<MutationResult<{ authorization: EmployeePermissionState["authorization"] }>>;
+  getVerificationAttempts(employeeId: string, query?: { page?: number; pageSize?: number }): Promise<PaginatedResult<EmployeeVerificationAttempt>>;
 }
 
 export interface AssetRepository {

@@ -392,5 +392,8 @@ return, and reversal policy. MANUAL UI QA REQUIRED.
 | Exact unauthorized denial | governance service returns `403 SELF_APPROVAL_FORBIDDEN` before mutation | CGP/IGP creator and submitter HTTP cases |
 | Authorized review | explicit reason, snapshot/version/idempotency, audited self-review metadata | CGP/IGP approve/reject, replay and payload-conflict cases |
 | Safety recovery | valid pre-HF1 and post-migration local custom backups; no rerun/rollback | `pg_restore --list`, SHA-256 `953CC2E5B5CD48AAD95AFA0F1A35E3430603DA3587B85FAE2BC5CA744D9AFC0B` |
+| Supplier payment zero posting | `CashTransaction` shared persistence, `cash_out` + `supplier_purchase` + purchase-order reference | Namespace `0/0/0` before/after/final direct count |
+| Customer settlement/payment zero posting | `Payment`, `CustomerCreditTransaction`, and reservation payment/application/transfer/refund/allocation tables | Namespace `0/0/0` before/after/final direct counts |
+| Treasury, Gold Center, and posting links | Treasury through `CashTransaction`; Gold Center through `GoldPrice`/`GoldFixing` with pools/stock separately checked; links through journal source/link fields | Complete 16-row zero-posting matrix, all `0/0/0`, gated live marker and final cleanup pass |
 
 MANUAL UI QA REQUIRED. Phase 33D remains blocked.
