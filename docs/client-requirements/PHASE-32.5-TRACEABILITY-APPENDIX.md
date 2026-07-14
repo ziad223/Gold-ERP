@@ -383,3 +383,14 @@ deferred to Phase 33D and requires accountant/client decisions. MANUAL UI QA REQ
 
 Phase 33D remains decision-blocked by final accounting, tax, valuation, settlement, payment,
 return, and reversal policy. MANUAL UI QA REQUIRED.
+
+## Phase 33C-HF1 traceability
+
+| Requirement | Implementation evidence | Verification evidence |
+|---|---|---|
+| Controlled self-review | `gold_purchase.cgp.self_approve`, `gold_purchase.igp.self_approve`; migration `20260714020000-gold-purchase-self-approval-permissions.js` | 24-key catalog and Role.isAdmin fixture checks |
+| Exact unauthorized denial | governance service returns `403 SELF_APPROVAL_FORBIDDEN` before mutation | CGP/IGP creator and submitter HTTP cases |
+| Authorized review | explicit reason, snapshot/version/idempotency, audited self-review metadata | CGP/IGP approve/reject, replay and payload-conflict cases |
+| Safety recovery | valid pre-HF1 and post-migration local custom backups; no rerun/rollback | `pg_restore --list`, SHA-256 `953CC2E5B5CD48AAD95AFA0F1A35E3430603DA3587B85FAE2BC5CA744D9AFC0B` |
+
+MANUAL UI QA REQUIRED. Phase 33D remains blocked.

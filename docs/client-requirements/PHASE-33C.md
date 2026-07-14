@@ -89,3 +89,9 @@ Phase 33D must not begin until accountant/client decisions approve final price b
 MANUAL UI QA REQUIRED
 
 Manual scope includes permission labels, CGP/IGP scope, button visibility, submitted/approved read-only states, approval queue/filter states, snapshot summary, self-review hiding, approve/reject dialogs, rejection return-to-draft, revision chain, Arabic RTL, English LTR, and responsive layout.
+
+## HF1 — Controlled self-review closure
+
+`gold_purchase.cgp.self_approve` and `gold_purchase.igp.self_approve` bring the catalog to 24 permissions. Persisted `Role.isAdmin` is the canonical trusted all-permissions mechanism; ordinary non-isAdmin roles do not receive either key automatically. Missing override returns exact `403 SELF_APPROVAL_FORBIDDEN`; controlled self-review remains explicit, scope-bound, idempotent, snapshot/version checked, reason-required, and audited.
+
+Migration `20260714020000-gold-purchase-self-approval-permissions.js` was applied once. The failed zero-byte HF1 dump remains incident evidence. Valid pre-HF1 backup: `backend/backups/darfus_erp_phase33c_20260714-004524.dump`. Valid post-migration backup: `backend/backups/darfus_erp_post_hf1_migration_2026-07-14T00-20-59-656Z.dump`, SHA-256 `953CC2E5B5CD48AAD95AFA0F1A35E3430603DA3587B85FAE2BC5CA744D9AFC0B`. No rollback or migration rerun occurred. MANUAL UI QA REQUIRED; Phase 33D remains blocked.

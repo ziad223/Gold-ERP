@@ -2,6 +2,8 @@
 
 > **NOTICE:** This block is the primary project-state entry point. All future tools must read it first before any code execution or planning. It summarizes the current state but does NOT replace the original client requirements.
 >
+> **Phase 33C-HF1 — Controlled Self-Review Closure:** Added the CGP/IGP `self_approve` keys (24 Gold Purchase permissions total). `Role.isAdmin` is the canonical trusted path; missing override is exact `403 SELF_APPROVAL_FORBIDDEN`; authorized self review is explicit, reason-required and audited. Migration `20260714020000-gold-purchase-self-approval-permissions.js` was applied once. The zero-byte initial HF1 dump remains incident evidence; valid pre-HF1 backup is `backend/backups/darfus_erp_phase33c_20260714-004524.dump`; valid post-migration backup SHA-256 is `953CC2E5B5CD48AAD95AFA0F1A35E3430603DA3587B85FAE2BC5CA744D9AFC0B`. No rollback/rerun. MANUAL UI QA REQUIRED. Do not start Phase 33D.
+>
 > **Project Identity & Safeties:**
 > - Repository: [jewellery-erp-master](file:///H:/WORK/jewellery-erp-master)
 > - Branch: `main`

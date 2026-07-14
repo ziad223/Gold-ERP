@@ -73,6 +73,9 @@ export default function ApprovalsPage() {
   const [successMsg, setSuccessMsg] = useState("");
   const [goldRequests, setGoldRequests] = useState<GoldPurchaseApprovalRequest[]>([]);
   const [goldError, setGoldError] = useState("");
+  const [selfReviewRequest, setSelfReviewRequest] = useState<GoldPurchaseApprovalRequest | null>(null);
+  const [selfReviewDecision, setSelfReviewDecision] = useState<"approve" | "reject">("approve");
+  const [selfReviewReason, setSelfReviewReason] = useState("");
   const canReviewGold = ["cgp", "igp"].some((kind) => hasPermission(`gold_purchase.${kind}.approve`) || hasPermission(`gold_purchase.${kind}.reject`));
 
   const loadGoldRequests = useCallback(async () => {
@@ -85,14 +88,27 @@ export default function ApprovalsPage() {
 
   useEffect(() => { void loadGoldRequests(); }, [loadGoldRequests]);
 
-  const reviewGold = async (request: GoldPurchaseApprovalRequest, decision: "approve" | "reject") => {
-    const reason = decision === "reject" ? window.prompt(rtl ? "سبب الرفض" : "Rejection reason") : null;
+  const reviewGold = async (request: GoldPurchaseApprovalRequest, decision: "approve" | "reject", suppliedReason: string | null = null) => {
+    const reason = suppliedReason ?? (decision === "reject" ? window.prompt(rtl ? "سبب الرفض" : "Rejection reason") : null);
     if (decision === "reject" && !reason) return;
     try {
       await reviewGoldPurchaseDraft(request.aggregateType, request.documentId, request.documentVersion + 1, request.version, decision, reason, locale);
       setSuccessMsg(decision === "approve" ? (rtl ? "تم اعتماد طلب شراء الذهب." : "Gold Purchase approved.") : (rtl ? "تم رفض طلب شراء الذهب وإعادته كمسودة." : "Gold Purchase rejected back to draft."));
       await loadGoldRequests();
     } catch (error) { setGoldError(error instanceof Error ? error.message : "Gold Purchase review failed"); }
+  };
+
+  const openSelfReview = (request: GoldPurchaseApprovalRequest, decision: "approve" | "reject") => {
+    setSelfReviewRequest(request);
+    setSelfReviewDecision(decision);
+    setSelfReviewReason("");
+  };
+
+  const confirmSelfReview = async () => {
+    if (!selfReviewRequest || !selfReviewReason.trim()) return;
+    await reviewGold(selfReviewRequest, selfReviewDecision, selfReviewReason.trim());
+    setSelfReviewRequest(null);
+    setSelfReviewReason("");
   };
 
   const handleAction = (id: string, approve: boolean) => {
@@ -135,13 +151,22 @@ export default function ApprovalsPage() {
           const selfReview = user?.id === request.requestedBy || user?.id === snapshot.createdBy;
           const canApprove = hasPermission(`gold_purchase.${request.aggregateType}.approve`);
           const canReject = hasPermission(`gold_purchase.${request.aggregateType}.reject`);
+          const canSelfReview = hasPermission(`gold_purchase.${request.aggregateType}.self_approve`);
           return <Card key={request.id} className="space-y-4 p-5">
             <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-mono text-xs text-muted">{request.id}</p><h3 className="font-black">{snapshot.documentNumber || request.documentId}</h3><p className="text-xs text-muted">{request.aggregateType.toUpperCase()} · {snapshot.reference?.name || "—"} · {snapshot.items?.length || 0} {rtl ? "بند" : "lines"}</p></div><Badge tone="amber">{request.approvalStatus}</Badge></div>
             <div className="rounded-2xl border border-border bg-background p-3 text-xs"><p><strong>{rtl ? "بصمة النسخة: " : "Snapshot hash: "}</strong><span className="font-mono">{request.submittedSnapshotHash}</span></p><p className="mt-1"><strong>{rtl ? "مقدم الطلب: " : "Requested by: "}</strong>{request.requestedBy}</p></div>
-            {selfReview ? <p className="text-xs font-bold text-destructive">{rtl ? "لا يمكن للمنشئ أو مقدم الطلب مراجعة طلبه." : "The creator or submitter cannot review this request."}</p> : <div className="flex justify-end gap-2">{canReject && <Button variant="danger" size="sm" onClick={() => void reviewGold(request, "reject")}><X className="h-4 w-4" />{rtl ? "رفض" : "Reject"}</Button>}{canApprove && <Button size="sm" onClick={() => void reviewGold(request, "approve")}><Check className="h-4 w-4" />{rtl ? "اعتماد" : "Approve"}</Button>}</div>}
+            {selfReview && !canSelfReview ? <p className="text-xs font-bold text-destructive">{rtl ? "لا يمكن للمنشئ أو مقدم الطلب مراجعة طلبه دون صلاحية الموافقة الذاتية." : "The creator or submitter cannot review this request without self-review permission."}</p> : selfReview ? <div className="space-y-2"><p className="text-xs font-bold text-amber-700 dark:text-amber-300">{rtl ? "هذه موافقة ذاتية وسيتم تسجيلها في سجل التدقيق." : "This is a self-review and will be recorded in the audit trail."}</p><div className="flex justify-end gap-2">{canReject && <Button variant="danger" size="sm" onClick={() => openSelfReview(request, "reject")}><X className="h-4 w-4" />{rtl ? "رفض" : "Reject"}</Button>}{canApprove && <Button size="sm" onClick={() => openSelfReview(request, "approve")}><Check className="h-4 w-4" />{rtl ? "اعتماد" : "Approve"}</Button>}</div></div> : <div className="flex justify-end gap-2">{canReject && <Button variant="danger" size="sm" onClick={() => void reviewGold(request, "reject")}><X className="h-4 w-4" />{rtl ? "رفض" : "Reject"}</Button>}{canApprove && <Button size="sm" onClick={() => void reviewGold(request, "approve")}><Check className="h-4 w-4" />{rtl ? "اعتماد" : "Approve"}</Button>}</div>}
           </Card>;
         })}
       </section>}
+
+      {selfReviewRequest && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label={rtl ? "موافقة ذاتية" : "Self Approval"}>
+        <Card className="w-full max-w-lg space-y-4 p-6 shadow-2xl">
+          <div><h2 className="text-lg font-black">{rtl ? "موافقة ذاتية" : "Self Approval"}</h2><p className="mt-1 text-sm text-muted">{rtl ? "هذه موافقة ذاتية وسيتم تسجيلها في سجل التدقيق." : "This self-review will be recorded in the audit trail."}</p></div>
+          <label className="block text-sm font-bold">{rtl ? "السبب مطلوب" : "Reason is required"}<textarea className="input-base mt-2 min-h-24 w-full" value={selfReviewReason} onChange={(event) => setSelfReviewReason(event.target.value)} autoFocus /></label>
+          <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setSelfReviewRequest(null)}>{rtl ? "إلغاء" : "Cancel"}</Button><Button variant={selfReviewDecision === "reject" ? "danger" : "primary"} disabled={!selfReviewReason.trim()} onClick={() => void confirmSelfReview()}>{selfReviewDecision === "approve" ? (rtl ? "تأكيد الاعتماد" : "Confirm approval") : (rtl ? "تأكيد الرفض" : "Confirm rejection")}</Button></div>
+        </Card>
+      </div>}
 
       <div className="space-y-6">
         {requests.length === 0 ? (

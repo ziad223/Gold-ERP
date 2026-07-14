@@ -80,6 +80,13 @@ Sign-off tracker for every open decision. **Status starts PENDING; Answer/Date a
 - Behavioral closure evidence includes exact permission denials, all nine report contracts, reconciliation mismatch and reconciled rows, 45/45 static verifiers, and zero namespace pollution.
 - MANUAL UI QA REQUIRED.
 
+# DR-33C-HF1 — Controlled Gold Purchase self-review (2026-07-14)
+
+- **OWNER APPROVED/IMPLEMENTED:** `gold_purchase.{cgp|igp}.self_approve` permits explicit self-approval or self-rejection only alongside ordinary approve/reject and branch/all visibility; it never widens scope.
+- **OWNER APPROVED/IMPLEMENTED:** absent override is exact `403 SELF_APPROVAL_FORBIDDEN`; authorized self-review requires a reason and immutable audit metadata.
+- **SAFETY RECORD:** the additive permission migration was applied once, with valid pre-HF1 and post-migration archives retained; no rollback or migration rerun occurred.
+- MANUAL UI QA REQUIRED. Phase 33D accounting/client decisions remain pending.
+
 # DR-33B — Gold Purchase draft foundation (2026-07-13)
 
 - **APPROVED/IMPLEMENTED:** CGP and IGP are separate aggregates with separate temporary

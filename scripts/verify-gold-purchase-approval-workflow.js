@@ -7,25 +7,27 @@ const path = require("path");
 
 const ROOT = path.resolve(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(ROOT, file), "utf8");
-const permissionActions = ["view", "view_all", "view_branch", "view_own", "create", "update_draft", "validate", "submit", "approve", "reject", "void"];
+const permissionActions = ["view", "view_all", "view_branch", "view_own", "create", "update_draft", "validate", "submit", "approve", "reject", "self_approve", "void"];
 const permissionNames = ["cgp", "igp"].flatMap((kind) => permissionActions.map((action) => `gold_purchase.${kind}.${action}`));
 
 function staticContract() {
   const migration = read("backend/migrations/20260714010000-gold-purchase-approval-governance.js");
+  const selfReviewMigration = read("backend/migrations/20260714020000-gold-purchase-self-approval-permissions.js");
   const routes = read("backend/src/routes/gold-purchase.routes.js");
   const governance = read("backend/src/services/gold-purchase-governance.service.js");
   const draft = read("backend/src/services/gold-purchase-draft.service.js");
   const ui = read("features/gold-purchases/components/GoldPurchaseDraftWorkspace.tsx");
   const approvals = read("app/[locale]/(dashboard)/approvals/page.tsx");
   const permissionsUi = read("app/[locale]/(dashboard)/settings/users/page.tsx");
-  for (const name of permissionNames) assert.ok(migration.includes(name.split(".").at(-1)) && read("backend/src/bootstrap/accessControl.js").includes(name), `permission ${name}`);
+  for (const name of permissionNames.filter((name) => !name.endsWith(".self_approve"))) assert.ok(migration.includes(name.split(".").at(-1)) && read("backend/src/bootstrap/accessControl.js").includes(name), `permission ${name}`);
+  for (const name of permissionNames.filter((name) => name.endsWith(".self_approve"))) assert.ok(selfReviewMigration.includes(name) && read("backend/src/bootstrap/accessControl.js").includes(name), `permission ${name}`);
   for (const endpoint of ["/submit", "/approve", "/reject", "/revisions", 'router.get("/approvals"', 'router.get("/approvals/:id"']) assert.ok(routes.includes(endpoint), `endpoint ${endpoint}`);
   for (const state of ["submitted", "approved"]) assert.ok(migration.includes(`'${state}'`), `state ${state}`);
-  assert.ok(governance.includes("SELF_APPROVAL_FORBIDDEN") && governance.includes("SNAPSHOT_MISMATCH"), "maker-checker and immutable snapshot contracts");
+  assert.ok(governance.includes("SELF_APPROVAL_FORBIDDEN") && governance.includes("SNAPSHOT_MISMATCH") && governance.includes("isSelfReview"), "maker-checker and immutable snapshot contracts");
   assert.ok(governance.includes('createHash("sha256")') && governance.includes("submittedSnapshotHash"), "sha256 snapshot");
   assert.ok(draft.includes("DOCUMENT_IMMUTABLE"), "submitted/approved updates blocked");
   assert.ok(ui.includes("Submit for approval") && ui.includes("Create revision"), "maker UI actions");
-  assert.ok(approvals.includes("Gold Purchase approvals") && approvals.includes("selfReview"), "review queue and self-review hiding");
+  assert.ok(approvals.includes("Gold Purchase approvals") && approvals.includes("selfReview") && approvals.includes("Self Approval"), "review queue and self-review controls");
   assert.ok(permissionsUi.includes("gold_purchase.cgp") && permissionsUi.includes("gold_purchase.igp"), "permission administration grouping");
   for (const prohibited of ["/post", "/payment", "/withdrawal", "/liquidity-transfer", "/transform", "/close"]) assert.ok(!routes.includes(prohibited), `${prohibited} endpoint absent`);
   for (const prohibited of ["Asset.create", "StockMovement.create", "JournalEntry.create", "CashTransaction.create", "CustomerGoldPool.create", "InventoryGoldPool.create"]) assert.ok(!governance.includes(prohibited), `${prohibited} side effect absent`);
@@ -54,15 +56,16 @@ const { JWT_SECRET } = require(path.join(ROOT, "backend/src/config/security"));
 const { QueryTypes } = require(path.join(ROOT, "backend/node_modules/sequelize"));
 models.sequelize.options.logging = false;
 
-const namespace = `T33C-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const namespace = `T33C-HF1-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const ids = {
   company: `CMP-${namespace}`, otherCompany: `CMP-${namespace}-OTHER`, branchA: `BR-${namespace}-A`, branchB: `BR-${namespace}-B`, otherBranch: `BR-${namespace}-X`,
   customer: `CUS-${namespace}`, supplier: `SUP-${namespace}`,
   maker: `USR-${namespace}-MAKER`, reviewer: `USR-${namespace}-REVIEWER`, ownReviewer: `USR-${namespace}-OWN-REVIEWER`,
   ownMaker: `USR-${namespace}-OWN-MAKER`, allReviewer: `USR-${namespace}-ALL-REVIEWER`,
-  legacy: `USR-${namespace}-LEGACY`, noPerm: `USR-${namespace}-NONE`, branchMaker: `USR-${namespace}-BRANCH-B`
+  legacy: `USR-${namespace}-LEGACY`, noPerm: `USR-${namespace}-NONE`, branchMaker: `USR-${namespace}-BRANCH-B`,
+  draftCreator: `USR-${namespace}-DRAFT-CREATOR`, selfMaker: `USR-${namespace}-SELF-MAKER`, superAdmin: `USR-${namespace}-SUPER-ADMIN`
 };
-const userIds = [ids.maker, ids.reviewer, ids.ownReviewer, ids.ownMaker, ids.allReviewer, ids.legacy, ids.noPerm, ids.branchMaker];
+const userIds = [ids.maker, ids.reviewer, ids.ownReviewer, ids.ownMaker, ids.allReviewer, ids.legacy, ids.noPerm, ids.branchMaker, ids.draftCreator, ids.selfMaker, ids.superAdmin];
 const roleIds = [];
 let server;
 let baseUrl;
@@ -82,10 +85,10 @@ function expectError(result, status, code) { assert.equal(result.status, status,
 const cgpBody = (overrides = {}) => ({ branchId: ids.branchA, customerId: ids.customer, transactionDate: "2026-07-14", currency: "AED", exchangeRate: 1, notes: namespace, items: [{ goldType: "scrap", karat: 21, fineness: 0.875, purityFactor: 0.875, grossWeight: 10, stoneWeight: 1, proposedRate: 250 }], ...overrides });
 const igpBody = (overrides = {}) => ({ branchId: ids.branchA, supplierId: ids.supplier, purchaseDate: "2026-07-14", currency: "AED", exchangeRate: 1, notes: namespace, items: [{ goldType: "investment_gold", investmentType: "physical", karat: 24, fineness: 1, purityFactor: 1, grossWeight: 20, stoneWeight: 0, quantity: 1, proposedPurchaseRate: 300 }], ...overrides });
 
-async function addUser(password, id, branchId, suffix, permissions) {
+async function addUser(password, id, branchId, suffix, permissions, { isAdmin = false } = {}) {
   await models.User.create({ id, companyId: ids.company, firstName: namespace, lastName: suffix, email: `${namespace.toLowerCase()}-${suffix.toLowerCase()}@example.test`, password, role: "sales" });
   const roleId = `ROLE-${namespace}-${suffix}`; roleIds.push(roleId);
-  await models.Role.create({ id: roleId, companyId: ids.company, name: `${namespace} ${suffix}`, slug: `t33c-${namespace}-${suffix}`.toLowerCase(), isSystem: false, isAdmin: false });
+  await models.Role.create({ id: roleId, companyId: ids.company, name: `${namespace} ${suffix}`, slug: `t33c-${namespace}-${suffix}`.toLowerCase(), isSystem: false, isAdmin });
   const rows = await models.Permission.findAll({ where: { name: permissions } });
   assert.equal(rows.length, new Set(permissions).size, `missing permission for ${suffix}`);
   await models.RolePermission.bulkCreate(rows.map((permission) => ({ roleId, permissionId: permission.id })));
@@ -108,6 +111,8 @@ async function setup() {
   const ownReviewerPermissions = ["gold_purchase.cgp.view", "gold_purchase.cgp.view_own", "gold_purchase.cgp.approve", "gold_purchase.cgp.reject"];
   const ownMakerPermissions = ["view", "view_own", "create", "update_draft", "validate", "submit", "void"].map((action) => `gold_purchase.cgp.${action}`);
   const allReviewerPermissions = ["cgp", "igp"].flatMap((kind) => ["view", "view_all", "approve", "reject"].map((action) => `gold_purchase.${kind}.${action}`));
+  const selfMakerPermissions = makerPermissions.concat(["gold_purchase.cgp.self_approve", "gold_purchase.igp.self_approve"]);
+  const draftCreatorPermissions = ["cgp", "igp"].flatMap((kind) => ["view", "view_branch", "create", "update_draft", "validate"].map((action) => `gold_purchase.${kind}.${action}`));
   await addUser(password, ids.maker, ids.branchA, "Maker", makerPermissions);
   await addUser(password, ids.reviewer, ids.branchA, "Reviewer", reviewerPermissions);
   await addUser(password, ids.ownReviewer, ids.branchA, "OwnReviewer", ownReviewerPermissions);
@@ -116,11 +121,15 @@ async function setup() {
   await addUser(password, ids.legacy, ids.branchA, "Legacy", ["sales.view", "sales.create", "suppliers.view", "suppliers.create", "suppliers.update"]);
   await addUser(password, ids.noPerm, ids.branchA, "None", []);
   await addUser(password, ids.branchMaker, ids.branchB, "BranchMaker", makerPermissions);
+  await addUser(password, ids.draftCreator, ids.branchA, "DraftCreator", draftCreatorPermissions);
+  await addUser(password, ids.selfMaker, ids.branchA, "SelfMaker", selfMakerPermissions);
+  await addUser(password, ids.superAdmin, ids.branchA, "SuperAdmin", permissionNames, { isAdmin: true });
 }
 
 async function zeroPostingCounts() {
   const result = {};
-  for (const [name, Model] of Object.entries({ assets: models.Asset, stockMovements: models.StockMovement, journals: models.JournalEntry, cash: models.CashTransaction, cgpPools: models.CustomerGoldPool, igpPools: models.InventoryGoldPool, purchaseOrders: models.PurchaseOrder, notifications: models.Notification })) result[name] = await Model.count({ where: { companyId: ids.company } });
+  for (const [name, Model] of Object.entries({ assets: models.Asset, stockMovements: models.StockMovement, journals: models.JournalEntry, cash: models.CashTransaction, cgpPools: models.CustomerGoldPool, igpPools: models.InventoryGoldPool, purchaseOrders: models.PurchaseOrder, notifications: models.Notification, barcodeInventoryCodes: models.BarcodeInventoryCode, barcodeItemCodes: models.BarcodeItemCode, barcodeSequences: models.BarcodeSequence })) result[name] = await Model.count({ where: { companyId: ids.company } });
+  result.journalLines = await models.JournalLine.count({ include: [{ model: models.JournalEntry, as: "journalEntry", required: true, where: { companyId: ids.company } }] });
   return result;
 }
 
@@ -155,6 +164,59 @@ async function submit(kind, draft, suffix, user = ids.maker, branchId = ids.bran
   return request("POST", `/gold-purchases/${kind}/drafts/${encodeURIComponent(draft.id)}/submit`, { user, branchId, body: { version: draft.version }, key: `${namespace}-${suffix}-SUBMIT` });
 }
 
+async function assertPendingUnchanged(kind, doc, approval, actor, decision, suffix) {
+  const result = await request("POST", `/gold-purchases/${kind}/drafts/${encodeURIComponent(doc.id)}/${decision}`, {
+    user: actor,
+    body: { version: doc.version, approvalVersion: approval.version, reason: `${namespace} denied self review` },
+    key: `${namespace}-${suffix}`
+  });
+  expectError(result, 403, "SELF_APPROVAL_FORBIDDEN");
+  const cfg = kind === "cgp" ? models.CustomerGoldPurchaseDocument : models.InvestmentGoldPurchaseDocument;
+  const persisted = await cfg.findByPk(doc.id);
+  const persistedApproval = await models.GoldPurchaseApprovalRequest.findByPk(approval.id);
+  assert.equal(persisted.status, "submitted"); assert.equal(persisted.version, doc.version);
+  assert.equal(persistedApproval.approvalStatus, "pending"); assert.equal(persistedApproval.reviewedBy, null);
+  assert.equal(await models.IdempotencyRequest.count({ where: { companyId: ids.company, key: `${namespace}-${suffix}` } }), 0);
+  assert.equal(await models.AuditLog.count({ where: { companyId: ids.company, action: `${kind}.draft.${decision === "approve" ? "approved" : "rejected"}` } }), 0);
+}
+
+async function exerciseUnauthorizedSelfReview(kind) {
+  for (const decision of ["approve", "reject"]) {
+    const creatorDraft = await createAndValidate(kind, `${kind}-CREATOR-${decision}`);
+    const creatorSubmitted = await submit(kind, creatorDraft, `${kind}-CREATOR-${decision}`);
+    await assertPendingUnchanged(kind, creatorSubmitted.body.data.document, creatorSubmitted.body.data.approvalRequest, ids.maker, decision, `${kind}-CREATOR-${decision}`);
+    const submittedDraft = await createAndValidate(kind, `${kind}-SUBMITTER-${decision}`, ids.draftCreator);
+    const submitted = await submit(kind, submittedDraft, `${kind}-SUBMITTER-${decision}`, ids.maker);
+    await assertPendingUnchanged(kind, submitted.body.data.document, submitted.body.data.approvalRequest, ids.maker, decision, `${kind}-SUBMITTER-${decision}`);
+  }
+}
+
+async function exerciseAuthorizedSelfReview(kind, decision, actor = ids.selfMaker, suffix = "SELF") {
+  const draft = await createAndValidate(kind, `${kind}-${suffix}-${decision}`, actor);
+  const submitted = await submit(kind, draft, `${kind}-${suffix}-${decision}`, actor);
+  const doc = submitted.body.data.document; const approval = submitted.body.data.approvalRequest;
+  const endpoint = `/gold-purchases/${kind}/drafts/${encodeURIComponent(doc.id)}/${decision}`;
+  const missingReason = await request("POST", endpoint, { user: actor, body: { version: doc.version, approvalVersion: approval.version }, key: `${namespace}-${kind}-${suffix}-${decision}-MISSING` });
+  expectError(missingReason, 422, "VALIDATION_FAILED");
+  const body = { version: doc.version, approvalVersion: approval.version, reason: `${namespace} controlled self ${decision}` };
+  const key = `${namespace}-${kind}-${suffix}-${decision}-SUCCESS`;
+  const success = await request("POST", endpoint, { user: actor, body, key });
+  assert.equal(success.status, 200, JSON.stringify(success.body));
+  const expectedStatus = decision === "approve" ? "approved" : "draft";
+  assert.equal(success.body.data.document.status, expectedStatus);
+  assert.equal(success.body.data.approvalRequest.approvalStatus, decision === "approve" ? "approved" : "rejected");
+  assert.equal(success.body.data.approvalRequest.reviewedBy, actor);
+  assert.equal(success.body.data.approvalRequest.reviewReason, body.reason);
+  assert.equal(success.body.data.document.version, doc.version + 1);
+  assert.equal(success.body.data.approvalRequest.submittedSnapshotHash, approval.submittedSnapshotHash);
+  const replay = await request("POST", endpoint, { user: actor, body, key }); assert.equal(replay.status, 200);
+  expectError(await request("POST", endpoint, { user: actor, body: { ...body, reason: "different payload" }, key }), 409, "CONFLICT");
+  const auditRows = await models.AuditLog.findAll({ where: { companyId: ids.company, action: `${kind}.draft.${decision === "approve" ? "approved" : "rejected"}` } });
+  const event = auditRows.find((row) => { try { return JSON.parse(row.after || "{}").documentId === doc.id; } catch { return false; } });
+  assert.ok(event, "self-review audit event"); const metadata = JSON.parse(event.after); assert.equal(metadata.isSelfReview, true); assert.equal(metadata.selfReviewPermission, `gold_purchase.${kind}.self_approve`); assert.equal(metadata.reviewReason, body.reason);
+  return success.body.data;
+}
+
 async function runModule(kind) {
   const validated = await createAndValidate(kind, `${kind}-APPROVE`);
   const submitted = await submit(kind, validated, `${kind}-APPROVE`);
@@ -166,7 +228,7 @@ async function runModule(kind) {
   const doc = submitted.body.data.document; const approval = submitted.body.data.approvalRequest;
   expectError(await request("POST", `/gold-purchases/${kind}/drafts/${encodeURIComponent(doc.id)}/submit`, { body: { version: doc.version }, key: `${namespace}-${kind}-DUPLICATE-PENDING` }), 409, "APPROVAL_ALREADY_PENDING");
   expectError(await request("PATCH", `/gold-purchases/${kind}/drafts/${encodeURIComponent(doc.id)}`, { body: { ...(kind === "cgp" ? cgpBody() : igpBody()), version: doc.version } }), 409, "DOCUMENT_IMMUTABLE");
-  expectError(await request("POST", `/gold-purchases/${kind}/drafts/${encodeURIComponent(doc.id)}/approve`, { body: { version: doc.version, approvalVersion: approval.version }, key: `${namespace}-${kind}-SELF-APPROVE` }), 409, "SELF_APPROVAL_FORBIDDEN");
+  expectError(await request("POST", `/gold-purchases/${kind}/drafts/${encodeURIComponent(doc.id)}/approve`, { body: { version: doc.version, approvalVersion: approval.version, reason: "denied self review" }, key: `${namespace}-${kind}-SELF-APPROVE` }), 403, "SELF_APPROVAL_FORBIDDEN");
   if (kind === "cgp") expectError(await request("POST", `/gold-purchases/cgp/drafts/${encodeURIComponent(doc.id)}/approve`, { user: ids.ownReviewer, body: { version: doc.version, approvalVersion: approval.version }, key: `${namespace}-OWN-APPROVE` }), 403, "FORBIDDEN");
   if (kind === "cgp") {
     await models.CustomerGoldPurchaseDocument.update({ notes: `${namespace}-tampered` }, { where: { id: doc.id } });
@@ -199,7 +261,7 @@ async function runModule(kind) {
 async function run() {
   await models.sequelize.authenticate();
   const catalog = await models.Permission.findAll({ where: { name: permissionNames }, attributes: ["name"] });
-  assert.equal(catalog.length, 22, "exact Phase 33C permission catalog");
+  assert.equal(catalog.length, 24, "exact Phase 33C-HF1 permission catalog");
   await setup();
   server = await new Promise((resolve) => { const s = app.listen(0, "127.0.0.1", () => resolve(s)); });
   baseUrl = `http://127.0.0.1:${server.address().port}`;
@@ -214,6 +276,15 @@ async function run() {
   const unvalidated = await request("POST", "/gold-purchases/cgp/drafts", { body: cgpBody({ notes: `${namespace}-unvalidated` }), key: `${namespace}-UNVALIDATED-CREATE` });
   assert.equal(unvalidated.status, 201);
   expectError(await submit("cgp", unvalidated.body.data, "DRAFT-SUBMIT"), 409, "DOCUMENT_NOT_VALIDATED");
+
+  await exerciseUnauthorizedSelfReview("cgp");
+  await exerciseUnauthorizedSelfReview("igp");
+  await exerciseAuthorizedSelfReview("cgp", "approve");
+  await exerciseAuthorizedSelfReview("igp", "approve");
+  await exerciseAuthorizedSelfReview("cgp", "reject");
+  await exerciseAuthorizedSelfReview("igp", "reject");
+  await exerciseAuthorizedSelfReview("cgp", "approve", ids.superAdmin, "ROLE-IS-ADMIN");
+  await exerciseAuthorizedSelfReview("igp", "approve", ids.superAdmin, "ROLE-IS-ADMIN");
 
   const cgp = await runModule("cgp");
   const igp = await runModule("igp");
@@ -248,7 +319,7 @@ async function run() {
   const after = await zeroPostingCounts(); assert.deepEqual(after, before, `zero-posting invariant failed: ${JSON.stringify(after)}`);
   const actions = new Set((await models.AuditLog.findAll({ where: { companyId: ids.company }, attributes: ["action"] })).map((row) => row.action));
   for (const action of ["cgp.draft.submitted", "cgp.draft.approved", "cgp.draft.rejected", "cgp.draft.revision_created", "igp.draft.submitted", "igp.draft.approved", "igp.draft.rejected", "igp.draft.revision_created"]) assert.ok(actions.has(action), `audit ${action}`);
-  console.log(JSON.stringify({ namespace, permissions: "22/22 PASS", cgp: "PASS", igp: "PASS", makerChecker: "PASS", immutableSnapshots: "PASS", revisions: "PASS", approvalQueue: "PASS", branchScope: "PASS", concurrency: "PASS", zeroPosting: after }, null, 2));
+  console.log(JSON.stringify({ namespace, permissions: "24/24 PASS", cgp: "PASS", igp: "PASS", makerChecker: "PASS", immutableSnapshots: "PASS", revisions: "PASS", approvalQueue: "PASS", branchScope: "PASS", concurrency: "PASS", zeroPosting: after }, null, 2));
   console.log("LIVE TESTS EXECUTED");
 }
 

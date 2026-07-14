@@ -43,7 +43,7 @@ export default function UsersManagementPage() {
       view_branch: ["عرض الفرع", "View branch"], view_own: ["عرض السجلات الخاصة", "View own"],
       create: ["إنشاء", "Create"], update_draft: ["تعديل المسودة", "Update draft"],
       validate: ["تحقق", "Validate"], submit: ["إرسال للموافقة", "Submit"],
-      approve: ["اعتماد", "Approve"], reject: ["رفض", "Reject"], void: ["إلغاء المسودة", "Void"],
+      approve: ["اعتماد", "Approve"], reject: ["رفض", "Reject"], self_approve: ["تجاوز الموافقة الذاتية المنضبط", "Controlled self-review override"], void: ["إلغاء المسودة", "Void"],
     };
     return labels[action]?.[rtl ? 0 : 1] || name;
   };
