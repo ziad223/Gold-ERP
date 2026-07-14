@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useErp } from "@/contexts/erp-context";
-import type { Employee, EmployeeSession } from "@/lib/types";
+import type { Employee, EmployeeOperationalSessionHistory, EmployeeSession } from "@/lib/types";
 import type { ListQuery, PaginatedResult } from "@/lib/repositories/interfaces";
 
 export function useEmployees(initialQuery: ListQuery = { page: 1, pageSize: 25 }) {
@@ -47,6 +47,7 @@ export function useEmployee(id: string | undefined) {
   const { employeeRepository, employees: rawEmployees } = useErp();
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [sessions, setSessions] = useState<EmployeeSession[]>([]);
+  const [operatorSessions, setOperatorSessions] = useState<EmployeeOperationalSessionHistory[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,8 +59,12 @@ export function useEmployee(id: string | undefined) {
       const emp = await employeeRepository.getById(id);
       setEmployee(emp);
       if (emp) {
-        const sesList = await employeeRepository.getSessions(id);
-        setSessions(sesList);
+        const [sesList, opSessions] = await Promise.allSettled([
+          employeeRepository.getSessions(id),
+          employeeRepository.getOperatorSessions(id, { page: 1, pageSize: 25 }),
+        ]);
+        setSessions(sesList.status === "fulfilled" ? sesList.value : []);
+        setOperatorSessions(opSessions.status === "fulfilled" ? opSessions.value.items : []);
       }
     } catch (err: any) {
       setError(err?.message || "Failed to fetch employee details");
@@ -84,6 +89,7 @@ export function useEmployee(id: string | undefined) {
   return {
     employee,
     sessions,
+    operatorSessions,
     loading,
     error,
     revokeSession,

@@ -17,6 +17,7 @@ interface OperatorContextValue {
 }
 
 const OperatorContext = createContext<OperatorContextValue | null>(null);
+const OPERATOR_CHANNEL = "darfus-operator-session-v1";
 
 const inactiveState: OperatorSessionState = {
   state: "inactive",
@@ -27,12 +28,29 @@ const inactiveState: OperatorSessionState = {
 };
 
 export function OperatorProvider({ children }: { children: React.ReactNode }) {
-  const { token } = useAuth();
+  const { token, activeBranchId } = useAuth();
   const { operatorRepository } = useErp();
   const [state, setState] = useState<OperatorSessionState | null>(inactiveState);
   const [active, setActive] = useState(false);
   const [reason, setReason] = useState<string | null>("NOT_VERIFIED");
   const [loading, setLoading] = useState(false);
+
+  const broadcast = useCallback((event: string) => {
+    if (typeof window === "undefined") return;
+    const payload = { event, at: Date.now() };
+    try {
+      const channel = new BroadcastChannel(OPERATOR_CHANNEL);
+      channel.postMessage(payload);
+      channel.close();
+    } catch {
+      // Storage events are the cross-tab fallback. They carry no secrets.
+    }
+    try {
+      window.localStorage.setItem(OPERATOR_CHANNEL, JSON.stringify(payload));
+    } catch {
+      // Ignore storage failures.
+    }
+  }, []);
 
   const refresh = useCallback(async () => {
     if (!token) {
@@ -68,10 +86,11 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
       setState(result.data.operatorSession);
       setActive(true);
       setReason(null);
+      broadcast("operator:verified");
     } finally {
       setLoading(false);
     }
-  }, [operatorRepository]);
+  }, [broadcast, operatorRepository]);
 
   const authorizeAction = useCallback(async (input: OperatorStepUpInput) => {
     setLoading(true);
@@ -81,10 +100,11 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
       setState(result.data.operatorSession);
       setActive(true);
       setReason(null);
+      broadcast("operator:step-up");
     } finally {
       setLoading(false);
     }
-  }, [operatorRepository]);
+  }, [broadcast, operatorRepository]);
 
   const lock = useCallback(async (lockReason = "manual_lock") => {
     setLoading(true);
@@ -94,11 +114,50 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
         setState(result.data.operatorSession);
         setActive(false);
         setReason(result.data.operatorSession.reason || "OPERATOR_SESSION_LOCKED");
+        broadcast("operator:locked");
       }
     } finally {
       setLoading(false);
     }
-  }, [operatorRepository]);
+  }, [broadcast, operatorRepository]);
+
+  useEffect(() => {
+    if (!token) {
+      broadcast("auth:logout");
+      setState(inactiveState);
+      setActive(false);
+      setReason("NOT_AUTHENTICATED");
+    }
+  }, [broadcast, token]);
+
+  useEffect(() => {
+    if (!token) return;
+    setState(inactiveState);
+    setActive(false);
+    setReason("BRANCH_CHANGED");
+    broadcast("operator:branch-changed");
+    void refresh();
+  }, [activeBranchId, broadcast, refresh, token]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleEvent = () => void refresh();
+    let channel: BroadcastChannel | null = null;
+    try {
+      channel = new BroadcastChannel(OPERATOR_CHANNEL);
+      channel.onmessage = handleEvent;
+    } catch {
+      channel = null;
+    }
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === OPERATOR_CHANNEL) handleEvent();
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      if (channel) channel.close();
+    };
+  }, [refresh]);
 
   const value = useMemo(() => ({
     state,

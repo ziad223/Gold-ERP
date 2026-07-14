@@ -4,6 +4,7 @@ import type {
   Supplier,
   Employee,
   EmployeeBranchAccess,
+  EmployeeOperationalSessionHistory,
   EmployeePermissionState,
   EmployeeVerificationAttempt,
   OperatorSessionState,
@@ -102,6 +103,7 @@ export interface EmployeeRepository {
   deactivate(id: string, reason?: string): Promise<MutationResult<Employee>>;
   reactivate(id: string): Promise<MutationResult<Employee>>;
   getSessions(employeeId: string): Promise<any[]>;
+  getOperatorSessions(employeeId: string, query?: { page?: number; pageSize?: number; state?: string; branchId?: string }): Promise<PaginatedResult<EmployeeOperationalSessionHistory>>;
   revokeSession(employeeId: string, sessionId: string): Promise<MutationResult<void>>;
   resetCredential(employeeId: string, pin: string, resetRequired?: boolean): Promise<MutationResult<any>>;
   getBranchAccess(employeeId: string): Promise<EmployeeBranchAccess[]>;

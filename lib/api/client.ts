@@ -45,7 +45,8 @@ interface ApiClientOptions extends RequestInit {
 
 // Token storage key — must match auth-context.tsx
 const TOKEN_KEY = "darfus-token-v1";
-const DEVICE_SESSION_KEY = "darfus-device-session-v1";
+export const DEVICE_SESSION_KEY = "darfus-device-session-id-v1";
+const LEGACY_DEVICE_SESSION_KEY = "darfus-device-session-v1";
 const DEVICE_SESSION_RE = /^[A-Za-z0-9._:-]{16,128}$/;
 
 function readStoredToken(): string | undefined {
@@ -75,6 +76,16 @@ export function getOrCreateDeviceSessionId(): string | undefined {
   try {
     const existing = window.localStorage.getItem(DEVICE_SESSION_KEY);
     if (existing && DEVICE_SESSION_RE.test(existing)) return existing;
+    if (existing) window.localStorage.removeItem(DEVICE_SESSION_KEY);
+
+    const legacy = window.localStorage.getItem(LEGACY_DEVICE_SESSION_KEY);
+    if (legacy && DEVICE_SESSION_RE.test(legacy)) {
+      window.localStorage.setItem(DEVICE_SESSION_KEY, legacy);
+      window.localStorage.removeItem(LEGACY_DEVICE_SESSION_KEY);
+      return legacy;
+    }
+    if (legacy) window.localStorage.removeItem(LEGACY_DEVICE_SESSION_KEY);
+
     const next = `DS-${generateUUID()}`;
     window.localStorage.setItem(DEVICE_SESSION_KEY, next);
     return next;
@@ -87,6 +98,7 @@ export function clearDeviceSessionId(): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.removeItem(DEVICE_SESSION_KEY);
+    window.localStorage.removeItem(LEGACY_DEVICE_SESSION_KEY);
   } catch {
     // Ignore storage failures during logout/session cleanup.
   }

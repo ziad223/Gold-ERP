@@ -15,7 +15,6 @@ import {
   CheckCircle,
   XCircle,
   Sliders,
-  Power,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,7 +42,7 @@ export default function EmployeeProfilePage({ params }: PageProps) {
   const { company } = useAuth();
   const { auditLogs } = useErp();
 
-  const { employee, sessions, loading, error, revokeSession, refresh } = useEmployee(id);
+  const { employee, operatorSessions, loading, error, refresh } = useEmployee(id);
   const { branchAccess, permissionState, verificationAttempts, resetCredential, updateBranches, updatePermissions } = useEmployeeAuthorization(id);
   const { updateEmployee } = useEmployeeMutations();
   const [activeTab, setActiveTab] = useState("overview");
@@ -88,7 +87,7 @@ export default function EmployeeProfilePage({ params }: PageProps) {
     queryKey: ["employee-audit-logs", id],
     queryFn: async () => {
       const res = await apiClient<{ items: AuditLog[] }>(
-        `/audit-logs?filters=${encodeURIComponent(JSON.stringify({ userId: id }))}`,
+        `/audit-logs?filters=${encodeURIComponent(JSON.stringify({ employeeId: id }))}`,
         { locale }
       );
       return res.items || [];
@@ -121,14 +120,7 @@ export default function EmployeeProfilePage({ params }: PageProps) {
     }
   };
 
-  const handleRevokeSession = async (sessionId: string) => {
-    const res = await revokeSession(sessionId);
-    if (res.success) {
-      toast.success(rtl ? "تم إلغاء الجلسة بنجاح" : "Session revoked successfully");
-    } else {
-      toast.error(res.error?.message || "Failed to revoke session");
-    }
-  };
+  const parseIdList = (value: string) => value.split(/\s+/).map((x) => x.trim()).filter(Boolean);
 
   if (loading) {
     return <div className="p-8 text-center text-xs text-slate-500">{common("loading")}</div>;
@@ -293,14 +285,14 @@ export default function EmployeeProfilePage({ params }: PageProps) {
                 className="rounded-xl border border-slate-100 p-4 dark:border-slate-800"
                 onSubmit={async (event) => {
                   event.preventDefault();
-                  const result = await updateBranches(branchIds.split(",").map((x) => x.trim()).filter(Boolean));
+                  const result = await updateBranches(parseIdList(branchIds));
                   if (result.success) toast.success(rtl ? "تم تحديث الفروع" : "Branch access updated");
                   else toast.error(result.error?.message || "Branch update failed");
                 }}
               >
                 <h4 className="font-black">{rtl ? "فروع الموظف" : "Employee Branch Access"}</h4>
                 <p className="mt-2 text-[10px] text-slate-400">{branchAccess.map((b: any) => b.branch?.name || b.branchId).join(", ") || "—"}</p>
-                <input className="input-base mt-3" value={branchIds} onChange={(e) => setBranchIds(e.target.value)} placeholder={rtl ? "BR-1, BR-2" : "BR-1, BR-2"} />
+                <textarea className="input-base mt-3 min-h-20" value={branchIds} onChange={(e) => setBranchIds(e.target.value)} placeholder={rtl ? "معرّف فرع في كل سطر" : "One branch ID per line"} />
                 <Button className="mt-3" type="submit">{rtl ? "حفظ الفروع" : "Save Branches"}</Button>
               </form>
             </div>
@@ -312,17 +304,17 @@ export default function EmployeeProfilePage({ params }: PageProps) {
               onSubmit={async (event) => {
                 event.preventDefault();
                 const result = await updatePermissions({
-                  roleIds: roleIds.split(",").map((x) => x.trim()).filter(Boolean),
-                  grantPermissionIds: grantIds.split(",").map((x) => x.trim()).filter(Boolean),
-                  denialPermissionIds: denialIds.split(",").map((x) => x.trim()).filter(Boolean),
+                  roleIds: parseIdList(roleIds),
+                  grantPermissionIds: parseIdList(grantIds),
+                  denialPermissionIds: parseIdList(denialIds),
                 });
                 if (result.success) toast.success(rtl ? "تم تحديث الصلاحيات" : "Permissions updated");
                 else toast.error(result.error?.message || "Permission update failed");
               }}
             >
-              <input className="input-base" value={roleIds} onChange={(e) => setRoleIds(e.target.value)} placeholder={rtl ? "معرّفات الأدوار مفصولة بفواصل" : "Role IDs, comma-separated"} />
-              <input className="input-base" value={grantIds} onChange={(e) => setGrantIds(e.target.value)} placeholder={rtl ? "معرّفات الصلاحيات الممنوحة" : "Grant permission IDs"} />
-              <input className="input-base" value={denialIds} onChange={(e) => setDenialIds(e.target.value)} placeholder={rtl ? "معرّفات الصلاحيات الممنوعة — المنع له الأولوية" : "Denial permission IDs — denial wins"} />
+              <textarea className="input-base min-h-20" value={roleIds} onChange={(e) => setRoleIds(e.target.value)} placeholder={rtl ? "معرّف دور في كل سطر" : "One role ID per line"} />
+              <textarea className="input-base min-h-20" value={grantIds} onChange={(e) => setGrantIds(e.target.value)} placeholder={rtl ? "معرّف صلاحية ممنوحة في كل سطر" : "One granted permission ID per line"} />
+              <textarea className="input-base min-h-20" value={denialIds} onChange={(e) => setDenialIds(e.target.value)} placeholder={rtl ? "معرّف صلاحية ممنوعة في كل سطر — المنع له الأولوية" : "One denied permission ID per line — denial wins"} />
               <Button type="submit">{rtl ? "حفظ التفويض" : "Save Authorization"}</Button>
             </form>
             <div className="mt-5 grid gap-3 sm:grid-cols-3 text-[10px]">
@@ -473,21 +465,21 @@ export default function EmployeeProfilePage({ params }: PageProps) {
         <Card className="p-5">
           <div className="border-b border-slate-100 pb-4 mb-4 dark:border-slate-800">
             <h3 className="font-black text-navy-950 dark:text-white">
-              {rtl ? "الأجهزة والجلسات النشطة (محاكاة محلية)" : "Devices & Active Sessions (Local Simulation)"}
+              {rtl ? "سجل جلسات المشغل التشغيلية" : "Operational Operator Session History"}
             </h3>
             <p className="text-[10px] text-slate-400 mt-1">
               {rtl
-                ? "⚠️ تنبيه: هذه الجلسات هي محاكاة محلية فقط، ولا تؤثر على الاتصال الفعلي بالخادم."
-                : "⚠️ Note: Revoking simulated sessions performs a local cleanup, it does not revoke real server authentication."}
+                ? "قراءة فقط من جلسات المشغل المخزنة في الخادم. لا يتم عرض معرف الجهاز الخام."
+                : "Read-only server-backed operator sessions. Raw device identifiers are not displayed."}
             </p>
           </div>
 
-          {sessions && sessions.length ? (
+          {operatorSessions && operatorSessions.length ? (
             <div className="space-y-3">
-              {sessions.map((ses) => (
+              {operatorSessions.map((ses) => (
                 <div
                   key={ses.id}
-                  className="flex items-center justify-between rounded-2xl border border-slate-100 p-4 text-xs dark:border-slate-800"
+                  className="rounded-2xl border border-slate-100 p-4 text-xs dark:border-slate-800"
                 >
                   <div className="flex items-center gap-3">
                     <div className="grid h-10 w-10 place-items-center rounded-xl bg-slate-50 font-black text-slate-500 dark:bg-navy-950">
@@ -495,25 +487,22 @@ export default function EmployeeProfilePage({ params }: PageProps) {
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="font-bold text-navy-900 dark:text-white">{ses.deviceName}</p>
-                        {ses.isCurrent && (
-                          <Badge tone="green">{rtl ? "الحالية" : "Current"}</Badge>
-                        )}
+                        <p className="font-bold text-navy-900 dark:text-white">{ses.maskedDeviceLabel || "device-••••"}</p>
+                        <Badge tone={ses.state?.startsWith("active") ? "green" : "slate"}>{ses.state}</Badge>
                       </div>
                       <p className="mt-1 text-[10px] text-slate-400">
-                        {ses.browser} · {ses.location} · {rtl ? `نشط: ${ses.lastActive}` : `Active: ${ses.lastActive}`}
+                        {ses.branch?.name || ses.branch?.id || "—"} · {ses.technicalUser?.name || ses.technicalUser?.email || "—"}
                       </p>
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-rose-600 hover:bg-rose-50"
-                    title={rtl ? "إلغاء الجلسة" : "Revoke Session"}
-                    onClick={() => handleRevokeSession(ses.id)}
-                  >
-                    <Power className="h-4 w-4" />
-                  </Button>
+                  <div className="mt-3 grid gap-2 text-[10px] text-slate-500 sm:grid-cols-3">
+                    <span>{rtl ? "تحقق" : "Verified"}: {ses.verifiedAt || "—"}</span>
+                    <span>{rtl ? "آخر نشاط" : "Last activity"}: {ses.lastActivityAt || "—"}</span>
+                    <span>{rtl ? "انتهاء الخمول" : "Idle expiry"}: {ses.idleExpiresAt || "—"}</span>
+                    <span>{rtl ? "انتهاء مطلق" : "Absolute expiry"}: {ses.absoluteExpiresAt || "—"}</span>
+                    <span>{rtl ? "قفل" : "Locked"}: {ses.lockedAt || "—"}</span>
+                    <span>{rtl ? "إلغاء" : "Revoked"}: {ses.revokedAt || "—"}</span>
+                  </div>
                 </div>
               ))}
             </div>

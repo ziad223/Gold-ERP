@@ -165,6 +165,7 @@
     "reports": "Reports & analytics",
     "system": "System",
     "audit": "Audit log",
+    "systemAccounts": "System Accounts",
     "approvals": "Approvals Inbox",
     "settings": "Settings",
     "collapse": "Collapse sidebar",
@@ -922,8 +923,8 @@
     "showVatNumber": "Show VAT Number",
     "saveReceipt": "Save Receipt Settings",
     "receiptSaved": "Receipt settings saved",
-    "usersManagement": "Users Management",
-    "usersManagementDesc": "Create users and manage roles and permissions."
+    "usersManagement": "System Accounts",
+    "usersManagementDesc": "Manage technical login accounts and system roles. Employee operational permissions are managed from Employees."
   },
   "AssetDetails": {
     "notFound": "Asset not found",

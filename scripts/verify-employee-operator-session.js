@@ -20,6 +20,7 @@ function staticContract() {
   const client = read("lib/api/client.ts");
   const operatorContext = read("contexts/operator-context.tsx");
   const header = read("components/layout/header.tsx");
+  const operatorBar = read("components/operator/operator-bar.tsx");
 
   for (const token of [
     "employee_operational_sessions",
@@ -51,7 +52,10 @@ function staticContract() {
   }
   assert.ok(client.includes("X-Device-Session-ID"), "frontend sends device-session header");
   assert.ok(operatorContext.includes("OperatorProvider"), "operator provider exists");
-  assert.ok(header.includes("OperatorVerifyDialog") && header.includes("OperatorLockButton"), "header exposes operator controls");
+  assert.ok(header.includes("OperatorBar"), "header exposes consolidated operator controls");
+  for (const token of ["verify", "switch", "step-up", "operator.lock"]) {
+    assert.ok(operatorBar.includes(token), `operator bar exposes ${token} control`);
+  }
   console.log("Phase 34.3 static operator-session contract: PASS");
 }
 

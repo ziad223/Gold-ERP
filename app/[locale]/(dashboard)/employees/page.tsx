@@ -57,15 +57,23 @@ export default function EmployeesPage() {
   const [queryState, setQueryState] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [credentialFilter, setCredentialFilter] = useState("all");
+  const [lockedFilter, setLockedFilter] = useState("all");
+  const [activeSessionFilter, setActiveSessionFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   
   // Custom Hook for Repository Data
-  const { items: employees, loading, error, query, setQuery } = useEmployees({
-    page: 1,
-    pageSize: 100,
+  const { items: employees, loading, error, total, totalPages, query, setQuery } = useEmployees({
+    page,
+    pageSize,
     search: queryState,
     filters: {
       role: roleFilter,
       status: statusFilter,
+      credentialState: credentialFilter,
+      locked: lockedFilter,
+      activeOperatorSession: activeSessionFilter,
     },
   });
 
@@ -84,9 +92,9 @@ export default function EmployeesPage() {
   }, [employees]);
 
   const stats = [
-    { label: t("total"), value: employees.length, icon: UsersRound },
+    { label: t("total"), value: total, icon: UsersRound },
     { label: t("presentToday"), value: employees.filter((item) => item.status === "present").length, icon: UserRoundCheck },
-    { label: t("activeShifts"), value: employees.filter((item) => item.status === "present").length ? 6 : 0, icon: Clock3 },
+    { label: locale === "ar" ? "جلسات المشغل النشطة" : "Active operator sessions", value: employees.reduce((sum, item) => sum + Number(item.authorizationSummary?.activeOperatorSessionCount || 0), 0), icon: Clock3 },
     { label: t("leaveRequests"), value: employees.filter((item) => item.status === "leave").length, icon: CalendarCheck },
   ];
 
@@ -223,11 +231,13 @@ export default function EmployeesPage() {
 
   const handleQueryChange = (q: string) => {
     setQueryState(q);
+    setPage(1);
     setQuery((prev) => ({ ...prev, search: q }));
   };
 
   const handleRoleFilterChange = (role: string) => {
     setRoleFilter(role);
+    setPage(1);
     setQuery((prev) => ({
       ...prev,
       filters: { ...prev.filters, role },
@@ -236,6 +246,7 @@ export default function EmployeesPage() {
 
   const handleStatusFilterChange = (status: string) => {
     setStatusFilter(status);
+    setPage(1);
     setQuery((prev) => ({
       ...prev,
       filters: { ...prev.filters, status },
@@ -311,6 +322,9 @@ export default function EmployeesPage() {
               setQueryState("");
               handleRoleFilterChange("all");
               handleStatusFilterChange("all");
+              setCredentialFilter("all");
+              setLockedFilter("all");
+              setActiveSessionFilter("all");
             }}
             filters={[
               {
@@ -335,15 +349,62 @@ export default function EmployeesPage() {
                   { value: "inactive", label: locale === "ar" ? "غير نشط" : "Inactive" },
                 ],
               },
+              {
+                id: "credentialState",
+                label: locale === "ar" ? "حالة PIN" : "Credential",
+                value: credentialFilter,
+                onChange: (value) => {
+                  setCredentialFilter(value);
+                  setPage(1);
+                  setQuery((prev) => ({ ...prev, filters: { ...prev.filters, credentialState: value } }));
+                },
+                options: [
+                  { value: "all", label: common("all") },
+                  { value: "not_configured", label: locale === "ar" ? "غير مهيأ" : "Not configured" },
+                  { value: "active", label: locale === "ar" ? "نشط" : "Active" },
+                  { value: "reset_required", label: locale === "ar" ? "يلزم إعادة ضبط" : "Reset required" },
+                  { value: "locked", label: locale === "ar" ? "مقفل" : "Locked" },
+                ],
+              },
+              {
+                id: "locked",
+                label: locale === "ar" ? "القفل" : "Locked",
+                value: lockedFilter,
+                onChange: (value) => {
+                  setLockedFilter(value);
+                  setPage(1);
+                  setQuery((prev) => ({ ...prev, filters: { ...prev.filters, locked: value } }));
+                },
+                options: [
+                  { value: "all", label: common("all") },
+                  { value: "true", label: locale === "ar" ? "مقفل" : "Locked" },
+                  { value: "false", label: locale === "ar" ? "غير مقفل" : "Unlocked" },
+                ],
+              },
+              {
+                id: "activeOperatorSession",
+                label: locale === "ar" ? "جلسة نشطة" : "Active session",
+                value: activeSessionFilter,
+                onChange: (value) => {
+                  setActiveSessionFilter(value);
+                  setPage(1);
+                  setQuery((prev) => ({ ...prev, filters: { ...prev.filters, activeOperatorSession: value } }));
+                },
+                options: [
+                  { value: "all", label: common("all") },
+                  { value: "true", label: locale === "ar" ? "نعم" : "Yes" },
+                  { value: "false", label: locale === "ar" ? "لا" : "No" },
+                ],
+              },
             ]}
           />
           {employees.length ? (
             <div className="overflow-x-auto">
-              <div className="min-w-[850px] divide-y divide-slate-100 dark:divide-slate-800">
+              <div className="min-w-[1050px] divide-y divide-slate-100 dark:divide-slate-800">
                 {employees.map((person) => (
                   <div
                     key={person.id}
-                    className="grid grid-cols-[60px_1.3fr_.9fr_1fr_1fr_1.2fr_1.2fr] items-center gap-4 p-4 text-xs transition hover:bg-slate-50 dark:hover:bg-navy-950/60"
+                    className="grid grid-cols-[60px_1.3fr_.9fr_1fr_1fr_1fr_1fr_1.2fr_1.2fr] items-center gap-4 p-4 text-xs transition hover:bg-slate-50 dark:hover:bg-navy-950/60"
                   >
                     <span className="grid h-10 w-10 place-items-center rounded-2xl bg-brand-50 font-black text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
                       {person.name[0]}
@@ -360,6 +421,16 @@ export default function EmployeesPage() {
                     <span className="font-mono text-[11px] font-bold text-slate-600 dark:text-slate-300">{person.employeeCode || "—"}</span>
                     <span className="text-slate-500">{person.role}</span>
                     <span className="text-slate-500">{person.branch}</span>
+                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                      {person.authorizationSummary?.credentialState?.replace(/_/g, " ") || "—"}
+                    </span>
+                    <span className="text-[11px] text-slate-500">
+                      {locale === "ar" ? "فروع" : "Branches"} {person.authorizationSummary?.branchAccessCount ?? 0}
+                      {" · "}
+                      {locale === "ar" ? "أدوار" : "Roles"} {person.authorizationSummary?.roleTemplateCount ?? 0}
+                      {" · "}
+                      {locale === "ar" ? "جلسات" : "Sessions"} {person.authorizationSummary?.activeOperatorSessionCount ?? 0}
+                    </span>
                     <div>{statusBadge(person.status)}</div>
                     <div className="flex justify-end gap-1">
                       <Link href={`/employees/${person.id}`}>
@@ -404,6 +475,18 @@ export default function EmployeesPage() {
           ) : (
             <EmptyState title={common("noResults")} description={common("noResultsDescription")} />
           )}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 p-4 text-xs dark:border-slate-800">
+            <span className="font-bold text-slate-500">
+              {locale === "ar" ? "الصفحة" : "Page"} {page} / {Math.max(totalPages || 1, 1)} · {total} {filtersT("results")}
+            </span>
+            <div className="flex items-center gap-2">
+              <NativeSelect value={String(pageSize)} onChange={(event) => { const next = Number(event.target.value); setPageSize(next); setPage(1); setQuery((prev) => ({ ...prev, page: 1, pageSize: next })); }}>
+                {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size}</option>)}
+              </NativeSelect>
+              <Button variant="secondary" disabled={page <= 1} onClick={() => { const next = Math.max(1, page - 1); setPage(next); setQuery((prev) => ({ ...prev, page: next })); }}>{locale === "ar" ? "السابق" : "Previous"}</Button>
+              <Button variant="secondary" disabled={page >= Math.max(totalPages || 1, 1)} onClick={() => { const next = page + 1; setPage(next); setQuery((prev) => ({ ...prev, page: next })); }}>{locale === "ar" ? "التالي" : "Next"}</Button>
+            </div>
+          </div>
         </Card>
 
         <Card className="p-5">
@@ -412,28 +495,14 @@ export default function EmployeesPage() {
             {t("rolesPermissions")}
           </h2>
           <div className="mt-5 space-y-3">
-            {[
-              ["Administrator", "3", "128"],
-              ["Branch Manager", "4", "74"],
-              ["Cashier", "12", "28"],
-              ["Inventory", "7", "51"],
-              ["Accountant", "5", "63"],
-            ].map((item) => (
-              <div
-                key={item[0]}
-                className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800"
-              >
-                <div className="flex justify-between gap-3">
-                  <p className="text-xs font-extrabold">{item[0]}</p>
-                  <span className="text-[10px] text-slate-400">
-                    {item[1]} {t("users")}
-                  </span>
-                </div>
-                <p className="mt-2 text-[10px] font-bold text-brand-700 dark:text-brand-300">
-                  {item[2]} {t("permissionsCount")}
-                </p>
-              </div>
-            ))}
+            <div className="rounded-2xl border border-slate-200 p-4 text-xs leading-6 dark:border-slate-800">
+              <p className="font-extrabold">{locale === "ar" ? "تفويض الموظفين" : "Employee operational authorization"}</p>
+              <p className="mt-2 text-slate-500">
+                {locale === "ar"
+                  ? "تدار الأدوار، المنح، المنع، الفروع و PIN من ملف الموظف. حسابات النظام منفصلة عن هوية الموظف التشغيلية."
+                  : "Roles, grants, denials, branches and PIN credentials are managed from the employee profile. System Accounts remain separate technical login identities."}
+              </p>
+            </div>
           </div>
         </Card>
       </div>

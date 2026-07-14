@@ -58,13 +58,14 @@ const groups = [
     items: [
       { href: "/accounting", label: "accounting", icon: CircleDollarSign, permission: "accounting.view" },
       { href: "/accounting/treasury", label: "treasury", icon: Landmark, permission: "treasury.view" },
-      { href: "/employees", label: "employees", icon: UsersRound, permission: "payroll.view" },
       { href: "/reports", label: "reports", icon: BarChart3, permission: "reports.view" },
     ],
   },
   {
     label: "system",
     items: [
+      { href: "/employees", label: "employees", icon: UsersRound, permission: ["payroll.view", "employees.credentials.manage", "employees.permissions.manage", "employees.branches.manage", "employees.verification.view"] },
+      { href: "/settings/users", label: "systemAccounts", icon: BookOpenCheck, permission: "users.view" },
       { href: "/audit", label: "audit", icon: ShieldCheck, permission: "audit.view" },
       { href: "/approvals", label: "approvals", icon: FileCheck, permission: "approvals.view" },
       { href: "/settings", label: "settings", icon: Settings, permission: "settings.view" },
@@ -96,7 +97,10 @@ export function Sidebar({ open, onClose, collapsed, onToggle }: SidebarProps) {
     .map((group) => ({
       ...group,
       items: group.items.filter((item) =>
-        hasPermission(item.permission) || (item.href === "/settings" && hasPermission("reservations.configure_account"))
+        (Array.isArray(item.permission)
+          ? (item.permission as readonly string[]).some((permission) => hasPermission(permission))
+          : hasPermission(item.permission as string))
+        || (item.href === "/settings" && hasPermission("reservations.configure_account"))
       )
     }))
     .filter((group) => group.items.length > 0);

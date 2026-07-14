@@ -700,6 +700,12 @@ export class LocalEmployeeRepository implements EmployeeRepository {
     return emp?.sessions || [];
   }
 
+  async getOperatorSessions(_employeeId: string, query: { page?: number; pageSize?: number } = {}): Promise<PaginatedResult<any>> {
+    const page = query.page || 1;
+    const pageSize = query.pageSize || 25;
+    return { items: [], page, pageSize, total: 0, totalPages: 0 };
+  }
+
   async revokeSession(employeeId: string, sessionId: string): Promise<MutationResult<void>> {
     const emp = this.ctx.employees.find((e) => e.id === employeeId);
     if (!emp) {

@@ -7,7 +7,15 @@ import { useAuth } from "@/contexts/auth-context";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { usePermissions } from "@/hooks/use-permissions";
 
-const ROUTE_PERMISSIONS: Array<[RegExp, string]> = [
+const EMPLOYEE_ROUTE_PERMISSIONS = [
+  "payroll.view",
+  "employees.credentials.manage",
+  "employees.permissions.manage",
+  "employees.branches.manage",
+  "employees.verification.view",
+];
+
+const ROUTE_PERMISSIONS: Array<[RegExp, string | string[]]> = [
   [/^\/dashboard/, "dashboard.view"],
   [/^\/pos/, "sales.create"],
   [/^\/sales/, "sales.view"],
@@ -17,7 +25,7 @@ const ROUTE_PERMISSIONS: Array<[RegExp, string]> = [
   [/^\/suppliers/, "suppliers.view"],
   [/^\/accounting\/treasury/, "treasury.view"],
   [/^\/accounting/, "accounting.view"],
-  [/^\/employees/, "payroll.view"],
+  [/^\/employees/, EMPLOYEE_ROUTE_PERMISSIONS],
   [/^\/reports/, "reports.view"],
   [/^\/audit/, "audit.view"],
   [/^\/approvals/, "approvals.view"],
@@ -51,7 +59,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   const required = ROUTE_PERMISSIONS.find(([pattern]) => pattern.test(pathname))?.[1];
   const reservationAccountSettingsAccess = /^\/settings\/?$/.test(pathname) && hasPermission("reservations.configure_account");
-  if (required && !hasPermission(required) && !reservationAccountSettingsAccess) {
+  const allowed = Array.isArray(required)
+    ? required.some((permission) => hasPermission(permission))
+    : required ? hasPermission(required) : true;
+  if (required && !allowed && !reservationAccountSettingsAccess) {
     return (
       <div className="grid min-h-screen place-items-center bg-background p-6">
         <div className="max-w-md rounded-3xl border border-border bg-panel p-8 text-center shadow-soft">

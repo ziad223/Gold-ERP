@@ -619,6 +619,33 @@ export interface EmployeeSession {
 
 export type EmployeeDeviceSession = EmployeeSession;
 
+export interface EmployeeListAuthorizationSummary {
+  credentialState: "not_configured" | "active" | "reset_required" | "locked" | "inactive";
+  lockedUntil?: string | null;
+  branchAccessCount: number;
+  roleTemplateCount: number;
+  activeOperatorSessionCount: number;
+  lastVerifiedAt?: string | null;
+  primaryBranch?: { id: string; name?: string | null } | null;
+}
+
+export interface EmployeeOperationalSessionHistory {
+  id: string;
+  state: string;
+  maskedDeviceLabel?: string | null;
+  branch?: { id: string; name?: string | null; code?: string | null } | null;
+  technicalUser?: { id: string; name?: string | null; email?: string | null } | null;
+  verificationLevel: number;
+  verifiedAt?: string | null;
+  level2VerifiedAt?: string | null;
+  lastActivityAt?: string | null;
+  idleExpiresAt?: string | null;
+  absoluteExpiresAt?: string | null;
+  lockedAt?: string | null;
+  revokedAt?: string | null;
+  revokedReason?: string | null;
+}
+
 export interface Employee {
   id: string;
   employeeCode?: string | null;
@@ -641,6 +668,7 @@ export interface Employee {
   approvalLimitsDetail?: EmployeeApprovalLimits;
   sessions?: EmployeeSession[];
   deactivateReason?: string;
+  authorizationSummary?: EmployeeListAuthorizationSummary;
 }
 
 export interface EmployeeBranchAccess {

@@ -44,6 +44,7 @@ import type {
   SupplierConsignment,
   SupplierDocument,
   EmployeeSession,
+  EmployeeOperationalSessionHistory,
   EmployeeBranchAccess,
   EmployeePermissionState,
   EmployeeVerificationAttempt,
@@ -284,6 +285,24 @@ export class ApiEmployeeRepository implements EmployeeRepository {
   async getSessions(employeeId: string): Promise<EmployeeSession[]> {
     const res = await apiClient<any>(`/employees/${employeeId}/sessions`, auth());
     return normalizeItems<EmployeeSession>(res);
+  }
+
+  async getOperatorSessions(employeeId: string, query: { page?: number; pageSize?: number; state?: string; branchId?: string } = {}): Promise<PaginatedResult<EmployeeOperationalSessionHistory>> {
+    const params = new URLSearchParams();
+    if (query.page) params.append("page", String(query.page));
+    if (query.pageSize) params.append("pageSize", String(query.pageSize));
+    if (query.state) params.append("state", query.state);
+    if (query.branchId) params.append("branchId", query.branchId);
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    const res = await apiClient<any>(`/employees/${employeeId}/operator-sessions${qs}`, auth());
+    const data = res?.data ?? res;
+    return {
+      items: data.items || [],
+      page: data.page || query.page || 1,
+      pageSize: data.pageSize || query.pageSize || 25,
+      total: data.total || 0,
+      totalPages: data.totalPages || 0,
+    };
   }
 
   async revokeSession(employeeId: string, sessionId: string): Promise<MutationResult<void>> {

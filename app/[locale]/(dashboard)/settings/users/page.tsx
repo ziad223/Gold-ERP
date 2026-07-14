@@ -87,7 +87,7 @@ export default function UsersManagementPage() {
   if (!hasPermission("users.view") && !hasPermission("roles.manage")) {
     return (
       <div className="space-y-6">
-        <PageHeader title={rtl ? "إدارة المستخدمين" : "Users Management"} description={rtl ? "ليست لديك صلاحية الوصول لهذه الصفحة." : "You do not have permission to access this page."} />
+        <PageHeader title={rtl ? "حسابات النظام" : "System Accounts"} description={rtl ? "ليست لديك صلاحية الوصول لهذه الصفحة." : "You do not have permission to access this page."} />
       </div>
     );
   }
@@ -95,15 +95,26 @@ export default function UsersManagementPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={rtl ? "إدارة المستخدمين والصلاحيات" : "Users & Permissions"}
-        description={rtl ? "إنشاء المستخدمين وربطهم بالأدوار وتعديل صلاحيات كل دور." : "Create users, assign roles, and control role permissions."}
+        title={rtl ? "حسابات النظام" : "System Accounts"}
+        description={rtl
+          ? "إدارة حسابات الدخول التقنية وأدوار النظام. صلاحيات الموظفين التشغيلية تدار من ملفات الموظفين ولا يوجد ربط مفترض بين الحساب والموظف."
+          : "Manage technical login accounts and system roles. Employee operational identity and permissions are managed from Employee profiles; no User-to-Employee link is implied."}
       />
+
+      <Card className="p-5 text-sm leading-7">
+        <h2 className="font-black text-navy-950 dark:text-white">{rtl ? "فصل الهوية التقنية عن المشغل" : "Technical account vs operational employee"}</h2>
+        <p className="mt-2 text-slate-500">
+          {rtl
+            ? "حساب النظام يستخدم لتسجيل الدخول وإدارة الأدوار التقنية. كود الموظف و PIN وصلاحيات التشغيل اليومية تدار فقط من شاشة الموظفين."
+            : "A System Account is used for authentication and technical administration. Employee Code, PIN, branch access, grants, denials and effective operational permissions are managed only from Employees."}
+        </p>
+      </Card>
 
       <div className="grid gap-5 xl:grid-cols-[420px_1fr]">
         <Card className="p-5">
           <div className="mb-4 flex items-center gap-2">
             <UserPlus className="h-5 w-5 text-brand-600" />
-            <h2 className="font-black text-navy-950 dark:text-white">{rtl ? "مستخدم جديد" : "New User"}</h2>
+            <h2 className="font-black text-navy-950 dark:text-white">{rtl ? "حساب نظام جديد" : "New System Account"}</h2>
           </div>
           <form onSubmit={submitUser} className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">
@@ -128,7 +139,7 @@ export default function UsersManagementPage() {
 
         <Card className="overflow-hidden">
           <div className="border-b border-slate-200 p-5 dark:border-slate-800">
-            <h2 className="font-black text-navy-950 dark:text-white">{rtl ? "المستخدمون" : "Users"}</h2>
+            <h2 className="font-black text-navy-950 dark:text-white">{rtl ? "الحسابات التقنية" : "Technical Accounts"}</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -158,8 +169,13 @@ export default function UsersManagementPage() {
       <Card className="p-5">
         <div className="mb-4 flex items-center gap-2">
           <ShieldCheck className="h-5 w-5 text-brand-600" />
-          <h2 className="font-black text-navy-950 dark:text-white">{rtl ? "صلاحيات الأدوار" : "Role Permissions"}</h2>
+          <h2 className="font-black text-navy-950 dark:text-white">{rtl ? "أدوار وصلاحيات النظام التقنية" : "Technical Roles and System Permissions"}</h2>
         </div>
+        <p className="mb-4 text-xs leading-6 text-slate-500">
+          {rtl
+            ? "هذه الصلاحيات تخص حسابات الدخول التقنية ولا تمثل صلاحيات الموظف التشغيلية أو التفويض الفعلي داخل جلسة المشغل."
+            : "These permissions apply to technical login accounts. They are separate from Employee operational permissions and effective operator authority."}
+        </p>
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <select className="input-base max-w-xs" value={selectedRoleId} onChange={(e) => loadRole(e.target.value)}>
             <option value="">{rtl ? "اختر دورًا" : "Select a role"}</option>
