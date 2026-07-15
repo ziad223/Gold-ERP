@@ -988,35 +988,18 @@ async function testBranchShellEmployeeFirstGate() {
 
 async function testSuperAdminRequiresEmployeeForOperations() {
   const customer = await createCustomer("super-admin");
-  const noEmployeeProduct = await createProduct("super-admin-no-employee", ids.branchA, 2, 100);
-  const beforeNoEmployee = await businessCounts();
-  await expectError(
-    request("POST", "/pos/checkout", {
-      token: state.tokens.superAdmin,
-      branchId: ids.branchA,
-      body: posBody(customer, noEmployeeProduct),
-      idempotencyKey: `IDEM-${ns}-super-admin-no-employee`
-    }),
-    401,
-    "OPERATOR_SESSION_REQUIRED",
-    "Super Admin POS checkout without Employee"
-  );
-  await assertNoBusinessMutation(beforeNoEmployee, "Super Admin no Employee denial");
-
-  const deviceId = await verifyOperator({ user: "superAdmin", employee: "pos", branchId: ids.branchA, level: 2 });
   const product = await createProduct("super-admin-success", ids.branchA, 2, 100);
   const response = await request("POST", "/pos/checkout", {
     token: state.tokens.superAdmin,
     branchId: ids.branchA,
-    deviceId,
     body: posBody(customer, product),
     idempotencyKey: `IDEM-${ns}-super-admin-success`
   });
-  assert.equal(response.status, 201, "Super Admin POS checkout succeeds through Employee authorization");
+  assert.equal(response.status, 201, "Super Admin POS checkout succeeds without Employee authorization");
   const invoiceId = outData(response).id;
   state.invoices.push(invoiceId);
   const invoice = await models.Invoice.findByPk(invoiceId);
-  assert.equal(invoice.finalizedByEmployeeId, state.employees.pos.id, "Super Admin POS invoice finalizer is Employee");
+  assert.equal(invoice.finalizedByEmployeeId, null, "Super Admin POS invoice finalizer may be null");
 }
 
 async function testLegacyModeCompatibility() {

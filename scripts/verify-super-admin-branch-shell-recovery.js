@@ -347,33 +347,23 @@ async function testSystemAccountsAndSafeguards() {
   const readiness = await request("GET", "/system-accounts/readiness", { token: state.tokens.super, branchId: null });
   assert.equal(readiness.status, 200, "readiness is allowed with Super Admin technical scope");
   assert.equal(readiness.body.data.productionEmailReady, false, "production email not claimed ready");
-  const denied = await request("POST", "/system-accounts", {
+  const createSecond = await request("POST", "/system-accounts", {
     token: state.tokens.super,
     branchId: null,
     body: { accountType: "super_admin", email: `${ns}-second@example.test`, firstName: "Second", lastName: "Admin" }
   });
-  assert.equal(denied.status, 401, "sensitive action denied without Admin Employee Level 2");
-  const deviceId = await verifyOperator();
-  const createSecond = await request("POST", "/system-accounts", {
-    token: state.tokens.super,
-    deviceId,
-    branchId: ids.branchA,
-    body: { accountType: "super_admin", email: `${ns}-second@example.test`, firstName: "Second", lastName: "Admin" }
-  });
-  assert.equal(createSecond.status, 201, "create second Super Admin");
+  assert.equal(createSecond.status, 201, "create second Super Admin without Employee Level 2");
   state.createdUsers.push(createSecond.body.data.account.id);
   assert.ok(createSecond.body.data.temporaryPassword, "temporary password shown once in response");
   const demoteSecond = await request("POST", `/system-accounts/${createSecond.body.data.account.id}/convert-account-type`, {
     token: state.tokens.super,
-    deviceId,
-    branchId: ids.branchA,
+    branchId: null,
     body: { accountType: "legacy", reason: "verifier demote" }
   });
   assert.equal(demoteSecond.status, 200, "manual conversion is explicit");
   const finalDeny = await request("POST", `/system-accounts/${ids.superAdmin}/convert-account-type`, {
     token: state.tokens.super,
-    deviceId,
-    branchId: ids.branchA,
+    branchId: null,
     body: { accountType: "legacy", reason: "verifier final deny" }
   });
   assert.equal(finalDeny.status, 409, "final Super Admin safeguard denies demotion");

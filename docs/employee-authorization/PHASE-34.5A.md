@@ -224,3 +224,56 @@ Evidence recorded during HF2:
 
 Phase 34.5B remains deferred and must not start unless HF2 final clean-tree
 verification is complete.
+
+## Phase 34.5A-HF5A — Super Admin & Simple Login Stabilization
+
+HF5A changes the Super Admin policy from the earlier Employee-step-up model to
+the simplified market-ready owner model:
+
+- `USR-ADMIN` / `admin@admin.com` is bootstrapped locally as the first
+  `super_admin`;
+- Super Admin logs in with email/password only;
+- no Employee Code, PIN, Level 1, Level 2, or operator step-up is required for
+  Super Admin login, System Accounts governance, or current Sales/POS/Return/
+  Exchange/Installment command gates;
+- no synthetic Employee or EmployeeCredential is created for Super Admin;
+- technical attribution remains `technicalUserId = USR-ADMIN`,
+  `accountType = super_admin`, with nullable `employeeId` and
+  `operatorSessionId`;
+- Branch Shell remains fixed-branch and Employee-first;
+- Legacy behavior remains compatible and does not receive Super Admin technical
+  scope.
+
+Local backup before DB mutation:
+
+`H:\WORK\jewellery-erp-master\backend\backups\darfus_erp_phase34_5a_hf5a_20260715_195517.dump`
+
+Size: `471727` bytes.
+
+Counts:
+
+- migrations: 42
+- permissions: 123
+- verifier files: 54
+
+New files:
+
+- `scripts/bootstrap-first-super-admin.js`
+- `scripts/verify-simple-super-admin-access.js`
+- `docs/employee-authorization/PHASE-34.5A-HF5A.md`
+
+Verification evidence:
+
+- bootstrap changed `USR-ADMIN` to `super_admin`, preserved ID/email/password
+  hash/role, incremented `sessionVersion` to 2, and revoked 9 active owner
+  technical sessions;
+- second bootstrap execution safely reported already bootstrapped with no
+  mutation;
+- offline bcrypt comparison against the current local owner password succeeded;
+- live owner login/refresh/logout and scope checks passed in
+  `scripts/verify-simple-super-admin-access.js`;
+- updated account/session, Sales/POS, and Sales adjustment verifiers passed with
+  Super Admin direct access and Branch Shell employee-first behavior preserved.
+
+HF5B, HF5C, HF5D, Phase 34.5B2A/B/C, Phase 34.6, Phase 34.7, Phase 33D, and
+Phase 33C-HF2 remain deferred.

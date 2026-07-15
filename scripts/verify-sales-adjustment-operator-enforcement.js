@@ -692,21 +692,12 @@ async function testLegacyAndSuperAdmin() {
   const superNew = await createProduct("super-exchange-new", ids.branchA, { available: 2, sold: 0 });
   const superInvoice = await createPostedProductInvoice("SUPER-EXCHANGE", { customer: superCustomer, product: superSold });
   const superItemId = await invoiceItemId(superInvoice.id);
-  const beforeNoEmployee = await businessCounts();
-  await expectError(request("POST", "/sales/exchanges", {
-    token: state.tokens.superAdmin,
-    body: exchangeBody(superInvoice, superItemId, superNew),
-    idempotencyKey: `IDEM-${ns}-super-exchange-no-employee`
-  }), 401, "OPERATOR_SESSION_REQUIRED", "Super Admin exchange without Employee");
-  await assertNoBusinessMutation(beforeNoEmployee, "Super Admin no Employee");
-  const device = await verifyOperator({ user: "superAdmin", employee: "adjustments", level: 2 });
   const ok = await request("POST", "/sales/exchanges", {
     token: state.tokens.superAdmin,
-    deviceId: device,
     body: exchangeBody(superInvoice, superItemId, superNew),
     idempotencyKey: `IDEM-${ns}-super-exchange-success`
   });
-  assert.equal(ok.status, 201, "Super Admin exchange succeeds only through Employee authority");
+  assert.equal(ok.status, 201, "Super Admin exchange succeeds without Employee authority");
 }
 
 async function namespaceCount() {

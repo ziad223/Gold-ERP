@@ -44,6 +44,11 @@ if (process.env.DATABASE_URL && !/localhost|127\.0\.0\.1|5433/.test(process.env.
 }
 
 process.chdir(ROOT);
+process.env.DB_HOST = process.env.DB_HOST || "localhost";
+process.env.DB_PORT = process.env.DB_PORT || "5433";
+process.env.DB_NAME = process.env.DB_NAME || "darfus_erp";
+process.env.DB_USER = process.env.DB_USER || "postgres";
+process.env.DB_PASS = process.env.DB_PASS || process.env.DB_PASSWORD || "postgres";
 const jwt = require(path.join(ROOT, "backend/node_modules/jsonwebtoken"));
 const bcrypt = require(path.join(ROOT, "backend/node_modules/bcryptjs"));
 const app = require(path.join(ROOT, "backend/src/app"));

@@ -11,6 +11,11 @@ import { useUserManagement } from "@/hooks/use-user-management";
 import { usePermissions } from "@/hooks/use-permissions";
 import { permissionLabel, permissionMeta, permissionModuleLabel } from "@/lib/permissions/catalog";
 
+function errorMessage(error: unknown, rtl: boolean) {
+  if (error instanceof Error && error.message) return error.message;
+  return rtl ? "تعذر تنفيذ الإجراء المتوقع. راجع البيانات وحاول مرة أخرى." : "The requested action could not be completed. Check the form and try again.";
+}
+
 export default function UsersManagementPage() {
   const locale = useLocale();
   const rtl = locale === "ar";
@@ -50,23 +55,27 @@ export default function UsersManagementPage() {
   const submitUser = async (event: FormEvent) => {
     event.preventDefault();
     if (!canManageSystemAccounts) return toast.error(rtl ? "لا تملك صلاحية إدارة حسابات النظام" : "You do not have permission to manage System Accounts");
-    const result: any = await createSystemAccount({
-      accountType: form.accountType,
-      firstName: form.firstName,
-      lastName: form.lastName,
-      email: form.email,
-      temporaryPassword: form.temporaryPassword || undefined,
-      phone: form.phone,
-      jobTitle: form.jobTitle,
-      branchId: form.accountType === "branch_shell" ? form.branchId : undefined,
-      recoveryEmail: form.recoveryEmail || undefined,
-      defaultEmployeeId: form.accountType === "super_admin" && form.defaultEmployeeId ? form.defaultEmployeeId : undefined,
-      reason: form.reason || "System Accounts UI create",
-    });
-    const temp = result?.data?.temporaryPassword;
-    if (temp) setOneTimePassword(temp);
-    setForm({ accountType: "branch_shell", firstName: "", lastName: "", email: "", temporaryPassword: "", phone: "", jobTitle: "", branchId: "", recoveryEmail: "", defaultEmployeeId: "", reason: "" });
-    toast.success(rtl ? "تم إنشاء حساب النظام" : "System Account created");
+    try {
+      const result: any = await createSystemAccount({
+        accountType: form.accountType,
+        firstName: form.firstName,
+        lastName: form.lastName,
+        email: form.email,
+        temporaryPassword: form.temporaryPassword || undefined,
+        phone: form.phone,
+        jobTitle: form.jobTitle,
+        branchId: form.accountType === "branch_shell" ? form.branchId : undefined,
+        recoveryEmail: form.recoveryEmail || undefined,
+        defaultEmployeeId: form.accountType === "super_admin" && form.defaultEmployeeId ? form.defaultEmployeeId : undefined,
+        reason: form.reason || "System Accounts UI create",
+      });
+      const temp = result?.data?.temporaryPassword;
+      if (temp) setOneTimePassword(temp);
+      setForm({ accountType: "branch_shell", firstName: "", lastName: "", email: "", temporaryPassword: "", phone: "", jobTitle: "", branchId: "", recoveryEmail: "", defaultEmployeeId: "", reason: "" });
+      toast.success(rtl ? "تم إنشاء حساب النظام" : "System Account created");
+    } catch (error) {
+      toast.error(errorMessage(error, rtl));
+    }
   };
 
   const loadRole = (roleId: string) => {
@@ -77,34 +86,54 @@ export default function UsersManagementPage() {
 
   const saveRolePermissions = async () => {
     if (!selectedRoleId || !canManageRoles) return;
-    await updateRolePermissions({ roleId: selectedRoleId, permissions: selectedPermissions });
-    toast.success(rtl ? "تم تحديث صلاحيات الدور" : "Role permissions updated");
+    try {
+      await updateRolePermissions({ roleId: selectedRoleId, permissions: selectedPermissions });
+      toast.success(rtl ? "تم تحديث صلاحيات الدور" : "Role permissions updated");
+    } catch (error) {
+      toast.error(errorMessage(error, rtl));
+    }
   };
 
   const doAccountAction = async (id: string, action: string) => {
     const reason = window.prompt(rtl ? "سبب الإجراء" : "Action reason", "UI system account action") || "UI system account action";
-    await systemAccountAction({ id, action, body: { reason } });
-    toast.success(rtl ? "تم تنفيذ الإجراء" : "Action completed");
+    try {
+      await systemAccountAction({ id, action, body: { reason } });
+      toast.success(rtl ? "تم تنفيذ الإجراء" : "Action completed");
+    } catch (error) {
+      toast.error(errorMessage(error, rtl));
+    }
   };
 
   const changeAccountEmail = async (id: string) => {
     const email = window.prompt(rtl ? "البريد الإلكتروني الجديد" : "New email");
     if (!email) return;
-    await systemAccountAction({ id, action: "change-email", body: { email, reason: "UI email change" } });
-    toast.success(rtl ? "تم تغيير البريد" : "Email changed");
+    try {
+      await systemAccountAction({ id, action: "change-email", body: { email, reason: "UI email change" } });
+      toast.success(rtl ? "تم تغيير البريد" : "Email changed");
+    } catch (error) {
+      toast.error(errorMessage(error, rtl));
+    }
   };
 
   const convertAccount = async (id: string) => {
     const accountType = window.prompt(rtl ? "النوع الجديد: legacy / super_admin / branch_shell" : "New type: legacy / super_admin / branch_shell", "legacy");
     if (!accountType) return;
     const branchId = accountType === "branch_shell" ? window.prompt(rtl ? "معرف الفرع" : "Branch ID") || "" : undefined;
-    await systemAccountAction({ id, action: "convert-account-type", body: { accountType, branchId, reason: "UI manual conversion" } });
-    toast.success(rtl ? "تم التحويل اليدوي" : "Manual conversion complete");
+    try {
+      await systemAccountAction({ id, action: "convert-account-type", body: { accountType, branchId, reason: "UI manual conversion" } });
+      toast.success(rtl ? "تم التحويل اليدوي" : "Manual conversion complete");
+    } catch (error) {
+      toast.error(errorMessage(error, rtl));
+    }
   };
 
   const patchAccount = async (id: string, body: Record<string, unknown>) => {
-    await updateSystemAccount({ id, body });
-    toast.success(rtl ? "تم تحديث الحساب" : "Account updated");
+    try {
+      await updateSystemAccount({ id, body });
+      toast.success(rtl ? "تم تحديث الحساب" : "Account updated");
+    } catch (error) {
+      toast.error(errorMessage(error, rtl));
+    }
   };
 
   const accounts = systemAccounts.length ? systemAccounts : users;
@@ -229,7 +258,7 @@ export default function UsersManagementPage() {
               <input className="input-base" placeholder={rtl ? "المسمى الوظيفي" : "Job title"} value={form.jobTitle} onChange={(e) => setForm((c) => ({ ...c, jobTitle: e.target.value }))} />
             </div>
             <input className="input-base" placeholder={rtl ? "سبب الإنشاء" : "Creation reason"} value={form.reason} onChange={(e) => setForm((c) => ({ ...c, reason: e.target.value }))} />
-            <p className="text-xs text-slate-500">{rtl ? "يلزم تأكيد موظف إداري بالمستوى الثاني قبل تنفيذ الإجراء." : "An Admin Employee Level 2 confirmation is required before the backend executes this action."}</p>
+            <p className="text-xs text-slate-500">{rtl ? "ينفذ المدير العام هذه الإجراءات مباشرة بدون كود موظف أو PIN أو مستوى تحقق." : "Super Admin executes these actions directly without Employee Code, PIN, or Level verification."}</p>
             <Button type="submit" disabled={isSaving || !canManageSystemAccounts}>
               {rtl ? "إنشاء حساب النظام" : "Create System Account"}
             </Button>
