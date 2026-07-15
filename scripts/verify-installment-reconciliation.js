@@ -113,6 +113,8 @@ function scopeGuard() {
     "scripts/verify-ledger-reporting-foundation.js",
     "package.json",
     "docs/AI_HANDOFF.md",
+    "docs/employee-authorization/PHASE-34.5.md",
+    "docs/employee-authorization/PHASE-34.5B.md",
     "backend/src/routes/erp.routes.js",
     "backend/src/services/exchange-display.service.js",
     "scripts/verify-exchange-display-api-enrichment.js",
@@ -139,13 +141,24 @@ function scopeGuard() {
     "features/sales/hooks/use-exchange-display.ts",
     "lib/types.ts",
     "scripts/verify-exchange-summary-ui.js",
+    "app/[locale]/(dashboard)/sales/returns/page.tsx",
+    "app/[locale]/(dashboard)/sales/exchanges/page.tsx",
+    "app/[locale]/(dashboard)/sales/installments/page.tsx",
+    "backend/src/bootstrap/accessControl.js",
+    "backend/src/services/sales-operator-policy.service.js",
+    "backend/src/services/system-account.service.js",
+    "lib/permissions/catalog.ts",
+    "scripts/verify-sales-adjustment-operator-enforcement.js",
+    "scripts/verify-sales-pos-operator-enforcement.js",
+    "scripts/verify-super-admin-branch-shell-recovery.js",
+    "scripts/verify-installment-balance-writeback.js",
   ]);
 
   for (const file of changed) {
     assert.ok(allowed.has(file), `unexpected changed file: ${file}`);
   }
   assert.ok(!changed.includes("backend/src/services/posting.service.js"), "no posting service changes");
-  assert.ok(!changed.some((file) => /features\/printing|CustomPrint|print/i.test(file)), "no print files touched");
+  assert.ok(!changed.some((file) => !file.replace(/\\/g, "/").startsWith("scripts/verify-") && /features\/printing|CustomPrint|print/i.test(file)), "no print files touched");
 
   const routes = read("backend/src/routes/erp.routes.js");
   assert.ok(routes.includes("postReturnEntry"), "return settlement route remains present");

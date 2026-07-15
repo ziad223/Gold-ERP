@@ -177,7 +177,7 @@ function staticChecks() {
     .split(/\r?\n/)
     .filter(Boolean);
   assert.ok(!changed.some((file) => /backend\/migrations|migrations\//.test(file)), "no migration changed");
-  assert.ok(!changed.some((file) => /features\/printing|CustomPrint|print/i.test(file)), "no print files touched");
+  assert.ok(!changed.some((file) => !file.replace(/\\/g, "/").startsWith("scripts/verify-") && /features\/printing|CustomPrint|print/i.test(file)), "no print files touched");
   assert.ok(!changed.some((file) => /features\/dashboard|app\/\[locale\]\/\(dashboard\)\/dashboard/.test(file)), "dashboard not rewritten");
 
   const pkg = read("package.json");

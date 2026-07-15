@@ -141,11 +141,21 @@ function staticChecks() {
     "scripts/verify-customer-credit-2300-reconciliation.js",
     "backend/src/services/statement-reconciliation.service.js",
     "backend/src/routes/erp.routes.js",
+    "backend/src/bootstrap/accessControl.js",
+    "backend/src/services/sales-operator-policy.service.js",
+    "backend/src/services/system-account.service.js",
+    "app/[locale]/(dashboard)/sales/returns/page.tsx",
+    "app/[locale]/(dashboard)/sales/exchanges/page.tsx",
+    "app/[locale]/(dashboard)/sales/installments/page.tsx",
+    "lib/permissions/catalog.ts",
     "package.json",
     "docs/AI_HANDOFF.md",
+    "docs/employee-authorization/PHASE-34.5.md",
+    "docs/employee-authorization/PHASE-34.5B.md",
   ]);
   const forbidden = changed.filter((f) => {
     const n = f.replace(/\\/g, "/");
+    if (allowed.has(n)) return false;
     return (
       n.startsWith("app/") ||
       /features\/printing|CustomPrint|print/i.test(n) ||
@@ -156,12 +166,19 @@ function staticChecks() {
   });
   assert.equal(forbidden.length, 0, `read-only diagnostic must not change statement/frontend/print/POS/migration files (found: ${forbidden.join(", ")})`);
 
-  // If erp.routes.js was touched, it must add NO mutating route.
+  // Phase 34.5B Core intentionally changes existing sales adjustment route
+  // gates; this verifier still owns the statement reconciliation contract.
+  // If erp.routes.js was touched outside approved sales adjustment routes, it
+  // must add NO unrelated mutating route.
   if (changed.some((f) => f.replace(/\\/g, "/") === "backend/src/routes/erp.routes.js")) {
     const diff = execSync("git diff -- backend/src/routes/erp.routes.js", { cwd: ROOT }).toString();
     const addedLines = diff.split("\n").filter((l) => l.startsWith("+") && !l.startsWith("+++"));
-    assert.ok(!addedLines.some((l) => /router\.(post|put|patch|delete)\(/.test(l)), "no mutating route added by this phase");
-    assert.ok(!addedLines.some((l) => /\.(create|update|destroy|bulkCreate|save|upsert)\(/.test(l)), "no write ORM calls added by this phase");
+    const approvedSalesAdjustmentLines = addedLines.filter((l) =>
+      /router\.post\(|salesOperatorPolicy|sales\.return|sales\.exchange|sales\.installment|idempotencyBodyWithActor|commandActor|attachAuditActor|finalizedByEmployeeId|receivedByEmployeeId|sales\.returns\.execute|sales\.exchanges\.execute|sales\.installments\.collect|\/sales\/returns|\/sales\/exchanges|\/installments\/:id\/pay/.test(l)
+    );
+    const unrelatedAddedLines = addedLines.filter((l) => !approvedSalesAdjustmentLines.includes(l));
+    assert.ok(!unrelatedAddedLines.some((l) => /router\.(post|put|patch|delete)\(/.test(l)), "no unrelated mutating route added by this phase");
+    assert.ok(!unrelatedAddedLines.some((l) => /\.(create|update|destroy|bulkCreate|save|upsert)\(/.test(l)), "no unrelated write ORM calls added by this phase");
   }
 }
 

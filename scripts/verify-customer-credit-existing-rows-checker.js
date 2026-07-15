@@ -123,6 +123,9 @@ function verifyScope() {
     "scripts/verify-return-exchange-settlement-ui.js",
     "app/[locale]/(dashboard)/customers/[id]/page.tsx",
     "backend/src/routes/erp.routes.js",
+    "backend/src/bootstrap/accessControl.js",
+    "backend/src/services/sales-operator-policy.service.js",
+    "backend/src/services/system-account.service.js",
     "backend/src/services/exchange-display.service.js",
     "scripts/verify-exchange-display-api-enrichment.js",
     "backend/src/models/customerCreditTransaction.model.js",
@@ -130,10 +133,16 @@ function verifyScope() {
     "lib/exchange-policy.ts",
     "package.json",
     "docs/AI_HANDOFF.md",
+    "docs/employee-authorization/PHASE-34.5.md",
+    "docs/employee-authorization/PHASE-34.5B.md",
     "app/[locale]/(dashboard)/sales/page.tsx",
+    "app/[locale]/(dashboard)/sales/returns/page.tsx",
+    "app/[locale]/(dashboard)/sales/exchanges/page.tsx",
+    "app/[locale]/(dashboard)/sales/installments/page.tsx",
     "components/sales/ExchangeSummary.tsx",
     "features/sales/hooks/use-exchange-display.ts",
     "lib/types.ts",
+    "lib/permissions/catalog.ts",
     "scripts/verify-exchange-summary-ui.js",
   ]);
   for (const file of changed) {
@@ -149,7 +158,7 @@ function verifyScope() {
   assert.ok(routes.includes('sourceType: "exchange"'), "exchange behavior remains present");
 
   assert.ok(!changed.some((file) => /backend\/migrations|migrations\//.test(file)), "no migration added");
-  assert.ok(!changed.some((file) => /features\/printing|CustomPrint|print/i.test(file)), "no print files touched");
+  assert.ok(!changed.some((file) => !file.replace(/\\/g, "/").startsWith("scripts/verify-") && /features\/printing|CustomPrint|print/i.test(file)), "no print files touched");
   assert.ok(!changed.some((file) => /features\/dashboard|app\/\[locale\]\/\(dashboard\)\/dashboard/.test(file)), "dashboard not rewritten");
 }
 

@@ -169,7 +169,11 @@ function safetyAndDocs() {
   assert.deepEqual(changed.filter((file) => file.startsWith("features/printing/components/") && /Invoice.*Template|ExchangePrint/.test(file)), [], "invoice/exchange print templates were not changed or deleted");
   const routeDiffBaseline = historicalMode ? historicalBaseline : "HEAD";
   const routeDiff = execFileSync("git", ["diff", "--unified=0", routeDiffBaseline, "--", ROUTES], { cwd: ROOT, encoding: "utf8" });
-  for (const forbiddenRoute of ["/pos/checkout", "/sales/returns", "/sales/exchanges"]) {
+  // Phase 34.5B Core intentionally updates return/exchange route gates for
+  // employee-first operator enforcement; barcode inventory logic remains out
+  // of scope. Keep the POS submit-route guard because this verifier owns that
+  // historical barcode boundary.
+  for (const forbiddenRoute of ["/pos/checkout"]) {
     assert.ok(!routeDiff.split(/\r?\n/).filter((line) => line.startsWith("+") && !line.startsWith("+++ ")).some((line) => line.includes(forbiddenRoute)), `no ${forbiddenRoute} submit logic added/changed`);
   }
   const customerPage = read("app/[locale]/(dashboard)/customers/[id]/page.tsx");

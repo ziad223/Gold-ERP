@@ -123,7 +123,7 @@ function verifyScopeAndPackage() {
     encoding: "utf8",
   }).split(/\r?\n/).filter(Boolean).map((line) => line.slice(3).trim());
   assert.ok(!changed.some((file) => /backend\/migrations|migrations\//.test(file)), "no migration added");
-  assert.ok(!changed.some((file) => /features\/printing|CustomPrint|print/i.test(file)), "no print files touched");
+  assert.ok(!changed.some((file) => !file.replace(/\\/g, "/").startsWith("scripts/verify-") && /features\/printing|CustomPrint|print/i.test(file)), "no print files touched");
   assert.ok(!changed.some((file) => /features\/dashboard|app\/\[locale\]\/\(dashboard\)\/dashboard/.test(file)), "dashboard not rewritten");
   assert.ok(!changed.some((file) => /reports/i.test(file) && !/verify/.test(file)), "reports not rewritten");
 

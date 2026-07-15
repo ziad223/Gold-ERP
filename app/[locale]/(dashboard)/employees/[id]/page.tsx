@@ -33,7 +33,7 @@ import { useErp } from "@/contexts/erp-context";
 import { Link } from "@/i18n/navigation";
 import { apiClient } from "@/lib/api/client";
 import { isApiDataSource } from "@/lib/data-source";
-import { permissionLabel, permissionMeta, permissionModuleLabel } from "@/lib/permissions/catalog";
+import { permissionLabel, permissionMeta, permissionModuleLabel, permissionSourceLabel } from "@/lib/permissions/catalog";
 import { formatCurrency } from "@/lib/utils";
 import type {
   AuditLog,
@@ -72,7 +72,7 @@ const TAB_IDS: Array<{ id: TabId; icon: any; en: string; ar: string }> = [
   { id: "roles", icon: UsersRound, en: "Role Templates", ar: "قوالب الأدوار" },
   { id: "direct-permissions", icon: ListChecks, en: "Direct Permissions", ar: "الصلاحيات المباشرة" },
   { id: "effective-permissions", icon: ShieldCheck, en: "Effective Permissions", ar: "الصلاحيات الفعالة" },
-  { id: "credential", icon: KeyRound, en: "Credential & PIN", ar: "الاعتماد و PIN" },
+  { id: "credential", icon: KeyRound, en: "Credential & PIN", ar: "الاعتماد والرقم السري الوظيفي" },
   { id: "attempts", icon: History, en: "Verification Attempts", ar: "محاولات التحقق" },
   { id: "operator-sessions", icon: Laptop, en: "Operational Sessions", ar: "جلسات المشغل" },
   { id: "audit", icon: Activity, en: "Audit / Activity", ar: "التدقيق والنشاط" },
@@ -80,6 +80,7 @@ const TAB_IDS: Array<{ id: TabId; icon: any; en: string; ar: string }> = [
 ];
 
 function hasPermission(user: ReturnType<typeof useAuth>["user"], permission: string) {
+  if ((user?.accountType || "legacy") === "branch_shell") return user?.permissions?.includes(permission) ?? false;
   return Boolean(user?.role === "admin" || user?.roles?.some((role) => role.isAdmin) || user?.permissions?.includes(permission));
 }
 
@@ -149,8 +150,13 @@ export default function EmployeeProfilePage({ params }: PageProps) {
     branchAccess,
     permissionState,
     verificationAttempts,
+    codeHistory,
     loading: authorizationLoading,
     resetCredential,
+    unlockCredential,
+    revokeOperatorSessions,
+    changeEmployeeCode,
+    changeOwnPin,
     updateBranches,
     updatePermissions,
     refreshAuthorization,
@@ -161,8 +167,14 @@ export default function EmployeeProfilePage({ params }: PageProps) {
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
   const [grantPermissionIds, setGrantPermissionIds] = useState<string[]>([]);
   const [denialPermissionIds, setDenialPermissionIds] = useState<string[]>([]);
+  const [permissionReason, setPermissionReason] = useState("");
   const [pin, setPin] = useState("");
   const [pinConfirm, setPinConfirm] = useState("");
+  const [currentPin, setCurrentPin] = useState("");
+  const [selfNewPin, setSelfNewPin] = useState("");
+  const [selfPinConfirm, setSelfPinConfirm] = useState("");
+  const [employeeCode, setEmployeeCode] = useState("");
+  const [employeeCodeReason, setEmployeeCodeReason] = useState("");
   const [limits, setLimits] = useState<EmployeeApprovalLimits>({
     discountLimit: 0,
     priceOverrideLimit: 0,
@@ -229,22 +241,72 @@ export default function EmployeeProfilePage({ params }: PageProps) {
   const clearCredentialForm = () => {
     setPin("");
     setPinConfirm("");
+    setCurrentPin("");
+    setSelfNewPin("");
+    setSelfPinConfirm("");
   };
 
   const saveCredential = async (event: FormEvent) => {
     event.preventDefault();
     try {
       if (!/^\d{6}$/.test(pin) || pin !== pinConfirm) {
-        toast.error(rtl ? "أدخل رمز PIN من 6 أرقام وتأكيد مطابق" : "Enter a matching 6-digit PIN");
+        toast.error(rtl ? "أدخل الرقم السري الوظيفي من 6 أرقام وتأكيد مطابق" : "Enter a matching 6-digit PIN");
         return;
       }
-      const result = await resetCredential(pin, false);
-      if (result.success) toast.success(rtl ? "تم تحديث PIN" : "PIN updated");
+      const result = await resetCredential(pin, true);
+      if (result.success) toast.success(rtl ? "تمت إعادة تعيين الرقم السري الوظيفي" : "PIN reset");
       else toast.error(result.error?.message || "PIN update failed");
     } finally {
       clearCredentialForm();
       refresh();
     }
+  };
+
+  const saveOwnPin = async (event: FormEvent) => {
+    event.preventDefault();
+    try {
+      if (!/^\d{6}$/.test(currentPin) || !/^\d{6}$/.test(selfNewPin) || selfNewPin !== selfPinConfirm) {
+        toast.error(rtl ? "أدخل الأرقام السرية الوظيفية من 6 أرقام مع تأكيد مطابق" : "Enter matching 6-digit PIN values");
+        return;
+      }
+      const result = await changeOwnPin({ currentPin, newPin: selfNewPin, confirmation: selfPinConfirm });
+      if (result.success) toast.success(rtl ? "تم تغيير الرقم السري الوظيفي، يلزم التحقق من جديد" : "PIN changed; re-verification is required");
+      else toast.error(result.error?.message || "PIN change failed");
+    } finally {
+      clearCredentialForm();
+      refresh();
+    }
+  };
+
+  const saveEmployeeCode = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!employeeCode.trim() || !employeeCodeReason.trim()) {
+      toast.error(rtl ? "الكود الجديد وسبب التغيير مطلوبان" : "New code and change reason are required");
+      return;
+    }
+    const result = await changeEmployeeCode(employeeCode.trim(), employeeCodeReason.trim());
+    if (result.success) {
+      toast.success(rtl ? "تم تغيير كود الموظف" : "Employee Code changed");
+      setEmployeeCode("");
+      setEmployeeCodeReason("");
+      refresh();
+    } else toast.error(result.error?.message || "Employee Code change failed");
+  };
+
+  const unlockCredentialAction = async () => {
+    const reason = window.prompt(rtl ? "سبب فك القفل" : "Unlock reason", "UI credential unlock") || "UI credential unlock";
+    const result = await unlockCredential(reason);
+    if (result.success) toast.success(rtl ? "تم فك قفل الاعتماد" : "Credential unlocked");
+    else toast.error(result.error?.message || "Credential unlock failed");
+    refresh();
+  };
+
+  const revokeOperatorSessionsAction = async () => {
+    const reason = window.prompt(rtl ? "سبب إنهاء جلسات المشغل" : "Revocation reason", "UI operator session revocation") || "UI operator session revocation";
+    const result = await revokeOperatorSessions(reason);
+    if (result.success) toast.success(rtl ? "تم إنهاء جلسات المشغل" : "Operator sessions revoked");
+    else toast.error(result.error?.message || "Operator session revocation failed");
+    refresh();
   };
 
   const saveBranches = async () => {
@@ -261,9 +323,10 @@ export default function EmployeeProfilePage({ params }: PageProps) {
       toast.error(rtl ? "لا يمكن منح ومنع نفس الصلاحية" : "A permission cannot be both granted and denied");
       return;
     }
-    const result = await updatePermissions({ roleIds: selectedRoleIds, grantPermissionIds, denialPermissionIds });
+    const result = await updatePermissions({ roleIds: selectedRoleIds, grantPermissionIds, denialPermissionIds, reason: permissionReason || "UI permission change" });
     if (result.success) {
       toast.success(rtl ? "تم تحديث التفويض" : "Authorization updated");
+      setPermissionReason("");
       refreshAuthorization();
     } else toast.error(result.error?.message || "Permission update failed");
   };
@@ -310,7 +373,7 @@ export default function EmployeeProfilePage({ params }: PageProps) {
         </Link>
         <div>
           <span className="text-xs text-slate-400">
-            {rtl ? "ملف الموظف" : "Employee Profile"} · {employee.id} · {employee.employeeCode || "NO-CODE"}
+            {rtl ? "ملف الموظف" : "Employee Profile"} · {employee.id} · {employee.employeeCode || (rtl ? "بدون كود" : "NO-CODE")}
           </span>
           <h1 className="text-xl font-black text-navy-950 dark:text-white">{employee.name}</h1>
         </div>
@@ -367,6 +430,8 @@ export default function EmployeeProfilePage({ params }: PageProps) {
           onSave={savePermissions}
           loading={authorizationLoading}
           rtl={rtl}
+          permissionReason={permissionReason}
+          setPermissionReason={setPermissionReason}
         />
       )}
       {activeTab === "direct-permissions" && (
@@ -380,6 +445,8 @@ export default function EmployeeProfilePage({ params }: PageProps) {
           onSave={savePermissions}
           loading={authorizationLoading}
           rtl={rtl}
+          permissionReason={permissionReason}
+          setPermissionReason={setPermissionReason}
         />
       )}
       {activeTab === "effective-permissions" && <EmployeeEffectivePermissionsTab permissionState={permissionState} rtl={rtl} />}
@@ -389,9 +456,24 @@ export default function EmployeeProfilePage({ params }: PageProps) {
           canManage={canManageCredentials}
           pin={pin}
           pinConfirm={pinConfirm}
+          currentPin={currentPin}
+          selfNewPin={selfNewPin}
+          selfPinConfirm={selfPinConfirm}
+          employeeCode={employeeCode}
+          employeeCodeReason={employeeCodeReason}
+          codeHistory={codeHistory}
           setPin={setPin}
           setPinConfirm={setPinConfirm}
+          setCurrentPin={setCurrentPin}
+          setSelfNewPin={setSelfNewPin}
+          setSelfPinConfirm={setSelfPinConfirm}
+          setEmployeeCode={setEmployeeCode}
+          setEmployeeCodeReason={setEmployeeCodeReason}
           onSubmit={saveCredential}
+          onSelfPinSubmit={saveOwnPin}
+          onEmployeeCodeSubmit={saveEmployeeCode}
+          onUnlock={unlockCredentialAction}
+          onRevokeSessions={revokeOperatorSessionsAction}
           onCancel={clearCredentialForm}
           rtl={rtl}
         />
@@ -418,7 +500,7 @@ function EmployeeOverviewTab({ employee, rtl }: { employee: Employee; rtl: boole
         <Info label={rtl ? "الدور التقني في النظام" : "System Security Role"} value={employee.systemRole || "sales"} />
         <div className="sm:col-span-2 rounded-xl border border-amber-100 bg-amber-50 p-4 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
           {rtl
-            ? "الفرع الأساسي للموظف معلومة تعريفية فقط. التفويض الفعلي يعتمد على خريطة فروع التفويض في تبويب Branch Access."
+            ? "الفرع الأساسي للموظف معلومة تعريفية فقط. التفويض الفعلي يعتمد على خريطة فروع التفويض في تبويب فروع التفويض."
             : "The primary branch is identity metadata only. Actual authorization is controlled by the Branch Access tab."}
         </div>
         <div className="sm:col-span-2">
@@ -543,6 +625,8 @@ function EmployeeRoleTemplatesTab({
   onSave,
   loading,
   rtl,
+  permissionReason,
+  setPermissionReason,
 }: {
   permissionState: EmployeePermissionState | null;
   selectedRoleIds: string[];
@@ -551,6 +635,8 @@ function EmployeeRoleTemplatesTab({
   onSave: () => Promise<void>;
   loading: boolean;
   rtl: boolean;
+  permissionReason: string;
+  setPermissionReason: (value: string) => void;
 }) {
   const [search, setSearch] = useState("");
   const roleOptions = permissionState?.roles ?? [];
@@ -559,7 +645,7 @@ function EmployeeRoleTemplatesTab({
     <Card className="p-5">
       <h3 className="font-black text-navy-950 dark:text-white">{rtl ? "قوالب أدوار الموظف" : "Employee Role Templates"}</h3>
       <p className="mt-1 text-[11px] text-muted-foreground">
-        {rtl ? "هذه قوالب تفويض للموظف، وليست أدوار الحساب التقني في صفحة System Accounts." : "These are Employee authorization templates, not technical User roles from System Accounts."}
+        {rtl ? "هذه قوالب تفويض للموظف، وليست أدوار الحساب التقني في صفحة حسابات النظام." : "These are Employee authorization templates, not technical User roles from System Accounts."}
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
         {roleOptions.map((role) => <Chip key={role.id}>{role.name} · {role.slug}</Chip>)}
@@ -568,6 +654,7 @@ function EmployeeRoleTemplatesTab({
       {canManage ? (
         <div className="mt-5 space-y-4">
           <SearchBox value={search} onChange={setSearch} placeholder={rtl ? "ابحث في الأدوار الحالية" : "Search current role templates"} />
+          <input className="input-base" value={permissionReason} onChange={(event) => setPermissionReason(event.target.value)} placeholder={rtl ? "سبب تغيير الصلاحيات" : "Permission change reason"} />
           <div className="rounded-2xl border border-border p-3">
             {visibleRoles.length ? visibleRoles.map((role) => (
               <label key={role.id} className="flex cursor-pointer items-center justify-between gap-3 rounded-xl p-2 text-xs hover:bg-background">
@@ -605,6 +692,8 @@ function EmployeeDirectPermissionsTab({
   onSave,
   loading,
   rtl,
+  permissionReason,
+  setPermissionReason,
 }: {
   permissionState: EmployeePermissionState | null;
   grantPermissionIds: string[];
@@ -615,6 +704,8 @@ function EmployeeDirectPermissionsTab({
   onSave: () => Promise<void>;
   loading: boolean;
   rtl: boolean;
+  permissionReason: string;
+  setPermissionReason: (value: string) => void;
 }) {
   const [search, setSearch] = useState("");
   const options = toPermissionOptions(permissionState);
@@ -648,6 +739,7 @@ function EmployeeDirectPermissionsTab({
       </p>
       <div className="mt-5 space-y-4">
         <SearchBox value={search} onChange={setSearch} placeholder={rtl ? "ابحث باسم الصلاحية أو الوحدة" : "Search permission name or module"} />
+        <input className="input-base" value={permissionReason} onChange={(event) => setPermissionReason(event.target.value)} placeholder={rtl ? "سبب تغيير الصلاحيات" : "Permission change reason"} />
         <div className="space-y-4">
           {Object.entries(grouped).map(([module, permissions]) => (
             <div key={module} className="rounded-2xl border border-border p-3">
@@ -685,17 +777,73 @@ function EmployeeDirectPermissionsTab({
 }
 
 function EmployeeEffectivePermissionsTab({ permissionState, rtl }: { permissionState: EmployeePermissionState | null; rtl: boolean }) {
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<"all" | "allowed" | "denied" | "inherited" | "direct" | "sensitive">("all");
+  const uiLocale = rtl ? "ar" : "en";
   const effective = permissionState?.authorization?.effectivePermissionNames ?? [];
   const denied = permissionState?.authorization?.directDenialNames ?? [];
+  const roleNames = (permissionState?.roles ?? []).map((role) => role.name).join(", ");
+  const allNames = [...new Set([
+    ...(permissionState?.authorization?.rolePermissionNames ?? []),
+    ...(permissionState?.authorization?.directGrantNames ?? []),
+    ...(permissionState?.authorization?.directDenialNames ?? []),
+    ...effective,
+  ])].sort();
+  const rows = allNames.map((name) => {
+    const isDenied = denied.includes(name);
+    const isGrant = (permissionState?.authorization?.directGrantNames ?? []).includes(name);
+    const isRole = (permissionState?.authorization?.rolePermissionNames ?? []).includes(name);
+    const source = isDenied
+      ? `${permissionSourceLabel("denial", uiLocale)} · ${permissionSourceLabel("denial_wins", uiLocale)}`
+      : isGrant
+        ? permissionSourceLabel("grant", uiLocale)
+        : permissionSourceLabel("role", uiLocale, roleNames || undefined);
+    return { name, isDenied, isGrant, isRole, source, meta: permissionMeta(name) };
+  }).filter((row) => {
+    const haystack = `${row.meta.label[uiLocale]} ${row.meta.description[uiLocale]} ${row.meta.module[uiLocale]} ${row.source}`.toLowerCase();
+    const matchesSearch = !search.trim() || haystack.includes(search.trim().toLowerCase());
+    const matchesFilter =
+      filter === "all" ||
+      (filter === "allowed" && effective.includes(row.name) && !row.isDenied) ||
+      (filter === "denied" && row.isDenied) ||
+      (filter === "inherited" && row.isRole) ||
+      (filter === "direct" && (row.isGrant || row.isDenied)) ||
+      (filter === "sensitive" && row.meta.sensitivity === "level_2");
+    return matchesSearch && matchesFilter;
+  });
   return (
     <Card className="p-5">
       <h3 className="font-black text-navy-950 dark:text-white">{rtl ? "الصلاحيات الفعالة من الخادم" : "Backend-Resolved Effective Permissions"}</h3>
       <p className="mt-1 text-[11px] text-muted-foreground">
         {rtl ? "لا تقوم الواجهة بحساب الصلاحيات. يتم عرض نتيجة الخادم فقط." : "The frontend does not calculate authority. This tab displays the backend-resolved result only."}
       </p>
-      <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        <PermissionNameList title={rtl ? "صلاحيات فعالة" : "Effective permissions"} names={effective} tone="green" empty={rtl ? "لا توجد صلاحيات فعالة." : "No effective permissions."} rtl={rtl} />
-        <PermissionNameList title={rtl ? "منع مباشر" : "Direct denials"} names={denied} tone="rose" empty={rtl ? "لا يوجد منع مباشر." : "No direct denials."} rtl={rtl} />
+      <div className="mt-4 grid gap-3 md:grid-cols-[1fr_240px]">
+        <SearchBox value={search} onChange={setSearch} placeholder={rtl ? "ابحث في الصلاحيات أو المصادر" : "Search permissions or sources"} />
+        <select className="input-base" value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)}>
+          <option value="all">{rtl ? "كل الصلاحيات" : "All permissions"}</option>
+          <option value="allowed">{rtl ? "المسموح" : "Allowed"}</option>
+          <option value="denied">{rtl ? "الممنوع" : "Denied"}</option>
+          <option value="inherited">{rtl ? "الموروث" : "Inherited"}</option>
+          <option value="direct">{rtl ? "المباشر" : "Direct"}</option>
+          <option value="sensitive">{rtl ? "الحساس" : "Sensitive"}</option>
+        </select>
+      </div>
+      <div className="mt-3 text-xs font-bold text-muted-foreground">
+        {rtl ? "عدد الصلاحيات" : "Permission count"}: {rows.length}
+      </div>
+      <div className="mt-5 space-y-2">
+        {rows.length ? rows.map((row) => (
+          <div key={row.name} className={`rounded-2xl border p-3 text-xs ${row.isDenied ? "border-rose-200 bg-rose-50 text-rose-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="font-black">{row.meta.label[uiLocale]}</span>
+              <span>{row.meta.module[uiLocale]}</span>
+            </div>
+            <div className="mt-1 flex flex-wrap gap-2 text-[11px]">
+              <span>{row.source}</span>
+              <span>{row.meta.sensitivity === "level_2" ? (rtl ? "يتطلب المستوى الثاني" : "Requires Level 2") : (rtl ? "المستوى الأول" : "Level 1")}</span>
+            </div>
+          </div>
+        )) : <p className="rounded-2xl bg-background p-4 text-xs text-muted-foreground">{rtl ? "لا توجد صلاحيات مطابقة." : "No matching permissions found."}</p>}
       </div>
     </Card>
   );
@@ -706,9 +854,24 @@ function EmployeeCredentialTab({
   canManage,
   pin,
   pinConfirm,
+  currentPin,
+  selfNewPin,
+  selfPinConfirm,
+  employeeCode,
+  employeeCodeReason,
+  codeHistory,
   setPin,
   setPinConfirm,
+  setCurrentPin,
+  setSelfNewPin,
+  setSelfPinConfirm,
+  setEmployeeCode,
+  setEmployeeCodeReason,
   onSubmit,
+  onSelfPinSubmit,
+  onEmployeeCodeSubmit,
+  onUnlock,
+  onRevokeSessions,
   onCancel,
   rtl,
 }: {
@@ -716,31 +879,76 @@ function EmployeeCredentialTab({
   canManage: boolean;
   pin: string;
   pinConfirm: string;
+  currentPin: string;
+  selfNewPin: string;
+  selfPinConfirm: string;
+  employeeCode: string;
+  employeeCodeReason: string;
+  codeHistory: Array<{ id: string; oldCode?: string | null; newCode?: string | null; reason?: string | null; createdAt?: string | null }>;
   setPin: (value: string) => void;
   setPinConfirm: (value: string) => void;
+  setCurrentPin: (value: string) => void;
+  setSelfNewPin: (value: string) => void;
+  setSelfPinConfirm: (value: string) => void;
+  setEmployeeCode: (value: string) => void;
+  setEmployeeCodeReason: (value: string) => void;
   onSubmit: (event: FormEvent) => Promise<void>;
+  onSelfPinSubmit: (event: FormEvent) => Promise<void>;
+  onEmployeeCodeSubmit: (event: FormEvent) => Promise<void>;
+  onUnlock: () => Promise<void>;
+  onRevokeSessions: () => Promise<void>;
   onCancel: () => void;
   rtl: boolean;
 }) {
   const credentialState = employee.authorizationSummary?.credentialState || "not_configured";
   return (
     <Card className="p-5">
-      <h3 className="font-black text-navy-950 dark:text-white">{rtl ? "إدارة الاعتماد و PIN" : "Credential & PIN Management"}</h3>
+      <h3 className="font-black text-navy-950 dark:text-white">{rtl ? "إدارة الاعتماد والرقم السري الوظيفي" : "Credential & PIN Management"}</h3>
       <div className="mt-4 grid gap-4 text-xs sm:grid-cols-3">
         <Metric label={rtl ? "حالة الاعتماد" : "Credential state"} value={credentialState} />
         <Metric label={rtl ? "مقفول حتى" : "Locked until"} value={employee.authorizationSummary?.lockedUntil ? formatDate(employee.authorizationSummary.lockedUntil) : "—"} />
         <Metric label={rtl ? "آخر نجاح" : "Last success"} value={employee.authorizationSummary?.lastVerifiedAt ? formatDate(employee.authorizationSummary.lastVerifiedAt) : "—"} />
+        <Metric label={rtl ? "جلسات مشغل نشطة" : "Active operator sessions"} value={String(employee.authorizationSummary?.activeOperatorSessionCount ?? 0)} />
       </div>
+      <form onSubmit={(event) => void onSelfPinSubmit(event)} className="mt-5 max-w-lg space-y-3 rounded-2xl border border-border p-4">
+        <h4 className="text-sm font-black">{rtl ? "تغيير الرقم السري الوظيفي ذاتيًا" : "Self-change PIN"}</h4>
+        <input className="input-base" inputMode="numeric" type="password" maxLength={6} value={currentPin} autoComplete="current-password" onChange={(event) => setCurrentPin(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder={rtl ? "الرقم السري الوظيفي الحالي" : "Current PIN"} />
+        <input className="input-base" inputMode="numeric" type="password" maxLength={6} value={selfNewPin} autoComplete="new-password" onChange={(event) => setSelfNewPin(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder={rtl ? "الرقم السري الوظيفي الجديد · 6 أرقام" : "New PIN · 6 digits"} />
+        <input className="input-base" inputMode="numeric" type="password" maxLength={6} value={selfPinConfirm} autoComplete="new-password" onChange={(event) => setSelfPinConfirm(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder={rtl ? "تأكيد الرقم السري الوظيفي" : "Confirm PIN"} />
+        <p className="text-[11px] text-muted-foreground">{rtl ? "يتطلب جلسة موظف حالية بالمستوى الثاني. بعد النجاح يلزم التحقق من جديد." : "Requires a current Level 2 Employee session. Re-verification is required after success."}</p>
+        <div className="flex gap-2">
+          <Button type="submit">{rtl ? "تغيير الرقم السري الوظيفي" : "Change PIN"}</Button>
+          <Button type="button" variant="secondary" onClick={onCancel}>{rtl ? "إلغاء" : "Cancel"}</Button>
+        </div>
+      </form>
       {canManage ? (
-        <form onSubmit={(event) => void onSubmit(event)} className="mt-5 max-w-lg space-y-3">
-          <input className="input-base" inputMode="numeric" type="password" maxLength={6} value={pin} autoComplete="new-password" onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="PIN · 6 digits" />
-          <input className="input-base" inputMode="numeric" type="password" maxLength={6} value={pinConfirm} autoComplete="new-password" onChange={(event) => setPinConfirm(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder={rtl ? "تأكيد PIN" : "Confirm PIN"} />
-          <p className="text-[11px] text-muted-foreground">{rtl ? "لا يتم عرض أو حفظ PIN في المتصفح بعد الإرسال." : "PIN values are never revealed and are cleared after every submit outcome."}</p>
-          <div className="flex gap-2">
-            <Button type="submit">{rtl ? "حفظ PIN" : "Save PIN"}</Button>
-            <Button type="button" variant="secondary" onClick={onCancel}>{rtl ? "إلغاء" : "Cancel"}</Button>
-          </div>
-        </form>
+        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+          <form onSubmit={(event) => void onSubmit(event)} className="space-y-3 rounded-2xl border border-border p-4">
+            <h4 className="text-sm font-black">{rtl ? "إعادة تعيين الرقم السري الوظيفي بواسطة الإدارة" : "Admin reset PIN"}</h4>
+            <input className="input-base" inputMode="numeric" type="password" maxLength={6} value={pin} autoComplete="new-password" onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder={rtl ? "الرقم السري الوظيفي المؤقت · 6 أرقام" : "Temporary PIN · 6 digits"} />
+            <input className="input-base" inputMode="numeric" type="password" maxLength={6} value={pinConfirm} autoComplete="new-password" onChange={(event) => setPinConfirm(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder={rtl ? "تأكيد الرقم السري الوظيفي" : "Confirm PIN"} />
+            <p className="text-[11px] text-muted-foreground">{rtl ? "لا يتم عرض أو حفظ الرقم السري الوظيفي في المتصفح بعد الإرسال." : "PIN values are never revealed and are cleared after every submit outcome."}</p>
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit">{rtl ? "إعادة التعيين" : "Reset PIN"}</Button>
+              <Button type="button" variant="secondary" onClick={onCancel}>{rtl ? "إلغاء" : "Cancel"}</Button>
+              <Button type="button" variant="secondary" onClick={() => void onUnlock()}>{rtl ? "فك القفل" : "Unlock"}</Button>
+              <Button type="button" variant="secondary" onClick={() => void onRevokeSessions()}>{rtl ? "إنهاء جلسات المشغل" : "Revoke sessions"}</Button>
+            </div>
+          </form>
+          <form onSubmit={(event) => void onEmployeeCodeSubmit(event)} className="space-y-3 rounded-2xl border border-border p-4">
+            <h4 className="text-sm font-black">{rtl ? "تغيير كود الموظف" : "Change Employee Code"}</h4>
+            <input className="input-base" value={employeeCode} onChange={(event) => setEmployeeCode(event.target.value)} placeholder={rtl ? "كود الموظف الجديد" : "New Employee Code"} />
+            <input className="input-base" value={employeeCodeReason} onChange={(event) => setEmployeeCodeReason(event.target.value)} placeholder={rtl ? "سبب التغيير" : "Change reason"} />
+            <Button type="submit">{rtl ? "تغيير الكود" : "Change Code"}</Button>
+            <div className="max-h-40 space-y-2 overflow-y-auto text-[11px] text-muted-foreground">
+              {codeHistory.length ? codeHistory.map((row) => (
+                <div key={row.id} className="rounded border border-border p-2">
+                  {row.oldCode || "—"} → {row.newCode || "—"} · {row.reason || "—"} · {formatDate(row.createdAt)}
+                </div>
+              )) : <p>{rtl ? "لا يوجد سجل تغيير كود بعد." : "No code-change history yet."}</p>}
+            </div>
+          </form>
+        </div>
       ) : (
         <p className="mt-5 rounded-2xl bg-background p-4 text-xs text-muted-foreground">{rtl ? "لا تملك صلاحية إدارة الاعتماد." : "You do not have credential-management access."}</p>
       )}
@@ -760,10 +968,10 @@ function EmployeeVerificationAttemptsTab({ attempts, rtl }: { attempts: Employee
               <span className="text-[10px] text-slate-400">{formatDate(attempt.createdAt)}</span>
             </div>
             <p className="mt-1 text-[10px] text-slate-500">
-              {attempt.requestedPermission || attempt.requestedOperation || "—"} · L{attempt.requestedLevel} · {attempt.failureCode || "OK"}
+              {attempt.requestedPermission || attempt.requestedOperation || "—"} · {rtl ? "المستوى" : "Level"} {attempt.requestedLevel} · {attempt.failureCode || (rtl ? "نجاح" : "OK")}
             </p>
             <p className="mt-1 text-[10px] text-slate-400">
-              {rtl ? "الفرع" : "Branch"}: {attempt.branchId || "—"} · {rtl ? "المستخدم التقني" : "Technical User"}: {attempt.technicalUserId || "—"} · IP: {attempt.ipAddress || "masked"} · UA: {attempt.userAgent || "summarized"}
+              {rtl ? "الفرع" : "Branch"}: {attempt.branchId || "—"} · {rtl ? "المستخدم التقني" : "Technical User"}: {attempt.technicalUserId || "—"} · {rtl ? "عنوان الشبكة" : "IP"}: {attempt.ipAddress || (rtl ? "مخفي" : "masked")} · {rtl ? "المتصفح" : "UA"}: {attempt.userAgent || (rtl ? "ملخص" : "summarized")}
             </p>
           </div>
         )) : <p className="py-10 text-center text-xs text-slate-400">{rtl ? "لا توجد محاولات بعد." : "No attempts yet."}</p>}
@@ -786,19 +994,19 @@ function EmployeeOperationalSessionsTab({ sessions, rtl }: { sessions: EmployeeO
           {sessions.map((session) => (
             <div key={session.id} className="rounded-2xl border border-slate-100 p-4 text-xs dark:border-slate-800">
               <div className="flex items-center gap-3">
-                <div className="grid h-10 w-10 place-items-center rounded-xl bg-slate-50 font-black text-slate-500 dark:bg-navy-950">PC</div>
+                <div className="grid h-10 w-10 place-items-center rounded-xl bg-slate-50 font-black text-slate-500 dark:bg-navy-950">{rtl ? "جهاز" : "PC"}</div>
                 <div>
                   <div className="flex items-center gap-2">
                     <p className="font-bold text-navy-900 dark:text-white">{session.maskedDeviceLabel || "device-••••"}</p>
                     <Badge tone={session.state?.startsWith("active") ? "green" : "slate"}>{session.state}</Badge>
-                    <Badge tone={session.verificationLevel >= 2 ? "green" : "blue"}>L{session.verificationLevel}</Badge>
+                    <Badge tone={session.verificationLevel >= 2 ? "green" : "blue"}>{rtl ? "المستوى" : "Level"} {session.verificationLevel}</Badge>
                   </div>
                   <p className="mt-1 text-[10px] text-slate-400">{session.branch?.name || session.branch?.id || "—"} · {session.technicalUser?.name || session.technicalUser?.email || "—"}</p>
                 </div>
               </div>
               <div className="mt-3 grid gap-2 text-[10px] text-slate-500 sm:grid-cols-3">
                 <span>{rtl ? "تحقق" : "Verified"}: {formatDate(session.verifiedAt)}</span>
-                <span>{rtl ? "L2" : "Level 2"}: {formatDate(session.level2VerifiedAt)}</span>
+                <span>{rtl ? "المستوى الثاني" : "Level 2"}: {formatDate(session.level2VerifiedAt)}</span>
                 <span>{rtl ? "آخر نشاط" : "Last activity"}: {formatDate(session.lastActivityAt)}</span>
                 <span>{rtl ? "انتهاء الخمول" : "Idle expiry"}: {formatDate(session.idleExpiresAt)}</span>
                 <span>{rtl ? "قفل" : "Locked"}: {formatDate(session.lockedAt)}</span>
@@ -824,7 +1032,7 @@ function EmployeeAuditActivityTab({ logs, rtl }: { logs: AuditLog[]; rtl: boolea
               <div className="flex justify-between"><span className="font-bold capitalize text-navy-900 dark:text-white">{log.action}</span><span className="text-[10px] text-slate-400">{log.date || log.createdAt}</span></div>
               <p className="text-slate-600 dark:text-slate-300">{log.description}</p>
               <p className="text-[9px] text-slate-400">
-                {rtl ? "المستخدم التقني" : "Technical User"}: {log.technicalUserId || log.userId || log.user || "—"} · {rtl ? "الموظف" : "Employee"}: {log.employeeId || log.employeeCodeSnapshot || "legacy/user-only"}
+                {rtl ? "المستخدم التقني" : "Technical User"}: {log.technicalUserId || log.userId || log.user || "—"} · {rtl ? "الموظف" : "Employee"}: {log.employeeId || log.employeeCodeSnapshot || (rtl ? "حساب قديم فقط" : "legacy/user-only")}
               </p>
             </div>
           ))}

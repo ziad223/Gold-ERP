@@ -35,7 +35,7 @@ const ROUTE_PERMISSIONS: Array<[RegExp, string | string[]]> = [
 ];
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { hydrated, isAuthenticated } = useAuth();
+  const { hydrated, isAuthenticated, user } = useAuth();
   const { hasPermission } = usePermissions();
   const common = useTranslations("Common");
   const router = useRouter();
@@ -59,10 +59,13 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   const required = ROUTE_PERMISSIONS.find(([pattern]) => pattern.test(pathname))?.[1];
   const reservationAccountSettingsAccess = /^\/settings\/?$/.test(pathname) && hasPermission("reservations.configure_account");
+  const salesPosOperatorRouteAccess =
+    (user?.accountType === "branch_shell" || user?.accountType === "super_admin") &&
+    (/^\/pos(?:\/|$)/.test(pathname) || /^\/sales(?:\/|$)/.test(pathname));
   const allowed = Array.isArray(required)
     ? required.some((permission) => hasPermission(permission))
     : required ? hasPermission(required) : true;
-  if (required && !allowed && !reservationAccountSettingsAccess) {
+  if (required && !allowed && !reservationAccountSettingsAccess && !salesPosOperatorRouteAccess) {
     return (
       <div className="grid min-h-screen place-items-center bg-background p-6">
         <div className="max-w-md rounded-3xl border border-border bg-panel p-8 text-center shadow-soft">

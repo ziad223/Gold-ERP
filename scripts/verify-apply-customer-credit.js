@@ -99,12 +99,12 @@ function verifyApprovedScope() {
 
   const returnRoute = sliceBetween(
     routes,
-    'router.post("/sales/returns"',
-    'router.post("/sales/exchanges"',
+    '"/sales/returns",',
+    '"/sales/exchanges/preview",',
   );
   const exchangeRoute = sliceBetween(
     routes,
-    'router.post("/sales/exchanges"',
+    '"/sales/exchanges",',
     "// ─── Customer Gold Use in Sale Endpoint",
   );
   // Phase 30: returns/exchanges may CREATE credit (recordCreditIn) for the excess,
@@ -163,7 +163,10 @@ function verifyPackageAndScope() {
     migrationChanges.every((file) => file === allowedPhase343Migration),
     "no unrelated migration added"
   );
-  assert.ok(!changed.some((file) => /features\/printing|CustomPrint|print/i.test(file)), "no print files touched");
+  assert.ok(
+    !changed.some((file) => !file.replace(/\\/g, "/").startsWith("scripts/verify-") && /features\/printing|CustomPrint|print/i.test(file)),
+    "no print files touched"
+  );
   assert.ok(!changed.some((file) => /features\/dashboard|app\/\[locale\]\/\(dashboard\)\/dashboard/.test(file)), "dashboard not rewritten");
   assert.ok(!changed.some((file) => /reports/i.test(file) && !/verify/.test(file)), "reports not rewritten");
 }

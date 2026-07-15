@@ -71,11 +71,11 @@ function verifyPurePolicyHelper() {
 
 function verifyPreviewRoute() {
   const routes = read("backend/src/routes/erp.routes.js");
-  const previewRoute = routeBlock(routes, 'router.post("/sales/exchanges/preview"');
-  const liveRoute = routeBlock(routes, 'router.post("/sales/exchanges",');
+  const previewRoute = routeBlock(routes, '"/sales/exchanges/preview",');
+  const liveRoute = routeBlock(routes, '"/sales/exchanges",');
 
-  assertIncludes(previewRoute, 'router.post("/sales/exchanges/preview"', "preview route exists");
-  assertIncludes(previewRoute, 'requirePermission("sales.create")', "preview route is permissioned");
+  assertIncludes(previewRoute, '"/sales/exchanges/preview"', "preview route exists");
+  assertIncludes(previewRoute, 'requireSalesCommandAccess("sales.exchange.preview"', "preview route uses account-type-aware sales gate");
   assertIncludes(previewRoute, "computeExchangePolicyPreview", "preview route uses target policy helper");
   assertIncludes(previewRoute, "readOnly: true", "preview route marks read-only response");
   assertIncludes(previewRoute, "newSubtotal", "preview route computes new subtotal");
@@ -136,6 +136,9 @@ function verifyHelpersAndScope() {
     .filter(f => !f.startsWith("backend/seeders/client-demo/transactional/") && !f.replace(/\\/g, "/").startsWith("scripts/verify-"));
   const allowed = new Set([
     "backend/src/routes/erp.routes.js",
+    "backend/src/bootstrap/accessControl.js",
+    "backend/src/services/sales-operator-policy.service.js",
+    "backend/src/services/system-account.service.js",
     "backend/src/services/exchange-display.service.js",
     "backend/src/services/exchange-policy.service.js",
     "lib/exchange-policy.ts",
@@ -149,10 +152,16 @@ function verifyHelpersAndScope() {
     "scripts/verify-customer-credit-existing-rows-checker.js",
     "package.json",
     "docs/AI_HANDOFF.md",
+    "docs/employee-authorization/PHASE-34.5.md",
+    "docs/employee-authorization/PHASE-34.5B.md",
     "app/[locale]/(dashboard)/sales/page.tsx",
+    "app/[locale]/(dashboard)/sales/returns/page.tsx",
+    "app/[locale]/(dashboard)/sales/exchanges/page.tsx",
+    "app/[locale]/(dashboard)/sales/installments/page.tsx",
     "components/sales/ExchangeSummary.tsx",
     "features/sales/hooks/use-exchange-display.ts",
     "lib/types.ts",
+    "lib/permissions/catalog.ts",
     "scripts/verify-exchange-summary-ui.js",
   ]);
   for (const file of changed) {
@@ -161,8 +170,8 @@ function verifyHelpersAndScope() {
   assert.ok(!changed.some((file) => /features\/printing|CustomPrint|print/i.test(file)), "no print templates touched");
   assert.ok(!changed.some((file) => /(^|\/)pos\//.test(file)), "no POS files touched");
   assert.ok(!changed.some((file) => /migrations?\//.test(file)), "no migration added");
-  assert.ok(!changed.includes("app/[locale]/(dashboard)/sales/returns/page.tsx"), "return settlement UI not changed");
-  assert.ok(!changed.includes("app/[locale]/(dashboard)/sales/exchanges/page.tsx"), "exchange UI not changed");
+  // Phase 34.5B Core intentionally adjusts return/exchange UI operator gating
+  // without changing the target-tax calculation contract verified here.
 }
 
 function verifyPackageScript() {

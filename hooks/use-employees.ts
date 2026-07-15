@@ -112,20 +112,23 @@ export function useEmployeeAuthorization(id: string | undefined) {
   const [branchAccess, setBranchAccess] = useState<any[]>([]);
   const [permissionState, setPermissionState] = useState<any>(null);
   const [verificationAttempts, setVerificationAttempts] = useState<any[]>([]);
+  const [codeHistory, setCodeHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   const refreshAuthorization = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     try {
-      const [branches, permissions, attempts] = await Promise.allSettled([
+      const [branches, permissions, attempts, history] = await Promise.allSettled([
         employeeRepository.getBranchAccess(id),
         employeeRepository.getPermissionState(id),
         employeeRepository.getVerificationAttempts(id, { page: 1, pageSize: 25 }),
+        employeeRepository.getEmployeeCodeHistory(id),
       ]);
       if (branches.status === "fulfilled") setBranchAccess(branches.value);
       if (permissions.status === "fulfilled") setPermissionState(permissions.value);
       if (attempts.status === "fulfilled") setVerificationAttempts(attempts.value.items);
+      if (history.status === "fulfilled") setCodeHistory(history.value);
     } finally {
       setLoading(false);
     }
@@ -157,6 +160,37 @@ export function useEmployeeAuthorization(id: string | undefined) {
     return result;
   }, [id, employeeRepository, emitEmployeeAuthorizationLifecycle, refreshAuthorization]);
 
+  const unlockCredential = useCallback(async (reason?: string) => {
+    if (!id) return { success: false };
+    const result = await employeeRepository.unlockCredential(id, reason);
+    await refreshAuthorization();
+    emitEmployeeAuthorizationLifecycle("employee:credential-unlocked");
+    return result;
+  }, [id, employeeRepository, emitEmployeeAuthorizationLifecycle, refreshAuthorization]);
+
+  const revokeOperatorSessions = useCallback(async (reason?: string) => {
+    if (!id) return { success: false };
+    const result = await employeeRepository.revokeOperatorSessions(id, reason);
+    await refreshAuthorization();
+    emitEmployeeAuthorizationLifecycle("employee:operator-sessions-revoked");
+    return result;
+  }, [id, employeeRepository, emitEmployeeAuthorizationLifecycle, refreshAuthorization]);
+
+  const changeEmployeeCode = useCallback(async (employeeCode: string, reason: string) => {
+    if (!id) return { success: false };
+    const result = await employeeRepository.changeEmployeeCode(id, employeeCode, reason);
+    await refreshAuthorization();
+    emitEmployeeAuthorizationLifecycle("employee:code-changed");
+    return result;
+  }, [id, employeeRepository, emitEmployeeAuthorizationLifecycle, refreshAuthorization]);
+
+  const changeOwnPin = useCallback(async (input: { currentPin: string; newPin: string; confirmation: string }) => {
+    const result = await employeeRepository.changeOwnPin(input);
+    await refreshAuthorization();
+    emitEmployeeAuthorizationLifecycle("employee:self-pin-changed");
+    return result;
+  }, [employeeRepository, emitEmployeeAuthorizationLifecycle, refreshAuthorization]);
+
   const updateBranches = useCallback(async (branchIds: string[]) => {
     if (!id) return { success: false };
     const result = await employeeRepository.updateBranchAccess(id, branchIds);
@@ -165,7 +199,7 @@ export function useEmployeeAuthorization(id: string | undefined) {
     return result;
   }, [id, employeeRepository, emitEmployeeAuthorizationLifecycle, refreshAuthorization]);
 
-  const updatePermissions = useCallback(async (input: { roleIds: string[]; grantPermissionIds: string[]; denialPermissionIds: string[] }) => {
+  const updatePermissions = useCallback(async (input: { roleIds: string[]; grantPermissionIds: string[]; denialPermissionIds: string[]; reason?: string }) => {
     if (!id) return { success: false };
     const result = await employeeRepository.updatePermissionState(id, input);
     await refreshAuthorization();
@@ -173,7 +207,21 @@ export function useEmployeeAuthorization(id: string | undefined) {
     return result;
   }, [id, employeeRepository, emitEmployeeAuthorizationLifecycle, refreshAuthorization]);
 
-  return { branchAccess, permissionState, verificationAttempts, loading, refreshAuthorization, resetCredential, updateBranches, updatePermissions };
+  return {
+    branchAccess,
+    permissionState,
+    verificationAttempts,
+    codeHistory,
+    loading,
+    refreshAuthorization,
+    resetCredential,
+    unlockCredential,
+    revokeOperatorSessions,
+    changeEmployeeCode,
+    changeOwnPin,
+    updateBranches,
+    updatePermissions
+  };
 }
 
 export function useEmployeeMutations() {

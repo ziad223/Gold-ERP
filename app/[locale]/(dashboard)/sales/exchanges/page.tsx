@@ -42,14 +42,15 @@ export default function ExchangesPage() {
   const { company, activeBranch, user } = useAuth();
   const { invoices, assets, addInvoice, updateAssetWithEvent } = useErp();
   const { settings } = useAppSettings();
-  const { hasPermission } = usePermissions();
+  const { accountType, hasPermission } = usePermissions();
 
   const dataSource = getDataSourceMode();
   const apiMode = dataSource === "api";
-  const canCreateSales = hasPermission("sales.create");
+  const usesEmployeeFirstSalesGate = accountType === "branch_shell" || accountType === "super_admin";
+  const canExecuteExchanges = usesEmployeeFirstSalesGate || hasPermission("sales.create");
   const submitPermissionMessage = rtl
-    ? "تنفيذ استبدال القطع يحتاج صلاحية إنشاء مبيعات."
-    : "Sales exchange submission requires the sales create permission.";
+    ? "تنفيذ استبدال المبيعات يحتاج صلاحية استبدال المبيعات للموظف."
+    : "Sales exchange submission requires Employee sales exchange permission.";
 
   const [invoiceId, setInvoiceId] = useState("");
   const [returnInvoice, setReturnInvoice] = useState<Invoice | null>(null);
@@ -248,7 +249,7 @@ export default function ExchangesPage() {
       setErrorMsg(rtl ? "تحقق من كميات المنتجات (عدد صحيح موجب لا يتجاوز المتاح)." : "Check product quantities (positive integer within available stock).");
       return;
     }
-    if (!canCreateSales) {
+    if (!canExecuteExchanges) {
       setSuccessMsg("");
       setErrorMsg(submitPermissionMessage);
       return;
@@ -630,13 +631,13 @@ export default function ExchangesPage() {
                     <p className="text-lg font-black text-brand-700 dark:text-brand-300">
                       {money(Math.abs(difference))}
                     </p>
-                    {!canCreateSales && (
+                    {!canExecuteExchanges && (
                       <p className="mt-2 max-w-sm text-xs font-bold text-destructive">
                         {submitPermissionMessage}
                       </p>
                     )}
                   </div>
-                  <Button onClick={handlePostExchange} disabled={!canCreateSales} title={!canCreateSales ? submitPermissionMessage : undefined}>
+                  <Button onClick={handlePostExchange} disabled={!canExecuteExchanges} title={!canExecuteExchanges ? submitPermissionMessage : undefined}>
                     <RefreshCw className="h-4 w-4" />
                     {rtl ? "تأكيد واستكمال الاستبدال" : "Confirm Exchange"}
                   </Button>

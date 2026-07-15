@@ -6,8 +6,10 @@ import { hasPermission, PermissionSet } from "@/lib/permissions/permissions";
 export function usePermissions() {
   const { user } = useAuth();
   const role = user?.role;
+  const accountType = user?.accountType ?? "legacy";
 
   const has = (permissionName: string): boolean => {
+    if (accountType === "branch_shell") return user?.permissions?.includes(permissionName) ?? false;
     if (role === "admin" || role === "owner") return true;
     return user?.permissions?.includes(permissionName) ?? false;
   };
@@ -22,11 +24,13 @@ export function usePermissions() {
     };
     const granular = legacyToGranular[permission];
     if (granular && user?.permissions) return has(granular);
+    if (accountType === "branch_shell") return false;
     return hasPermission(role, permission);
   };
 
   return {
     role,
+    accountType,
     hasPermission: has,
     permissions: user?.permissions ?? [],
     isAuthorized: check,

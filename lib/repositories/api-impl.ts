@@ -320,6 +320,43 @@ export class ApiEmployeeRepository implements EmployeeRepository {
     });
   }
 
+  async unlockCredential(employeeId: string, reason = "UI credential unlock"): Promise<MutationResult<any>> {
+    return apiClient<MutationResult<any>>(`/employees/${employeeId}/credential/unlock`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+      ...auth(),
+    });
+  }
+
+  async revokeOperatorSessions(employeeId: string, reason = "UI operator session revocation"): Promise<MutationResult<any>> {
+    return apiClient<MutationResult<any>>(`/employees/${employeeId}/credential/revoke-sessions`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+      ...auth(),
+    });
+  }
+
+  async changeEmployeeCode(employeeId: string, employeeCode: string, reason: string): Promise<MutationResult<any>> {
+    return apiClient<MutationResult<any>>(`/employees/${employeeId}/change-code`, {
+      method: "POST",
+      body: JSON.stringify({ employeeCode, reason }),
+      ...auth(),
+    });
+  }
+
+  async getEmployeeCodeHistory(employeeId: string): Promise<Array<{ id: string; oldCode?: string | null; newCode?: string | null; reason?: string | null; createdAt?: string | null }>> {
+    const res = await apiClient<any>(`/employees/${employeeId}/code-history`, auth());
+    return normalizeItems(res);
+  }
+
+  async changeOwnPin(input: { currentPin: string; newPin: string; confirmation: string }): Promise<MutationResult<any>> {
+    return apiClient<MutationResult<any>>("/operator/change-pin", {
+      method: "POST",
+      body: JSON.stringify(input),
+      ...auth(),
+    });
+  }
+
   async getBranchAccess(employeeId: string): Promise<EmployeeBranchAccess[]> {
     const res = await apiClient<any>(`/employees/${employeeId}/branches`, auth());
     return normalizeItems<EmployeeBranchAccess>(res);
@@ -338,7 +375,7 @@ export class ApiEmployeeRepository implements EmployeeRepository {
     return (res?.data ?? res) as EmployeePermissionState;
   }
 
-  async updatePermissionState(employeeId: string, input: { roleIds: string[]; grantPermissionIds: string[]; denialPermissionIds: string[] }): Promise<MutationResult<{ authorization: EmployeePermissionState["authorization"] }>> {
+  async updatePermissionState(employeeId: string, input: { roleIds: string[]; grantPermissionIds: string[]; denialPermissionIds: string[]; reason?: string }): Promise<MutationResult<{ authorization: EmployeePermissionState["authorization"] }>> {
     return apiClient<MutationResult<{ authorization: EmployeePermissionState["authorization"] }>>(`/employees/${employeeId}/permissions`, {
       method: "PUT",
       body: JSON.stringify(input),

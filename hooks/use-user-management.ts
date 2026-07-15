@@ -38,7 +38,33 @@ export interface ManagedUser {
   activeSessions?: number;
   forcePasswordChange?: boolean;
   defaultEmployeeId?: string | null;
+  branch?: { id: string; name?: string | null; code?: string | null } | null;
+  defaultEmployee?: { id: string; employeeCode?: string | null; name?: string | null; status?: string | null } | null;
   roles?: ManagedRole[];
+}
+
+export interface SystemAccountReadiness {
+  superAdmins: number;
+  superAdminsWithRecovery: number;
+  finalAdminProtected: boolean;
+  branchShells: number;
+  eligibleAdminEmployees: number;
+  localDevRecoveryDelivery: boolean;
+  productionEmailReady: boolean;
+  deferred: string[];
+}
+
+export interface BranchOption {
+  id: string;
+  name?: string | null;
+  code?: string | null;
+}
+
+export interface EmployeeOption {
+  id: string;
+  employeeCode?: string | null;
+  name?: string | null;
+  status?: string | null;
 }
 
 export function useUserManagement() {
@@ -57,6 +83,16 @@ export function useUserManagement() {
   const permissionsQuery = useQuery({
     queryKey: queryKeys.permissions,
     queryFn: async () => normalizeItems<ManagedPermission>(await apiClient("/permissions", { skipBranch: true })),
+  });
+
+  const branchesQuery = useQuery({
+    queryKey: queryKeys.branches,
+    queryFn: async () => normalizeItems<BranchOption>(await apiClient("/branches?page=1&pageSize=100", { skipBranch: true })),
+  });
+
+  const employeesQuery = useQuery({
+    queryKey: ["employees-system-account-options"],
+    queryFn: async () => normalizeItems<EmployeeOption>(await apiClient("/employees?page=1&pageSize=100", { skipBranch: true })),
   });
 
   const createUser = useMutation({
@@ -81,6 +117,38 @@ export function useUserManagement() {
   const systemAccountsQuery = useQuery({
     queryKey: ["system-accounts"],
     queryFn: async () => normalizeItems<ManagedUser>(await apiClient("/system-accounts", { skipBranch: true })),
+  });
+
+  const readinessQuery = useQuery({
+    queryKey: ["system-accounts", "readiness"],
+    queryFn: async () => {
+      const res = await apiClient<{ success: boolean; data: SystemAccountReadiness }>("/system-accounts/readiness", { skipBranch: true });
+      return res.data;
+    },
+  });
+
+  const createSystemAccount = useMutation({
+    mutationFn: (payload: Record<string, unknown>) =>
+      apiClient("/system-accounts", {
+        method: "POST",
+        body: JSON.stringify(payload),
+        skipBranch: true,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["system-accounts"] });
+    },
+  });
+
+  const updateSystemAccount = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: Record<string, unknown> }) =>
+      apiClient(`/system-accounts/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+        skipBranch: true,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["system-accounts"] });
+    },
   });
 
   const systemAccountAction = useMutation({
@@ -113,12 +181,17 @@ export function useUserManagement() {
   return {
     users: usersQuery.data ?? [],
     systemAccounts: systemAccountsQuery.data ?? [],
+    readiness: readinessQuery.data,
+    branches: branchesQuery.data ?? [],
+    employees: employeesQuery.data ?? [],
     roles: rolesQuery.data ?? [],
     permissions: permissionsQuery.data ?? [],
-    isLoading: usersQuery.isLoading || rolesQuery.isLoading || permissionsQuery.isLoading || systemAccountsQuery.isLoading,
+    isLoading: usersQuery.isLoading || rolesQuery.isLoading || permissionsQuery.isLoading || systemAccountsQuery.isLoading || branchesQuery.isLoading || employeesQuery.isLoading,
     createUser: createUser.mutateAsync,
+    createSystemAccount: createSystemAccount.mutateAsync,
+    updateSystemAccount: updateSystemAccount.mutateAsync,
     systemAccountAction: systemAccountAction.mutateAsync,
     updateRolePermissions: updateRolePermissions.mutateAsync,
-    isSaving: createUser.isPending || updateRolePermissions.isPending || systemAccountAction.isPending,
+    isSaving: createUser.isPending || createSystemAccount.isPending || updateSystemAccount.isPending || updateRolePermissions.isPending || systemAccountAction.isPending,
   };
 }

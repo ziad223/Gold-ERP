@@ -11,6 +11,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { LoadingState } from "@/components/ui/loading-state";
 import { useAuth } from "@/contexts/auth-context";
 import { useInstallments } from "@/hooks/use-installments";
+import { usePermissions } from "@/hooks/use-permissions";
 import { formatCurrency } from "@/lib/utils";
 import type { Installment } from "@/lib/types";
 
@@ -19,11 +20,17 @@ export default function InstallmentsPage() {
   const common = useTranslations("Common");
   const locale = useLocale();
   const { company } = useAuth();
+  const { accountType, hasPermission } = usePermissions();
   const currency = company?.currency ?? "AED";
   const money = (v: number | string) => formatCurrency(Number(v), currency, locale);
 
   const rtl = locale === "ar";
   const { items, loading, payInstallment } = useInstallments();
+  const usesEmployeeFirstSalesGate = accountType === "branch_shell" || accountType === "super_admin";
+  const canCollectInstallments = usesEmployeeFirstSalesGate || hasPermission("sales.create");
+  const collectPermissionMessage = rtl
+    ? "تحصيل الأقساط يحتاج صلاحية تحصيل الأقساط للموظف."
+    : "Installment collection requires Employee installment collection permission.";
   const [payingId, setPayingId] = useState<string | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
 
@@ -52,6 +59,10 @@ export default function InstallmentsPage() {
   };
 
   const handlePay = async (inst: Installment) => {
+    if (!canCollectInstallments) {
+      setPayError(collectPermissionMessage);
+      return;
+    }
     const remaining = remainingOf(inst);
     if (!Number.isFinite(remaining) || remaining <= 0) {
       setPayError(rtl ? "لا يوجد مبلغ متبقٍ صالح للتحصيل" : "No valid remaining amount to collect");

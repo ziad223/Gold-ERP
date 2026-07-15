@@ -53,8 +53,8 @@ function verifyHelperFormula() {
 
 function verifyLiveRoute() {
   const routes = read("backend/src/routes/erp.routes.js");
-  const liveRoute = routeBlock(routes, 'router.post("/sales/exchanges",');
-  const previewRoute = routeBlock(routes, 'router.post("/sales/exchanges/preview"');
+  const liveRoute = routeBlock(routes, '"/sales/exchanges",');
+  const previewRoute = routeBlock(routes, '"/sales/exchanges/preview",');
 
   assertIncludes(previewRoute, "computeExchangePolicyPreview", "preview helper remains available");
   assertIncludes(liveRoute, "exchangePolicyService.computeExchangePolicyPreview", "live route uses exchange-policy helper");
@@ -90,7 +90,7 @@ function verifyLiveRoute() {
   assertIncludes(liveRoute, 'accountCode: "2300"', "exchange credit settlement posts 2300 in the single journal");
 
   assertIncludes(liveRoute, 'const idemScope = "sales.exchange"', "sales.exchange idempotency scope retained");
-  assertIncludes(liveRoute, "idempotencyService.hashRequest(idemScope, body)", "whole-body hash retained");
+  assertIncludes(liveRoute, "idempotencyBodyWithActor(req, body, commandActor)", "whole-body idempotency hash includes operator actor consistency");
 }
 
 function verifyScope() {
@@ -102,6 +102,9 @@ function verifyScope() {
 
   const allowed = new Set([
     "backend/src/routes/erp.routes.js",
+    "backend/src/bootstrap/accessControl.js",
+    "backend/src/services/sales-operator-policy.service.js",
+    "backend/src/services/system-account.service.js",
     "backend/src/services/exchange-display.service.js",
     "scripts/verify-exchange-display-api-enrichment.js",
     "scripts/verify-live-exchange-tax-policy.js",
@@ -113,21 +116,27 @@ function verifyScope() {
     "scripts/verify-customer-credit-existing-rows-checker.js",
     "package.json",
     "docs/AI_HANDOFF.md",
+    "docs/employee-authorization/PHASE-34.5.md",
+    "docs/employee-authorization/PHASE-34.5B.md",
     "app/[locale]/(dashboard)/sales/page.tsx",
+    "app/[locale]/(dashboard)/sales/returns/page.tsx",
+    "app/[locale]/(dashboard)/sales/exchanges/page.tsx",
+    "app/[locale]/(dashboard)/sales/installments/page.tsx",
     "components/sales/ExchangeSummary.tsx",
     "features/sales/hooks/use-exchange-display.ts",
     "lib/types.ts",
+    "lib/permissions/catalog.ts",
     "scripts/verify-exchange-summary-ui.js",
   ]);
 
   for (const file of changed) {
     assert.ok(allowed.has(file), `unexpected changed file: ${file}`);
   }
-  assert.ok(!changed.some((file) => /features\/printing|CustomPrint|invoice-print-view-model|print/i.test(file)), "no print files touched");
+  assert.ok(!changed.some((file) => !file.replace(/\\/g, "/").startsWith("scripts/verify-") && /features\/printing|CustomPrint|invoice-print-view-model|print/i.test(file)), "no print files touched");
   assert.ok(!changed.some((file) => /(^|\/)pos\//.test(file)), "no POS files touched");
   assert.ok(!changed.some((file) => /(^|\/)migrations?\//.test(file)), "no migration added");
-  assert.ok(!changed.includes("app/[locale]/(dashboard)/sales/returns/page.tsx"), "return flow/UI unchanged");
-  assert.ok(!changed.includes("app/[locale]/(dashboard)/sales/exchanges/page.tsx"), "exchange UI unchanged");
+  // Phase 34.5B Core intentionally adjusts return/exchange UI operator gating
+  // without changing the live exchange tax policy verified here.
 }
 
 function verifyPackageScript() {

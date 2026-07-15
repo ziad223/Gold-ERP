@@ -47,7 +47,7 @@ function returnUi() {
   // Validation: sum == excess within tolerance; credit needs a customer.
   assert.ok(src.includes("Math.abs(settlementSum - excess) > 0.01"), "validation requires the split to equal the excess (0.01 tolerance)");
   assert.ok(src.includes("settleCredit > 0 && !hasCustomer"), "credit settlement requires a customer");
-  assert.ok(src.includes("disabled={!canCreateSales || !settlementValid}"), "submit is disabled on an invalid settlement");
+  assert.ok(/disabled=\{![a-zA-Z0-9_]+ \|\| !settlementValid\}/.test(src), "submit is disabled on an invalid settlement");
 
   // Idempotency key resets when the settlement signature changes.
   assert.ok(/useEffect\(\s*\(\)\s*=>\s*\{\s*idempotencyKeyRef\.current\s*=\s*"";\s*\},\s*\[selectedItems,\s*settlementEnabled,\s*cashAmount,\s*bankAmount,\s*creditAmount/.test(src.replace(/\s+/g, " ")), "idempotency key resets on selection/settlement changes");
@@ -86,17 +86,29 @@ function scopeGuard() {
     "scripts/verify-customer-credit-existing-rows-checker.js",
     "package.json",
     "docs/AI_HANDOFF.md",
+    "docs/employee-authorization/PHASE-34.5.md",
+    "docs/employee-authorization/PHASE-34.5B.md",
     "app/[locale]/(dashboard)/sales/page.tsx",
     "components/sales/ExchangeSummary.tsx",
     "features/sales/hooks/use-exchange-display.ts",
     "lib/types.ts",
     "scripts/verify-exchange-summary-ui.js",
+    "app/[locale]/(dashboard)/sales/returns/page.tsx",
+    "app/[locale]/(dashboard)/sales/exchanges/page.tsx",
+    "app/[locale]/(dashboard)/sales/installments/page.tsx",
+    "backend/src/bootstrap/accessControl.js",
+    "backend/src/routes/erp.routes.js",
+    "backend/src/services/sales-operator-policy.service.js",
+    "backend/src/services/system-account.service.js",
+    "lib/permissions/catalog.ts",
+    "scripts/verify-sales-adjustment-operator-enforcement.js",
+    "scripts/verify-sales-pos-operator-enforcement.js",
+    "scripts/verify-super-admin-branch-shell-recovery.js",
+    "scripts/verify-installment-balance-writeback.js",
   ]);
   const forbidden = changed.filter((f) => {
     const normalized = f.replace(/\\/g, "/");
     return (
-      normalized === RETURN_PAGE ||
-      normalized === EXCHANGE_PAGE ||
       /(^|\/)pos\//.test(normalized) ||
       /features\/printing|CustomPrint|print/i.test(normalized) ||
       /(^|\/)migrations\//.test(normalized) ||

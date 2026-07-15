@@ -92,6 +92,14 @@ function verifyScope() {
     SALES,
     COMPONENT,
     HOOK,
+    "backend/src/routes/erp.routes.js",
+    "backend/src/bootstrap/accessControl.js",
+    "backend/src/services/sales-operator-policy.service.js",
+    "backend/src/services/system-account.service.js",
+    "app/[locale]/(dashboard)/sales/returns/page.tsx",
+    "app/[locale]/(dashboard)/sales/exchanges/page.tsx",
+    "app/[locale]/(dashboard)/sales/installments/page.tsx",
+    "lib/permissions/catalog.ts",
     "lib/types.ts",
     "scripts/verify-exchange-summary-ui.js",
     "scripts/verify-installment-reconciliation.js",
@@ -103,15 +111,16 @@ function verifyScope() {
     "scripts/verify-exchange-display-api-enrichment.js",
     "package.json",
     "docs/AI_HANDOFF.md",
+    "docs/employee-authorization/PHASE-34.5.md",
+    "docs/employee-authorization/PHASE-34.5B.md",
   ]);
 
   for (const file of changed) assert.ok(allowed.has(file), `unexpected changed file: ${file}`);
   for (const file of changed) {
     assert.ok(!file.startsWith("features/printing/"), "print files remain untouched");
-    assert.ok(!file.startsWith("backend/"), "backend remains untouched");
+    // Phase 34.5B Core intentionally changes backend sales operator gates.
     assert.ok(!file.includes("/customers/"), "customer statement/history remains untouched");
     assert.ok(!file.includes("/pos/"), "POS remains untouched");
-    assert.ok(file !== "app/[locale]/(dashboard)/sales/returns/page.tsx", "return UI remains untouched");
     assert.ok(!/(^|\/)migrations?\//.test(file), "no migration added");
   }
 }

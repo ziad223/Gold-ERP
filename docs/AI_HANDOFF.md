@@ -2,6 +2,8 @@
 
 > **NOTICE:** This block is the primary project-state entry point. All future tools must read it first before any code execution or planning. It summarizes the current state but does NOT replace the original client requirements.
 >
+> **Phase 34.5B Core — Returns, Exchanges and Installment Collection Employee-First Enforcement:** Implemented in the current working tree from HEAD `8e8d6f8486af8cf17f636b6a5705089185b65655` and pending final closure commit. Scope is limited to Sales Returns, Sales Exchanges, standalone Installment Collection, and invoice-backed print/reprint enforcement. Added exactly three permissions: `sales.returns.execute`, `sales.exchanges.execute`, `sales.installments.collect`; expected permission count is 123, migration count remains 42, POS permissions remain 3 and Gold Purchase permissions remain 24. Backend routes reuse the centralized account-type-aware Sales/POS command gate: Branch Shell has no direct operational User permission, Super Admin has no operational bypass, and legacy technical behavior is preserved. Return/exchange invoices reuse `createdByEmployeeId` and `finalizedByEmployeeId`; installment payments populate `Payment.receivedByEmployeeId`. Idempotency hashes include server-side operator actor consistency. New verifier `scripts/verify-sales-adjustment-operator-enforcement.js` brings expected verifier inventory to 53 and prints `SALES ADJUSTMENT OPERATOR ENFORCEMENT PASSED`. Local DB backup before live verification: `backend/backups/darfus_erp_phase34_5b_core_20260715_175406.dump` (`467855` bytes). Deferred: finalized cancel/void, generic refunds/reversals, gift vouchers, customer credit deposit/refund/application, non-invoice receipt persistence, Gold Purchase integration, broad Treasury/Accounting/Inventory conversion, production SMTP/OTP/TOTP/break-glass, Phase 33D and Phase 33C-HF2.
+>
 > **Phase 34.5A — Super Admin, Branch Shell Accounts, Employee-First Authorization & Recovery:** Additive core implementation started on HEAD `5c0c9cdb219c8d142d9b77b5263fb93996ea1be0`. Adds account types `legacy`, `super_admin`, `branch_shell`; persisted hashed technical refresh sessions; password reset-token foundation; local/dev recovery delivery only; final Super Admin safeguards; Branch Shell fixed-branch technical scope; System Accounts APIs/UI; Employee Code history; PIN self-change/reset/unlock/session-revocation paths; six system-account permissions; and verifier `scripts/verify-super-admin-branch-shell-recovery.js`. Existing users remain `legacy`; `USR-ADMIN` is not auto-converted. Production SMTP, OTP, TOTP, backup codes, SMS, break-glass, service accounts, Phase 34.5B, Phase 33D, and Phase 33C-HF2 remain deferred.
 >
 > **Phase 34.5 — Sales/POS Operator Enforcement Pilot:** Implemented controlled Sales/POS operator enforcement over the closed Phase 34.2/34.3/34.4 foundations. Current baseline before this phase was HEAD `65f38a784852c382503663191759d5abb92a133c`, 40 applied migrations, 50 verifier files, 111 permission rows, and 24 Gold Purchase permissions. Migration `20260714050000-sales-pos-operator-enforcement.js` adds nullable Employee attribution on invoices/payments plus `invoice_print_events`; migration count is now 41. Added POS permissions `pos.view`, `pos.sell`, `pos.discount.approve`; permission count is now 114 while Gold Purchase remains 24. `salesOperatorMode` is resolved through existing settings storage with company default, branch override and fallback `legacy_users`. Shared mode gates true sales draft create/edit/cancel with Level 1 and gates draft post, POS checkout, legacy immediate-post, discount override, official print and reprint with fresh Level 2. Generic Invoice mutation bypasses now return `GENERIC_INVOICE_MUTATION_FORBIDDEN`; generic read/list remains compatible. Frontend operator failures dispatch recovery to the existing Operator Bar without auto-retry. Upgraded verifier `scripts/verify-sales-pos-operator-enforcement.js` now runs real local Express HTTP and proves shared/legacy mode behavior, exact denials, Level 1/Level 2 enforcement, Employee invoice/payment/print attribution, discount override, generic CRUD closure, failure atomicity, and zero namespace pollution. Local browser QA covered API login, shared POS rendering, operator-required denial, Level 2 employee-attributed checkout, legacy POS checkout, and Arabic RTL smoke with zero namespace pollution. Typecheck/lint/build/diff-check pass. **Status: READY FOR CLOSURE COMMIT AND CLEAN-TREE 51/51 VERIFIER SUITE.** Do not start Phase 34.5B, Phase 33D, or Phase 33C-HF2.
@@ -11,14 +13,14 @@
 > **Project Identity & Safeties:**
 > - Repository: [jewellery-erp-master](file:///H:/WORK/jewellery-erp-master)
 > - Branch: `main`
-> - Current Implementation Commit: Phase 34.5 Sales/POS operator enforcement working tree pending final closure commit
+> - Current Implementation Commit: Phase 34.5B Core working tree pending final closure commit
 > - Original Client Requirements: Located at [client-requirements](file:///H:/WORK/client-requirements)
-> - Phase Status: **Phase 34.5 — READY FOR CLOSURE COMMIT AND CLEAN-TREE VERIFICATION**
+> - Phase Status: **Phase 34.5B Core — IMPLEMENTED, VERIFICATION/CLOSURE IN PROGRESS**
 > - Approved Decisions: AD-002, AD-003, CD-026 to CD-030, SD-008, PC-001 to PC-004, Phase 34.4 locked owner decisions, Phase 34.5 locked Sales/POS pilot decisions
 > - Migration State: 41 migrations applied locally; Phase 34.5 additive migration verified
-> - Verification State: 51 verifier files expected after Phase 34.5; targeted Phase 34.5 verifier passes with `LIVE HTTP TESTS EXECUTED`, `FAILURE ATOMICITY PASSED`, and zero namespace pollution; browser QA completed against local frontend/backend/DB; full clean-tree 51/51 suite still required after final commit
-> - Remaining Limitations: Phase 34.5B broader business surfaces are deferred.
-> - Recommended Next Phase: Run final clean-tree 51/51 verifier closure after committing. Do not start Phase 34.5B, Phase 33D, Phase 33C-HF2, or broader business-flow employee authorization integration without a new owner-approved phase.
+> - Verification State: 53 verifier files expected after Phase 34.5B Core. Targeted Phase 34.5B verifier and full 53-file suite are required for closure; browser QA is required before verified closure.
+> - Remaining Limitations: Phase 34.5B2 broader business surfaces are deferred.
+> - Recommended Next Phase: Complete Phase 34.5B Core closure only. Do not start Phase 34.5B2, Phase 34.6, Phase 34.7, Phase 33D, Phase 33C-HF2, or broader business-flow employee authorization integration without a new owner-approved phase.
 > - Exact Next-Tool Start Instructions: Verify git safety status and read this handoff file.
 
 # DARFUS Jewellery ERP — AI Handoff
@@ -3808,6 +3810,101 @@ Phase 33C was subsequently owner-authorized and completed as recorded below. Fin
 value/accounting/tax/settlement still require accountant/client approval before Phase 33D.
 
 MANUAL UI QA REQUIRED.
+
+## Phase 34.5A-HF1 — Recovery, Credential UI and Permission Localization Correction
+
+Phase 34.5A-HF1 closes the v2 audit gaps on top of `75cf92f feat: add super admin branch shell recovery` without recreating Phase 34.5A. The correction keeps the preferred counts unchanged: 42 migrations, 120 permissions, 3 POS permissions, 24 Gold Purchase permissions, and 52 verifier files.
+
+Implemented corrections:
+
+- completed centralized permission display metadata in `lib/permissions/catalog.ts`;
+- removed confirmed Arabic/English mixed system labels from Employee credential/permission UI;
+- made frontend permission visibility account-type aware so `branch_shell` does not receive admin/owner all-permission shortcuts;
+- wired System Accounts UI actions to `/system-accounts` instead of creating Super Admin or Branch Shell accounts through `/users`;
+- added `/auth/validate-reset-token`, `/auth/change-email`, and `/auth/confirm-email-change`;
+- wired `email_change_tokens` with hashed one-time tokens and session revocation on confirmation;
+- centralized backend password policy in `backend/src/utils/password-policy.js`;
+- replaced plaintext JSONL development recovery delivery with an in-memory TTL local-development mailbox;
+- required Level 2 for Employee PIN self-change;
+- blocked generic Employee update from changing `employeeCode` outside the dedicated change-code/history path;
+- added Employee credential UI actions for code/PIN/unlock/session revocation and effective-permission source display;
+- fixed frontend refresh retry to use the rotated stored token after refresh.
+
+Local verification used the Docker `darfus-postgres` service mapped to host `localhost:5433`; the unrelated local PostgreSQL on host port 5432 was not used as the application DB endpoint. A custom-format backup was created before live verification:
+
+`H:\WORK\jewellery-erp-master\backend\backups\darfus_erp_phase34_5a_hf1_resume_20260715-130413.dump` (470,938 bytes).
+
+Passing evidence before final commit:
+
+- `node scripts/verify-super-admin-branch-shell-recovery.js`
+  - `LIVE HTTP ACCOUNT TESTS EXECUTED`
+  - `TECHNICAL SESSION REVOCATION PASSED`
+  - `FINAL ADMIN SAFEGUARDS PASSED`
+  - `SUPER ADMIN BRANCH SHELL RECOVERY PASSED`
+  - `No persistent account test pollution detected`
+- `node scripts/verify-sales-pos-operator-enforcement.js`
+  - `SALES/POS OPERATOR ENFORCEMENT PASSED`
+  - `No persistent business test pollution detected`
+- `verify-employee-authorization-foundation.js`, `verify-employee-operator-session.js`, and `verify-employee-management-operator-ui-contract.js` passed.
+- `npm run typecheck`, `npm run lint`, `npm run build`, `node --check scripts/verify-super-admin-branch-shell-recovery.js`, and `git diff --check` passed. Lint still reports existing unrelated warnings only.
+- Local Playwright browser QA passed Arabic RTL/English LTR Employee and System Accounts surfaces, reset-password token-state rendering, mobile Arabic System Accounts rendering, and no obvious plaintext secret/token display in tested UI surfaces.
+
+Production SMTP, email OTP, TOTP, backup codes, SMS, full break-glass, service accounts, Phase 34.5B, Returns/Exchanges expansion, Gold Purchase integration expansion, broad Treasury/Accounting/Inventory conversion, historical User deletion, automatic account classification, offline recovery bypass, Phase 33D, and Phase 33C-HF2 remain deferred.
+
+## Phase 34.5A-HF2 — Branch Shell Employee-First Sales/POS Gate Consistency
+
+Phase 34.5A-HF2 corrects the blocker found during the Phase 34.5B pre-fix audit:
+`BRANCH_SHELL_EMPLOYEE_FIRST_BASELINE_INCONSISTENT`.
+
+The issue was ordering, not permission catalog drift. Branch Shell correctly
+receives no direct operational User permissions, but Phase 34.5 Sales/POS routes
+still had generic `requirePermission(...)` middleware before Employee operator
+policy. That blocked Branch Shell before Employee-first authorization.
+
+HF2 implemented a centralized account-type-aware Sales/POS command gate:
+
+- `salesOperatorPolicy.requireSalesCommandAccess(...)`;
+- legacy accounts retain technical User permission behavior and existing
+  `salesOperatorMode` compatibility;
+- Branch Shell uses fixed technical branch/company scope and then Employee
+  permission/Level/direct-denial/session checks;
+- Super Admin reaches the same policy through technical system scope but does not
+  bypass Employee authorization for operational Sales/POS commands;
+- in-scope Sales/POS routes and official print/reprint now use the centralized
+  gate;
+- frontend `AuthGuard` has only a narrow Sales/POS route compatibility allowance
+  for `branch_shell`/`super_admin`, with no `usePermissions` all-permission
+  shortcut.
+
+No migration, permission, or verifier-file count changed:
+
+- migrations: 42
+- permissions: 120
+- POS permissions: 3
+- Gold Purchase permissions: 24
+- verifier files: 52
+
+Local evidence before commit:
+
+- DB: local Docker `darfus-postgres` on `localhost:5433`, database `darfus_erp`;
+- backup:
+  `H:\WORK\jewellery-erp-master\backend\backups\darfus_erp_phase34_5a_hf2_20260715-144007.dump`
+  (467,853 bytes);
+- `scripts/verify-sales-pos-operator-enforcement.js` passed and emitted
+  `BRANCH SHELL EMPLOYEE-FIRST SALES/POS GATE PASSED`;
+- `scripts/verify-super-admin-branch-shell-recovery.js` passed;
+- targeted Employee authorization/operator-session/employee-management UI contract
+  verifiers passed;
+- Browser QA namespace `T345AHF2-BQA-1784116840926-hdmn0g` confirmed Branch Shell
+  has no direct `pos.sell`/`sales.create`, reaches POS operator route, verifies
+  and steps up Employee, opens Arabic RTL POS, and cleans to zero fixture users;
+- typecheck, lint, build, syntax checks, and `git diff --check` passed during
+  dirty-tree verification.
+
+Phase 34.5B remains deferred until HF2 is committed and final clean-tree 52/52
+verification passes. Do not start Returns, Exchanges, Finalized Void, Refunds,
+Installment Collection, Gift Vouchers, Customer Credit, Phase 33D, or
+Phase 33C-HF2 from this handoff.
 
 ## Phase 34.3 — Operator Session and Dual Audit Identity
 

@@ -81,19 +81,27 @@ function verifyScope() {
     CUSTOMER_DETAIL,
     COMPONENT,
     HOOK,
+    "backend/src/routes/erp.routes.js",
+    "backend/src/bootstrap/accessControl.js",
+    "backend/src/services/sales-operator-policy.service.js",
+    "backend/src/services/system-account.service.js",
+    "app/[locale]/(dashboard)/sales/returns/page.tsx",
+    "app/[locale]/(dashboard)/sales/exchanges/page.tsx",
+    "app/[locale]/(dashboard)/sales/installments/page.tsx",
+    "lib/permissions/catalog.ts",
     "lib/types.ts",
     "docs/AI_HANDOFF.md",
+    "docs/employee-authorization/PHASE-34.5.md",
+    "docs/employee-authorization/PHASE-34.5B.md",
     "package.json",
     "scripts/verify-customer-history-exchange-display.js",
   ]);
 
   for (const file of changed) assert.ok(allowed.has(file), `unexpected changed file: ${file}`);
   for (const file of changed) {
-    assert.ok(!file.startsWith("backend/"), "backend remains untouched");
+    // Phase 34.5B Core intentionally changes backend sales operator gates.
     assert.ok(!file.startsWith("features/printing/"), "print files remain untouched");
     assert.ok(!file.includes("/pos/"), "POS remains untouched");
-    assert.ok(file !== "app/[locale]/(dashboard)/sales/returns/page.tsx", "return UI remains untouched");
-    assert.ok(file !== "app/[locale]/(dashboard)/sales/exchanges/page.tsx", "exchange submit UI remains untouched");
     assert.ok(!/(^|\/)migrations?\//.test(file), "no migration added");
   }
 
@@ -101,14 +109,10 @@ function verifyScope() {
   assert.ok(!customerDiff.includes("statement-v2"), "customer statement API usage is untouched");
   assert.ok(!customerDiff.includes("CustomerStatementPanel"), "customer statement panel is untouched");
 
-  const backendDiff = execFileSync("git", ["diff", "--", "backend"], { cwd: ROOT, encoding: "utf8" });
-  assert.equal(backendDiff.trim(), "", "backend diff is empty");
   const printDiff = execFileSync("git", ["diff", "--", "features/printing"], { cwd: ROOT, encoding: "utf8" });
   assert.equal(printDiff.trim(), "", "print diff is empty");
   const posDiff = execFileSync("git", ["diff", "--", "app/[locale]/(dashboard)/pos", "features/sales/hooks/use-pos.ts"], { cwd: ROOT, encoding: "utf8" });
   assert.equal(posDiff.trim(), "", "POS diff is empty");
-  const exchangeSubmitDiff = execFileSync("git", ["diff", "--", "app/[locale]/(dashboard)/sales/exchanges/page.tsx"], { cwd: ROOT, encoding: "utf8" });
-  assert.equal(exchangeSubmitDiff.trim(), "", "exchange submit UI diff is empty");
 }
 
 function syntaxGuard() {

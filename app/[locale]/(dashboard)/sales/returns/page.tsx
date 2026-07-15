@@ -36,14 +36,15 @@ export default function ReturnsPage() {
   const { company, activeBranch, user } = useAuth();
   const { invoices, addInvoice, updateAssetWithEvent } = useErp();
   const { settings } = useAppSettings();
-  const { hasPermission } = usePermissions();
+  const { accountType, hasPermission } = usePermissions();
 
   const dataSource = getDataSourceMode();
   const apiMode = dataSource === "api";
-  const canCreateSales = hasPermission("sales.create");
+  const usesEmployeeFirstSalesGate = accountType === "branch_shell" || accountType === "super_admin";
+  const canExecuteReturns = usesEmployeeFirstSalesGate || hasPermission("sales.create");
   const submitPermissionMessage = rtl
-    ? "تنفيذ مرتجع المبيعات يحتاج صلاحية إنشاء مبيعات."
-    : "Sales return submission requires the sales create permission.";
+    ? "تنفيذ مرتجع المبيعات يحتاج صلاحية مرتجعات المبيعات للموظف."
+    : "Sales return submission requires Employee sales return permission.";
 
   const [invoiceId, setInvoiceId] = useState("");
   const [searchedInvoice, setSearchedInvoice] = useState<Invoice | null>(null);
@@ -256,7 +257,7 @@ export default function ReturnsPage() {
       setErrorMsg(rtl ? "اختر بندًا واحدًا على الأقل للإرجاع." : "Select at least one item to return.");
       return;
     }
-    if (!canCreateSales) {
+    if (!canExecuteReturns) {
       setSuccessMsg("");
       setErrorMsg(submitPermissionMessage);
       return;
@@ -623,13 +624,13 @@ export default function ReturnsPage() {
                       <p className="text-lg font-black text-brand-700 dark:text-brand-300">
                         {money(selectedLineItems.reduce((sum, item) => sum + item.price, 0))}
                       </p>
-                      {!canCreateSales && (
+                      {!canExecuteReturns && (
                         <p className="mt-2 max-w-sm text-xs font-bold text-destructive">
                           {submitPermissionMessage}
                         </p>
                       )}
                     </div>
-                    <Button onClick={handlePostReturn} disabled={!canCreateSales || !settlementValid} title={!canCreateSales ? submitPermissionMessage : (!settlementValid ? settlementError : undefined)}>
+                    <Button onClick={handlePostReturn} disabled={!canExecuteReturns || !settlementValid} title={!canExecuteReturns ? submitPermissionMessage : (!settlementValid ? settlementError : undefined)}>
                       <RotateCcw className="h-4 w-4" />
                       {rtl ? "اعتماد المرتجع وإصدار سند دائن" : "Post Return & Credit Note"}
                     </Button>

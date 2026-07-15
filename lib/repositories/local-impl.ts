@@ -751,6 +751,28 @@ export class LocalEmployeeRepository implements EmployeeRepository {
     };
   }
 
+  async unlockCredential(_employeeId: string): Promise<MutationResult<any>> {
+    return { success: true } as MutationResult<any>;
+  }
+
+  async revokeOperatorSessions(_employeeId: string): Promise<MutationResult<any>> {
+    return { success: true } as MutationResult<any>;
+  }
+
+  async changeEmployeeCode(employeeId: string, employeeCode: string): Promise<MutationResult<any>> {
+    const employee = this.ctx.employees.find((item) => item.id === employeeId);
+    if (employee) employee.employeeCode = employeeCode;
+    return { success: true, data: employee } as MutationResult<any>;
+  }
+
+  async getEmployeeCodeHistory(_employeeId: string): Promise<Array<{ id: string; oldCode?: string | null; newCode?: string | null; reason?: string | null; createdAt?: string | null }>> {
+    return [];
+  }
+
+  async changeOwnPin(_input: { currentPin: string; newPin: string; confirmation: string }): Promise<MutationResult<any>> {
+    return { success: true } as MutationResult<any>;
+  }
+
   async getBranchAccess(employeeId: string): Promise<EmployeeBranchAccess[]> {
     const employee = this.ctx.employees.find((e) => e.id === employeeId);
     if (!employee?.branchId) return [];
@@ -792,7 +814,7 @@ export class LocalEmployeeRepository implements EmployeeRepository {
 
   async updatePermissionState(
     employeeId: string,
-    payload: { roleIds: string[]; grantPermissionIds: string[]; denialPermissionIds: string[] }
+    payload: { roleIds: string[]; grantPermissionIds: string[]; denialPermissionIds: string[]; reason?: string }
   ): Promise<MutationResult<{ authorization: EmployeePermissionState["authorization"] }>> {
     const grantIds = payload.grantPermissionIds || [];
     const denialIds = payload.denialPermissionIds || [];

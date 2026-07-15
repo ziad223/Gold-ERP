@@ -106,10 +106,15 @@ export interface EmployeeRepository {
   getOperatorSessions(employeeId: string, query?: { page?: number; pageSize?: number; state?: string; branchId?: string }): Promise<PaginatedResult<EmployeeOperationalSessionHistory>>;
   revokeSession(employeeId: string, sessionId: string): Promise<MutationResult<void>>;
   resetCredential(employeeId: string, pin: string, resetRequired?: boolean): Promise<MutationResult<any>>;
+  unlockCredential(employeeId: string, reason?: string): Promise<MutationResult<any>>;
+  revokeOperatorSessions(employeeId: string, reason?: string): Promise<MutationResult<any>>;
+  changeEmployeeCode(employeeId: string, employeeCode: string, reason: string): Promise<MutationResult<any>>;
+  getEmployeeCodeHistory(employeeId: string): Promise<Array<{ id: string; oldCode?: string | null; newCode?: string | null; reason?: string | null; createdAt?: string | null }>>;
+  changeOwnPin(input: { currentPin: string; newPin: string; confirmation: string }): Promise<MutationResult<any>>;
   getBranchAccess(employeeId: string): Promise<EmployeeBranchAccess[]>;
   updateBranchAccess(employeeId: string, branchIds: string[]): Promise<MutationResult<{ items: EmployeeBranchAccess[] }>>;
   getPermissionState(employeeId: string): Promise<EmployeePermissionState>;
-  updatePermissionState(employeeId: string, input: { roleIds: string[]; grantPermissionIds: string[]; denialPermissionIds: string[] }): Promise<MutationResult<{ authorization: EmployeePermissionState["authorization"] }>>;
+  updatePermissionState(employeeId: string, input: { roleIds: string[]; grantPermissionIds: string[]; denialPermissionIds: string[]; reason?: string }): Promise<MutationResult<{ authorization: EmployeePermissionState["authorization"] }>>;
   getVerificationAttempts(employeeId: string, query?: { page?: number; pageSize?: number }): Promise<PaginatedResult<EmployeeVerificationAttempt>>;
 }
 

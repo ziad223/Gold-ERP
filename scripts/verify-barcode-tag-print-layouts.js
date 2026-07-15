@@ -143,7 +143,14 @@ function scopeGuard() {
     /^backend\/src\/seeders\//,
     /^features\/printing\/components\/(InvoiceDocument|InvoicePrintTemplate|CompactInvoicePrintTemplate|MinimalInvoicePrintTemplate|ThermalInvoicePrintTemplate|ExchangePrintSummary|InvoicePrintOptionsDialog)\.tsx$/,
   ];
-  const hotfixAllowed = new Set(["backend/src/routes/erp.routes.js", "backend/src/services/posting.service.js"]);
+  const hotfixAllowed = new Set([
+    "backend/src/routes/erp.routes.js",
+    "backend/src/services/posting.service.js",
+    // Phase 34.5B Core approved employee-first operator gate/security files.
+    "backend/src/bootstrap/accessControl.js",
+    "backend/src/services/sales-operator-policy.service.js",
+    "backend/src/services/system-account.service.js",
+  ]);
   const forbiddenTouched = allChanged.filter((f) => !hotfixAllowed.has(f) && FORBIDDEN_AREAS.some((re) => re.test(f)));
   assert.deepEqual(forbiddenTouched, [], `phase must not touch backend/migrations/seeders/invoice-print templates (found: ${forbiddenTouched.join(", ")})`);
 

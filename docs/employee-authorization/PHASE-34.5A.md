@@ -94,3 +94,133 @@ Required markers:
 - offline recovery bypass
 - Phase 33D
 - Phase 33C-HF2
+
+## Phase 34.5A-HF1 — Recovery, Credential UI and Permission Localization Correction
+
+Status: closure correction implemented and verified locally before the final HF1 commit.
+
+HF1 corrected the gaps found in the v2 read-only audit without adding a migration, permission, or verifier file. Counts remain:
+
+- migrations: 42
+- permissions: 120
+- POS permissions: 3
+- Gold Purchase permissions: 24
+- verifier files: 52
+
+### Permission localization
+
+`lib/permissions/catalog.ts` is the centralized display boundary for permission UI metadata. Permission codes remain stable English identifiers for authorization, while user-facing labels, module names, descriptions, sensitivity, status, and source labels resolve through localized Arabic/English catalog metadata.
+
+Arabic UI now avoids the previously confirmed mixed English system labels such as `PIN`, `Branch Access`, `System Accounts`, `L2`, and `PIN · 6 digits`. English UI remains English-only for system labels. Missing permission translations are surfaced as missing metadata rather than silently falling back to raw action fragments or the opposite language.
+
+### Recovery and session correction
+
+HF1 completed the missing auth route wiring:
+
+- `POST /auth/validate-reset-token`
+- `POST /auth/change-email`
+- `POST /auth/confirm-email-change`
+
+Email changes use the existing `email_change_tokens` model with hashed one-time tokens. Confirmation updates the login email and invalidates prior sessions. Reset-token validation returns only generic token state and no account details.
+
+Password policy is centralized in `backend/src/utils/password-policy.js` with minimum length, uppercase, lowercase, digit, symbol, common-password rejection, and obvious identity-fragment rejection. Temporary generated passwords are policy-compliant and still shown once only.
+
+The development recovery sink no longer persists reusable plaintext reset tokens to JSONL. It uses an in-memory, TTL-limited local development mailbox and remains explicitly not production SMTP.
+
+### System Accounts and Branch Shell UI
+
+The System Accounts UI now calls `/system-accounts` for Super Admin and Branch Shell creation/actions instead of creating those accounts through `/users`. The UI includes account type, fixed Branch Shell branch assignment, recovery email, default Employee selection for Super Admin convenience, readiness status, change email, reset password, unlock, revoke sessions, conversion, final-admin/final-recovery safeguard errors, and one-time temporary password display/clear behavior.
+
+Frontend permission helpers now treat `accountType` as authoritative. `branch_shell` accounts do not receive admin/owner all-permission UI shortcuts and remain limited to shell/bootstrap/operator verification/self-service until an Employee session supplies operational authority.
+
+### Employee credentials and effective permissions
+
+`POST /operator/change-pin` now requires an active Employee session with fresh Level 2. The self-change flow validates current PIN, new PIN/confirmation, six-digit policy, weak PIN rejection, credential-version update, operator-session revocation, and audit.
+
+Generic Employee update now rejects `employeeCode` changes after creation and directs callers to `POST /employees/:id/change-code`, preserving the dedicated reason/history/session-revocation flow.
+
+Employee credential UI now exposes Change Employee Code with reason/history, self-change PIN, Admin reset PIN, unlock credential, revoke operator sessions, credential state, lock state, failed attempts, reset-required state, active sessions, and one-time credential handling.
+
+Effective permissions now show localized per-permission source and denial precedence:
+
+- inherited from role
+- direct grant
+- direct denial
+- direct denial takes precedence
+
+The UI also includes localized search/filter/count/reason support for permission changes.
+
+### Verification evidence
+
+Before DB-backed verification, a local custom-format PostgreSQL backup was created:
+
+`H:\WORK\jewellery-erp-master\backend\backups\darfus_erp_phase34_5a_hf1_resume_20260715-130413.dump`
+
+Size: 470,938 bytes.
+
+Verification used local `darfus_erp@localhost:5433` only. Port 5432 was not used as the application database endpoint.
+
+Passing targeted evidence:
+
+- `scripts/verify-super-admin-branch-shell-recovery.js`
+  - `LIVE HTTP ACCOUNT TESTS EXECUTED`
+  - `TECHNICAL SESSION REVOCATION PASSED`
+  - `FINAL ADMIN SAFEGUARDS PASSED`
+  - `SUPER ADMIN BRANCH SHELL RECOVERY PASSED`
+  - `No persistent account test pollution detected`
+- `scripts/verify-sales-pos-operator-enforcement.js`
+  - `SALES/POS OPERATOR ENFORCEMENT PASSED`
+  - `No persistent business test pollution detected`
+- Employee authorization, operator session, and employee-management/operator UI regression verifiers passed.
+- Static gates passed: typecheck, lint with existing unrelated warnings only, build, syntax, and `git diff --check`.
+
+Browser QA was executed locally through Playwright against `localhost:3000` and `localhost:8000`, covering Arabic RTL and English LTR Employee/System Accounts surfaces, localized permission/account labels, reset-password generic token state, mobile Arabic System Accounts rendering, and absence of obvious secret/raw-token display in the tested UI surfaces.
+
+Production SMTP, email OTP, TOTP, backup codes, SMS, full break-glass, service accounts, broader Employee-first workflow conversion, Phase 34.5B, Phase 33D, and Phase 33C-HF2 remain deferred.
+
+## Phase 34.5A-HF2 — Branch Shell Sales/POS Route-Gate Consistency
+
+HF2 closes the baseline inconsistency discovered before Phase 34.5B: Branch
+Shell correctly had no direct operational User permissions, but Sales/POS routes
+were still guarded by generic technical `requirePermission(...)` before the
+Employee-first operator policy. That ordering blocked Branch Shell before a valid
+Employee could authorize the Sales/POS command.
+
+Implemented correction:
+
+- added centralized account-type-aware Sales/POS command gate
+  `salesOperatorPolicy.requireSalesCommandAccess(...)`;
+- kept legacy technical permission behavior inside the centralized gate;
+- allowed Branch Shell and Super Admin technical scopes to reach Employee operator
+  policy without granting direct operational User permissions;
+- enforced active Employee, Employee permission, direct-denial precedence,
+  required Level, fixed Branch Shell branch, session/version checks, and
+  failure-atomic denial before mutation;
+- aligned in-scope Sales/POS routes and official print authorization to the
+  centralized gate;
+- narrowed frontend compatibility in `AuthGuard` so Branch Shell/Super Admin can
+  open Sales/POS operator routes without `usePermissions` granting global
+  operational permissions.
+
+No schema or permission change was made:
+
+- migrations: 42
+- permissions: 120
+- POS permissions: 3
+- Gold Purchase permissions: 24
+- verifier files: 52
+
+Evidence recorded during HF2:
+
+- local DB remained `darfus_erp@localhost:5433`; port 5432 was not used;
+- backup:
+  `H:\WORK\jewellery-erp-master\backend\backups\darfus_erp_phase34_5a_hf2_20260715-144007.dump`
+  (467,853 bytes);
+- `scripts/verify-sales-pos-operator-enforcement.js` passed with
+  `BRANCH SHELL EMPLOYEE-FIRST SALES/POS GATE PASSED`;
+- `scripts/verify-super-admin-branch-shell-recovery.js` passed;
+- Browser QA namespace `T345AHF2-BQA-1784116840926-hdmn0g` passed and cleaned to
+  zero fixture users.
+
+Phase 34.5B remains deferred and must not start unless HF2 final clean-tree
+verification is complete.

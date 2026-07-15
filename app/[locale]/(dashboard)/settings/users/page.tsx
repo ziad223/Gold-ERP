@@ -15,20 +15,26 @@ export default function UsersManagementPage() {
   const locale = useLocale();
   const rtl = locale === "ar";
   const { hasPermission } = usePermissions();
-  const { users, systemAccounts, roles, permissions, isLoading, createUser, systemAccountAction, updateRolePermissions, isSaving } = useUserManagement();
+  const { users, systemAccounts, roles, permissions, branches, employees, readiness, isLoading, createSystemAccount, updateSystemAccount, systemAccountAction, updateRolePermissions, isSaving } = useUserManagement();
   const [selectedRoleId, setSelectedRoleId] = useState("");
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
   const [form, setForm] = useState({
+    accountType: "branch_shell" as "legacy" | "super_admin" | "branch_shell",
     firstName: "",
     lastName: "",
     email: "",
-    password: "",
+    temporaryPassword: "",
     phone: "",
     jobTitle: "",
-    roleId: "",
+    branchId: "",
+    recoveryEmail: "",
+    defaultEmployeeId: "",
+    reason: "",
   });
+  const [oneTimePassword, setOneTimePassword] = useState<string | null>(null);
 
-  const canManageUsers = hasPermission("users.create") || hasPermission("users.manage");
+  const canViewSystemAccounts = hasPermission("system_accounts.view") || hasPermission("users.view");
+  const canManageSystemAccounts = hasPermission("system_accounts.manage");
   const canManageRoles = hasPermission("roles.manage");
   const selectedRole = roles.find((role) => role.id === selectedRoleId);
   const uiLocale = rtl ? "ar" : "en";
@@ -43,18 +49,24 @@ export default function UsersManagementPage() {
 
   const submitUser = async (event: FormEvent) => {
     event.preventDefault();
-    if (!canManageUsers) return toast.error(rtl ? "لا تملك صلاحية إنشاء مستخدمين" : "You do not have permission to create users");
-    await createUser({
+    if (!canManageSystemAccounts) return toast.error(rtl ? "لا تملك صلاحية إدارة حسابات النظام" : "You do not have permission to manage System Accounts");
+    const result: any = await createSystemAccount({
+      accountType: form.accountType,
       firstName: form.firstName,
       lastName: form.lastName,
       email: form.email,
-      password: form.password,
+      temporaryPassword: form.temporaryPassword || undefined,
       phone: form.phone,
       jobTitle: form.jobTitle,
-      roleIds: form.roleId ? [form.roleId] : [],
+      branchId: form.accountType === "branch_shell" ? form.branchId : undefined,
+      recoveryEmail: form.recoveryEmail || undefined,
+      defaultEmployeeId: form.accountType === "super_admin" && form.defaultEmployeeId ? form.defaultEmployeeId : undefined,
+      reason: form.reason || "System Accounts UI create",
     });
-    setForm({ firstName: "", lastName: "", email: "", password: "", phone: "", jobTitle: "", roleId: "" });
-    toast.success(rtl ? "تم إنشاء المستخدم" : "User created");
+    const temp = result?.data?.temporaryPassword;
+    if (temp) setOneTimePassword(temp);
+    setForm({ accountType: "branch_shell", firstName: "", lastName: "", email: "", temporaryPassword: "", phone: "", jobTitle: "", branchId: "", recoveryEmail: "", defaultEmployeeId: "", reason: "" });
+    toast.success(rtl ? "تم إنشاء حساب النظام" : "System Account created");
   };
 
   const loadRole = (roleId: string) => {
@@ -70,8 +82,29 @@ export default function UsersManagementPage() {
   };
 
   const doAccountAction = async (id: string, action: string) => {
-    await systemAccountAction({ id, action, body: { reason: "UI system account action" } });
+    const reason = window.prompt(rtl ? "سبب الإجراء" : "Action reason", "UI system account action") || "UI system account action";
+    await systemAccountAction({ id, action, body: { reason } });
     toast.success(rtl ? "تم تنفيذ الإجراء" : "Action completed");
+  };
+
+  const changeAccountEmail = async (id: string) => {
+    const email = window.prompt(rtl ? "البريد الإلكتروني الجديد" : "New email");
+    if (!email) return;
+    await systemAccountAction({ id, action: "change-email", body: { email, reason: "UI email change" } });
+    toast.success(rtl ? "تم تغيير البريد" : "Email changed");
+  };
+
+  const convertAccount = async (id: string) => {
+    const accountType = window.prompt(rtl ? "النوع الجديد: legacy / super_admin / branch_shell" : "New type: legacy / super_admin / branch_shell", "legacy");
+    if (!accountType) return;
+    const branchId = accountType === "branch_shell" ? window.prompt(rtl ? "معرف الفرع" : "Branch ID") || "" : undefined;
+    await systemAccountAction({ id, action: "convert-account-type", body: { accountType, branchId, reason: "UI manual conversion" } });
+    toast.success(rtl ? "تم التحويل اليدوي" : "Manual conversion complete");
+  };
+
+  const patchAccount = async (id: string, body: Record<string, unknown>) => {
+    await updateSystemAccount({ id, body });
+    toast.success(rtl ? "تم تحديث الحساب" : "Account updated");
   };
 
   const accounts = systemAccounts.length ? systemAccounts : users;
@@ -79,7 +112,7 @@ export default function UsersManagementPage() {
   const branchShells = accounts.filter((user) => user.accountType === "branch_shell");
   const legacyAccounts = accounts.filter((user) => !user.accountType || user.accountType === "legacy");
 
-  if (!hasPermission("users.view") && !hasPermission("roles.manage")) {
+  if (!canViewSystemAccounts && !hasPermission("roles.manage")) {
     return (
       <div className="space-y-6">
         <PageHeader title={rtl ? "حسابات النظام" : "System Accounts"} description={rtl ? "ليست لديك صلاحية الوصول لهذه الصفحة." : "You do not have permission to access this page."} />
@@ -112,6 +145,9 @@ export default function UsersManagementPage() {
           accounts={superAdmins}
           rtl={rtl}
           onAction={doAccountAction}
+          onChangeEmail={changeAccountEmail}
+          onConvert={convertAccount}
+          onPatch={patchAccount}
         />
         <AccountSection
           title={rtl ? "حسابات الفرع الثابتة" : "Branch Shell Accounts"}
@@ -119,6 +155,9 @@ export default function UsersManagementPage() {
           accounts={branchShells}
           rtl={rtl}
           onAction={doAccountAction}
+          onChangeEmail={changeAccountEmail}
+          onConvert={convertAccount}
+          onPatch={patchAccount}
         />
         <AccountSection
           title={rtl ? "الحسابات القديمة" : "Legacy Accounts"}
@@ -126,6 +165,9 @@ export default function UsersManagementPage() {
           accounts={legacyAccounts}
           rtl={rtl}
           onAction={doAccountAction}
+          onChangeEmail={changeAccountEmail}
+          onConvert={convertAccount}
+          onPatch={patchAccount}
           legacy
         />
       </div>
@@ -137,8 +179,19 @@ export default function UsersManagementPage() {
           <SecurityBadge label={rtl ? "البريد الإنتاجي" : "Production email"} value={rtl ? "غير جاهز" : "Unavailable"} warning />
           <SecurityBadge label={rtl ? "تغيير كلمة المرور الإجباري" : "Forced password change"} value={String(accounts.filter((user) => user.forcePasswordChange).length)} />
           <SecurityBadge label={rtl ? "الجلسات النشطة" : "Active sessions"} value={String(accounts.reduce((sum, user) => sum + Number(user.activeSessions || 0), 0))} />
+          <SecurityBadge label={rtl ? "جاهزية المدير العام" : "Super Admin readiness"} value={`${readiness?.superAdminsWithRecovery ?? 0}/${readiness?.superAdmins ?? 0}`} warning={!readiness?.superAdminsWithRecovery} />
+          <SecurityBadge label={rtl ? "حسابات الفروع" : "Branch Shells"} value={String(readiness?.branchShells ?? branchShells.length)} />
+          <SecurityBadge label={rtl ? "موظفو الإدارة المؤهلون" : "Eligible Admin Employees"} value={String(readiness?.eligibleAdminEmployees ?? employees.length)} />
         </div>
       </Card>
+
+      {oneTimePassword && (
+        <Card className="border-amber-300 bg-amber-50 p-5 text-sm text-amber-900">
+          <h2 className="font-black">{rtl ? "كلمة مرور مؤقتة تظهر مرة واحدة" : "One-time temporary password"}</h2>
+          <p className="mt-2 font-mono text-lg">{oneTimePassword}</p>
+          <Button className="mt-3" type="button" onClick={() => setOneTimePassword(null)}>{rtl ? "إخفاء ومسح من الشاشة" : "Hide and clear from screen"}</Button>
+        </Card>
+      )}
 
       <div className="grid gap-5 xl:grid-cols-[420px_1fr]">
         <Card className="p-5">
@@ -147,22 +200,38 @@ export default function UsersManagementPage() {
             <h2 className="font-black text-navy-950 dark:text-white">{rtl ? "حساب نظام جديد" : "New System Account"}</h2>
           </div>
           <form onSubmit={submitUser} className="space-y-3">
+            <select className="input-base" value={form.accountType} onChange={(e) => setForm((c) => ({ ...c, accountType: e.target.value as typeof form.accountType }))}>
+              <option value="super_admin">{rtl ? "مدير عام" : "Super Admin"}</option>
+              <option value="branch_shell">{rtl ? "حساب فرع ثابت" : "Branch Shell"}</option>
+              <option value="legacy">{rtl ? "حساب قديم" : "Legacy"}</option>
+            </select>
             <div className="grid gap-3 sm:grid-cols-2">
               <input className="input-base" placeholder={rtl ? "الاسم الأول" : "First name"} value={form.firstName} onChange={(e) => setForm((c) => ({ ...c, firstName: e.target.value }))} required />
               <input className="input-base" placeholder={rtl ? "اسم العائلة" : "Last name"} value={form.lastName} onChange={(e) => setForm((c) => ({ ...c, lastName: e.target.value }))} required />
             </div>
             <input className="input-base" type="email" placeholder={rtl ? "البريد الإلكتروني" : "Email"} value={form.email} onChange={(e) => setForm((c) => ({ ...c, email: e.target.value }))} required />
-            <input className="input-base" type="password" placeholder={rtl ? "كلمة المرور" : "Password"} value={form.password} onChange={(e) => setForm((c) => ({ ...c, password: e.target.value }))} required />
+            <input className="input-base" type="email" placeholder={rtl ? "بريد الاسترجاع" : "Recovery email"} value={form.recoveryEmail} onChange={(e) => setForm((c) => ({ ...c, recoveryEmail: e.target.value }))} />
+            <input className="input-base" type="password" placeholder={rtl ? "كلمة مرور مؤقتة اختيارية" : "Optional temporary password"} value={form.temporaryPassword} onChange={(e) => setForm((c) => ({ ...c, temporaryPassword: e.target.value }))} />
+            {form.accountType === "branch_shell" && (
+              <select className="input-base" value={form.branchId} onChange={(e) => setForm((c) => ({ ...c, branchId: e.target.value }))} required>
+                <option value="">{rtl ? "اختر الفرع الثابت" : "Select fixed branch"}</option>
+                {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name || branch.code || branch.id}</option>)}
+              </select>
+            )}
+            {form.accountType === "super_admin" && (
+              <select className="input-base" value={form.defaultEmployeeId} onChange={(e) => setForm((c) => ({ ...c, defaultEmployeeId: e.target.value }))}>
+                <option value="">{rtl ? "موظف افتراضي اختياري" : "Optional default Employee"}</option>
+                {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.employeeCode || employee.id} · {employee.name || ""}</option>)}
+              </select>
+            )}
             <div className="grid gap-3 sm:grid-cols-2">
               <input className="input-base" placeholder={rtl ? "الهاتف" : "Phone"} value={form.phone} onChange={(e) => setForm((c) => ({ ...c, phone: e.target.value }))} />
               <input className="input-base" placeholder={rtl ? "المسمى الوظيفي" : "Job title"} value={form.jobTitle} onChange={(e) => setForm((c) => ({ ...c, jobTitle: e.target.value }))} />
             </div>
-            <select className="input-base" value={form.roleId} onChange={(e) => setForm((c) => ({ ...c, roleId: e.target.value }))}>
-              <option value="">{rtl ? "اختر الدور" : "Select role"}</option>
-              {roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
-            </select>
-            <Button type="submit" disabled={isSaving || !canManageUsers}>
-              {rtl ? "إنشاء المستخدم" : "Create User"}
+            <input className="input-base" placeholder={rtl ? "سبب الإنشاء" : "Creation reason"} value={form.reason} onChange={(e) => setForm((c) => ({ ...c, reason: e.target.value }))} />
+            <p className="text-xs text-slate-500">{rtl ? "يلزم تأكيد موظف إداري بالمستوى الثاني قبل تنفيذ الإجراء." : "An Admin Employee Level 2 confirmation is required before the backend executes this action."}</p>
+            <Button type="submit" disabled={isSaving || !canManageSystemAccounts}>
+              {rtl ? "إنشاء حساب النظام" : "Create System Account"}
             </Button>
           </form>
         </Card>
@@ -265,6 +334,9 @@ function AccountSection({
   accounts,
   rtl,
   onAction,
+  onChangeEmail,
+  onConvert,
+  onPatch,
   legacy = false,
 }: {
   title: string;
@@ -284,6 +356,9 @@ function AccountSection({
   }>;
   rtl: boolean;
   onAction: (id: string, action: string) => Promise<void>;
+  onChangeEmail: (id: string) => Promise<void>;
+  onConvert: (id: string) => Promise<void>;
+  onPatch: (id: string, body: Record<string, unknown>) => Promise<void>;
   legacy?: boolean;
 }) {
   return (
@@ -304,12 +379,19 @@ function AccountSection({
               <span>{rtl ? "بريد الاسترجاع" : "Recovery email"}: {account.recoveryEmailMasked || (rtl ? "غير مضبوط" : "Not configured")}</span>
               <span>{rtl ? "الحالة" : "Status"}: {account.lockedUntil ? (rtl ? "مقفل" : "Locked") : (rtl ? "نشط" : "Active")}</span>
               <span>{rtl ? "الجلسات" : "Sessions"}: {account.activeSessions || 0}</span>
+              <span>{rtl ? "تغيير كلمة المرور الإجباري" : "Force password change"}: {account.forcePasswordChange ? (rtl ? "نعم" : "Yes") : (rtl ? "لا" : "No")}</span>
               {legacy && <span className="text-amber-700">{rtl ? "التحويل يدوي فقط ولا توجد مطابقة تلقائية." : "Manual conversion only. No heuristic mapping."}</span>}
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               <button className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-200" title={rtl ? "إعادة تعيين كلمة المرور" : "Reset password"} onClick={() => void onAction(account.id, "reset-password")}><KeyRound className="h-4 w-4" /></button>
               <button className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-200" title={rtl ? "فك القفل" : "Unlock"} onClick={() => void onAction(account.id, "unlock")}><LockKeyhole className="h-4 w-4" /></button>
               <button className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-200" title={rtl ? "إنهاء الجلسات" : "Revoke sessions"} onClick={() => void onAction(account.id, "revoke-sessions")}><RotateCcw className="h-4 w-4" /></button>
+              <button className="rounded border border-slate-200 px-2 py-1 text-[10px] font-bold" title={rtl ? "تغيير البريد" : "Change email"} onClick={() => void onChangeEmail(account.id)}>{rtl ? "البريد" : "Email"}</button>
+              <button className="rounded border border-slate-200 px-2 py-1 text-[10px] font-bold" title={rtl ? "تحويل النوع" : "Convert type"} onClick={() => void onConvert(account.id)}>{rtl ? "تحويل" : "Convert"}</button>
+              <button className="rounded border border-slate-200 px-2 py-1 text-[10px] font-bold" title={rtl ? "تحديث بريد الاسترجاع" : "Update recovery email"} onClick={() => {
+                const recoveryEmail = window.prompt(rtl ? "بريد الاسترجاع الجديد" : "New recovery email");
+                if (recoveryEmail !== null) void onPatch(account.id, { recoveryEmail });
+              }}>{rtl ? "استرجاع" : "Recovery"}</button>
             </div>
           </div>
         )) : <p className="rounded bg-slate-50 p-3 text-xs text-slate-500 dark:bg-slate-900">{empty}</p>}

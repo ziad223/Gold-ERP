@@ -84,6 +84,14 @@ function scopeGuard() {
 
   const allowed = new Set([
     SALES_PAGE,
+    "app/[locale]/(dashboard)/sales/returns/page.tsx",
+    "app/[locale]/(dashboard)/sales/exchanges/page.tsx",
+    "app/[locale]/(dashboard)/sales/installments/page.tsx",
+    "backend/src/routes/erp.routes.js",
+    "backend/src/bootstrap/accessControl.js",
+    "backend/src/services/sales-operator-policy.service.js",
+    "backend/src/services/system-account.service.js",
+    "lib/permissions/catalog.ts",
     DOCUMENT,
     SUMMARY,
     ...Object.values(TEMPLATES),
@@ -92,9 +100,12 @@ function scopeGuard() {
     "scripts/verify-exchange-print-display.js",
     "package.json",
     "docs/AI_HANDOFF.md",
+    "docs/employee-authorization/PHASE-34.5.md",
+    "docs/employee-authorization/PHASE-34.5B.md",
   ]);
   const forbidden = changed.filter((f) => {
     const n = f.replace(/\\/g, "/");
+    if (allowed.has(n)) return false;
     return (
       n.startsWith("backend/") ||
       /(^|\/)migrations\//.test(n) ||

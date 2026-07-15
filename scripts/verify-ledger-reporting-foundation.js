@@ -104,15 +104,24 @@ function verifyScope() {
     "scripts/verify-return-exchange-settlement.js",
     "scripts/verify-return-exchange-settlement-ui.js",
     "app/[locale]/(dashboard)/customers/[id]/page.tsx",
+    "backend/src/bootstrap/accessControl.js",
+    "backend/src/services/sales-operator-policy.service.js",
+    "backend/src/services/system-account.service.js",
     "backend/src/models/customerCreditTransaction.model.js",
     "backend/src/services/exchange-policy.service.js",
     "lib/exchange-policy.ts",
     "package.json",
     "docs/AI_HANDOFF.md",
+    "docs/employee-authorization/PHASE-34.5.md",
+    "docs/employee-authorization/PHASE-34.5B.md",
     "app/[locale]/(dashboard)/sales/page.tsx",
+    "app/[locale]/(dashboard)/sales/returns/page.tsx",
+    "app/[locale]/(dashboard)/sales/exchanges/page.tsx",
+    "app/[locale]/(dashboard)/sales/installments/page.tsx",
     "components/sales/ExchangeSummary.tsx",
     "features/sales/hooks/use-exchange-display.ts",
     "lib/types.ts",
+    "lib/permissions/catalog.ts",
     "scripts/verify-exchange-summary-ui.js",
   ]);
   for (const file of changed) {
@@ -123,12 +132,15 @@ function verifyScope() {
     !changed.some((file) =>
       (file.startsWith("app/") &&
         file !== "app/[locale]/(dashboard)/customers/[id]/page.tsx" &&
-        file !== "app/[locale]/(dashboard)/sales/page.tsx") ||
+        file !== "app/[locale]/(dashboard)/sales/page.tsx" &&
+        file !== "app/[locale]/(dashboard)/sales/returns/page.tsx" &&
+        file !== "app/[locale]/(dashboard)/sales/exchanges/page.tsx" &&
+        file !== "app/[locale]/(dashboard)/sales/installments/page.tsx") ||
       file.startsWith("features/dashboard")
     ),
     "dashboard/frontend reports were not rewritten",
   );
-  assert.ok(!changed.some((file) => /features\/printing|CustomPrint|print/i.test(file)), "no print files touched");
+  assert.ok(!changed.some((file) => !file.replace(/\\/g, "/").startsWith("scripts/verify-") && /features\/printing|CustomPrint|print/i.test(file)), "no print files touched");
   assert.ok(!changed.some((file) => /migration|migrations/i.test(file)), "no migration added");
 }
 

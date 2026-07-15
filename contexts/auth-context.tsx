@@ -16,6 +16,13 @@ export interface DarfusUser {
   roles?: Array<{ id: string; name: string; slug: string; isAdmin?: boolean }>;
   permissions?: string[];
   accountType?: "legacy" | "super_admin" | "branch_shell";
+  accountScope?: {
+    accountType?: "legacy" | "super_admin" | "branch_shell";
+    companyId?: string;
+    branchId?: string | null;
+    forcePasswordChange?: boolean;
+    defaultEmployeeId?: string | null;
+  };
   forcePasswordChange?: boolean;
 }
 
@@ -327,6 +334,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setToken(res.data.token);
           setUser(res.data.user);
           setCompany(res.data.company);
+          if (res.data.user.accountType === "branch_shell" && res.data.user.accountScope?.branchId) {
+            switchBranch(res.data.user.accountScope.branchId, res.data.company.branchName);
+          }
           return { ok: true, forcePasswordChange: Boolean(res.data.user.forcePasswordChange) };
         } catch (err) {
           const msg = err instanceof DarfusApiError ? err.message : "خطأ في الاتصال بالخادم";
@@ -351,7 +361,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       return { ok: true };
     },
-    [accounts, isApiMode, queryClient],
+    [accounts, isApiMode, queryClient, switchBranch],
   );
 
   // ── Register ───────────────────────────────────────────────────────────────

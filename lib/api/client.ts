@@ -49,6 +49,8 @@ interface ApiClientOptions extends RequestInit {
 
 // Token storage key — must match auth-context.tsx
 const TOKEN_KEY = "darfus-token-v1";
+const REFRESH_KEY = "darfus-refresh-v1";
+const API_SESSION_KEY = "darfus-api-session-v1";
 export const DEVICE_SESSION_KEY = "darfus-device-session-id-v1";
 const LEGACY_DEVICE_SESSION_KEY = "darfus-device-session-v1";
 const DEVICE_SESSION_RE = /^[A-Za-z0-9._:-]{16,128}$/;
@@ -64,6 +66,77 @@ function readStoredToken(): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function readStoredRefreshToken(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  try {
+    return (
+      window.localStorage.getItem(REFRESH_KEY) ??
+      window.sessionStorage.getItem(REFRESH_KEY) ??
+      undefined
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+function writeStoredApiAuth(data: { token: string; refreshToken: string; user?: unknown; company?: unknown }) {
+  if (typeof window === "undefined") return;
+  const storage =
+    window.localStorage.getItem(REFRESH_KEY) !== null || window.localStorage.getItem(TOKEN_KEY) !== null
+      ? window.localStorage
+      : window.sessionStorage;
+  storage.setItem(TOKEN_KEY, data.token);
+  storage.setItem(REFRESH_KEY, data.refreshToken);
+  if (data.user && data.company) {
+    storage.setItem(API_SESSION_KEY, JSON.stringify({ user: data.user, company: data.company }));
+  }
+}
+
+function clearStoredApiAuth() {
+  if (typeof window === "undefined") return;
+  for (const key of [TOKEN_KEY, REFRESH_KEY, API_SESSION_KEY]) {
+    window.localStorage.removeItem(key);
+    window.sessionStorage.removeItem(key);
+  }
+}
+
+let refreshPromise: Promise<boolean> | null = null;
+
+async function refreshAccessToken(apiBaseUrl: string, locale: string): Promise<boolean> {
+  const refreshToken = readStoredRefreshToken();
+  if (!refreshToken) return false;
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      try {
+        const response = await fetch(`${apiBaseUrl}/auth/refresh`, {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Accept-Language": locale,
+            "X-Correlation-ID": generateUUID(),
+          },
+          body: JSON.stringify({ refreshToken }),
+        });
+        const text = await response.text();
+        const payload = text ? JSON.parse(text) : null;
+        if (!response.ok || !payload?.data?.token || !payload?.data?.refreshToken) {
+          clearStoredApiAuth();
+          return false;
+        }
+        writeStoredApiAuth(payload.data);
+        return true;
+      } catch {
+        clearStoredApiAuth();
+        return false;
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+  }
+  return refreshPromise;
 }
 
 function readStoredBranchId(): string | undefined {
@@ -159,12 +232,15 @@ export async function apiClient<T>(path: string, options: ApiClientOptions = {})
   const mergedHeaders = { ...headers, ...options.headers };
 
   try {
-    const response = await fetch(`${apiBaseUrl}${path}`, {
-      ...options,
-      headers: mergedHeaders,
-    });
+    const execute = () => {
+      const latestToken = readStoredToken() ?? options.token;
+      const requestHeaders: Record<string, string> = { ...(mergedHeaders as Record<string, string>) };
+      if (latestToken) requestHeaders.Authorization = `Bearer ${latestToken}`;
+      return fetch(`${apiBaseUrl}${path}`, { ...options, headers: requestHeaders });
+    };
+    let response = await execute();
 
-    const text = await response.text();
+    let text = await response.text();
     let payload: ApiErrorPayload | null = null;
     try {
       payload = text ? JSON.parse(text) : null;
@@ -172,16 +248,32 @@ export async function apiClient<T>(path: string, options: ApiClientOptions = {})
       // Body is not JSON
     }
 
+    const isAuthEndpoint = path.startsWith("/auth/login") || path.startsWith("/auth/refresh") || path.startsWith("/auth/forgot-password") || path.startsWith("/auth/reset-password") || path.startsWith("/auth/validate-reset-token");
+    const errorCode = payload?.errorCode || payload?.code;
+    if (response.status === 401 && !isAuthEndpoint && errorCode !== "OPERATOR_SESSION_REQUIRED") {
+      const refreshed = await refreshAccessToken(apiBaseUrl, options.locale || "ar");
+      if (refreshed) {
+        response = await execute();
+        text = await response.text();
+        try {
+          payload = text ? JSON.parse(text) : null;
+        } catch {
+          payload = null;
+        }
+      }
+    }
+
     if (!response.ok) {
       const message = payload?.message || getFallbackErrorMessage(response.status, options.locale || "ar");
-      const errorCode = payload?.errorCode || payload?.code;
-      emitOperatorRecoverySignal(errorCode);
+      const finalErrorCode = payload?.errorCode || payload?.code;
+      if (response.status === 401 && !isAuthEndpoint) clearStoredApiAuth();
+      emitOperatorRecoverySignal(finalErrorCode);
       throw new DarfusApiError(
         response.status,
         message,
         payload?.errors,
         correlationId,
-        errorCode,
+        finalErrorCode,
       );
     }
 

@@ -4,6 +4,10 @@
 
 Implementation is in place for the controlled Sales/POS pilot. Automated static, typecheck, lint, build, migration, schema/catalog, real HTTP business-flow verifier evidence, failure atomicity evidence and local browser QA have passed. Final clean-tree 51/51 verifier execution is performed after the closure commit per the Phase 34.5 handoff procedure.
 
+Phase 34.5A-HF2 subsequently aligned Branch Shell Sales/POS route gates so Branch Shell reaches the centralized employee-first operator policy without receiving direct operational User permissions.
+
+Phase 34.5B Core extends the same centralized account-type-aware operator enforcement pattern to Sales Returns, Sales Exchanges and standalone Installment Collection. See `docs/employee-authorization/PHASE-34.5B.md`.
+
 ## Scope Implemented
 
 - Sales/POS remains in `legacy_users` mode by default.
@@ -75,13 +79,10 @@ Frontend payloads are not trusted for Employee identity.
 
 ## Explicit Exclusions
 
-No operator enforcement was added to:
+The original Phase 34.5 pilot did not add operator enforcement to these surfaces. Phase 34.5B Core now covers Sales Returns, Sales Exchanges and standalone Installment Collection. Remaining exclusions:
 
-- Sales Returns
-- Sales Exchanges
 - finalized invoice cancel/void
 - refunds or payment reversals
-- standalone installment collection
 - gift vouchers
 - customer credit deposit/refund
 - Gold Purchase
@@ -92,7 +93,7 @@ No operator enforcement was added to:
 - Payroll
 - Attendance
 
-These remain deferred to Phase 34.5B or later.
+These remain deferred to Phase 34.5B2 or later.
 
 ## Verification Evidence
 
@@ -176,3 +177,71 @@ local frontend, local backend and local DB. Evidence included:
 - User.accountType
 - Phase 33D
 - Phase 33C-HF2
+
+## Phase 34.5A-HF2 — Branch Shell Employee-First Sales/POS Route-Gate Consistency
+
+Status: baseline correction implemented after Phase 34.5A-HF1. Phase 34.5B remains deferred.
+
+Root cause: Phase 34.5 Sales/POS routes originally used generic technical
+`requirePermission(...)` before the Employee operator policy. After Phase 34.5A
+introduced `branch_shell` accounts with no direct operational User permissions,
+Branch Shell accounts were blocked before Employee-first authorization could run.
+
+Correction:
+
+- Sales/POS command authorization is now centralized through
+  `salesOperatorPolicy.requireSalesCommandAccess(...)`.
+- Legacy accounts still enforce the approved technical User permission behavior
+  and existing `salesOperatorMode` compatibility.
+- Branch Shell accounts do not receive direct operational User permissions; they
+  can reach the Sales/POS operator policy only through their fixed company/branch
+  technical scope.
+- Branch Shell mutation requires active Employee session, Employee permission,
+  direct-denial checks, required Level, branch/session/version validation, and
+  failure-atomic denial before business mutation.
+- Super Admin accounts can reach the same policy through technical system scope
+  but still require active Employee authority and required Level for operational
+  Sales/POS mutation.
+- The frontend `AuthGuard` now has a narrow Sales/POS operator-route compatibility
+  allowance for `branch_shell` and `super_admin` accounts. This does not grant
+  any global or operational permission through `usePermissions`.
+
+Routes aligned with the centralized gate:
+
+| Route | Command | Legacy permission | Employee permission | Level |
+|---|---|---|---|---|
+| `POST /api/v1/pos/checkout` | `pos.checkout` | `pos.sell` | `pos.sell` | 2 |
+| POS discount override | `pos.discount.override` | `pos.discount.approve` | `pos.discount.approve` | 2 |
+| `POST /api/v1/sales/invoices/draft` | `sales.legacy_immediate_post` | `sales.create` | `sales.create` | 2 |
+| `POST /api/v1/sales/invoices/drafts` | `sales.draft.create` | `sales.create` | `sales.create` | 1 |
+| `PATCH /api/v1/sales/invoices/:id` | `sales.draft.update` | `sales.create` | `sales.create` | 1 |
+| `POST /api/v1/sales/invoices/:id/cancel` | `sales.draft.cancel` | `sales.create` | `sales.create` | 1 |
+| `POST /api/v1/sales/invoices/:id/post` | `sales.post` | `sales.create` | `sales.create` | 2 |
+| `POST /api/v1/invoices/:id/print-events` | `sales.official_print` / `sales.reprint` | `sales.print` | `sales.print` | 2 |
+
+HF2 did not add a migration, permission, or verifier file. Counts remain:
+
+- migrations: 42
+- permissions: 120
+- POS permissions: 3
+- Gold Purchase permissions: 24
+- verifier files: 52
+
+Verification evidence:
+
+- local PostgreSQL backup before live verification:
+  `H:\WORK\jewellery-erp-master\backend\backups\darfus_erp_phase34_5a_hf2_20260715-144007.dump`
+  (467,853 bytes);
+- `node scripts/verify-sales-pos-operator-enforcement.js` passed with
+  `BRANCH SHELL EMPLOYEE-FIRST SALES/POS GATE PASSED`,
+  `FAILURE ATOMICITY PASSED`, and zero persistent business pollution;
+- `node scripts/verify-super-admin-branch-shell-recovery.js` passed after its
+  Branch Shell no-Employee Sales/POS expectation was aligned to
+  `401 OPERATOR_SESSION_REQUIRED`;
+- Browser QA used isolated namespace `T345AHF2-BQA-1784116840926-hdmn0g`,
+  confirmed Branch Shell login has no direct `pos.sell` / `sales.create`, can
+  reach `/en/pos`, can verify and step up an Employee, can open `/ar/pos` in RTL,
+  and cleaned to zero fixture users.
+
+Phase 34.5B remains blocked until this HF2 commit is present and the final clean
+52/52 verifier suite passes.

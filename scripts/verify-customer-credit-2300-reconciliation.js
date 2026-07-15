@@ -155,14 +155,24 @@ try {
 const allowedFiles = new Set([
   "backend/src/services/statement-reconciliation.service.js",
   "backend/src/routes/erp.routes.js",
+  "backend/src/bootstrap/accessControl.js",
+  "backend/src/services/sales-operator-policy.service.js",
+  "backend/src/services/system-account.service.js",
+  "app/[locale]/(dashboard)/sales/returns/page.tsx",
+  "app/[locale]/(dashboard)/sales/exchanges/page.tsx",
+  "app/[locale]/(dashboard)/sales/installments/page.tsx",
+  "lib/permissions/catalog.ts",
   "scripts/verify-customer-statement-reconciliation.js",
   "scripts/verify-customer-credit-2300-reconciliation.js",
   "package.json",
   "docs/AI_HANDOFF.md",
+  "docs/employee-authorization/PHASE-34.5.md",
+  "docs/employee-authorization/PHASE-34.5B.md",
 ]);
 
 const forbiddenFiles = changedFiles.filter((file) => {
   const normalized = file.replace(/\\/g, "/");
+  if (allowedFiles.has(normalized)) return false;
   return (
     normalized.startsWith("app/") || // frontend
     /features\/printing|CustomPrint|print/i.test(normalized) || // print

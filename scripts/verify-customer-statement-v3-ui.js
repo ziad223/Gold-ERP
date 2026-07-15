@@ -77,13 +77,24 @@ const allowedFiles = new Set([
   "lib/repositories/api-impl.ts",
   "lib/repositories/local-impl.ts",
   "app/[locale]/(dashboard)/customers/[id]/page.tsx",
+  "backend/src/routes/erp.routes.js",
+  "backend/src/bootstrap/accessControl.js",
+  "backend/src/services/sales-operator-policy.service.js",
+  "backend/src/services/system-account.service.js",
+  "app/[locale]/(dashboard)/sales/returns/page.tsx",
+  "app/[locale]/(dashboard)/sales/exchanges/page.tsx",
+  "app/[locale]/(dashboard)/sales/installments/page.tsx",
+  "lib/permissions/catalog.ts",
   "scripts/verify-customer-statement-v3-ui.js",
   "package.json",
   "docs/AI_HANDOFF.md",
+  "docs/employee-authorization/PHASE-34.5.md",
+  "docs/employee-authorization/PHASE-34.5B.md",
 ]);
 
 const forbiddenFiles = changedFiles.filter((file) => {
   const normalized = file.replace(/\\/g, "/");
+  if (allowedFiles.has(normalized)) return false;
   return (
     normalized.startsWith("backend/") || // backend
     normalized.startsWith("migrations/") || // migrations

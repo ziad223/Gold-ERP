@@ -28,9 +28,16 @@ function staticContract() {
   const systemService = read("backend/src/services/system-account.service.js");
   const routes = read("backend/src/routes/system-account.routes.js");
   const employeeAuth = read("backend/src/services/employee-authorization.service.js");
+  const employeeRoutes = read("backend/src/routes/employee-authorization.routes.js");
+  const employeeCrudRoutes = read("backend/src/routes/erp.routes.js");
   const ui = read("app/[locale]/(dashboard)/settings/users/page.tsx");
+  const employeeUi = read("app/[locale]/(dashboard)/employees/[id]/page.tsx");
+  const usePermissions = read("hooks/use-permissions.ts");
+  const apiClient = read("lib/api/client.ts");
+  const recoveryDelivery = read("backend/src/services/local-recovery-delivery.service.js");
   const catalog = read("lib/permissions/catalog.ts");
   const pkg = JSON.parse(read("package.json"));
+  const accessControl = read("backend/src/bootstrap/accessControl.js");
 
   for (const token of [
     "account_type", "super_admin", "branch_shell", "technical_account_sessions",
@@ -46,12 +53,32 @@ function staticContract() {
   }
   assert.ok(userModel.includes("accountType") && userModel.includes("forcePasswordChange"), "User model exposes safe account fields");
   assert.ok(models.includes("TechnicalAccountSession") && models.includes("PasswordResetToken") && models.includes("EmployeeCodeHistory"), "models registered");
+  for (const token of ["validateResetToken", "changeEmail", "confirmEmailChange"]) {
+    assert.ok(auth.includes(token), `auth controller has ${token}`);
+  }
   assert.ok(auth.includes("issueTokens") && auth.includes("rotateRefreshToken") && auth.includes("forgotPassword"), "auth controller uses persisted sessions and recovery");
+  assert.ok(auth.includes("validatePasswordPolicy"), "auth controller uses strong central password policy");
   assert.ok(middleware.includes("assertAccessSession") && middleware.includes("Branch Shell accounts cannot switch branches"), "middleware validates session scope");
-  assert.ok(systemService.includes("Final active Super Admin") && systemService.includes("requireSensitiveAdminLevel2"), "system account safeguards exist");
+  assert.ok(systemService.includes("Final active Super Admin") && systemService.includes("requireSensitiveAdminLevel2") && systemService.includes("final_recovery_safeguard_denied"), "system account safeguards exist");
   assert.ok(routes.includes("/:id/reset-password") && routes.includes("/readiness"), "system account routes mounted");
   assert.ok(employeeAuth.includes("changeEmployeeCode") && employeeAuth.includes("changeOwnPin") && employeeAuth.includes("EmployeeCodeHistory"), "employee credential changes exist");
+  assert.ok(employeeRoutes.includes("requiredLevel: 2") && employeeRoutes.includes("employee.pin.self_change"), "PIN self-change requires Level 2");
+  assert.ok(employeeCrudRoutes.includes("Employee Code must be changed through the dedicated credential endpoint"), "generic Employee update cannot bypass dedicated Employee Code history path");
+  const systemAccountsUiApi = `${ui}\n${read("hooks/use-user-management.ts")}`;
+  assert.ok(systemAccountsUiApi.includes("/system-accounts") && ui.includes("accountType") && ui.includes("change-email") && ui.includes("convert-account-type") && ui.includes("readiness"), "system accounts UI/API contracts wired");
   assert.ok(ui.includes("Super Admin Accounts") && ui.includes("Branch Shell Accounts") && ui.includes("Security & Recovery"), "system accounts UI sections exist");
+  assert.ok(employeeUi.includes("codeHistory") && employeeUi.includes("changeOwnPin") && employeeUi.includes("permissionSourceLabel") && employeeUi.includes("Permission count"), "employee credential/effective-permission UI contracts wired");
+  assert.ok(usePermissions.includes('accountType === "branch_shell"') && usePermissions.includes("return false"), "frontend permission helper respects Branch Shell account type");
+  assert.ok(apiClient.includes("/auth/refresh") && apiClient.includes("refreshAccessToken") && apiClient.includes("clearStoredApiAuth"), "frontend refresh/session rotation is wired");
+  assert.ok(recoveryDelivery.includes("mailbox = new Map") && !recoveryDelivery.includes("appendFileSync") && !recoveryDelivery.includes("jsonl"), "development recovery delivery is memory TTL only");
+  assert.ok(!catalog.includes('action.replace(/_/g'), "permission catalog has no raw action fallback");
+  const backendPermissions = [...accessControl.matchAll(/"([a-z_]+(?:\.[a-z_]+)+)"/g)].map((match) => match[1]);
+  for (const permission of [...new Set(backendPermissions)]) {
+    assert.ok(catalog.includes(`"${permission}"`), `permission catalog explicitly knows ${permission}`);
+  }
+  for (const fragment of ["record_payment", "refund_execute", "self_approve", "audit_view", "reports_export", "adjust"]) {
+    assert.ok(catalog.includes(fragment), `permission catalog localizes ${fragment}`);
+  }
   assert.equal(pkg.scripts["verify:super-admin-branch-shell-recovery"], "node scripts/verify-super-admin-branch-shell-recovery.js", "package verifier registered");
   console.log("Phase 34.5A static contract: PASS");
 }
@@ -63,6 +90,8 @@ let server;
 let baseUrl;
 const ns = `T345A-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const pin = "258036";
+let activePin = pin;
+let activeEmployeeCode = `${ns}-ADMIN`;
 const ids = {
   company: `CMP-${ns}`,
   branchA: `BR-${ns}-A`,
@@ -212,8 +241,8 @@ async function verifyOperator(key = "super") {
     token: state.tokens.super,
     deviceId,
     body: {
-      employeeCode: `${ns}-ADMIN`,
-      pin,
+      employeeCode: activeEmployeeCode,
+      pin: activePin,
       branchId: ids.branchA,
       requestedLevel: 2,
       requestedPermission: "system_accounts.manage",
@@ -231,7 +260,7 @@ async function dbContract() {
   assert.equal(conn.database, "darfus_erp", "connected database");
   const [[migrations]] = await models.sequelize.query('select count(*)::int c from "SequelizeMeta"');
   assert.equal(Number(migrations.c), 42, "migration count is 42");
-  assert.equal(await models.Permission.count(), 120, "permission count is 120");
+  assert.equal(await models.Permission.count(), 123, "permission count is 123");
   assert.equal(await models.Permission.count({ where: { name: ["pos.view", "pos.sell", "pos.discount.approve"] } }), 3, "POS permissions unchanged");
   const { Op } = require(path.join(BACKEND, "node_modules/sequelize"));
   assert.equal(await models.Permission.count({ where: { name: { [Op.like]: "gold_purchase.%" } } }), 24, "Gold Purchase permissions unchanged");
@@ -269,9 +298,17 @@ async function testSessionsAndRecovery() {
   const resetRows = await models.PasswordResetToken.findAll({ where: { userId: ids.superAdmin, usedAt: null } });
   assert.equal(resetRows.length, 1, "prior reset tokens invalidated");
   assert.ok(resetRows[0].tokenHash && !resetRows[0].tokenHash.includes("T345A"), "reset token is hashed");
-  const sink = path.join(BACKEND, "tmp/local-recovery-delivery.jsonl");
-  const last = fs.readFileSync(sink, "utf8").trim().split(/\r?\n/).map(JSON.parse).reverse().find((row) => row.userId === ids.superAdmin);
+  const localRecoveryDelivery = require(path.join(BACKEND, "src/services/local-recovery-delivery.service"));
+  const last = localRecoveryDelivery.listLocalDeliveries().reverse().find((row) => row.userId === ids.superAdmin && row.kind === "password_reset");
   assert.ok(last?.token, "local/dev delivery sink emitted one-time token");
+  const validate = await request("POST", "/auth/validate-reset-token", { branchId: null, body: { token: last.token } });
+  assert.equal(validate.status, 200, "reset token validation route exists");
+  assert.equal(validate.body.data.status, "valid", "reset token validates without account details");
+  const weakReset = await request("POST", "/auth/reset-password", {
+    branchId: null,
+    body: { token: last.token, newPassword: "weakpass", confirmation: "weakpass" }
+  });
+  assert.equal(weakReset.status, 422, "strong password policy rejects weak reset password");
   const reset = await request("POST", "/auth/reset-password", {
     branchId: null,
     body: { token: last.token, newPassword: "ChangedPass!234", confirmation: "ChangedPass!234" }
@@ -301,7 +338,8 @@ async function testLockoutAndBranchShell() {
     deviceId: `DEV-${ns}-shell`,
     body: {}
   });
-  assert.equal(posDenied.status, 403, "Branch Shell does not inherit admin direct operational permission");
+  assert.equal(posDenied.status, 401, "Branch Shell reaches Employee-first POS gate without direct operational permission");
+  assert.equal(codeOf(posDenied), "OPERATOR_SESSION_REQUIRED", "Branch Shell POS requires Employee operator session");
 }
 
 async function testSystemAccountsAndSafeguards() {
@@ -344,6 +382,13 @@ async function testSystemAccountsAndSafeguards() {
 
 async function testEmployeeCodeAndPin() {
   const deviceId = state.devices.super || await verifyOperator();
+  const genericBypass = await request("PATCH", `/employees/${ids.employee}`, {
+    token: state.tokens.super,
+    deviceId,
+    branchId: ids.branchA,
+    body: { employeeCode: `${ns}-BYPASS` }
+  });
+  assert.equal(genericBypass.status, 422, "generic Employee update cannot change Employee Code");
   const codeChange = await request("POST", `/employees/${ids.employee}/change-code`, {
     token: state.tokens.super,
     deviceId,
@@ -351,19 +396,21 @@ async function testEmployeeCodeAndPin() {
     body: { employeeCode: `${ns}-ADMIN2`, reason: "verifier code change" }
   });
   assert.equal(codeChange.status, 200, "Employee Code change endpoint");
+  activeEmployeeCode = `${ns}-ADMIN2`;
   assert.equal(await models.EmployeeCodeHistory.count({ where: { companyId: ids.company, employeeId: ids.employee } }), 1, "Employee Code history row");
   const reverify = await request("POST", "/operator/verify", {
     token: state.tokens.super,
     deviceId: `DEV-${ns}-pin`,
-    body: { employeeCode: `${ns}-ADMIN2`, pin, branchId: ids.branchA, requestedLevel: 1 }
+    body: { employeeCode: `${ns}-ADMIN2`, pin, branchId: ids.branchA, requestedLevel: 2 }
   });
   assert.equal(reverify.status, 200, "operator verifies with changed Employee Code");
   const pinChange = await request("POST", "/operator/change-pin", {
     token: state.tokens.super,
     deviceId: `DEV-${ns}-pin`,
-    body: { currentPin: pin, newPin: "369258" }
+    body: { currentPin: pin, newPin: "369258", confirmation: "369258" }
   });
   assert.equal(pinChange.status, 200, "PIN self-change");
+  activePin = "369258";
   const weak = await request("POST", "/operator/verify", {
     token: state.tokens.super,
     deviceId: `DEV-${ns}-weak`,
@@ -372,6 +419,32 @@ async function testEmployeeCodeAndPin() {
   assert.equal(weak.status, 422, "weak PIN rejected");
   const auditCount = await models.AuditLog.count({ where: { companyId: ids.company } });
   assert.ok(auditCount >= 4, "high-risk dual audit evidence exists");
+}
+
+async function testEmailChange() {
+  await login(`${ns}-super@example.test`, "ChangedPass!234", "super");
+  const deviceId = await verifyOperator("email");
+  const change = await request("POST", "/auth/change-email", {
+    token: state.tokens.super,
+    deviceId,
+    branchId: ids.branchA,
+    body: { currentPassword: "ChangedPass!234", newEmail: `${ns}-super-new@example.test` }
+  });
+  assert.equal(change.status, 200, "self email change request succeeds");
+  const localRecoveryDelivery = require(path.join(BACKEND, "src/services/local-recovery-delivery.service"));
+  const event = localRecoveryDelivery.listLocalDeliveries().reverse().find((row) => row.userId === ids.superAdmin && row.kind === "email_change");
+  assert.ok(event?.token, "email-change token delivered through local memory sink");
+  const tokenRow = await models.EmailChangeToken.findOne({ where: { userId: ids.superAdmin, usedAt: null } });
+  assert.ok(tokenRow?.tokenHash && !tokenRow.tokenHash.includes(event.token), "email-change token stored hashed");
+  const confirm = await request("POST", "/auth/confirm-email-change", {
+    branchId: null,
+    body: { token: event.token }
+  });
+  assert.equal(confirm.status, 200, "email-change confirmation succeeds");
+  const user = await models.User.findByPk(ids.superAdmin);
+  assert.equal(user.email, `${ns.toLowerCase()}-super-new@example.test`, "email switched only after confirmation");
+  const oldToken = await request("GET", "/auth/me", { token: state.tokens.super, branchId: ids.branchA, deviceId });
+  assert.equal(oldToken.status, 401, "email change revokes old technical session");
 }
 
 async function runLive() {
@@ -390,6 +463,7 @@ async function runLive() {
     await testLockoutAndBranchShell();
     await testSystemAccountsAndSafeguards();
     await testEmployeeCodeAndPin();
+    await testEmailChange();
     console.log("LIVE HTTP ACCOUNT TESTS EXECUTED");
     console.log("SUPER ADMIN BRANCH SHELL RECOVERY PASSED");
   } finally {
@@ -445,13 +519,10 @@ async function cleanupNamespace() {
   await models.sequelize.query("delete from employees where company_id = :companyId or id like :likeNs or employee_code like :likeNs", { replacements });
   await models.sequelize.query("delete from branches where company_id = :companyId or id like :likeNs", { replacements });
   await models.sequelize.query("delete from companies where id = :companyId", { replacements });
-  const sink = path.join(BACKEND, "tmp/local-recovery-delivery.jsonl");
-  if (fs.existsSync(sink)) {
-    const remaining = fs.readFileSync(sink, "utf8")
-      .split(/\r?\n/)
-      .filter((line) => line.trim() && !line.includes(ns));
-    if (remaining.length) fs.writeFileSync(sink, `${remaining.join("\n")}\n`);
-    else fs.rmSync(sink, { force: true });
+  try {
+    require(path.join(BACKEND, "src/services/local-recovery-delivery.service")).clearLocalDeliveries();
+  } catch (_) {
+    // best-effort cleanup
   }
 }
 

@@ -26,17 +26,17 @@ function extractRoute(src, startNeedle, endNeedle) {
 
 const installmentRoute = extractRoute(
   routes,
-  'router.post("/installments/:id/pay"',
+  '"/installments/:id/pay"',
   'router.get("/gift-vouchers"',
 );
 const returnRoute = extractRoute(
   routes,
-  'router.post("/sales/returns"',
-  'router.post("/sales/exchanges"',
+  '"/sales/returns"',
+  '"/sales/exchanges/preview"',
 );
 const exchangeRoute = extractRoute(
   routes,
-  'router.post("/sales/exchanges"',
+  '"/sales/exchanges"',
   'router.post("/customers/:id/gold/payout"',
 );
 

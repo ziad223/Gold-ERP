@@ -41,10 +41,17 @@ function backend() {
   }
 
   // req.params folded into the request hash for every converted endpoint.
-  // installment + payslip use (idemScope, req.body, req.params).
+  // Installment payment now also folds in the server-side operator actor for
+  // Phase 34.5B replay consistency.
   assert.ok(
-    (routes.match(/idempotencyService\.hashRequest\(idemScope,\s*req\.body,\s*req\.params\)/g) || []).length >= 2,
-    "installment + payslip hash req.params",
+    routes.includes("idempotencyBodyWithActor(req, req.body, commandActor)") &&
+      /idempotencyService\.hashRequest\(\s*idemScope,\s*idempotencyBodyWithActor\(req,\s*req\.body,\s*commandActor\),\s*req\.params\s*\)/s.test(routes),
+    "installment hashes req.params and operator actor",
+  );
+  // Payslip still uses (idemScope, req.body, req.params).
+  assert.ok(
+    (routes.match(/idempotencyService\.hashRequest\(idemScope,\s*req\.body,\s*req\.params\)/g) || []).length >= 1,
+    "payslip hashes req.params",
   );
   // treasury + purchase pay use (idemScope, b, req.params).
   assert.ok(

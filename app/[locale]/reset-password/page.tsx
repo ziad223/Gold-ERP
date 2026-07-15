@@ -14,11 +14,20 @@ export default function ResetPasswordPage() {
   const [confirmation, setConfirmation] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [tokenStatus, setTokenStatus] = useState<"unknown" | "valid" | "invalid" | "expired" | "used">("unknown");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     try {
-      setToken(new URLSearchParams(window.location.search).get("token") || "");
+      const nextToken = new URLSearchParams(window.location.search).get("token") || "";
+      setToken(nextToken);
+      if (nextToken) {
+        void apiClient<{ success: boolean; data: { valid: boolean; status: "valid" | "invalid" | "expired" | "used" } }>("/auth/validate-reset-token", {
+          method: "POST",
+          body: JSON.stringify({ token: nextToken }),
+          skipBranch: true,
+        }).then((res) => setTokenStatus(res.data.status)).catch(() => setTokenStatus("invalid"));
+      }
     } catch {
       setToken("");
     }
@@ -46,6 +55,13 @@ export default function ResetPasswordPage() {
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-5 dark:bg-navy-950" dir={rtl ? "rtl" : "ltr"}>
       <section className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-soft dark:border-slate-800 dark:bg-navy-900">
         <h1 className="text-2xl font-black text-navy-950 dark:text-white">{rtl ? "إعادة تعيين كلمة المرور" : "Reset Password"}</h1>
+        {tokenStatus !== "unknown" && (
+          <p className={`mt-4 rounded border p-3 text-xs font-bold ${tokenStatus === "valid" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
+            {tokenStatus === "valid"
+              ? (rtl ? "رمز الاسترجاع صالح." : "Recovery token is valid.")
+              : (rtl ? "رمز الاسترجاع غير صالح أو منتهي أو مستخدم." : "Recovery token is invalid, expired, or already used.")}
+          </p>
+        )}
         <form onSubmit={submit} className="mt-6 space-y-4">
           <input className="input-base" value={token} onChange={(event) => setToken(event.target.value)} placeholder={rtl ? "رمز الاسترجاع" : "Recovery token"} required />
           <input className="input-base" type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} placeholder={rtl ? "كلمة المرور الجديدة" : "New password"} required />

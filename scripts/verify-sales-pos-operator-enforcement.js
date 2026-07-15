@@ -23,6 +23,7 @@ function staticContract() {
   const printEvent = read("backend/src/models/invoicePrintEvent.model.js");
   const policy = read("backend/src/services/sales-operator-policy.service.js");
   const routes = read("backend/src/routes/erp.routes.js");
+  const authGuard = read("components/auth/auth-guard.tsx");
   const apiClient = read("lib/api/client.ts");
   const operatorBar = read("components/operator/operator-bar.tsx");
 
@@ -69,15 +70,20 @@ function staticContract() {
   assertIncludes(policy, "branchOverrides", "branch override resolver");
   assertIncludes(policy, "legacy_users", "legacy default");
   assertIncludes(policy, "shared_employee_operator", "shared mode");
+  assertIncludes(policy, "requireSalesCommandAccess", "centralized Sales/POS command gate");
+  assertIncludes(policy, "accountTypeRequiresOperator", "account-type forced operator gate");
+  assertIncludes(policy, "accountType === \"legacy\"", "legacy technical permission branch");
+  assertIncludes(policy, "accountType === \"branch_shell\"", "Branch Shell command branch");
+  assertIncludes(policy, "accountType === \"super_admin\"", "Super Admin command branch");
 
   const protectedRoutes = [
-    ['"/pos/checkout"', 'requireSalesOperator("pos.checkout"'],
-    ['"/sales/invoices/draft"', 'requireSalesOperator("sales.legacy_immediate_post"'],
-    ['"/sales/invoices/drafts"', 'requireSalesOperator("sales.draft.create"'],
-    ['"/sales/invoices/:id"', 'requireSalesOperator("sales.draft.update"'],
-    ['"/sales/invoices/:id/cancel"', 'requireSalesOperator("sales.draft.cancel"'],
-    ['"/sales/invoices/:id/post"', 'requireSalesOperator("sales.post"'],
-    ['"/invoices/:id/print-events"', 'requireSalesOperator("sales.official_print"']
+    ['"/pos/checkout"', 'requireSalesCommandAccess("pos.checkout"'],
+    ['"/sales/invoices/draft"', 'requireSalesCommandAccess("sales.legacy_immediate_post"'],
+    ['"/sales/invoices/drafts"', 'requireSalesCommandAccess("sales.draft.create"'],
+    ['"/sales/invoices/:id"', 'requireSalesCommandAccess("sales.draft.update"'],
+    ['"/sales/invoices/:id/cancel"', 'requireSalesCommandAccess("sales.draft.cancel"'],
+    ['"/sales/invoices/:id/post"', 'requireSalesCommandAccess("sales.post"'],
+    ['"/invoices/:id/print-events"', 'requireSalesCommandAccess("sales.official_print"']
   ];
   for (const [routeToken, guardToken] of protectedRoutes) {
     assertIncludes(routes, routeToken, `route ${routeToken}`);
@@ -95,6 +101,11 @@ function staticContract() {
   assertIncludes(routes, "receivedByEmployeeId: commandActor.employeeId || null", "payment receiver attribution");
   assertIncludes(routes, "commandActorContext.attachAuditActor", "dual audit actor propagation");
   assertIncludes(routes, "permissionService.userHasPermission(req.user, \"pos.discount.approve\")", "discount technical permission DB resolution");
+  assertIncludes(authGuard, "salesPosOperatorRouteAccess", "frontend Sales/POS operator route compatibility gate");
+  assertIncludes(authGuard, 'user?.accountType === "branch_shell"', "frontend Branch Shell Sales/POS route access");
+  assertIncludes(authGuard, 'user?.accountType === "super_admin"', "frontend Super Admin Sales/POS route access");
+  assertIncludes(authGuard, '/^\\/pos(?:\\/|$)/', "frontend POS route compatibility scope");
+  assertIncludes(authGuard, '/^\\/sales(?:\\/|$)/', "frontend Sales route compatibility scope");
 
   for (const excluded of [
     'requireSalesOperator("sales.return"',
@@ -137,7 +148,7 @@ async function databaseContract(models) {
   const [migrations] = await models.sequelize.query('select count(*)::int c from "SequelizeMeta"');
   assert.equal(Number(migrations[0].c), 42, "migration count is 42");
   const permissionCount = await models.Permission.count();
-  assert.equal(permissionCount, 120, "permission count is 120");
+  assert.equal(permissionCount, 123, "permission count is 123");
   const pos = await models.Permission.findAll({ where: { name: ["pos.view", "pos.sell", "pos.discount.approve"] } });
   assert.equal(pos.length, 3, "all POS permissions exist once");
   const gold = await models.Permission.count({ where: { name: { [Op.like]: "gold_purchase.%" } } });
@@ -294,7 +305,7 @@ async function ensureRole(slug, permissionNames) {
   return role;
 }
 
-async function createUser(key, role, branchId = ids.branchA) {
+async function createUser(key, role, branchId = ids.branchA, options = {}) {
   const user = await models.User.create({
     id: `USR-${ns}-${key}`,
     companyId: ids.company,
@@ -303,8 +314,9 @@ async function createUser(key, role, branchId = ids.branchA) {
     email: `${ns}-${key}@example.test`.toLowerCase(),
     phone: "000",
     password: "not-used",
-    role: "sales",
-    branchId
+    role: options.legacyRole || "sales",
+    accountType: options.accountType || "legacy",
+    branchId: options.accountType === "super_admin" ? null : branchId
   });
   await models.UserRole.create({ userId: user.id, roleId: state.roles[role].id });
   state.users[key] = user;
@@ -517,6 +529,8 @@ async function createFixtures() {
   await createUser("posNoDiscount", "posNoDiscount", ids.branchA);
   await createUser("noSales", "noSales", ids.branchA);
   await createUser("legacyFull", "full", ids.branchLegacy);
+  await createUser("branchShell", "full", ids.branchA, { accountType: "branch_shell", legacyRole: "admin" });
+  await createUser("superAdmin", "full", null, { accountType: "super_admin", legacyRole: "admin" });
 
   await createEmployee("all", ["sales.create", "sales.print", "pos.sell", "pos.discount.approve"], { branches: [ids.branchA, ids.branchB, ids.branchLegacy] });
   await createEmployee("pos", ["pos.sell"], { branches: [ids.branchA, ids.branchB] });
@@ -792,6 +806,219 @@ async function testDraftPostAndPrint() {
   state.printEvents.push(outData(reprint).id);
 }
 
+async function testBranchShellEmployeeFirstGate() {
+  const permissionService = require(path.join(BACKEND, "src/services/permission.service"));
+  const branchShellPermissions = await permissionService.getUserPermissionNames(state.users.branchShell);
+  assert.equal(branchShellPermissions.includes("pos.sell"), false, "Branch Shell has no direct pos.sell User permission");
+  assert.equal(branchShellPermissions.includes("sales.create"), false, "Branch Shell has no direct sales.create User permission");
+  assert.equal(branchShellPermissions.includes("sales.print"), false, "Branch Shell has no direct sales.print User permission");
+
+  const customer = await createCustomer("branch-shell");
+  const noEmployeeProduct = await createProduct("branch-shell-no-employee", ids.branchA, 2, 100);
+  const beforeNoEmployee = await businessCounts();
+  await expectError(
+    request("POST", "/pos/checkout", {
+      token: state.tokens.branchShell,
+      branchId: ids.branchA,
+      body: posBody(customer, noEmployeeProduct),
+      idempotencyKey: `IDEM-${ns}-branch-shell-no-employee`
+    }),
+    401,
+    "OPERATOR_SESSION_REQUIRED",
+    "Branch Shell POS checkout without Employee"
+  );
+  await assertNoBusinessMutation(beforeNoEmployee, "Branch Shell no Employee denial");
+
+  const noPosDevice = await verifyOperator({ user: "branchShell", employee: "noPos", branchId: ids.branchA, level: 2 });
+  const noPermissionProduct = await createProduct("branch-shell-no-pos", ids.branchA, 2, 100);
+  const beforeNoPermission = await businessCounts();
+  await expectError(
+    request("POST", "/pos/checkout", {
+      token: state.tokens.branchShell,
+      branchId: ids.branchA,
+      deviceId: noPosDevice,
+      body: posBody(customer, noPermissionProduct),
+      idempotencyKey: `IDEM-${ns}-branch-shell-no-pos`
+    }),
+    403,
+    "OPERATOR_PERMISSION_DENIED",
+    "Branch Shell Employee missing pos.sell"
+  );
+  await assertNoBusinessMutation(beforeNoPermission, "Branch Shell missing Employee permission");
+
+  const deniedDevice = await verifyOperator({ user: "branchShell", employee: "deniedPos", branchId: ids.branchA, level: 2 });
+  const deniedProduct = await createProduct("branch-shell-denied-pos", ids.branchA, 2, 100);
+  const beforeDirectDenial = await businessCounts();
+  await expectError(
+    request("POST", "/pos/checkout", {
+      token: state.tokens.branchShell,
+      branchId: ids.branchA,
+      deviceId: deniedDevice,
+      body: posBody(customer, deniedProduct),
+      idempotencyKey: `IDEM-${ns}-branch-shell-direct-denial`
+    }),
+    403,
+    "OPERATOR_PERMISSION_DENIED",
+    "Branch Shell Employee direct denial"
+  );
+  await assertNoBusinessMutation(beforeDirectDenial, "Branch Shell direct denial");
+
+  const level1PosDevice = await verifyOperator({ user: "branchShell", employee: "pos", branchId: ids.branchA, level: 1 });
+  const stepUpProduct = await createProduct("branch-shell-step-up", ids.branchA, 2, 100);
+  const beforeStepUp = await businessCounts();
+  await expectError(
+    request("POST", "/pos/checkout", {
+      token: state.tokens.branchShell,
+      branchId: ids.branchA,
+      deviceId: level1PosDevice,
+      body: posBody(customer, stepUpProduct),
+      idempotencyKey: `IDEM-${ns}-branch-shell-step-up`
+    }),
+    403,
+    "OPERATOR_STEP_UP_REQUIRED",
+    "Branch Shell POS checkout Level 1 step-up"
+  );
+  await assertNoBusinessMutation(beforeStepUp, "Branch Shell Level 1 step-up denial");
+
+  const branchMismatchProduct = await createProduct("branch-shell-branch-mismatch", ids.branchA, 2, 100);
+  const beforeBranchMismatch = await businessCounts();
+  await expectError(
+    request("POST", "/pos/checkout", {
+      token: state.tokens.branchShell,
+      branchId: ids.branchB,
+      deviceId: level1PosDevice,
+      body: posBody(customer, branchMismatchProduct, { branchId: ids.branchB }),
+      idempotencyKey: `IDEM-${ns}-branch-shell-branch-mismatch`
+    }),
+    403,
+    "OPERATOR_BRANCH_MISMATCH",
+    "Branch Shell fixed branch mismatch"
+  );
+  await assertNoBusinessMutation(beforeBranchMismatch, "Branch Shell branch mismatch");
+
+  const posDevice = await verifyOperator({ user: "branchShell", employee: "pos", branchId: ids.branchA, level: 2 });
+  const successProduct = await createProduct("branch-shell-success", ids.branchA, 2, 100);
+  const success = await request("POST", "/pos/checkout", {
+    token: state.tokens.branchShell,
+    branchId: ids.branchA,
+    deviceId: posDevice,
+    body: posBody(customer, successProduct),
+    idempotencyKey: `IDEM-${ns}-branch-shell-success`
+  });
+  assert.equal(success.status, 201, "Branch Shell POS checkout succeeds through Employee authorization");
+  const branchShellInvoiceId = outData(success).id;
+  state.invoices.push(branchShellInvoiceId);
+  const branchShellInvoice = await models.Invoice.findByPk(branchShellInvoiceId);
+  assert.equal(branchShellInvoice.finalizedByEmployeeId, state.employees.pos.id, "Branch Shell POS invoice finalizer is Employee");
+  const branchShellPayment = await models.Payment.findOne({ where: { companyId: ids.company, invoiceId: branchShellInvoiceId } });
+  assert.ok(branchShellPayment, "Branch Shell POS payment persisted");
+  assert.equal(branchShellPayment.receivedByEmployeeId, state.employees.pos.id, "Branch Shell POS payment receiver is Employee");
+
+  const salesLevel1Device = await verifyOperator({ user: "branchShell", employee: "sales", branchId: ids.branchA, level: 1 });
+  const draftCustomer = await createCustomer("branch-shell-draft");
+  const cancelAsset = await createAsset("branch-shell-draft-cancel", ids.branchA, 125);
+  const draftCreate = await request("POST", "/sales/invoices/drafts", {
+    token: state.tokens.branchShell,
+    branchId: ids.branchA,
+    deviceId: salesLevel1Device,
+    body: draftBody(draftCustomer, cancelAsset),
+    idempotencyKey: `IDEM-${ns}-branch-shell-draft-create`
+  });
+  assert.equal(draftCreate.status, 201, "Branch Shell draft create succeeds with Level 1 Employee");
+  const cancelDraftId = outData(draftCreate).id;
+  state.invoices.push(cancelDraftId);
+  let cancelDraft = await models.Invoice.findByPk(cancelDraftId);
+  assert.equal(cancelDraft.createdByEmployeeId, state.employees.sales.id, "Branch Shell draft creator Employee attribution");
+
+  const draftEdit = await request("PATCH", `/sales/invoices/${cancelDraftId}`, {
+    token: state.tokens.branchShell,
+    branchId: ids.branchA,
+    deviceId: salesLevel1Device,
+    body: { notes: `${ns} branch shell edit` }
+  });
+  assert.equal(draftEdit.status, 200, "Branch Shell draft edit succeeds with Level 1 Employee");
+
+  const draftCancel = await request("POST", `/sales/invoices/${cancelDraftId}/cancel`, {
+    token: state.tokens.branchShell,
+    branchId: ids.branchA,
+    deviceId: salesLevel1Device,
+    body: { reason: `${ns} branch shell cancel` }
+  });
+  assert.equal(draftCancel.status, 200, "Branch Shell draft cancel succeeds with Level 1 Employee");
+
+  const postAsset = await createAsset("branch-shell-draft-post", ids.branchA, 126);
+  const draftPostCreate = await request("POST", "/sales/invoices/drafts", {
+    token: state.tokens.branchShell,
+    branchId: ids.branchA,
+    deviceId: salesLevel1Device,
+    body: draftBody(draftCustomer, postAsset),
+    idempotencyKey: `IDEM-${ns}-branch-shell-draft-post-create`
+  });
+  assert.equal(draftPostCreate.status, 201, "Branch Shell post-test draft create succeeds");
+  const postDraftId = outData(draftPostCreate).id;
+  state.invoices.push(postDraftId);
+
+  const beforeDraftPostStepUp = await businessCounts();
+  await expectError(
+    request("POST", `/sales/invoices/${postDraftId}/post`, {
+      token: state.tokens.branchShell,
+      branchId: ids.branchA,
+      deviceId: salesLevel1Device,
+      body: { idempotencyKey: `IDEM-${ns}-branch-shell-draft-post-step-up` },
+      idempotencyKey: `IDEM-${ns}-branch-shell-draft-post-step-up`
+    }),
+    403,
+    "OPERATOR_STEP_UP_REQUIRED",
+    "Branch Shell draft post Level 1 step-up"
+  );
+  await assertNoBusinessMutation(beforeDraftPostStepUp, "Branch Shell draft post step-up denial");
+
+  const salesLevel2Device = await verifyOperator({ user: "branchShell", employee: "sales", branchId: ids.branchA, level: 2 });
+  const branchShellPost = await request("POST", `/sales/invoices/${postDraftId}/post`, {
+    token: state.tokens.branchShell,
+    branchId: ids.branchA,
+    deviceId: salesLevel2Device,
+    body: { idempotencyKey: `IDEM-${ns}-branch-shell-draft-post` },
+    idempotencyKey: `IDEM-${ns}-branch-shell-draft-post`
+  });
+  assert.equal(branchShellPost.status, 200, "Branch Shell draft post succeeds with Level 2 Employee");
+  const postedDraft = await models.Invoice.findByPk(postDraftId);
+  assert.equal(postedDraft.finalizedByEmployeeId, state.employees.sales.id, "Branch Shell draft post finalizer Employee attribution");
+}
+
+async function testSuperAdminRequiresEmployeeForOperations() {
+  const customer = await createCustomer("super-admin");
+  const noEmployeeProduct = await createProduct("super-admin-no-employee", ids.branchA, 2, 100);
+  const beforeNoEmployee = await businessCounts();
+  await expectError(
+    request("POST", "/pos/checkout", {
+      token: state.tokens.superAdmin,
+      branchId: ids.branchA,
+      body: posBody(customer, noEmployeeProduct),
+      idempotencyKey: `IDEM-${ns}-super-admin-no-employee`
+    }),
+    401,
+    "OPERATOR_SESSION_REQUIRED",
+    "Super Admin POS checkout without Employee"
+  );
+  await assertNoBusinessMutation(beforeNoEmployee, "Super Admin no Employee denial");
+
+  const deviceId = await verifyOperator({ user: "superAdmin", employee: "pos", branchId: ids.branchA, level: 2 });
+  const product = await createProduct("super-admin-success", ids.branchA, 2, 100);
+  const response = await request("POST", "/pos/checkout", {
+    token: state.tokens.superAdmin,
+    branchId: ids.branchA,
+    deviceId,
+    body: posBody(customer, product),
+    idempotencyKey: `IDEM-${ns}-super-admin-success`
+  });
+  assert.equal(response.status, 201, "Super Admin POS checkout succeeds through Employee authorization");
+  const invoiceId = outData(response).id;
+  state.invoices.push(invoiceId);
+  const invoice = await models.Invoice.findByPk(invoiceId);
+  assert.equal(invoice.finalizedByEmployeeId, state.employees.pos.id, "Super Admin POS invoice finalizer is Employee");
+}
+
 async function testLegacyModeCompatibility() {
   const customer = await createCustomer("legacy");
   const product = await createProduct("legacy-pos", ids.branchLegacy, 3, 90);
@@ -837,8 +1064,11 @@ async function runLiveHttpVerifier() {
     await testSharedModeDenialsAndAtomicity();
     await testPosSuccessAndDiscount();
     await testDraftPostAndPrint();
+    await testBranchShellEmployeeFirstGate();
+    await testSuperAdminRequiresEmployeeForOperations();
     await testLegacyModeCompatibility();
     console.log("LIVE HTTP TESTS EXECUTED");
+    console.log("BRANCH SHELL EMPLOYEE-FIRST SALES/POS GATE PASSED");
     console.log("FAILURE ATOMICITY PASSED");
   } finally {
     await cleanupNamespace();
