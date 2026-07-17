@@ -1,6 +1,6 @@
 # Phase 35D - Accounting and Treasury Launch Minimum
 
-Status: implementation complete, verification in progress.
+Status: implementation and verification complete; closure commit pending.
 
 Phase 35D implements the smallest Day-1 accounting truth and cash-register control approved after Phase 35C. It does not implement full fiscal close, VAT filing, purchase lifecycle redesign, inventory valuation, payroll, production deployment, or accountant policy decisions.
 
@@ -14,6 +14,7 @@ Phase 35D implements the smallest Day-1 accounting truth and cash-register contr
 - Local DB only: Docker PostgreSQL `localhost:5433 / darfus_erp`
 - Production/Render/remote databases: untouched
 - Start backup: `H:\WORK\jewellery-erp-master\backend\backups\darfus_erp_phase35d_start_20260717_144709.dump` (`481174` bytes)
+- Final backup: `H:\WORK\jewellery-erp-master\backend\backups\darfus_erp_phase35d_final_20260717_152429.dump` (`488940` bytes)
 
 ## Included Requirement IDs
 
@@ -100,6 +101,28 @@ The verifier checks:
 - variance reason requirement;
 - fixture rollback cleanup;
 - static route/UI/localization contracts.
+
+Regression verification completed:
+
+- `node scripts/verify-market-launch-safety-containment.js` -> `MARKET LAUNCH SAFETY CONTAINMENT PASSED`
+- `node scripts/verify-ledger-reporting-foundation.js` -> `verify-ledger-reporting-foundation: ok`
+- `node scripts/verify-single-level-employee-operator.js` -> `SINGLE LEVEL EMPLOYEE OPERATOR PASSED`
+- Backend/verifier `node --check` passed for changed JavaScript files.
+- `npm run typecheck` passed.
+- `npm run lint` passed with the existing image/hook warnings only.
+- `npm run build` passed.
+- `git diff --check` passed with line-ending warnings only.
+
+Browser QA completed locally on `localhost:3000` with Docker PostgreSQL `localhost:5433 / darfus_erp`:
+
+- Super Admin local login reached the dashboard with no Employee/PIN/Level prompt.
+- English treasury page rendered the cash register controls.
+- Register open and close succeeded with server expected/count/variance display and no runtime overlay.
+- The browser-created cash register row was removed; `cash_register_sessions` returned to zero rows.
+- Accounting reconciliation tab rendered accounting date lock and posted-journal balance truth.
+- Gift Voucher page showed the disabled launch state and disabled issue/redeem controls.
+- Arabic RTL treasury rendered the new register labels.
+- Mobile-width Arabic treasury rendered without horizontal overflow.
 
 ## Deferred
 
