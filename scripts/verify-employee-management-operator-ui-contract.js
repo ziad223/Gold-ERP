@@ -65,6 +65,7 @@ check(erpRoutes.includes("assertEmployeeCreatePin") && erpRoutes.includes("creat
 
 check(employeeDetail.includes("getOperatorSessions") || employeeDetail.includes("operatorSessions"), "Employee detail uses real operator-session history");
 check(employeeDetail.includes("PIN not configured") && employeeDetail.includes("Set PIN") && employeeDetail.includes("Reset PIN"), "Employee detail exposes Set/Reset PIN workflow with clear credential labels");
+check(employeeDetail.includes("resetCredential(pin, false)"), "Employee detail Set/Reset PIN configures a usable credential");
 check(!employeeDetail.includes("Local Simulation") && !employeeDetail.includes("محاكاة محلية"), "legacy simulated session UI is removed");
 check(!employeeDetail.includes("split(\",\")") && !employeeDetail.includes("comma-separated") && !employeeDetail.includes("One branch ID per line") && !employeeDetail.includes("One role ID per line") && !employeeDetail.includes("One granted permission ID per line"), "Employee authorization inputs no longer use comma-separated or raw line-based ID management");
 check(includesAll(employeeDetail, [

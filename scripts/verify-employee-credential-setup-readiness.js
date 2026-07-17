@@ -30,10 +30,13 @@ function staticContract() {
   assertContains(erpRoutes, "Employee PIN must be configured before activation", "activation requires configured PIN");
   assertContains(employeeList, "Employee PIN", "employee create form exposes Employee PIN");
   assertContains(employeeList, "Confirm Employee PIN", "employee create form exposes PIN confirmation");
+  assertContains(employeeList, "pin: form.pin", "employee create payload sends PIN");
+  assertContains(employeeList, "pinConfirm: form.pinConfirm", "employee create payload sends PIN confirmation");
   assertContains(employeeList, "PIN configured", "employee list displays configured PIN status");
   assertContains(employeeList, "PIN not configured", "employee list displays missing PIN status");
   assertContains(employeeDetail, "PIN not configured", "employee detail displays missing PIN status");
   assertContains(employeeDetail, "Set PIN", "employee detail exposes Set PIN action");
+  assertContains(employeeDetail, "resetCredential(pin, false)", "employee detail Set/Reset PIN configures a usable credential");
   assertContains(localRepo, "delete safeEmployee.pin", "local repository strips create PIN");
   assertContains(localRepo, "delete safeEmployee.pinConfirm", "local repository strips create PIN confirmation");
   assertContains(types, "pin?: string", "Employee create type includes create-only PIN");

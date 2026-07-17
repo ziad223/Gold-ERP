@@ -1,6 +1,20 @@
 # Phase 34.5A — Super Admin, Branch Shell Accounts, Employee-First Authorization & Recovery
 
-Status: additive core with HF5A, HF5B, and HF5C simplification hotfixes applied locally.
+Status: additive core with HF5A, HF5B, HF5C, and HF6A simplification/readiness hotfixes applied locally.
+
+## HF6A Current Contract
+
+HF6A keeps the HF5C single-level operator model and closes Employee creation credential readiness.
+
+- Active/non-inactive Employee creation now requires Employee Code plus exactly six numeric PIN digits and matching confirmation.
+- Employee creation and EmployeeCredential creation are atomic in one database transaction.
+- Inactive Employees may exist without a PIN for compatibility, but reactivation is blocked until an active, non-reset-required credential is configured.
+- Employee list/detail surfaces distinguish PIN not configured, PIN configured, PIN reset required, and inactive/locked credential states where the current model exposes them.
+- Employee detail Set PIN / Reset PIN configures a usable credential for Branch Account operator verification and revokes/stales active operator sessions.
+- PIN values are never displayed after submit, returned by the API, logged, or persisted in plaintext.
+- Counts after HF6A: 44 migrations, 128 permissions, and 59 verifier files.
+
+HF6B Employee Permission Catalog Wiring, HF6C Account Center simplification, HF6D broader end-to-end access QA, Employee email/password login, payroll/attendance, production, and broader account redesign remain deferred.
 
 ## HF5C Current Contract
 

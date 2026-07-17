@@ -1,6 +1,6 @@
 # Phase HF6A - Employee Creation and Credential Setup Readiness
 
-Status: implementation in progress from HF6A starting HEAD `343036f73cc794fca0a09488dc1c9fa6319930f9`.
+Status: implementation complete pending clean-tree post-commit full-suite rerun from HF6A starting HEAD `343036f73cc794fca0a09488dc1c9fa6319930f9`.
 
 ## Scope
 
@@ -60,7 +60,7 @@ Deferred:
 - Requires `employees.credentials.manage` plus existing Super Admin sensitive technical scope.
 - Validates six-digit PIN.
 - Creates missing credential or updates existing credential.
-- Increments `credentialVersion`, clears reset-required when requested, revokes active operator sessions, and audits without secrets.
+- Increments `credentialVersion`, configures a usable credential for UI Set PIN / Reset PIN, revokes active operator sessions, and audits without secrets.
 
 `POST /operator/change-pin`
 
@@ -86,6 +86,8 @@ Employee list/detail now show clear PIN status labels:
 - Credential inactive/locked where the existing model exposes those states.
 
 Employee detail uses Set PIN for missing credentials and Reset PIN for configured/reset-required credentials.
+
+The Employee detail UI calls `resetCredential(pin, false)` for Set PIN / Reset PIN so the resulting credential is usable by the Branch Account -> Employee Code + PIN verification flow.
 
 ## Counts
 
@@ -119,6 +121,35 @@ Targeted regression verifiers run during implementation:
 - `scripts/verify-market-launch-safety-containment.js`
 - `scripts/verify-accounting-treasury-launch-minimum.js`
 
+Static and build checks:
+
+- Backend syntax checks passed for `employee-authorization.service.js` and `erp.routes.js`.
+- Verifier syntax check passed for `verify-employee-credential-setup-readiness.js`.
+- `npm run typecheck` passed.
+- `npm run lint` passed with the existing 18 warnings and no errors.
+- `npm run build` passed.
+- `git diff --check` passed.
+- `next-env.d.ts` did not drift during builds.
+
+Browser QA:
+
+- Super Admin fixture login opened the dashboard.
+- English desktop Employee create modal showed Employee Code, Employee PIN, and confirmation.
+- UI create validated six-digit/matching PIN, stored only a hash, and did not display PIN afterward.
+- Existing missing-credential Employee Set PIN flow worked and became configured.
+- Reset-required Employee Reset PIN flow worked and became configured.
+- Unauthorized reset returned controlled `403`.
+- Arabic RTL create modal showed Code/PIN/confirmation.
+- Mobile Employee create workflow rendered without horizontal overflow.
+- Branch Account verified one Employee with Code + PIN, rejected wrong PIN generically, ended the Employee session while preserving technical login, and full logout returned to login.
+- No runtime overlay, page error, or unexpected console error was observed.
+- Temporary `HF6A-BQA-*` fixtures were cleaned to zero.
+
+Full suite:
+
+- A dirty-tree precommit full-suite run stopped on `verify-barcode-tag-print-layouts.js`, which intentionally rejects unrelated dirty implementation files.
+- Rerun the complete 59-verifier suite after the implementation commit when the tree is clean.
+
 ## Backups
 
 Start backup before write-capable verification:
@@ -129,6 +160,14 @@ Size: `488940` bytes.
 
 The host does not have `pg_dump` on PATH, so the backup was created with PostgreSQL tools inside the local `darfus-postgres` Docker container, copied to `backend/backups`, and validated with `pg_restore -l` in the same container.
 
+Final backup after browser QA and fixture cleanup:
+
+`H:\WORK\jewellery-erp-master\backend\backups\darfus_erp_hf6a_final_20260717_162948.dump`
+
+Size: `488940` bytes.
+
+The final backup was created with the same Docker-container `pg_dump` method and validated with `pg_restore -l`.
+
 ## Next Tool Start Here
 
 Before continuing, read this file and `docs/AI_HANDOFF.md`, then verify:
@@ -138,4 +177,4 @@ Before continuing, read this file and `docs/AI_HANDOFF.md`, then verify:
 - local Docker DB only at `localhost:5433 / darfus_erp`;
 - stashes remain untouched.
 
-NEXT TOOL START HERE: continue HF6A only until final static checks, browser QA, final backup, full verifier suite, and commit are complete. Do not start HF6B automatically.
+NEXT TOOL START HERE: after the HF6A implementation commit, rerun the clean-tree 59-verifier suite, confirm clean tree/stashes/ports, and do not start HF6B automatically.

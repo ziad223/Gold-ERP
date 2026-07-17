@@ -252,7 +252,7 @@ export default function EmployeeProfilePage({ params }: PageProps) {
         toast.error(rtl ? "أدخل الرقم السري الوظيفي من 6 أرقام وتأكيد مطابق" : "Enter a matching 6-digit PIN");
         return;
       }
-      const result = await resetCredential(pin, true);
+      const result = await resetCredential(pin, false);
       if (result.success) toast.success(rtl ? "تمت إعادة تعيين الرقم السري الوظيفي" : "PIN reset");
       else toast.error(result.error?.message || "PIN update failed");
     } finally {
