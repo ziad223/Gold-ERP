@@ -29,6 +29,7 @@ import { Link, usePathname } from "@/i18n/navigation";
 import { Logo } from "./logo";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useOperator } from "@/contexts/operator-context";
 
 const groups = [
   {
@@ -84,7 +85,8 @@ export function Sidebar({ open, onClose, collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const locale = useLocale();
   const t = useTranslations("Navigation");
-  const { hasPermission } = usePermissions();
+  const { hasPermission, accountType } = usePermissions();
+  const operator = useOperator();
   const rtl = locale === "ar";
   const CollapseIcon = rtl
     ? collapsed
@@ -93,14 +95,17 @@ export function Sidebar({ open, onClose, collapsed, onToggle }: SidebarProps) {
     : collapsed
       ? PanelLeftOpen
       : PanelLeftClose;
+  const branchAccountAllowedRoutes = new Set(["/pos", "/sales"]);
   const visibleGroups = groups
     .map((group) => ({
       ...group,
       items: group.items.filter((item) =>
-        (Array.isArray(item.permission)
+        accountType === "branch_shell"
+          ? (operator.active && branchAccountAllowedRoutes.has(item.href))
+          : ((Array.isArray(item.permission)
           ? (item.permission as readonly string[]).some((permission) => hasPermission(permission))
           : hasPermission(item.permission as string))
-        || (item.href === "/settings" && hasPermission("reservations.configure_account"))
+        || (item.href === "/settings" && hasPermission("reservations.configure_account")))
       )
     }))
     .filter((group) => group.items.length > 0);

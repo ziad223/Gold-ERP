@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { LockKeyhole, RefreshCw, ShieldCheck, UserRoundCheck } from "lucide-react";
+import { LogOut, RefreshCw, ShieldCheck, UserRoundCheck } from "lucide-react";
 import { useLocale } from "next-intl";
 import { useAuth } from "@/contexts/auth-context";
 import { useOperator } from "@/contexts/operator-context";
@@ -72,7 +72,7 @@ export function OperatorBar() {
   const tone = operator.active ? (level >= 2 ? "emerald" : "blue") : "amber";
 
   const title = useMemo(() => {
-    if (mode === "switch") return rtl ? "تبديل الموظف" : "Switch employee";
+    if (mode === "switch") return rtl ? "تغيير الموظف" : "Change Employee";
     if (mode === "step-up") return rtl ? "تفويض المستوى الثاني" : "Level 2 step-up";
     return rtl ? "تحقق من الموظف" : "Verify employee";
   }, [mode, rtl]);
@@ -119,9 +119,9 @@ export function OperatorBar() {
     }
   };
 
-  const lockOperator = async () => {
+  const endOperatorSession = async () => {
     try {
-      await operator.lock("manual_lock");
+      await operator.endSession("operator_session_ended");
     } finally {
       resetOperatorDialogState();
     }
@@ -163,6 +163,7 @@ export function OperatorBar() {
 
           {operator.active && (
             <div className="mt-3 grid gap-2 rounded-2xl bg-background p-3 text-[11px]">
+              <div className="flex justify-between"><span>{rtl ? "الموظف الحالي" : "Current Employee"}</span><strong>{employee?.employeeCode || "—"}</strong></div>
               <div className="flex justify-between"><span>{rtl ? "المستوى" : "Level"}</span><strong>L{level}</strong></div>
               <div className="flex justify-between"><span>{rtl ? "انتهاء الخمول" : "Idle expiry"}</span><strong>{formatCountdown(idleSeconds)}</strong></div>
               <div className="flex justify-between"><span>{rtl ? "الانتهاء المطلق" : "Absolute expiry"}</span><strong>{formatCountdown(absoluteSeconds)}</strong></div>
@@ -193,17 +194,17 @@ export function OperatorBar() {
               required
             />
             <button disabled={operator.loading || !activeBranchId} className="w-full rounded-2xl bg-brand-600 px-4 py-2 text-xs font-black text-white disabled:opacity-50" type="submit">
-              {mode === "switch" ? (rtl ? "تبديل" : "Switch") : mode === "step-up" ? (rtl ? "تفويض" : "Authorize") : (rtl ? "تحقق" : "Verify")}
+              {mode === "switch" ? (rtl ? "تغيير الموظف" : "Change Employee") : mode === "step-up" ? (rtl ? "تفويض" : "Authorize") : (rtl ? "تحقق" : "Verify")}
             </button>
           </form>
 
           <div className="mt-3 flex flex-wrap gap-2">
             {operator.active ? (
               <>
-                <button type="button" onClick={() => openDialog("switch")} className="rounded-xl border border-border px-3 py-2 font-bold">{rtl ? "تبديل" : "Switch"}</button>
+                <button type="button" onClick={() => openDialog("switch")} className="rounded-xl border border-border px-3 py-2 font-bold">{rtl ? "تغيير الموظف" : "Change Employee"}</button>
                 <button type="button" onClick={() => openDialog("step-up")} className="rounded-xl border border-border px-3 py-2 font-bold">{rtl ? "مستوى 2" : "Step-up"}</button>
-                <button type="button" onClick={() => void lockOperator()} className="inline-flex items-center gap-1 rounded-xl border border-amber-300 px-3 py-2 font-bold text-amber-700">
-                  <LockKeyhole className="h-3.5 w-3.5" /> {rtl ? "قفل" : "Lock"}
+                <button type="button" onClick={() => void endOperatorSession()} className="inline-flex items-center gap-1 rounded-xl border border-amber-300 px-3 py-2 font-bold text-amber-700">
+                  <LogOut className="h-3.5 w-3.5" /> {rtl ? "إنهاء جلسة الموظف" : "End Employee Session"}
                 </button>
               </>
             ) : (

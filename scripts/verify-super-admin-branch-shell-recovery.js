@@ -58,15 +58,15 @@ function staticContract() {
   }
   assert.ok(auth.includes("issueTokens") && auth.includes("rotateRefreshToken") && auth.includes("forgotPassword"), "auth controller uses persisted sessions and recovery");
   assert.ok(auth.includes("validatePasswordPolicy"), "auth controller uses strong central password policy");
-  assert.ok(middleware.includes("assertAccessSession") && middleware.includes("Branch Shell accounts cannot switch branches"), "middleware validates session scope");
+  assert.ok(middleware.includes("assertAccessSession") && middleware.includes("BRANCH_ACCOUNT_FIXED_SCOPE"), "middleware validates session scope");
   assert.ok(systemService.includes("Final active Super Admin") && systemService.includes("requireSensitiveAdminLevel2") && systemService.includes("final_recovery_safeguard_denied"), "system account safeguards exist");
   assert.ok(routes.includes("/:id/reset-password") && routes.includes("/readiness"), "system account routes mounted");
   assert.ok(employeeAuth.includes("changeEmployeeCode") && employeeAuth.includes("changeOwnPin") && employeeAuth.includes("EmployeeCodeHistory"), "employee credential changes exist");
   assert.ok(employeeRoutes.includes("requiredLevel: 2") && employeeRoutes.includes("employee.pin.self_change"), "PIN self-change requires Level 2");
   assert.ok(employeeCrudRoutes.includes("Employee Code must be changed through the dedicated credential endpoint"), "generic Employee update cannot bypass dedicated Employee Code history path");
   const systemAccountsUiApi = `${ui}\n${read("hooks/use-user-management.ts")}`;
-  assert.ok(systemAccountsUiApi.includes("/system-accounts") && ui.includes("accountType") && ui.includes("change-email") && ui.includes("convert-account-type") && ui.includes("readiness"), "system accounts UI/API contracts wired");
-  assert.ok(ui.includes("Super Admin Accounts") && ui.includes("Branch Shell Accounts") && ui.includes("Security & Recovery"), "system accounts UI sections exist");
+  assert.ok(systemAccountsUiApi.includes("/system-accounts") && systemAccountsUiApi.includes("/system-accounts/branch-accounts") && systemAccountsUiApi.includes("change-email") && systemAccountsUiApi.includes("readiness"), "system accounts UI/API contracts wired");
+  assert.ok(ui.includes("Super Admin Accounts") && ui.includes("Branch Accounts") && ui.includes("Security & Recovery"), "system accounts UI sections exist");
   assert.ok(employeeUi.includes("codeHistory") && employeeUi.includes("changeOwnPin") && employeeUi.includes("permissionSourceLabel") && employeeUi.includes("Permission count"), "employee credential/effective-permission UI contracts wired");
   assert.ok(usePermissions.includes('accountType === "branch_shell"') && usePermissions.includes("return false"), "frontend permission helper respects Branch Shell account type");
   assert.ok(apiClient.includes("/auth/refresh") && apiClient.includes("refreshAccessToken") && apiClient.includes("clearStoredApiAuth"), "frontend refresh/session rotation is wired");
@@ -259,7 +259,7 @@ async function dbContract() {
   const [[conn]] = await models.sequelize.query("select current_database() as database");
   assert.equal(conn.database, "darfus_erp", "connected database");
   const [[migrations]] = await models.sequelize.query('select count(*)::int c from "SequelizeMeta"');
-  assert.equal(Number(migrations.c), 42, "migration count is 42");
+  assert.equal(Number(migrations.c), 43, "migration count is 43 after HF5B");
   assert.equal(await models.Permission.count(), 123, "permission count is 123");
   assert.equal(await models.Permission.count({ where: { name: ["pos.view", "pos.sell", "pos.discount.approve"] } }), 3, "POS permissions unchanged");
   const { Op } = require(path.join(BACKEND, "node_modules/sequelize"));
@@ -339,7 +339,7 @@ async function testLockoutAndBranchShell() {
     body: {}
   });
   assert.equal(posDenied.status, 401, "Branch Shell reaches Employee-first POS gate without direct operational permission");
-  assert.equal(codeOf(posDenied), "OPERATOR_SESSION_REQUIRED", "Branch Shell POS requires Employee operator session");
+  assert.equal(codeOf(posDenied), "BRANCH_ACCOUNT_EMPLOYEE_REQUIRED", "Branch Shell POS requires Employee operator session");
 }
 
 async function testSystemAccountsAndSafeguards() {

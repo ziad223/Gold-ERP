@@ -33,6 +33,7 @@ export interface ManagedUser {
   branchId?: string | null;
   recoveryEmailMasked?: string | null;
   lockedUntil?: string | null;
+  isActive?: boolean;
   lastLoginAt?: string | null;
   lastPasswordChangeAt?: string | null;
   activeSessions?: number;
@@ -139,6 +140,19 @@ export function useUserManagement() {
     },
   });
 
+  const createBranchAccount = useMutation({
+    mutationFn: (payload: Record<string, unknown>) =>
+      apiClient("/system-accounts/branch-accounts", {
+        method: "POST",
+        body: JSON.stringify(payload),
+        skipBranch: true,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["system-accounts"] });
+      void queryClient.invalidateQueries({ queryKey: ["system-accounts", "readiness"] });
+    },
+  });
+
   const updateSystemAccount = useMutation({
     mutationFn: ({ id, body }: { id: string; body: Record<string, unknown> }) =>
       apiClient(`/system-accounts/${encodeURIComponent(id)}`, {
@@ -156,6 +170,7 @@ export function useUserManagement() {
       apiClient(`/system-accounts/${encodeURIComponent(id)}/${action}`, {
         method: "POST",
         body: JSON.stringify(body || {}),
+        skipBranch: true,
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["system-accounts"] });
@@ -189,9 +204,10 @@ export function useUserManagement() {
     isLoading: usersQuery.isLoading || rolesQuery.isLoading || permissionsQuery.isLoading || systemAccountsQuery.isLoading || branchesQuery.isLoading || employeesQuery.isLoading,
     createUser: createUser.mutateAsync,
     createSystemAccount: createSystemAccount.mutateAsync,
+    createBranchAccount: createBranchAccount.mutateAsync,
     updateSystemAccount: updateSystemAccount.mutateAsync,
     systemAccountAction: systemAccountAction.mutateAsync,
     updateRolePermissions: updateRolePermissions.mutateAsync,
-    isSaving: createUser.isPending || createSystemAccount.isPending || updateSystemAccount.isPending || updateRolePermissions.isPending || systemAccountAction.isPending,
+    isSaving: createUser.isPending || createSystemAccount.isPending || createBranchAccount.isPending || updateSystemAccount.isPending || updateRolePermissions.isPending || systemAccountAction.isPending,
   };
 }

@@ -425,6 +425,14 @@ export class ApiOperatorRepository implements OperatorRepository {
       ...auth(),
     });
   }
+
+  async endSession(reason = "operator_session_ended"): Promise<MutationResult<{ operatorSession: OperatorSessionState }>> {
+    return apiClient<MutationResult<{ operatorSession: OperatorSessionState }>>("/operator/end-session", {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+      ...auth(),
+    });
+  }
 }
 
 export class ApiAccountingRepository implements AccountingRepository {

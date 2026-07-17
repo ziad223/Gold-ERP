@@ -52,17 +52,17 @@ function staticContract() {
   assert.ok(authController.includes("findUserByNormalizedEmail") && !authController.includes("auth.change-password") && !authController.includes("auth.change-email"), "self password/email change do not require Employee Level 2");
   assert.ok(permissionService.includes('accountType || "legacy") === "super_admin"') && permissionService.includes("return true"), "backend permission service gives Super Admin complete technical scope");
   assert.ok(usePermissions.includes('accountType === "super_admin"') && usePermissions.includes("return true"), "frontend permission hook gives Super Admin complete UI scope");
-  assert.ok(usersUi.includes("without Employee Code, PIN, or Level verification") && usersUi.includes("errorMessage(error"), "System Accounts UI explains direct Super Admin scope and catches expected errors");
+  assert.ok(usersUi.includes("errorMessage(error") && usersUi.includes("Branch Account"), "System Accounts UI catches expected errors and exposes Branch Account management");
 
   assert.ok(authMiddleware.includes("COMPANY_SCOPE_FORBIDDEN") && authMiddleware.includes("COMPANY_SCOPE_INVALID"), "middleware rejects company header widening");
-  assert.ok(authMiddleware.includes("Branch Shell accounts cannot switch branches") && authMiddleware.includes("isActive: true"), "middleware preserves fixed Branch Shell and validates active branches");
+  assert.ok(authMiddleware.includes("BRANCH_ACCOUNT_FIXED_SCOPE") && authMiddleware.includes("isActive: true"), "middleware preserves fixed Branch Account scope and validates active branches");
   assert.ok(erpController.includes("this.model.rawAttributes.companyId ? { companyId: req.companyId } : {}"), "Company CRUD is not broken by tenant-owned filters");
   assert.ok(apiClient.includes("X-Branch-ID") && apiClient.includes("X-Company-ID"), "API client sends explicit selected branch/company headers only");
 
   const migrationCount = fs.readdirSync(path.join(ROOT, "backend", "migrations")).filter((name) => name.endsWith(".js")).length;
   const verifierCount = fs.readdirSync(path.join(ROOT, "scripts")).filter((name) => /^verify-.*\.js$/.test(name)).length;
-  assert.equal(migrationCount, 42, "migration count remains 42");
-  assert.equal(verifierCount, 54, "verifier count is 54");
+  assert.equal(migrationCount, 43, "migration count is 43 after HF5B");
+  assert.equal(verifierCount, 55, "verifier count is 55 after HF5B");
   console.log("Simple Super Admin static contract: PASS");
 }
 

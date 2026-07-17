@@ -8,7 +8,7 @@ import { useAppSettings } from "@/contexts/settings-context";
 
 export function BranchSwitcher() {
   const t = useTranslations("Header");
-  const { activeBranch, activeBranchId, switchBranch } = useAuth();
+  const { activeBranch, activeBranchId, switchBranch, user } = useAuth();
   const { branches } = useAppSettings();
   const [isOpen, setIsOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
@@ -22,17 +22,20 @@ export function BranchSwitcher() {
     label: b.name,
     disabled: !b.isActive
   }));
+  const isFixedBranchAccount = user?.accountType === "branch_shell";
 
   useEffect(() => {
     if (!branches.length) return;
-    const active = branches.find((branch) => branch.id === activeBranchId);
+    const fixedBranchId = user?.accountScope?.branchId || null;
+    const active = branches.find((branch) => branch.id === (isFixedBranchAccount ? fixedBranchId : activeBranchId));
     if (active) {
       if (active.name !== activeBranch) switchBranch(active.id, active.name);
       return;
     }
+    if (isFixedBranchAccount) return;
     const fallback = branches.find((branch) => branch.isActive) ?? branches[0];
     if (fallback) switchBranch(fallback.id, fallback.name);
-  }, [activeBranch, activeBranchId, branches, switchBranch]);
+  }, [activeBranch, activeBranchId, branches, isFixedBranchAccount, switchBranch, user?.accountScope?.branchId]);
 
   // Close when clicking outside
   useEffect(() => {
@@ -134,10 +137,13 @@ export function BranchSwitcher() {
       {/* Trigger Button */}
       <button
         ref={triggerRef}
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={() => {
+          if (!isFixedBranchAccount) setIsOpen((prev) => !prev);
+        }}
         onKeyDown={handleKeyDown}
         aria-haspopup="listbox"
-        aria-expanded={isOpen}
+        aria-expanded={isFixedBranchAccount ? false : isOpen}
+        aria-disabled={isFixedBranchAccount}
         aria-label={`${t("currentBranch")}: ${activeBranch}`}
         className="flex items-center gap-2 rounded-2xl border border-border bg-panel px-3 py-2 text-start transition focus:outline-none focus:ring-2 focus:ring-brand-500 hover:border-brand-500/50"
       >
@@ -150,11 +156,11 @@ export function BranchSwitcher() {
             {activeBranch}
           </p>
         </div>
-        <ChevronDown className={`h-4 w-4 text-muted transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
+        <ChevronDown className={`h-4 w-4 text-muted transition-transform duration-200 ${isOpen ? "rotate-180" : ""} ${isFixedBranchAccount ? "opacity-30" : ""}`} />
       </button>
 
       {/* Popover content */}
-      {isOpen && (
+      {isOpen && !isFixedBranchAccount && (
         <div
           ref={listboxRef}
           role="listbox"

@@ -275,5 +275,43 @@ Verification evidence:
 - updated account/session, Sales/POS, and Sales adjustment verifiers passed with
   Super Admin direct access and Branch Shell employee-first behavior preserved.
 
-HF5B, HF5C, HF5D, Phase 34.5B2A/B/C, Phase 34.6, Phase 34.7, Phase 33D, and
+HF5C, HF5D, Phase 34.5B2A/B/C, Phase 34.6, Phase 34.7, Phase 33D, and
 Phase 33C-HF2 remain deferred.
+
+## Phase 34.5A-HF5B — Simple Fixed Branch Accounts
+
+HF5B adds the market-ready Branch Account layer on top of the existing internal
+`branch_shell` foundation. Visible UI terminology is now `Branch Account` /
+`حساب الفرع`; the internal account type remains unchanged.
+
+Implemented:
+
+- one non-deleted Branch Account per branch via migration 43;
+- `users.is_active` for real activate/deactivate behavior;
+- dedicated `/system-accounts/branch-accounts` creation path with only branch,
+  login email, temporary password and active status accepted from the owner;
+- server-derived company, fixed branch, role, account type, session/password
+  versions and audit actor;
+- duplicate Branch Account prevention, including inactive non-deleted accounts;
+- stable Branch Account login/scope errors;
+- backend fixed company/branch enforcement for Branch Accounts;
+- Branch Account technical logout and security changes revoke bound Employee
+  operator sessions;
+- explicit `/operator/end-session` for End Employee Session while preserving
+  technical login;
+- Branch Account UI labels and constrained creation form in `/settings/users`;
+- Branch Account navigation allowlist after active Employee verification.
+
+Counts after HF5B:
+
+- migrations: 43
+- permissions: 123
+- verifier files: 55
+
+Local backup before migration:
+
+`H:\WORK\jewellery-erp-master\backend\backups\darfus_erp_phase34_5a_hf5b_2026-07-15T19-25-50-061Z.dump`
+
+Size: `478237` bytes.
+
+Full evidence and closure details are in `docs/employee-authorization/PHASE-34.5A-HF5B.md`.

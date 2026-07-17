@@ -106,7 +106,7 @@ async function databaseContract() {
   const [[connection]] = await models.sequelize.query("select current_database() as database, inet_server_addr()::text as server_addr, inet_server_port()::int as server_port");
   assert.equal(connection.database, "darfus_erp", "connected database is darfus_erp");
   const [migrations] = await models.sequelize.query('select count(*)::int c from "SequelizeMeta"');
-  assert.equal(Number(migrations[0].c), 42, "migration count remains 42");
+  assert.equal(Number(migrations[0].c), 43, "migration count is 43 after HF5B");
   assert.equal(await models.Permission.count(), 123, "permission count is 123");
   assert.equal(await models.Permission.count({ where: { name: ["sales.returns.execute", "sales.exchanges.execute", "sales.installments.collect"] } }), 3, "all three Phase 34.5B permissions exist");
   assert.equal(await models.Permission.count({ where: { name: ["pos.view", "pos.sell", "pos.discount.approve"] } }), 3, "POS permissions unchanged");
@@ -495,7 +495,7 @@ async function testBranchShellReturn() {
     token: state.tokens.branchShell,
     body: returnBody(invoice, itemId),
     idempotencyKey: `IDEM-${ns}-return-no-employee`
-  }), 401, "OPERATOR_SESSION_REQUIRED", "return without Employee");
+  }), 401, "BRANCH_ACCOUNT_EMPLOYEE_REQUIRED", "return without Employee");
   await assertNoBusinessMutation(beforeNoEmployee, "return no Employee denial");
 
   const level1Device = await verifyOperator({ employee: "adjustments", level: 1 });
@@ -525,7 +525,7 @@ async function testBranchShellReturn() {
     deviceId: deniedDevice,
     body: { ...returnBody(invoice, itemId), branchId: ids.branchB },
     idempotencyKey: `IDEM-${ns}-return-branch`
-  }), 403, "OPERATOR_BRANCH_MISMATCH", "return branch mismatch");
+  }), 403, "BRANCH_ACCOUNT_FIXED_SCOPE", "return branch mismatch");
   await assertNoBusinessMutation(branchMismatchBefore, "return branch mismatch");
 
   const level2Device = await verifyOperator({ employee: "adjustments", level: 2 });
@@ -579,7 +579,7 @@ async function testBranchShellExchange() {
     token: state.tokens.branchShell,
     body: exchangeBody(invoice, itemId, replacement),
     idempotencyKey: `IDEM-${ns}-exchange-no-employee`
-  }), 401, "OPERATOR_SESSION_REQUIRED", "exchange without Employee");
+  }), 401, "BRANCH_ACCOUNT_EMPLOYEE_REQUIRED", "exchange without Employee");
   await assertNoBusinessMutation(beforeNoEmployee, "exchange no Employee denial");
 
   const beforeLevel1 = await businessCounts();
@@ -630,7 +630,7 @@ async function testInstallmentCollection() {
     token: state.tokens.branchShell,
     body: { amount: 90, paymentMethod: "Cash" },
     idempotencyKey: `IDEM-${ns}-installment-no-employee`
-  }), 401, "OPERATOR_SESSION_REQUIRED", "installment without Employee");
+  }), 401, "BRANCH_ACCOUNT_EMPLOYEE_REQUIRED", "installment without Employee");
   await assertNoBusinessMutation(beforeNoEmployee, "installment no Employee denial");
 
   const level1Device = await verifyOperator({ employee: "adjustments", level: 1 });

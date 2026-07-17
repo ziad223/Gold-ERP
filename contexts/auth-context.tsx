@@ -20,6 +20,9 @@ export interface DarfusUser {
     accountType?: "legacy" | "super_admin" | "branch_shell";
     companyId?: string;
     branchId?: string | null;
+    branchName?: string | null;
+    branchCode?: string | null;
+    fixedBranch?: { id: string; name?: string | null; code?: string | null } | null;
     forcePasswordChange?: boolean;
     defaultEmployeeId?: string | null;
   };
@@ -272,6 +275,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const switchBranch = useCallback(
     (branchId: string, branchName?: string) => {
+      if (user?.accountType === "branch_shell") {
+        const fixedId = user.accountScope?.branchId;
+        if (fixedId && branchId !== fixedId) return;
+      }
       const id = branchId;
       const name = branchName || branchId;
       setActiveBranch(name);
@@ -282,7 +289,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       queryClient.clear();
     },
-    [queryClient],
+    [queryClient, user?.accountScope?.branchId, user?.accountType],
   );
 
   // Hydrate on mount
@@ -335,7 +342,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(res.data.user);
           setCompany(res.data.company);
           if (res.data.user.accountType === "branch_shell" && res.data.user.accountScope?.branchId) {
-            switchBranch(res.data.user.accountScope.branchId, res.data.company.branchName);
+            switchBranch(res.data.user.accountScope.branchId, res.data.user.accountScope.branchName || res.data.user.accountScope.branchCode || res.data.company.branchName);
           }
           return { ok: true, forcePasswordChange: Boolean(res.data.user.forcePasswordChange) };
         } catch (err) {

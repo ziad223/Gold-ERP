@@ -47,13 +47,13 @@ function staticContract() {
     assert.ok(sessionService.includes(token), `operator session service has ${token}`);
   }
   assert.ok(employeeAuth.includes("incrementEmployeeAuthorizationVersion"), "authorization version increment exists");
-  for (const endpoint of ["/operator/verify", "/operator/current", "/operator/authorize-action", "/operator/lock"]) {
+  for (const endpoint of ["/operator/verify", "/operator/current", "/operator/authorize-action", "/operator/lock", "/operator/end-session"]) {
     assert.ok(routes.includes(endpoint), `route contains ${endpoint}`);
   }
   assert.ok(client.includes("X-Device-Session-ID"), "frontend sends device-session header");
   assert.ok(operatorContext.includes("OperatorProvider"), "operator provider exists");
   assert.ok(header.includes("OperatorBar"), "header exposes consolidated operator controls");
-  for (const token of ["verify", "switch", "step-up", "operator.lock"]) {
+  for (const token of ["verify", "switch", "step-up", "operator.endSession"]) {
     assert.ok(operatorBar.includes(token), `operator bar exposes ${token} control`);
   }
   console.log("Phase 34.3 static operator-session contract: PASS");

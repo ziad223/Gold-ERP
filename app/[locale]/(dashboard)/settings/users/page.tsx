@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import { KeyRound, LockKeyhole, RotateCcw, ShieldCheck, UserPlus } from "lucide-react";
+import { CheckCircle2, KeyRound, LockKeyhole, Power, RotateCcw, ShieldCheck, UserPlus } from "lucide-react";
 import { useLocale } from "next-intl";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -20,20 +20,14 @@ export default function UsersManagementPage() {
   const locale = useLocale();
   const rtl = locale === "ar";
   const { hasPermission } = usePermissions();
-  const { users, systemAccounts, roles, permissions, branches, employees, readiness, isLoading, createSystemAccount, updateSystemAccount, systemAccountAction, updateRolePermissions, isSaving } = useUserManagement();
+  const { users, systemAccounts, roles, permissions, branches, employees, readiness, isLoading, createBranchAccount, updateSystemAccount, systemAccountAction, updateRolePermissions, isSaving } = useUserManagement();
   const [selectedRoleId, setSelectedRoleId] = useState("");
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
   const [form, setForm] = useState({
-    accountType: "branch_shell" as "legacy" | "super_admin" | "branch_shell",
-    firstName: "",
-    lastName: "",
     email: "",
     temporaryPassword: "",
-    phone: "",
-    jobTitle: "",
     branchId: "",
-    recoveryEmail: "",
-    defaultEmployeeId: "",
+    active: true,
     reason: "",
   });
   const [oneTimePassword, setOneTimePassword] = useState<string | null>(null);
@@ -56,23 +50,17 @@ export default function UsersManagementPage() {
     event.preventDefault();
     if (!canManageSystemAccounts) return toast.error(rtl ? "لا تملك صلاحية إدارة حسابات النظام" : "You do not have permission to manage System Accounts");
     try {
-      const result: any = await createSystemAccount({
-        accountType: form.accountType,
-        firstName: form.firstName,
-        lastName: form.lastName,
+      const result: any = await createBranchAccount({
+        branchId: form.branchId,
         email: form.email,
         temporaryPassword: form.temporaryPassword || undefined,
-        phone: form.phone,
-        jobTitle: form.jobTitle,
-        branchId: form.accountType === "branch_shell" ? form.branchId : undefined,
-        recoveryEmail: form.recoveryEmail || undefined,
-        defaultEmployeeId: form.accountType === "super_admin" && form.defaultEmployeeId ? form.defaultEmployeeId : undefined,
+        active: form.active,
         reason: form.reason || "System Accounts UI create",
       });
       const temp = result?.data?.temporaryPassword;
       if (temp) setOneTimePassword(temp);
-      setForm({ accountType: "branch_shell", firstName: "", lastName: "", email: "", temporaryPassword: "", phone: "", jobTitle: "", branchId: "", recoveryEmail: "", defaultEmployeeId: "", reason: "" });
-      toast.success(rtl ? "تم إنشاء حساب النظام" : "System Account created");
+      setForm({ email: "", temporaryPassword: "", branchId: "", active: true, reason: "" });
+      toast.success(rtl ? "تم إنشاء حساب الفرع" : "Branch Account created");
     } catch (error) {
       toast.error(errorMessage(error, rtl));
     }
@@ -110,18 +98,6 @@ export default function UsersManagementPage() {
     try {
       await systemAccountAction({ id, action: "change-email", body: { email, reason: "UI email change" } });
       toast.success(rtl ? "تم تغيير البريد" : "Email changed");
-    } catch (error) {
-      toast.error(errorMessage(error, rtl));
-    }
-  };
-
-  const convertAccount = async (id: string) => {
-    const accountType = window.prompt(rtl ? "النوع الجديد: legacy / super_admin / branch_shell" : "New type: legacy / super_admin / branch_shell", "legacy");
-    if (!accountType) return;
-    const branchId = accountType === "branch_shell" ? window.prompt(rtl ? "معرف الفرع" : "Branch ID") || "" : undefined;
-    try {
-      await systemAccountAction({ id, action: "convert-account-type", body: { accountType, branchId, reason: "UI manual conversion" } });
-      toast.success(rtl ? "تم التحويل اليدوي" : "Manual conversion complete");
     } catch (error) {
       toast.error(errorMessage(error, rtl));
     }
@@ -175,17 +151,15 @@ export default function UsersManagementPage() {
           rtl={rtl}
           onAction={doAccountAction}
           onChangeEmail={changeAccountEmail}
-          onConvert={convertAccount}
           onPatch={patchAccount}
         />
         <AccountSection
-          title={rtl ? "حسابات الفرع الثابتة" : "Branch Shell Accounts"}
-          empty={rtl ? "لا توجد حسابات فرع ثابتة." : "No Branch Shell accounts."}
+          title={rtl ? "حسابات الفروع" : "Branch Accounts"}
+          empty={rtl ? "لا توجد حسابات فروع." : "No Branch Accounts."}
           accounts={branchShells}
           rtl={rtl}
           onAction={doAccountAction}
           onChangeEmail={changeAccountEmail}
-          onConvert={convertAccount}
           onPatch={patchAccount}
         />
         <AccountSection
@@ -195,7 +169,6 @@ export default function UsersManagementPage() {
           rtl={rtl}
           onAction={doAccountAction}
           onChangeEmail={changeAccountEmail}
-          onConvert={convertAccount}
           onPatch={patchAccount}
           legacy
         />
@@ -209,7 +182,7 @@ export default function UsersManagementPage() {
           <SecurityBadge label={rtl ? "تغيير كلمة المرور الإجباري" : "Forced password change"} value={String(accounts.filter((user) => user.forcePasswordChange).length)} />
           <SecurityBadge label={rtl ? "الجلسات النشطة" : "Active sessions"} value={String(accounts.reduce((sum, user) => sum + Number(user.activeSessions || 0), 0))} />
           <SecurityBadge label={rtl ? "جاهزية المدير العام" : "Super Admin readiness"} value={`${readiness?.superAdminsWithRecovery ?? 0}/${readiness?.superAdmins ?? 0}`} warning={!readiness?.superAdminsWithRecovery} />
-          <SecurityBadge label={rtl ? "حسابات الفروع" : "Branch Shells"} value={String(readiness?.branchShells ?? branchShells.length)} />
+          <SecurityBadge label={rtl ? "حسابات الفروع" : "Branch Accounts"} value={String(readiness?.branchShells ?? branchShells.length)} />
           <SecurityBadge label={rtl ? "موظفو الإدارة المؤهلون" : "Eligible Admin Employees"} value={String(readiness?.eligibleAdminEmployees ?? employees.length)} />
         </div>
       </Card>
@@ -226,41 +199,23 @@ export default function UsersManagementPage() {
         <Card className="p-5">
           <div className="mb-4 flex items-center gap-2">
             <UserPlus className="h-5 w-5 text-brand-600" />
-            <h2 className="font-black text-navy-950 dark:text-white">{rtl ? "حساب نظام جديد" : "New System Account"}</h2>
+            <h2 className="font-black text-navy-950 dark:text-white">{rtl ? "حساب الفرع" : "Branch Account"}</h2>
           </div>
           <form onSubmit={submitUser} className="space-y-3">
-            <select className="input-base" value={form.accountType} onChange={(e) => setForm((c) => ({ ...c, accountType: e.target.value as typeof form.accountType }))}>
-              <option value="super_admin">{rtl ? "مدير عام" : "Super Admin"}</option>
-              <option value="branch_shell">{rtl ? "حساب فرع ثابت" : "Branch Shell"}</option>
-              <option value="legacy">{rtl ? "حساب قديم" : "Legacy"}</option>
+            <select className="input-base" value={form.branchId} onChange={(e) => setForm((c) => ({ ...c, branchId: e.target.value }))} required>
+              <option value="">{rtl ? "الفرع المرتبط" : "Assigned Branch"}</option>
+              {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name || branch.code || branch.id}</option>)}
             </select>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <input className="input-base" placeholder={rtl ? "الاسم الأول" : "First name"} value={form.firstName} onChange={(e) => setForm((c) => ({ ...c, firstName: e.target.value }))} required />
-              <input className="input-base" placeholder={rtl ? "اسم العائلة" : "Last name"} value={form.lastName} onChange={(e) => setForm((c) => ({ ...c, lastName: e.target.value }))} required />
-            </div>
-            <input className="input-base" type="email" placeholder={rtl ? "البريد الإلكتروني" : "Email"} value={form.email} onChange={(e) => setForm((c) => ({ ...c, email: e.target.value }))} required />
-            <input className="input-base" type="email" placeholder={rtl ? "بريد الاسترجاع" : "Recovery email"} value={form.recoveryEmail} onChange={(e) => setForm((c) => ({ ...c, recoveryEmail: e.target.value }))} />
-            <input className="input-base" type="password" placeholder={rtl ? "كلمة مرور مؤقتة اختيارية" : "Optional temporary password"} value={form.temporaryPassword} onChange={(e) => setForm((c) => ({ ...c, temporaryPassword: e.target.value }))} />
-            {form.accountType === "branch_shell" && (
-              <select className="input-base" value={form.branchId} onChange={(e) => setForm((c) => ({ ...c, branchId: e.target.value }))} required>
-                <option value="">{rtl ? "اختر الفرع الثابت" : "Select fixed branch"}</option>
-                {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name || branch.code || branch.id}</option>)}
-              </select>
-            )}
-            {form.accountType === "super_admin" && (
-              <select className="input-base" value={form.defaultEmployeeId} onChange={(e) => setForm((c) => ({ ...c, defaultEmployeeId: e.target.value }))}>
-                <option value="">{rtl ? "موظف افتراضي اختياري" : "Optional default Employee"}</option>
-                {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.employeeCode || employee.id} · {employee.name || ""}</option>)}
-              </select>
-            )}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <input className="input-base" placeholder={rtl ? "الهاتف" : "Phone"} value={form.phone} onChange={(e) => setForm((c) => ({ ...c, phone: e.target.value }))} />
-              <input className="input-base" placeholder={rtl ? "المسمى الوظيفي" : "Job title"} value={form.jobTitle} onChange={(e) => setForm((c) => ({ ...c, jobTitle: e.target.value }))} />
-            </div>
+            <input className="input-base" type="email" placeholder={rtl ? "إيميل دخول الفرع" : "Branch Login Email"} value={form.email} onChange={(e) => setForm((c) => ({ ...c, email: e.target.value }))} required />
+            <input className="input-base" type="password" placeholder={rtl ? "كلمة مرور مؤقتة" : "Temporary Password"} value={form.temporaryPassword} onChange={(e) => setForm((c) => ({ ...c, temporaryPassword: e.target.value }))} />
+            <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
+              <input type="checkbox" checked={form.active} onChange={(e) => setForm((c) => ({ ...c, active: e.target.checked }))} />
+              {rtl ? "نشط" : "Active"}
+            </label>
             <input className="input-base" placeholder={rtl ? "سبب الإنشاء" : "Creation reason"} value={form.reason} onChange={(e) => setForm((c) => ({ ...c, reason: e.target.value }))} />
-            <p className="text-xs text-slate-500">{rtl ? "ينفذ المدير العام هذه الإجراءات مباشرة بدون كود موظف أو PIN أو مستوى تحقق." : "Super Admin executes these actions directly without Employee Code, PIN, or Level verification."}</p>
+            <p className="text-xs text-slate-500">{rtl ? "لا يمكن تغيير فرع هذا الحساب. العمليات تتطلب اختيار موظف." : "This account's branch cannot be changed. Operations require employee selection."}</p>
             <Button type="submit" disabled={isSaving || !canManageSystemAccounts}>
-              {rtl ? "إنشاء حساب النظام" : "Create System Account"}
+              {rtl ? "إنشاء حساب الفرع" : "Create Branch Account"}
             </Button>
           </form>
         </Card>
@@ -353,7 +308,7 @@ export default function UsersManagementPage() {
 
 function accountTypeLabel(type: string, rtl: boolean) {
   if (type === "super_admin") return rtl ? "مدير عام" : "Super Admin";
-  if (type === "branch_shell") return rtl ? "حساب فرع ثابت" : "Branch Shell";
+  if (type === "branch_shell") return rtl ? "حساب الفرع" : "Branch Account";
   return rtl ? "حساب قديم" : "Legacy";
 }
 
@@ -364,7 +319,6 @@ function AccountSection({
   rtl,
   onAction,
   onChangeEmail,
-  onConvert,
   onPatch,
   legacy = false,
 }: {
@@ -380,13 +334,13 @@ function AccountSection({
     recoveryEmailMasked?: string | null;
     lockedUntil?: string | null;
     lastLoginAt?: string | null;
-    activeSessions?: number;
-    forcePasswordChange?: boolean;
+  activeSessions?: number;
+  forcePasswordChange?: boolean;
+    isActive?: boolean;
   }>;
   rtl: boolean;
   onAction: (id: string, action: string) => Promise<void>;
   onChangeEmail: (id: string) => Promise<void>;
-  onConvert: (id: string) => Promise<void>;
   onPatch: (id: string, body: Record<string, unknown>) => Promise<void>;
   legacy?: boolean;
 }) {
@@ -404,19 +358,23 @@ function AccountSection({
               <span className="rounded bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-600 dark:bg-slate-800">{accountTypeLabel(account.accountType || "legacy", rtl)}</span>
             </div>
             <div className="mt-3 grid gap-2 text-slate-500">
-              <span>{rtl ? "الفرع" : "Branch"}: {account.branchId || (rtl ? "غير محدد" : "Not assigned")}</span>
+              <span>{rtl ? "الفرع المرتبط" : "Assigned Branch"}: {account.branchId || (rtl ? "غير محدد" : "Not assigned")}</span>
               <span>{rtl ? "بريد الاسترجاع" : "Recovery email"}: {account.recoveryEmailMasked || (rtl ? "غير مضبوط" : "Not configured")}</span>
-              <span>{rtl ? "الحالة" : "Status"}: {account.lockedUntil ? (rtl ? "مقفل" : "Locked") : (rtl ? "نشط" : "Active")}</span>
+              <span>{rtl ? "الحالة" : "Status"}: {account.isActive === false ? (rtl ? "غير نشط" : "Inactive") : account.lockedUntil ? (rtl ? "مقفل" : "Locked") : (rtl ? "نشط" : "Active")}</span>
               <span>{rtl ? "الجلسات" : "Sessions"}: {account.activeSessions || 0}</span>
               <span>{rtl ? "تغيير كلمة المرور الإجباري" : "Force password change"}: {account.forcePasswordChange ? (rtl ? "نعم" : "Yes") : (rtl ? "لا" : "No")}</span>
-              {legacy && <span className="text-amber-700">{rtl ? "التحويل يدوي فقط ولا توجد مطابقة تلقائية." : "Manual conversion only. No heuristic mapping."}</span>}
+              {legacy && <span className="text-amber-700">{rtl ? "حساب تقني قديم؛ لا يستخدم كحساب فرع." : "Legacy technical account; not used as a Branch Account."}</span>}
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               <button className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-200" title={rtl ? "إعادة تعيين كلمة المرور" : "Reset password"} onClick={() => void onAction(account.id, "reset-password")}><KeyRound className="h-4 w-4" /></button>
               <button className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-200" title={rtl ? "فك القفل" : "Unlock"} onClick={() => void onAction(account.id, "unlock")}><LockKeyhole className="h-4 w-4" /></button>
               <button className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-200" title={rtl ? "إنهاء الجلسات" : "Revoke sessions"} onClick={() => void onAction(account.id, "revoke-sessions")}><RotateCcw className="h-4 w-4" /></button>
+              {account.isActive === false ? (
+                <button className="inline-flex h-8 w-8 items-center justify-center rounded border border-emerald-200 text-emerald-700" title={rtl ? "تفعيل" : "Activate"} onClick={() => void onAction(account.id, "activate")}><CheckCircle2 className="h-4 w-4" /></button>
+              ) : (
+                <button className="inline-flex h-8 w-8 items-center justify-center rounded border border-amber-200 text-amber-700" title={rtl ? "إيقاف" : "Deactivate"} onClick={() => void onAction(account.id, "deactivate")}><Power className="h-4 w-4" /></button>
+              )}
               <button className="rounded border border-slate-200 px-2 py-1 text-[10px] font-bold" title={rtl ? "تغيير البريد" : "Change email"} onClick={() => void onChangeEmail(account.id)}>{rtl ? "البريد" : "Email"}</button>
-              <button className="rounded border border-slate-200 px-2 py-1 text-[10px] font-bold" title={rtl ? "تحويل النوع" : "Convert type"} onClick={() => void onConvert(account.id)}>{rtl ? "تحويل" : "Convert"}</button>
               <button className="rounded border border-slate-200 px-2 py-1 text-[10px] font-bold" title={rtl ? "تحديث بريد الاسترجاع" : "Update recovery email"} onClick={() => {
                 const recoveryEmail = window.prompt(rtl ? "بريد الاسترجاع الجديد" : "New recovery email");
                 if (recoveryEmail !== null) void onPatch(account.id, { recoveryEmail });

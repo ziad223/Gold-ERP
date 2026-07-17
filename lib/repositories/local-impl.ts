@@ -894,6 +894,11 @@ export class LocalOperatorRepository implements OperatorRepository {
     this.session = { ...this.session, state: "locked", reason, lockedAt: new Date().toISOString() };
     return { success: true, data: { operatorSession: this.session } };
   }
+
+  async endSession(reason = "operator_session_ended"): Promise<MutationResult<{ operatorSession: OperatorSessionState }>> {
+    this.session = { ...this.session, state: "inactive", reason, employee: null, verificationLevel: 0 };
+    return { success: true, data: { operatorSession: this.session } };
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

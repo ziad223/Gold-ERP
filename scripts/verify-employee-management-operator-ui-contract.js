@@ -37,8 +37,8 @@ const handoff = read("docs/AI_HANDOFF.md");
 console.log("Phase 34.4 employee management/operator UI static contract");
 
 check(userPage.includes("System Accounts") && userPage.includes("technical login accounts"), "System Accounts page is reframed as technical login account management");
-check(!/Linked Employee|linked Employee|auto-verify|auto verify/i.test(userPage) && userPage.includes("No heuristic mapping"), "System Accounts page does not fake User-to-Employee linkage or automatic mapping");
-check(userPage.includes("Super Admin Accounts") && userPage.includes("Branch Shell Accounts") && userPage.includes("Legacy Accounts"), "System Accounts page shows approved account-type sections");
+check(!/Linked Employee|linked Employee|auto-verify|auto verify/i.test(userPage) && userPage.includes("not used as a Branch Account"), "System Accounts page does not fake User-to-Employee linkage or automatic mapping");
+check(userPage.includes("Super Admin Accounts") && userPage.includes("Branch Accounts") && userPage.includes("Legacy Accounts"), "System Accounts page shows approved account-type sections");
 check(userPage.includes("Employee operational") || userPage.includes("صلاحيات الموظفين التشغيلية"), "System Accounts page separates technical roles from Employee operational permissions");
 check(sidebar.includes("systemAccounts") && sidebar.includes("/settings/users"), "sidebar keeps /settings/users route and labels System Accounts");
 
@@ -98,8 +98,8 @@ check(employeeRoutes.includes('/employees/:id/operator-sessions') && employeeRou
 check(employeeRoutes.includes("maskedDeviceLabel") && !employeeRoutes.includes("authSessionFingerprint:"), "operator-session history response masks device identity and omits auth fingerprint");
 check(employeeRoutes.includes("maskIp") && employeeRoutes.includes("summarizeUserAgent"), "verification attempts mask IP and summarize user-agent");
 
-check(operatorBar.includes("Level 2") && operatorBar.includes("Switch") && operatorBar.includes("Lock") && operatorBar.includes("formatCountdown"), "operator bar supports Level 1/2, switch, lock, and countdown display");
-check(operatorBar.includes("clearSensitiveOperatorFormState") && operatorBar.includes("resetOperatorDialogState") && operatorBar.includes("finally") && operatorBar.includes("lockOperator"), "OperatorBar clears PIN in guaranteed paths and resets dialogs on lock");
+check(operatorBar.includes("Level 2") && operatorBar.includes("Change Employee") && operatorBar.includes("End Employee Session") && operatorBar.includes("formatCountdown"), "operator bar supports Level 1/2, employee change, end session, and countdown display");
+check(operatorBar.includes("clearSensitiveOperatorFormState") && operatorBar.includes("resetOperatorDialogState") && operatorBar.includes("finally") && operatorBar.includes("endOperatorSession"), "OperatorBar clears PIN in guaranteed paths and resets dialogs on end session");
 check(operatorBar.includes("operator.authorizeAction") && operatorBar.includes("resetOperatorDialogState();"), "Level 2 step-up success closes and resets the operator dialog");
 check(operatorVerifyDialog.includes("finally") && operatorVerifyDialog.includes("clearSensitiveOperatorFormState") && operatorStepUpDialog.includes("finally") && operatorStepUpDialog.includes("clearSensitiveOperatorFormState"), "standalone operator dialogs clear PIN after every submit outcome");
 check(operatorContext.includes("BroadcastChannel") && operatorContext.includes("storage") && operatorContext.includes("operator:branch-changed"), "operator context supports BroadcastChannel, storage fallback, and branch-change refresh");

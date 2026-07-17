@@ -146,7 +146,7 @@ async function databaseContract(models) {
   const [[connection]] = await models.sequelize.query("select current_database() as database, inet_server_addr()::text as server_addr, inet_server_port()::int as server_port");
   assert.equal(connection.database, "darfus_erp", "connected database is darfus_erp");
   const [migrations] = await models.sequelize.query('select count(*)::int c from "SequelizeMeta"');
-  assert.equal(Number(migrations[0].c), 42, "migration count is 42");
+  assert.equal(Number(migrations[0].c), 43, "migration count is 43 after HF5B");
   const permissionCount = await models.Permission.count();
   assert.equal(permissionCount, 123, "permission count is 123");
   const pos = await models.Permission.findAll({ where: { name: ["pos.view", "pos.sell", "pos.discount.approve"] } });
@@ -824,7 +824,7 @@ async function testBranchShellEmployeeFirstGate() {
       idempotencyKey: `IDEM-${ns}-branch-shell-no-employee`
     }),
     401,
-    "OPERATOR_SESSION_REQUIRED",
+    "BRANCH_ACCOUNT_EMPLOYEE_REQUIRED",
     "Branch Shell POS checkout without Employee"
   );
   await assertNoBusinessMutation(beforeNoEmployee, "Branch Shell no Employee denial");
@@ -891,7 +891,7 @@ async function testBranchShellEmployeeFirstGate() {
       idempotencyKey: `IDEM-${ns}-branch-shell-branch-mismatch`
     }),
     403,
-    "OPERATOR_BRANCH_MISMATCH",
+    "BRANCH_ACCOUNT_FIXED_SCOPE",
     "Branch Shell fixed branch mismatch"
   );
   await assertNoBusinessMutation(beforeBranchMismatch, "Branch Shell branch mismatch");

@@ -272,7 +272,7 @@ async function cleanup() {
     assert.equal(ok.body.data.authorization.allowed, true);
 
     const wrongBranch = await request("POST", "/operator/verify", { body: { employeeCode: "EMP-A1", pin: "258036", branchId: ids.otherBranch, requestedLevel: 1 } });
-    expectError(wrongBranch, 403, "EMPLOYEE_VERIFICATION_FAILED");
+    expectError(wrongBranch, 403, "EMPLOYEE_BRANCH_ACCESS_DENIED");
 
     await models.Employee.create({ id: ids.empLeave, companyId: ids.company, employeeCode: `${namespace}-LEAVE`, employeeCodeNormalized: `${namespace}-LEAVE`.toUpperCase(), name: "Leave", role: "Sales", branch: "A", branchId: ids.branchA, status: "leave" });
     await models.EmployeeBranchAccess.create({ id: `EBA-${namespace}-LEAVE`, companyId: ids.company, employeeId: ids.empLeave, branchId: ids.branchA, active: true });
@@ -291,9 +291,9 @@ async function cleanup() {
       expectError(fail, 403, "EMPLOYEE_VERIFICATION_FAILED");
     }
     const lock = await request("POST", "/operator/verify", { body: { employeeCode: "EMP-A1", pin: "963852", branchId: ids.branchA, requestedLevel: 1 } });
-    expectError(lock, 423, "EMPLOYEE_LOCKED");
+    expectError(lock, 423, "EMPLOYEE_CREDENTIAL_LOCKED");
     const lockedCorrect = await request("POST", "/operator/verify", { body: { employeeCode: "EMP-A1", pin: "258036", branchId: ids.branchA, requestedLevel: 1 } });
-    expectError(lockedCorrect, 423, "EMPLOYEE_LOCKED");
+    expectError(lockedCorrect, 423, "EMPLOYEE_CREDENTIAL_LOCKED");
     await credential.reload();
     assert.ok(Number(credential.failedAttemptCount) >= 5, "failure count reached threshold");
     await credential.update({ lockedUntil: new Date(Date.now() - 1000) });

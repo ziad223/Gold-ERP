@@ -123,6 +123,7 @@ export interface OperatorRepository {
   verify(input: OperatorVerifyInput): Promise<MutationResult<OperatorVerifyResult>>;
   authorizeAction(input: OperatorStepUpInput): Promise<MutationResult<{ operatorSession: OperatorSessionState; employee: OperatorVerifyResult["employee"]; verificationAttemptId?: string }>>;
   lock(reason?: string): Promise<MutationResult<{ operatorSession: OperatorSessionState }>>;
+  endSession(reason?: string): Promise<MutationResult<{ operatorSession: OperatorSessionState }>>;
 }
 
 export interface AssetRepository {

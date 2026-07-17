@@ -14,6 +14,7 @@ interface OperatorContextValue {
   verify: (input: OperatorVerifyInput) => Promise<void>;
   authorizeAction: (input: OperatorStepUpInput) => Promise<void>;
   lock: (reason?: string) => Promise<void>;
+  endSession: (reason?: string) => Promise<void>;
 }
 
 const OperatorContext = createContext<OperatorContextValue | null>(null);
@@ -127,6 +128,21 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
     }
   }, [broadcast, operatorRepository]);
 
+  const endSession = useCallback(async (endReason = "operator_session_ended") => {
+    setLoading(true);
+    try {
+      const result = await operatorRepository.endSession(endReason);
+      if (result.success && result.data) {
+        setState(result.data.operatorSession);
+        setActive(false);
+        setReason(result.data.operatorSession.reason || "OPERATOR_SESSION_ENDED");
+        broadcast("operator:ended");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [broadcast, operatorRepository]);
+
   useEffect(() => {
     if (!token) {
       broadcast("auth:logout");
@@ -181,7 +197,8 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
     verify,
     authorizeAction,
     lock,
-  }), [state, active, loading, reason, refresh, verify, authorizeAction, lock]);
+    endSession,
+  }), [state, active, loading, reason, refresh, verify, authorizeAction, lock, endSession]);
 
   return <OperatorContext.Provider value={value}>{children}</OperatorContext.Provider>;
 }
