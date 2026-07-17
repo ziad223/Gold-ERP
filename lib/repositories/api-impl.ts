@@ -53,6 +53,7 @@ import type {
   OperatorSessionState,
   OperatorVerifyInput,
   OperatorVerifyResult,
+  OperatorCurrentResult,
 } from "../types";
 import { apiClient } from "../api/client";
 import { normalizeEntity, normalizeItems, normalizePage } from "../api/normalize";
@@ -398,7 +399,7 @@ export class ApiEmployeeRepository implements EmployeeRepository {
 }
 
 export class ApiOperatorRepository implements OperatorRepository {
-  async current(): Promise<{ active: boolean; reason?: string | null; operatorSession: OperatorSessionState }> {
+  async current(): Promise<OperatorCurrentResult> {
     const res = await apiClient<any>("/operator/current", auth());
     return res.data ?? res;
   }

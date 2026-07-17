@@ -684,11 +684,19 @@ export interface EmployeeBranchAccess {
 }
 
 export interface EmployeeAuthorizationSummary {
+  employeeId?: string | null;
+  companyId?: string | null;
+  branchId?: string | null;
+  rolePermissions?: string[];
+  directGrants?: string[];
+  directDenials?: string[];
+  effectivePermissions?: string[];
   rolePermissionNames: string[];
   directGrantNames: string[];
   directDenialNames: string[];
   effectivePermissionNames: string[];
   authorizationVersion?: number;
+  credentialVersion?: number;
 }
 
 export type EmployeePermissionSource =
@@ -788,7 +796,14 @@ export interface OperatorVerifyResult {
     verificationAttemptId?: string;
   };
   operatorSession: OperatorSessionState;
-  authorization?: unknown;
+  authorization?: EmployeeAuthorizationSummary | null;
+}
+
+export interface OperatorCurrentResult {
+  active: boolean;
+  reason?: string | null;
+  operatorSession: OperatorSessionState;
+  authorization?: EmployeeAuthorizationSummary | null;
 }
 
 // ─── Transfer Domain ──────────────────────────────────────────────────────────

@@ -30,46 +30,47 @@ import { Logo } from "./logo";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useOperator } from "@/contexts/operator-context";
+import { permissionMatches } from "@/lib/permissions/module-access";
 
 const groups = [
   {
     label: "overview",
     items: [
-      { href: "/dashboard", label: "dashboard", icon: LayoutDashboard, permission: "dashboard.view" },
-      { href: "/pos", label: "pos", icon: Store, permission: "sales.create" },
+      { href: "/dashboard", label: "dashboard", icon: LayoutDashboard, permission: "dashboard.view", branchBusiness: true },
+      { href: "/pos", label: "pos", icon: Store, permission: ["pos.view", "pos.sell"], branchBusiness: true },
     ],
   },
   {
     label: "salesCustomers",
     items: [
-      { href: "/sales", label: "sales", icon: ReceiptText, permission: "sales.view" },
-      { href: "/customers", label: "customers", icon: ContactRound, permission: "customers.view" },
+      { href: "/sales", label: "sales", icon: ReceiptText, permission: "sales.view", branchBusiness: true },
+      { href: "/customers", label: "customers", icon: ContactRound, permission: "customers.view", branchBusiness: true },
     ],
   },
   {
     label: "assetsInventory",
     items: [
-      { href: "/inventory", label: "inventory", icon: Boxes, permission: "inventory.view" },
-      { href: "/gold-center", label: "goldCenter", icon: Gem, permission: "gold.view" },
-      { href: "/suppliers", label: "suppliers", icon: Truck, permission: "suppliers.view" },
+      { href: "/inventory", label: "inventory", icon: Boxes, permission: "inventory.view", branchBusiness: true },
+      { href: "/gold-center", label: "goldCenter", icon: Gem, permission: "gold.view", branchBusiness: true },
+      { href: "/suppliers", label: "suppliers", icon: Truck, permission: "suppliers.view", branchBusiness: true },
     ],
   },
   {
     label: "finance",
     items: [
-      { href: "/accounting", label: "accounting", icon: CircleDollarSign, permission: "accounting.view" },
-      { href: "/accounting/treasury", label: "treasury", icon: Landmark, permission: "treasury.view" },
-      { href: "/reports", label: "reports", icon: BarChart3, permission: "reports.view" },
+      { href: "/accounting", label: "accounting", icon: CircleDollarSign, permission: "accounting.view", branchBusiness: true },
+      { href: "/accounting/treasury", label: "treasury", icon: Landmark, permission: "treasury.view", branchBusiness: true },
+      { href: "/reports", label: "reports", icon: BarChart3, permission: "reports.view", branchBusiness: true },
     ],
   },
   {
     label: "system",
     items: [
-      { href: "/employees", label: "employees", icon: UsersRound, permission: ["payroll.view", "employees.credentials.manage", "employees.permissions.manage", "employees.branches.manage", "employees.verification.view"] },
-      { href: "/settings/users", label: "systemAccounts", icon: BookOpenCheck, permission: "users.view" },
-      { href: "/audit", label: "audit", icon: ShieldCheck, permission: "audit.view" },
-      { href: "/approvals", label: "approvals", icon: FileCheck, permission: "approvals.view" },
-      { href: "/settings", label: "settings", icon: Settings, permission: "settings.view" },
+      { href: "/employees", label: "employees", icon: UsersRound, permission: ["payroll.view", "employees.credentials.manage", "employees.permissions.manage", "employees.branches.manage", "employees.verification.view"], branchBusiness: false },
+      { href: "/settings/users", label: "systemAccounts", icon: BookOpenCheck, permission: "users.view", branchBusiness: false },
+      { href: "/audit", label: "audit", icon: ShieldCheck, permission: "audit.view", branchBusiness: false },
+      { href: "/approvals", label: "approvals", icon: FileCheck, permission: "approvals.view", branchBusiness: false },
+      { href: "/settings", label: "settings", icon: Settings, permission: "settings.view", branchBusiness: false },
     ],
   },
 ] as const;
@@ -95,17 +96,13 @@ export function Sidebar({ open, onClose, collapsed, onToggle }: SidebarProps) {
     : collapsed
       ? PanelLeftOpen
       : PanelLeftClose;
-  const branchAccountAllowedRoutes = new Set(["/pos", "/sales"]);
   const visibleGroups = groups
     .map((group) => ({
       ...group,
       items: group.items.filter((item) =>
         accountType === "branch_shell"
-          ? (operator.active && branchAccountAllowedRoutes.has(item.href))
-          : ((Array.isArray(item.permission)
-          ? (item.permission as readonly string[]).some((permission) => hasPermission(permission))
-          : hasPermission(item.permission as string))
-        || (item.href === "/settings" && hasPermission("reservations.configure_account")))
+          ? (operator.active && item.branchBusiness && permissionMatches(item.permission, hasPermission))
+          : (permissionMatches(item.permission, hasPermission) || (item.href === "/settings" && hasPermission("reservations.configure_account")))
       )
     }))
     .filter((group) => group.items.length > 0);

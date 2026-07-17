@@ -41,10 +41,12 @@ import type {
   EmployeeSession,
   EmployeeBranchAccess,
   EmployeePermissionState,
+  EmployeeAuthorizationSummary,
   EmployeeVerificationAttempt,
   OperatorSessionState,
   OperatorVerifyInput,
   OperatorVerifyResult,
+  OperatorCurrentResult,
   AuditAction,
 } from "../types";
 
@@ -870,8 +872,25 @@ export class LocalOperatorRepository implements OperatorRepository {
     employee: null,
   };
 
-  async current(): Promise<{ active: boolean; reason?: string | null; operatorSession: OperatorSessionState }> {
-    return { active: this.session.state === "active", reason: this.session.reason, operatorSession: this.session };
+  private authorization: EmployeeAuthorizationSummary = {
+    employeeId: null,
+    companyId: "CMP-DEMO",
+    branchId: null,
+    rolePermissions: [],
+    directGrants: [],
+    directDenials: [],
+    effectivePermissions: ["pos.view", "pos.sell", "sales.view", "sales.create"],
+    rolePermissionNames: [],
+    directGrantNames: ["pos.view", "pos.sell", "sales.view", "sales.create"],
+    directDenialNames: [],
+    effectivePermissionNames: ["pos.view", "pos.sell", "sales.view", "sales.create"],
+    authorizationVersion: 1,
+    credentialVersion: 1,
+  };
+
+  async current(): Promise<OperatorCurrentResult> {
+    const active = this.session.state === "active";
+    return { active, reason: this.session.reason, operatorSession: this.session, authorization: active ? this.authorization : null };
   }
 
   async verify(input: OperatorVerifyInput): Promise<MutationResult<OperatorVerifyResult>> {
@@ -890,12 +909,18 @@ export class LocalOperatorRepository implements OperatorRepository {
       idleExpiresAt: now,
       absoluteExpiresAt: now,
     };
+    this.authorization = {
+      ...this.authorization,
+      employeeId: this.session.employee?.id || null,
+      branchId: input.branchId,
+    };
     return {
       success: true,
       data: {
         employee: this.session.employee!,
         verification: { state: "verified", verifiedAt: now, expiresAt: now },
         operatorSession: this.session,
+        authorization: this.authorization,
       },
     };
   }

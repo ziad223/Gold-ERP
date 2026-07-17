@@ -10,6 +10,7 @@ import type {
   OperatorSessionState,
   OperatorVerifyInput,
   OperatorVerifyResult,
+  OperatorCurrentResult,
   AuditLog,
   Transfer,
   ManufacturingOrder,
@@ -118,7 +119,7 @@ export interface EmployeeRepository {
 }
 
 export interface OperatorRepository {
-  current(): Promise<{ active: boolean; reason?: string | null; operatorSession: OperatorSessionState }>;
+  current(): Promise<OperatorCurrentResult>;
   verify(input: OperatorVerifyInput): Promise<MutationResult<OperatorVerifyResult>>;
   lock(reason?: string): Promise<MutationResult<{ operatorSession: OperatorSessionState }>>;
   endSession(reason?: string): Promise<MutationResult<{ operatorSession: OperatorSessionState }>>;

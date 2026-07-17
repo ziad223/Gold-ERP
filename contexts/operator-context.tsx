@@ -1,12 +1,13 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import type { OperatorSessionState, OperatorVerifyInput } from "@/lib/types";
+import type { EmployeeAuthorizationSummary, OperatorSessionState, OperatorVerifyInput } from "@/lib/types";
 import { useAuth } from "@/contexts/auth-context";
 import { useErp } from "@/contexts/erp-context";
 
 interface OperatorContextValue {
   state: OperatorSessionState | null;
+  authorization: EmployeeAuthorizationSummary | null;
   active: boolean;
   loading: boolean;
   reason?: string | null;
@@ -31,6 +32,7 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
   const { token, activeBranchId } = useAuth();
   const { operatorRepository } = useErp();
   const [state, setState] = useState<OperatorSessionState | null>(inactiveState);
+  const [authorization, setAuthorization] = useState<EmployeeAuthorizationSummary | null>(null);
   const [active, setActive] = useState(false);
   const [reason, setReason] = useState<string | null>("NOT_VERIFIED");
   const [loading, setLoading] = useState(false);
@@ -60,6 +62,7 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(async () => {
     if (!token) {
       setState(inactiveState);
+      setAuthorization(null);
       setActive(false);
       setReason("NOT_AUTHENTICATED");
       return;
@@ -69,9 +72,11 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
       const result = await operatorRepository.current();
       setState(result.operatorSession);
       setActive(Boolean(result.active));
+      setAuthorization(result.active ? result.authorization ?? null : null);
       setReason(result.reason || result.operatorSession?.reason || null);
     } catch (error) {
       setState(inactiveState);
+      setAuthorization(null);
       setActive(false);
       setReason("CURRENT_FAILED");
     } finally {
@@ -89,6 +94,7 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
       const result = await operatorRepository.verify(input);
       if (!result.success || !result.data) throw new Error(result.error?.message || "Operator verification failed");
       setState(result.data.operatorSession);
+      setAuthorization(result.data.authorization ?? null);
       setActive(true);
       setReason(null);
       broadcast("operator:verified");
@@ -103,6 +109,7 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
       const result = await operatorRepository.lock(lockReason);
       if (result.success && result.data) {
         setState(result.data.operatorSession);
+        setAuthorization(null);
         setActive(false);
         setReason(result.data.operatorSession.reason || "OPERATOR_SESSION_LOCKED");
         broadcast("operator:locked");
@@ -118,6 +125,7 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
       const result = await operatorRepository.endSession(endReason);
       if (result.success && result.data) {
         setState(result.data.operatorSession);
+        setAuthorization(null);
         setActive(false);
         setReason(result.data.operatorSession.reason || "OPERATOR_SESSION_ENDED");
         broadcast("operator:ended");
@@ -131,6 +139,7 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
     if (!token) {
       broadcast("auth:logout");
       setState(inactiveState);
+      setAuthorization(null);
       setActive(false);
       setReason("NOT_AUTHENTICATED");
     }
@@ -139,6 +148,7 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!token) return;
     setState(inactiveState);
+    setAuthorization(null);
     setActive(false);
     setReason("BRANCH_CHANGED");
     broadcast("operator:branch-changed");
@@ -174,6 +184,7 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo(() => ({
     state,
+    authorization,
     active,
     loading,
     reason,
@@ -181,7 +192,7 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
     verify,
     lock,
     endSession,
-  }), [state, active, loading, reason, refresh, verify, lock, endSession]);
+  }), [state, authorization, active, loading, reason, refresh, verify, lock, endSession]);
 
   return <OperatorContext.Provider value={value}>{children}</OperatorContext.Provider>;
 }
@@ -190,4 +201,8 @@ export function useOperator() {
   const context = useContext(OperatorContext);
   if (!context) throw new Error("useOperator must be used inside OperatorProvider");
   return context;
+}
+
+export function useOptionalOperator() {
+  return useContext(OperatorContext);
 }
