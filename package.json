@@ -60,6 +60,7 @@
     "verify:single-level-employee-operator": "node scripts/verify-single-level-employee-operator.js",
     "verify:employee-credential-setup-readiness": "node scripts/verify-employee-credential-setup-readiness.js",
     "verify:employee-permission-catalog-wiring": "node scripts/verify-employee-permission-catalog-wiring.js",
+    "verify:simple-account-center": "node scripts/verify-simple-account-center.js",
     "verify:market-launch-safety-containment": "node scripts/verify-market-launch-safety-containment.js",
     "verify:accounting-treasury-launch-minimum": "node scripts/verify-accounting-treasury-launch-minimum.js",
     "demo:reset:client": "node scripts/reset-client-demo-data.js",

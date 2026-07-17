@@ -61,7 +61,8 @@ function verifyStaticContract() {
     assert.ok(`${systemAccounts}\n${authController}\n${authMiddleware}`.includes(code), `stable error ${code} is implemented`);
   }
   assert.ok(systemAccounts.includes("assertNoBranchAccountForBranch") && systemAccounts.includes("defaultEmployeeId: null"), "Branch Account creation blocks duplicates and default Employee bypass");
-  assert.ok(systemAccounts.includes("Forbidden fields") && systemAccounts.includes("\"branchId\", \"email\", \"temporaryPassword\", \"active\", \"reason\""), "dedicated create path rejects role/company/accountType/defaultEmployee override fields");
+  assert.ok(systemAccounts.includes("Forbidden fields") && systemAccounts.includes("\"branchId\", \"email\", \"password\", \"newPassword\", \"temporaryPassword\", \"active\", \"reason\""), "dedicated create path rejects role/company/accountType/defaultEmployee override fields");
+  assert.ok(systemAccounts.includes("passwordSet: true") && !systemAccounts.includes("return { account: safeUser(user), temporaryPassword"), "Branch Account create/reset do not return plaintext passwords");
   assert.ok(systemAccounts.includes("setActive") && systemRoutes.includes("/:id/deactivate") && systemRoutes.includes("/:id/activate"), "activate/deactivate actions are wired");
   assert.ok(systemAccounts.includes("bumpSessionVersion") && systemAccounts.includes("system_account.deactivated"), "status changes invalidate sessions and audit");
   assert.ok(permissionService.includes('accountType || "legacy") === "branch_shell"') && permissionService.includes("return false"), "Branch Account receives no direct User operational permissions");
@@ -81,15 +82,17 @@ function verifyStaticContract() {
   assert.ok(sidebar.includes("branchAccountAllowedRoutes") && sidebar.includes("operator.active"), "Branch Account navigation is allowlisted after Employee verification");
   for (const label of [
     "Branch Account",
-    "Branch Login Email",
-    "Temporary Password",
-    "Assigned Branch",
-    "This account's branch cannot be changed",
+    "Login email",
+    "New password",
+    "Fixed Branch",
+    "A Branch Account has no business permissions",
+    "Employee Code and PIN",
     "حساب الفرع",
-    "إيميل دخول الفرع",
-    "كلمة مرور مؤقتة",
-    "الفرع المرتبط",
-    "لا يمكن تغيير فرع هذا الحساب"
+    "بريد الدخول",
+    "كلمة المرور الجديدة",
+    "الفرع الثابت",
+    "لا يحمل صلاحيات تشغيلية",
+    "كود الموظف والرقم السري"
   ]) {
     assert.ok(usersUi.includes(label) || operatorBar.includes(label), `localized label present: ${label}`);
   }
@@ -187,7 +190,8 @@ async function verifyLiveContract() {
     assert.equal(create.body.data.account.companyId, owner.companyId);
     assert.equal(create.body.data.account.defaultEmployeeId, null);
     assert.equal(create.body.data.account.isActive, true);
-    assert.ok(create.body.data.temporaryPassword, "temporary password shown once");
+    assert.equal(create.body.data.passwordSet, true, "password set acknowledgement returned");
+    assert.ok(!JSON.stringify(create.body).includes(password), "plaintext password is not returned");
 
     const row = await models.User.findByPk(ids.user);
     assert.equal(row.role, "sales", "safe role is server-derived");
@@ -233,6 +237,8 @@ async function verifyLiveContract() {
       body: { temporaryPassword: changedPassword, reason: "HF5B verifier reset" }
     });
     assert.equal(resetPassword.status, 200, "password reset succeeds");
+    assert.equal(resetPassword.body.data.passwordSet, true, "password reset returns password-set acknowledgement");
+    assert.ok(!JSON.stringify(resetPassword.body).includes(changedPassword), "password reset does not return plaintext password");
     const staleAfterReset = await request(baseUrl, "GET", "/auth/me", { token: loginBranch.body.data.token, branchId: ids.branch });
     assert.equal(staleAfterReset.status, 401, "password reset invalidates old technical session");
 

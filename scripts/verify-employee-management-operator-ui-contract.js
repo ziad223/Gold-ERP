@@ -35,10 +35,10 @@ const handoff = read("docs/AI_HANDOFF.md");
 
 console.log("Phase 34.4 employee management/operator UI static contract");
 
-check(userPage.includes("System Accounts") && userPage.includes("technical login accounts"), "System Accounts page is reframed as technical login account management");
-check(!/Linked Employee|linked Employee|auto-verify|auto verify/i.test(userPage) && userPage.includes("not used as a Branch Account"), "System Accounts page does not fake User-to-Employee linkage or automatic mapping");
-check(userPage.includes("Super Admin Accounts") && userPage.includes("Branch Accounts") && userPage.includes("Legacy Accounts"), "System Accounts page shows approved account-type sections");
-check(userPage.includes("Employee operational") || userPage.includes("صلاحيات الموظفين التشغيلية"), "System Accounts page separates technical roles from Employee operational permissions");
+check(userPage.includes("Account Center") && userPage.includes("technical login accounts only"), "Account Center is reframed as focused technical login account management");
+check(!/Linked Employee|linked Employee|auto-verify|auto verify/i.test(userPage) && userPage.includes("A Branch Account has no business permissions"), "Account Center does not fake User-to-Employee linkage or automatic mapping");
+check(userPage.includes("Super Admin Accounts") && userPage.includes("Branch Accounts") && userPage.includes("Other Technical Accounts"), "Account Center shows approved account-type sections");
+check(userPage.includes("Employee permissions are not managed here") || userPage.includes("صلاحيات الموظفين ليست هنا"), "Account Center separates technical accounts from Employee operational permissions");
 check(sidebar.includes("systemAccounts") && sidebar.includes("/settings/users"), "sidebar keeps /settings/users route and labels System Accounts");
 
 check(authGuard.includes("EMPLOYEE_ROUTE_PERMISSIONS") && includesAll(authGuard, [

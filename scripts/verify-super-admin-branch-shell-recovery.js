@@ -66,7 +66,7 @@ function staticContract() {
   assert.ok(employeeCrudRoutes.includes("Employee Code must be changed through the dedicated credential endpoint"), "generic Employee update cannot bypass dedicated Employee Code history path");
   const systemAccountsUiApi = `${ui}\n${read("hooks/use-user-management.ts")}`;
   assert.ok(systemAccountsUiApi.includes("/system-accounts") && systemAccountsUiApi.includes("/system-accounts/branch-accounts") && systemAccountsUiApi.includes("change-email") && systemAccountsUiApi.includes("readiness"), "system accounts UI/API contracts wired");
-  assert.ok(ui.includes("Super Admin Accounts") && ui.includes("Branch Accounts") && ui.includes("Security & Recovery"), "system accounts UI sections exist");
+  assert.ok(ui.includes("Super Admin Security") && ui.includes("Branch Accounts") && ui.includes("Edit Technical Account"), "simple Account Center UI sections exist");
   assert.ok(
     employeeUi.includes("codeHistory")
       && employeeUi.includes("changeOwnPin")
@@ -357,11 +357,12 @@ async function testSystemAccountsAndSafeguards() {
   const createSecond = await request("POST", "/system-accounts", {
     token: state.tokens.super,
     branchId: null,
-    body: { accountType: "super_admin", email: `${ns}-second@example.test`, firstName: "Second", lastName: "Admin" }
+    body: { accountType: "super_admin", email: `${ns}-second@example.test`, firstName: "Second", lastName: "Admin", password: "FreshDesk!2345" }
   });
   assert.equal(createSecond.status, 201, "create second Super Admin without Employee Level");
   state.createdUsers.push(createSecond.body.data.account.id);
-  assert.ok(createSecond.body.data.temporaryPassword, "temporary password shown once in response");
+  assert.equal(createSecond.body.data.passwordSet, true, "password set acknowledgement returned");
+  assert.ok(!JSON.stringify(createSecond.body).includes("FreshDesk!2345"), "create second Super Admin does not return plaintext password");
   const demoteSecond = await request("POST", `/system-accounts/${createSecond.body.data.account.id}/convert-account-type`, {
     token: state.tokens.super,
     branchId: null,

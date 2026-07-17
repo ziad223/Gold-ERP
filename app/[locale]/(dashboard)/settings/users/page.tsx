@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { CheckCircle2, KeyRound, LockKeyhole, Mail, Power, RotateCcw, Save, UserPlus } from "lucide-react";
 import { useLocale } from "next-intl";
 import { toast } from "sonner";
@@ -8,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { useAuth } from "@/contexts/auth-context";
-import { useUserManagement, ManagedUser } from "@/hooks/use-user-management";
+import { useUserManagement } from "@/hooks/use-user-management";
+import type { ManagedUser } from "@/hooks/use-user-management";
 import { usePermissions } from "@/hooks/use-permissions";
 import { apiClient } from "@/lib/api/client";
 import { useRouter } from "@/i18n/navigation";
@@ -323,7 +325,7 @@ function AccountSection({
   );
 }
 
-function IconButton({ title, onClick, children }: { title: string; onClick: () => void; children: React.ReactNode }) {
+function IconButton({ title, onClick, children }: { title: string; onClick: () => void; children: ReactNode }) {
   return (
     <button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded border border-slate-200 transition hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900" title={title} aria-label={title} onClick={onClick}>
       {children}
