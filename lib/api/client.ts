@@ -292,24 +292,22 @@ export async function apiClient<T>(path: string, options: ApiClientOptions = {})
 const OPERATOR_RECOVERY_CODES = new Set([
   "OPERATOR_SESSION_REQUIRED",
   "OPERATOR_SESSION_EXPIRED",
+  "OPERATOR_SESSION_REVOKED",
   "OPERATOR_SESSION_STALE",
+  "OPERATOR_SESSION_STALE_CREDENTIAL",
+  "OPERATOR_SESSION_STALE_AUTHORIZATION",
   "OPERATOR_BRANCH_MISMATCH",
-  "OPERATOR_PERMISSION_DENIED",
-  "OPERATOR_STEP_UP_REQUIRED",
-  "OPERATOR_STEP_UP_EXPIRED",
   "BRANCH_ACCOUNT_EMPLOYEE_REQUIRED",
   "EMPLOYEE_BRANCH_ACCESS_DENIED",
   "EMPLOYEE_CREDENTIAL_REQUIRED",
-  "EMPLOYEE_CREDENTIAL_LOCKED",
 ]);
 
 export const OPERATOR_ACTION_REQUIRED_EVENT = "darfus-operator-action-required";
 
 function emitOperatorRecoverySignal(errorCode?: string) {
   if (!errorCode || typeof window === "undefined" || !OPERATOR_RECOVERY_CODES.has(errorCode)) return;
-  const mode = errorCode.includes("STEP_UP") ? "step-up" : "verify";
   try {
-    window.dispatchEvent(new CustomEvent(OPERATOR_ACTION_REQUIRED_EVENT, { detail: { errorCode, mode, at: Date.now() } }));
+    window.dispatchEvent(new CustomEvent(OPERATOR_ACTION_REQUIRED_EVENT, { detail: { errorCode, mode: "verify", at: Date.now() } }));
   } catch {
     // UI recovery is best-effort; the API error still surfaces to the caller.
   }

@@ -153,7 +153,6 @@ export default function EmployeeProfilePage({ params }: PageProps) {
     codeHistory,
     loading: authorizationLoading,
     resetCredential,
-    unlockCredential,
     revokeOperatorSessions,
     changeEmployeeCode,
     changeOwnPin,
@@ -291,14 +290,6 @@ export default function EmployeeProfilePage({ params }: PageProps) {
       setEmployeeCodeReason("");
       refresh();
     } else toast.error(result.error?.message || "Employee Code change failed");
-  };
-
-  const unlockCredentialAction = async () => {
-    const reason = window.prompt(rtl ? "سبب فك القفل" : "Unlock reason", "UI credential unlock") || "UI credential unlock";
-    const result = await unlockCredential(reason);
-    if (result.success) toast.success(rtl ? "تم فك قفل الاعتماد" : "Credential unlocked");
-    else toast.error(result.error?.message || "Credential unlock failed");
-    refresh();
   };
 
   const revokeOperatorSessionsAction = async () => {
@@ -472,7 +463,6 @@ export default function EmployeeProfilePage({ params }: PageProps) {
           onSubmit={saveCredential}
           onSelfPinSubmit={saveOwnPin}
           onEmployeeCodeSubmit={saveEmployeeCode}
-          onUnlock={unlockCredentialAction}
           onRevokeSessions={revokeOperatorSessionsAction}
           onCancel={clearCredentialForm}
           rtl={rtl}
@@ -749,7 +739,6 @@ function EmployeeDirectPermissionsTab({
                   <div key={permission.id} className="grid gap-2 rounded-xl p-2 text-xs hover:bg-background sm:grid-cols-[1fr_auto_auto]">
                     <span className="font-bold">
                       {permissionLabel(permission.name, uiLocale)}
-                      {permissionMeta(permission.name).sensitivity === "level_2" && <span className="ms-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-800">{rtl ? "يتطلب المستوى 2" : "Requires Level 2"}</span>}
                     </span>
                     <label className="inline-flex items-center gap-2 text-emerald-700"><input disabled={!canManage} type="checkbox" checked={grantPermissionIds.includes(permission.id)} onChange={(event) => toggleGrant(permission, event.target.checked)} /> {rtl ? "سماح مباشر" : "Direct grant"}</label>
                     <label className="inline-flex items-center gap-2 text-rose-700"><input disabled={!canManage} type="checkbox" checked={denialPermissionIds.includes(permission.id)} onChange={(event) => toggleDenial(permission, event.target.checked)} /> {rtl ? "منع مباشر" : "Direct denial"}</label>
@@ -840,7 +829,7 @@ function EmployeeEffectivePermissionsTab({ permissionState, rtl }: { permissionS
             </div>
             <div className="mt-1 flex flex-wrap gap-2 text-[11px]">
               <span>{row.source}</span>
-              <span>{row.meta.sensitivity === "level_2" ? (rtl ? "يتطلب المستوى الثاني" : "Requires Level 2") : (rtl ? "المستوى الأول" : "Level 1")}</span>
+              <span>{row.meta.description[uiLocale]}</span>
             </div>
           </div>
         )) : <p className="rounded-2xl bg-background p-4 text-xs text-muted-foreground">{rtl ? "لا توجد صلاحيات مطابقة." : "No matching permissions found."}</p>}
@@ -870,7 +859,6 @@ function EmployeeCredentialTab({
   onSubmit,
   onSelfPinSubmit,
   onEmployeeCodeSubmit,
-  onUnlock,
   onRevokeSessions,
   onCancel,
   rtl,
@@ -895,7 +883,6 @@ function EmployeeCredentialTab({
   onSubmit: (event: FormEvent) => Promise<void>;
   onSelfPinSubmit: (event: FormEvent) => Promise<void>;
   onEmployeeCodeSubmit: (event: FormEvent) => Promise<void>;
-  onUnlock: () => Promise<void>;
   onRevokeSessions: () => Promise<void>;
   onCancel: () => void;
   rtl: boolean;
@@ -906,7 +893,6 @@ function EmployeeCredentialTab({
       <h3 className="font-black text-navy-950 dark:text-white">{rtl ? "إدارة الاعتماد والرقم السري الوظيفي" : "Credential & PIN Management"}</h3>
       <div className="mt-4 grid gap-4 text-xs sm:grid-cols-3">
         <Metric label={rtl ? "حالة الاعتماد" : "Credential state"} value={credentialState} />
-        <Metric label={rtl ? "مقفول حتى" : "Locked until"} value={employee.authorizationSummary?.lockedUntil ? formatDate(employee.authorizationSummary.lockedUntil) : "—"} />
         <Metric label={rtl ? "آخر نجاح" : "Last success"} value={employee.authorizationSummary?.lastVerifiedAt ? formatDate(employee.authorizationSummary.lastVerifiedAt) : "—"} />
         <Metric label={rtl ? "جلسات مشغل نشطة" : "Active operator sessions"} value={String(employee.authorizationSummary?.activeOperatorSessionCount ?? 0)} />
       </div>
@@ -915,7 +901,7 @@ function EmployeeCredentialTab({
         <input className="input-base" inputMode="numeric" type="password" maxLength={6} value={currentPin} autoComplete="current-password" onChange={(event) => setCurrentPin(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder={rtl ? "الرقم السري الوظيفي الحالي" : "Current PIN"} />
         <input className="input-base" inputMode="numeric" type="password" maxLength={6} value={selfNewPin} autoComplete="new-password" onChange={(event) => setSelfNewPin(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder={rtl ? "الرقم السري الوظيفي الجديد · 6 أرقام" : "New PIN · 6 digits"} />
         <input className="input-base" inputMode="numeric" type="password" maxLength={6} value={selfPinConfirm} autoComplete="new-password" onChange={(event) => setSelfPinConfirm(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder={rtl ? "تأكيد الرقم السري الوظيفي" : "Confirm PIN"} />
-        <p className="text-[11px] text-muted-foreground">{rtl ? "يتطلب جلسة موظف حالية بالمستوى الثاني. بعد النجاح يلزم التحقق من جديد." : "Requires a current Level 2 Employee session. Re-verification is required after success."}</p>
+        <p className="text-[11px] text-muted-foreground">{rtl ? "يتطلب جلسة موظف حالية. بعد النجاح يلزم التحقق من جديد." : "Requires a current Employee session. Re-verification is required after success."}</p>
         <div className="flex gap-2">
           <Button type="submit">{rtl ? "تغيير الرقم السري الوظيفي" : "Change PIN"}</Button>
           <Button type="button" variant="secondary" onClick={onCancel}>{rtl ? "إلغاء" : "Cancel"}</Button>
@@ -931,7 +917,6 @@ function EmployeeCredentialTab({
             <div className="flex flex-wrap gap-2">
               <Button type="submit">{rtl ? "إعادة التعيين" : "Reset PIN"}</Button>
               <Button type="button" variant="secondary" onClick={onCancel}>{rtl ? "إلغاء" : "Cancel"}</Button>
-              <Button type="button" variant="secondary" onClick={() => void onUnlock()}>{rtl ? "فك القفل" : "Unlock"}</Button>
               <Button type="button" variant="secondary" onClick={() => void onRevokeSessions()}>{rtl ? "إنهاء جلسات المشغل" : "Revoke sessions"}</Button>
             </div>
           </form>
@@ -968,7 +953,7 @@ function EmployeeVerificationAttemptsTab({ attempts, rtl }: { attempts: Employee
               <span className="text-[10px] text-slate-400">{formatDate(attempt.createdAt)}</span>
             </div>
             <p className="mt-1 text-[10px] text-slate-500">
-              {attempt.requestedPermission || attempt.requestedOperation || "—"} · {rtl ? "المستوى" : "Level"} {attempt.requestedLevel} · {attempt.failureCode || (rtl ? "نجاح" : "OK")}
+              {attempt.requestedPermission || attempt.requestedOperation || "—"} · {attempt.failureCode || (rtl ? "نجاح" : "OK")}
             </p>
             <p className="mt-1 text-[10px] text-slate-400">
               {rtl ? "الفرع" : "Branch"}: {attempt.branchId || "—"} · {rtl ? "المستخدم التقني" : "Technical User"}: {attempt.technicalUserId || "—"} · {rtl ? "عنوان الشبكة" : "IP"}: {attempt.ipAddress || (rtl ? "مخفي" : "masked")} · {rtl ? "المتصفح" : "UA"}: {attempt.userAgent || (rtl ? "ملخص" : "summarized")}
@@ -999,14 +984,12 @@ function EmployeeOperationalSessionsTab({ sessions, rtl }: { sessions: EmployeeO
                   <div className="flex items-center gap-2">
                     <p className="font-bold text-navy-900 dark:text-white">{session.maskedDeviceLabel || "device-••••"}</p>
                     <Badge tone={session.state?.startsWith("active") ? "green" : "slate"}>{session.state}</Badge>
-                    <Badge tone={session.verificationLevel >= 2 ? "green" : "blue"}>{rtl ? "المستوى" : "Level"} {session.verificationLevel}</Badge>
                   </div>
                   <p className="mt-1 text-[10px] text-slate-400">{session.branch?.name || session.branch?.id || "—"} · {session.technicalUser?.name || session.technicalUser?.email || "—"}</p>
                 </div>
               </div>
               <div className="mt-3 grid gap-2 text-[10px] text-slate-500 sm:grid-cols-3">
                 <span>{rtl ? "تحقق" : "Verified"}: {formatDate(session.verifiedAt)}</span>
-                <span>{rtl ? "المستوى الثاني" : "Level 2"}: {formatDate(session.level2VerifiedAt)}</span>
                 <span>{rtl ? "آخر نشاط" : "Last activity"}: {formatDate(session.lastActivityAt)}</span>
                 <span>{rtl ? "انتهاء الخمول" : "Idle expiry"}: {formatDate(session.idleExpiresAt)}</span>
                 <span>{rtl ? "قفل" : "Locked"}: {formatDate(session.lockedAt)}</span>

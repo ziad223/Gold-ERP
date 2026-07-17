@@ -62,7 +62,7 @@ function staticContract() {
   assert.ok(systemService.includes("Final active Super Admin") && systemService.includes("requireSensitiveAdminLevel2") && systemService.includes("final_recovery_safeguard_denied"), "system account safeguards exist");
   assert.ok(routes.includes("/:id/reset-password") && routes.includes("/readiness"), "system account routes mounted");
   assert.ok(employeeAuth.includes("changeEmployeeCode") && employeeAuth.includes("changeOwnPin") && employeeAuth.includes("EmployeeCodeHistory"), "employee credential changes exist");
-  assert.ok(employeeRoutes.includes("requiredLevel: 2") && employeeRoutes.includes("employee.pin.self_change"), "PIN self-change requires Level 2");
+  assert.ok(!employeeRoutes.includes("requiredLevel: 2") && employeeRoutes.includes("employee.pin.self_change"), "PIN self-change uses a verified Employee session without Level");
   assert.ok(employeeCrudRoutes.includes("Employee Code must be changed through the dedicated credential endpoint"), "generic Employee update cannot bypass dedicated Employee Code history path");
   const systemAccountsUiApi = `${ui}\n${read("hooks/use-user-management.ts")}`;
   assert.ok(systemAccountsUiApi.includes("/system-accounts") && systemAccountsUiApi.includes("/system-accounts/branch-accounts") && systemAccountsUiApi.includes("change-email") && systemAccountsUiApi.includes("readiness"), "system accounts UI/API contracts wired");
@@ -244,12 +244,11 @@ async function verifyOperator(key = "super") {
       employeeCode: activeEmployeeCode,
       pin: activePin,
       branchId: ids.branchA,
-      requestedLevel: 2,
       requestedPermission: "system_accounts.manage",
       requestedOperation: "phase34.5a.verifier"
     }
   });
-  assert.equal(res.status, 200, "Admin Employee Level 2 verification");
+  assert.equal(res.status, 200, "Admin Employee verification");
   state.devices[key] = deviceId;
   return deviceId;
 }
@@ -352,7 +351,7 @@ async function testSystemAccountsAndSafeguards() {
     branchId: null,
     body: { accountType: "super_admin", email: `${ns}-second@example.test`, firstName: "Second", lastName: "Admin" }
   });
-  assert.equal(createSecond.status, 201, "create second Super Admin without Employee Level 2");
+  assert.equal(createSecond.status, 201, "create second Super Admin without Employee Level");
   state.createdUsers.push(createSecond.body.data.account.id);
   assert.ok(createSecond.body.data.temporaryPassword, "temporary password shown once in response");
   const demoteSecond = await request("POST", `/system-accounts/${createSecond.body.data.account.id}/convert-account-type`, {
@@ -391,7 +390,7 @@ async function testEmployeeCodeAndPin() {
   const reverify = await request("POST", "/operator/verify", {
     token: state.tokens.super,
     deviceId: `DEV-${ns}-pin`,
-    body: { employeeCode: `${ns}-ADMIN2`, pin, branchId: ids.branchA, requestedLevel: 2 }
+    body: { employeeCode: `${ns}-ADMIN2`, pin, branchId: ids.branchA }
   });
   assert.equal(reverify.status, 200, "operator verifies with changed Employee Code");
   const pinChange = await request("POST", "/operator/change-pin", {
@@ -401,12 +400,12 @@ async function testEmployeeCodeAndPin() {
   });
   assert.equal(pinChange.status, 200, "PIN self-change");
   activePin = "369258";
-  const weak = await request("POST", "/operator/verify", {
+  const wrongPin = await request("POST", "/operator/verify", {
     token: state.tokens.super,
-    deviceId: `DEV-${ns}-weak`,
-    body: { employeeCode: `${ns}-ADMIN2`, pin: "123456", branchId: ids.branchA, requestedLevel: 1 }
+    deviceId: `DEV-${ns}-wrong-pin`,
+    body: { employeeCode: `${ns}-ADMIN2`, pin: "123456", branchId: ids.branchA }
   });
-  assert.equal(weak.status, 422, "weak PIN rejected");
+  assert.equal(wrongPin.status, 403, "wrong six-digit PIN returns generic verification failure");
   const auditCount = await models.AuditLog.count({ where: { companyId: ids.company } });
   assert.ok(auditCount >= 4, "high-risk dual audit evidence exists");
 }

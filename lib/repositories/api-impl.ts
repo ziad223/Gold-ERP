@@ -49,7 +49,6 @@ import type {
   EmployeePermissionState,
   EmployeeVerificationAttempt,
   OperatorSessionState,
-  OperatorStepUpInput,
   OperatorVerifyInput,
   OperatorVerifyResult,
 } from "../types";
@@ -404,14 +403,6 @@ export class ApiOperatorRepository implements OperatorRepository {
 
   async verify(input: OperatorVerifyInput): Promise<MutationResult<OperatorVerifyResult>> {
     return apiClient<MutationResult<OperatorVerifyResult>>("/operator/verify", {
-      method: "POST",
-      body: JSON.stringify(input),
-      ...auth(),
-    });
-  }
-
-  async authorizeAction(input: OperatorStepUpInput): Promise<MutationResult<{ operatorSession: OperatorSessionState; employee: OperatorVerifyResult["employee"]; verificationAttemptId?: string }>> {
-    return apiClient<MutationResult<{ operatorSession: OperatorSessionState; employee: OperatorVerifyResult["employee"]; verificationAttemptId?: string }>>("/operator/authorize-action", {
       method: "POST",
       body: JSON.stringify(input),
       ...auth(),

@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import type { OperatorSessionState, OperatorStepUpInput, OperatorVerifyInput } from "@/lib/types";
+import type { OperatorSessionState, OperatorVerifyInput } from "@/lib/types";
 import { useAuth } from "@/contexts/auth-context";
 import { useErp } from "@/contexts/erp-context";
 
@@ -12,7 +12,6 @@ interface OperatorContextValue {
   reason?: string | null;
   refresh: () => Promise<void>;
   verify: (input: OperatorVerifyInput) => Promise<void>;
-  authorizeAction: (input: OperatorStepUpInput) => Promise<void>;
   lock: (reason?: string) => Promise<void>;
   endSession: (reason?: string) => Promise<void>;
 }
@@ -26,7 +25,6 @@ const inactiveState: OperatorSessionState = {
   reason: "NOT_VERIFIED",
   sessionId: null,
   employee: null,
-  verificationLevel: 0,
 };
 
 export function OperatorProvider({ children }: { children: React.ReactNode }) {
@@ -94,20 +92,6 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
       setActive(true);
       setReason(null);
       broadcast("operator:verified");
-    } finally {
-      setLoading(false);
-    }
-  }, [broadcast, operatorRepository]);
-
-  const authorizeAction = useCallback(async (input: OperatorStepUpInput) => {
-    setLoading(true);
-    try {
-      const result = await operatorRepository.authorizeAction(input);
-      if (!result.success || !result.data) throw new Error(result.error?.message || "Operator step-up failed");
-      setState(result.data.operatorSession);
-      setActive(true);
-      setReason(null);
-      broadcast("operator:step-up");
     } finally {
       setLoading(false);
     }
@@ -195,10 +179,9 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
     reason,
     refresh,
     verify,
-    authorizeAction,
     lock,
     endSession,
-  }), [state, active, loading, reason, refresh, verify, authorizeAction, lock, endSession]);
+  }), [state, active, loading, reason, refresh, verify, lock, endSession]);
 
   return <OperatorContext.Provider value={value}>{children}</OperatorContext.Provider>;
 }

@@ -8,7 +8,6 @@ import type {
   EmployeePermissionState,
   EmployeeVerificationAttempt,
   OperatorSessionState,
-  OperatorStepUpInput,
   OperatorVerifyInput,
   OperatorVerifyResult,
   AuditLog,
@@ -121,7 +120,6 @@ export interface EmployeeRepository {
 export interface OperatorRepository {
   current(): Promise<{ active: boolean; reason?: string | null; operatorSession: OperatorSessionState }>;
   verify(input: OperatorVerifyInput): Promise<MutationResult<OperatorVerifyResult>>;
-  authorizeAction(input: OperatorStepUpInput): Promise<MutationResult<{ operatorSession: OperatorSessionState; employee: OperatorVerifyResult["employee"]; verificationAttemptId?: string }>>;
   lock(reason?: string): Promise<MutationResult<{ operatorSession: OperatorSessionState }>>;
   endSession(reason?: string): Promise<MutationResult<{ operatorSession: OperatorSessionState }>>;
 }

@@ -1,15 +1,32 @@
 # Phase 34.5A — Super Admin, Branch Shell Accounts, Employee-First Authorization & Recovery
 
-Status: implementation in progress for the additive core.
+Status: additive core with HF5A, HF5B, and HF5C simplification hotfixes applied locally.
+
+## HF5C Current Contract
+
+HF5C supersedes older active Level wording in this file for current runtime behavior.
+
+- Super Admin logs in with email/password only and remains outside Employee Code, PIN, Level, and step-up requirements.
+- Branch Account remains fixed to one company/branch and still requires an Employee operator for supported business operations.
+- Employee operator state is single-level: `verified` or not usable (`unverified`, `expired`, `revoked`, or stale).
+- Level 1, Level 2, elevated session, step-up, and `OPERATOR_STEP_UP_REQUIRED` are no longer active runtime concepts.
+- Historical Level columns remain in the database for compatibility. New valid sessions store compatibility `verificationLevel = 1` and `level2VerifiedAt = null`, but authorization decisions do not read Level.
+- Employee PIN is exactly six numeric digits. PIN hashes are stored securely and never displayed or logged.
+- Wrong Employee Code/PIN returns one generic controlled error, records an audit/verification-attempt row, and never auto-locks the Employee credential. Technical email/password lockout remains unchanged.
+- Employee inactivity timeout is 30 minutes. `/operator/current` and passive polling do not refresh activity; meaningful Employee-protected actions do.
+- Change Employee and End Employee Session revoke only the Employee operator session and preserve the Branch Account technical login. Full logout revokes the technical session and clears bound Employee sessions.
+- Counts after HF5C: 43 migrations, 123 permissions, and 56 verifier files.
+
+HF5D Employee page simplification, HF5E grouped permissions, HF5F role templates, HF5G admin Code/PIN management, HF5H broader UX, and HF5I release validation remain deferred.
 
 ## Account Types
 
 Phase 34.5A adds `legacy`, `super_admin`, and `branch_shell` account types on `users.account_type`.
 Existing users remain `legacy` by default. No existing user, including `USR-ADMIN`, is automatically converted or classified.
 
-`super_admin` is a platform-wide technical account for system governance. Sensitive actions still require an active System Administrator Employee with fresh Level 2 verification.
+`super_admin` is a platform-wide technical account for system governance. After HF5A/HF5C, Super Admin does not require Employee verification or Level for technical governance.
 
-`branch_shell` is fixed to one company branch and receives no direct operational permission fallback. Protected operations rely on the technical session plus the Employee operator session and Employee permissions.
+`branch_shell` is fixed to one company branch and receives no direct operational permission fallback. Protected operations rely on the technical session plus a verified Employee operator session and Employee permissions.
 
 `default_employee_id` is optional convenience metadata only. It never activates an Employee session and never bypasses PIN.
 

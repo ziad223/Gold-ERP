@@ -26,7 +26,6 @@ const employeeDetail = read("app/[locale]/(dashboard)/employees/[id]/page.tsx");
 const operatorContext = read("contexts/operator-context.tsx");
 const operatorBar = read("components/operator/operator-bar.tsx");
 const operatorVerifyDialog = read("components/operator/operator-verify-dialog.tsx");
-const operatorStepUpDialog = read("components/operator/operator-step-up-dialog.tsx");
 const employeeHooks = read("hooks/use-employees.ts");
 const employeeRoutes = read("backend/src/routes/employee-authorization.routes.js");
 const erpRoutes = read("backend/src/routes/erp.routes.js");
@@ -98,14 +97,24 @@ check(employeeRoutes.includes('/employees/:id/operator-sessions') && employeeRou
 check(employeeRoutes.includes("maskedDeviceLabel") && !employeeRoutes.includes("authSessionFingerprint:"), "operator-session history response masks device identity and omits auth fingerprint");
 check(employeeRoutes.includes("maskIp") && employeeRoutes.includes("summarizeUserAgent"), "verification attempts mask IP and summarize user-agent");
 
-check(operatorBar.includes("Level 2") && operatorBar.includes("Change Employee") && operatorBar.includes("End Employee Session") && operatorBar.includes("formatCountdown"), "operator bar supports Level 1/2, employee change, end session, and countdown display");
+check(!fs.existsSync(path.join(root, "components/operator/operator-step-up-dialog.tsx")), "standalone step-up dialog is removed");
+check(!operatorBar.includes("Level 2") && !operatorBar.includes("step-up") && operatorBar.includes("Change Employee") && operatorBar.includes("End Employee Session") && operatorBar.includes("formatCountdown"), "operator bar supports single verified state, employee change, end session, and countdown display");
+check(includesAll(operatorBar, [
+  "Current Employee",
+  "Select an employee to begin",
+  "Employee session expired. Select an employee to continue.",
+  "Employee code or PIN is incorrect",
+  "الموظف الحالي",
+  "تغيير الموظف",
+  "إنهاء جلسة الموظف",
+]), "operator bar exposes the approved English and Arabic single-state labels");
 check(operatorBar.includes("clearSensitiveOperatorFormState") && operatorBar.includes("resetOperatorDialogState") && operatorBar.includes("finally") && operatorBar.includes("endOperatorSession"), "OperatorBar clears PIN in guaranteed paths and resets dialogs on end session");
-check(operatorBar.includes("operator.authorizeAction") && operatorBar.includes("resetOperatorDialogState();"), "Level 2 step-up success closes and resets the operator dialog");
-check(operatorVerifyDialog.includes("finally") && operatorVerifyDialog.includes("clearSensitiveOperatorFormState") && operatorStepUpDialog.includes("finally") && operatorStepUpDialog.includes("clearSensitiveOperatorFormState"), "standalone operator dialogs clear PIN after every submit outcome");
+check(!operatorBar.includes("operator.authorizeAction") && !operatorContext.includes("authorizeAction"), "step-up authorization action is not exposed to the frontend");
+check(operatorVerifyDialog.includes("finally") && operatorVerifyDialog.includes("clearSensitiveOperatorFormState"), "operator verify dialog clears PIN after every submit outcome");
 check(operatorContext.includes("BroadcastChannel") && operatorContext.includes("storage") && operatorContext.includes("operator:branch-changed"), "operator context supports BroadcastChannel, storage fallback, and branch-change refresh");
 check(operatorContext.includes("OPERATOR_LIFECYCLE_EVENT") && operatorContext.includes("window.dispatchEvent") && employeeHooks.includes("addEventListener(OPERATOR_LIFECYCLE_EVENT"), "operator lifecycle events invalidate Employee detail session and authorization views");
 check(employeeHooks.includes("employee:credential-reset") && employeeHooks.includes("employee:branch-access-updated") && employeeHooks.includes("employee:permissions-updated"), "Employee credential, branch and permission changes trigger session-history invalidation");
-check(!operatorContext.includes("pin") && !operatorBar.includes("localStorage.setItem") && !operatorVerifyDialog.includes("localStorage") && !operatorStepUpDialog.includes("localStorage"), "operator cross-tab state does not persist PIN or secrets");
+check(!operatorContext.includes("pin") && !operatorBar.includes("localStorage.setItem") && !operatorVerifyDialog.includes("localStorage"), "operator cross-tab state does not persist PIN or secrets");
 
 const businessRouteText = erpRoutes;
 check(!/requireOperator|requireEmployeePermission|requireStepUp|employee-permission\.middleware|step-up\.middleware/.test(businessRouteText), "business execution routes do not import or wire operator middleware");

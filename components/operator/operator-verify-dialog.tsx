@@ -22,7 +22,7 @@ export function OperatorVerifyDialog() {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     try {
-      await operator.verify({ employeeCode, pin, branchId: activeBranchId || "", requestedLevel: 1 });
+      await operator.verify({ employeeCode, pin, branchId: activeBranchId || "" });
       closeDialog();
     } finally {
       clearSensitiveOperatorFormState();

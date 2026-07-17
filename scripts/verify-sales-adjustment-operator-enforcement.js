@@ -36,15 +36,15 @@ function staticContract() {
     "Collect Installments"
   ]) assertIncludes(catalog, token, "localized permission catalog");
 
-  for (const [operation, permission, level] of [
-    ["sales.return.execute", "sales.returns.execute", "level: 2"],
-    ["sales.exchange.execute", "sales.exchanges.execute", "level: 2"],
-    ["sales.installment.collect", "sales.installments.collect", "level: 2"]
+  for (const [operation, permission] of [
+    ["sales.return.execute", "sales.returns.execute"],
+    ["sales.exchange.execute", "sales.exchanges.execute"],
+    ["sales.installment.collect", "sales.installments.collect"]
   ]) {
     assertIncludes(policy, operation, `policy ${operation}`);
     assertIncludes(policy, permission, `policy ${operation}`);
-    assertIncludes(policy, level, `policy ${operation}`);
   }
+  assert.ok(!policy.includes("requiredLevel") && !policy.includes("OPERATOR_STEP_UP_REQUIRED"), "Sales adjustment policy has no active Level or step-up gate");
 
   for (const token of [
     'requireSalesCommandAccess("sales.return.execute"',
@@ -498,16 +498,6 @@ async function testBranchShellReturn() {
   }), 401, "BRANCH_ACCOUNT_EMPLOYEE_REQUIRED", "return without Employee");
   await assertNoBusinessMutation(beforeNoEmployee, "return no Employee denial");
 
-  const level1Device = await verifyOperator({ employee: "adjustments", level: 1 });
-  const beforeLevel1 = await businessCounts();
-  await expectError(request("POST", "/sales/returns", {
-    token: state.tokens.branchShell,
-    deviceId: level1Device,
-    body: returnBody(invoice, itemId),
-    idempotencyKey: `IDEM-${ns}-return-level1`
-  }), 403, "OPERATOR_STEP_UP_REQUIRED", "return Level 1 denied");
-  await assertNoBusinessMutation(beforeLevel1, "return Level 1 denial");
-
   const deniedDevice = await verifyOperator({ employee: "deniedReturn", level: 2 });
   const beforeDenied = await businessCounts();
   await expectError(request("POST", "/sales/returns", {
@@ -528,14 +518,14 @@ async function testBranchShellReturn() {
   }), 403, "BRANCH_ACCOUNT_FIXED_SCOPE", "return branch mismatch");
   await assertNoBusinessMutation(branchMismatchBefore, "return branch mismatch");
 
-  const level2Device = await verifyOperator({ employee: "adjustments", level: 2 });
+  const verifiedDevice = await verifyOperator({ employee: "adjustments", level: 1 });
   const success = await request("POST", "/sales/returns", {
     token: state.tokens.branchShell,
-    deviceId: level2Device,
+    deviceId: verifiedDevice,
     body: returnBody(invoice, itemId),
     idempotencyKey: `IDEM-${ns}-return-success`
   });
-  assert.equal(success.status, 201, "return succeeds with Employee Level 2");
+  assert.equal(success.status, 201, "return succeeds with verified Employee");
   const returnInvoiceId = dataOf(success).id;
   const returnInvoice = await models.Invoice.findByPk(returnInvoiceId);
   assert.equal(returnInvoice.finalizedByEmployeeId, state.employees.adjustments.id, "return invoice finalized by Employee");
@@ -543,7 +533,7 @@ async function testBranchShellReturn() {
 
   const replay = await request("POST", "/sales/returns", {
     token: state.tokens.branchShell,
-    deviceId: level2Device,
+    deviceId: verifiedDevice,
     body: returnBody(invoice, itemId),
     idempotencyKey: `IDEM-${ns}-return-success`
   });
@@ -572,7 +562,7 @@ async function testBranchShellExchange() {
     deviceId: previewDevice,
     body: exchangeBody(invoice, itemId, replacement)
   });
-  assert.equal(preview.status, 200, "exchange preview succeeds with Level 1 read policy");
+  assert.equal(preview.status, 200, "exchange preview succeeds with verified Employee read policy");
 
   const beforeNoEmployee = await businessCounts();
   await expectError(request("POST", "/sales/exchanges", {
@@ -581,15 +571,6 @@ async function testBranchShellExchange() {
     idempotencyKey: `IDEM-${ns}-exchange-no-employee`
   }), 401, "BRANCH_ACCOUNT_EMPLOYEE_REQUIRED", "exchange without Employee");
   await assertNoBusinessMutation(beforeNoEmployee, "exchange no Employee denial");
-
-  const beforeLevel1 = await businessCounts();
-  await expectError(request("POST", "/sales/exchanges", {
-    token: state.tokens.branchShell,
-    deviceId: previewDevice,
-    body: exchangeBody(invoice, itemId, replacement),
-    idempotencyKey: `IDEM-${ns}-exchange-level1`
-  }), 403, "OPERATOR_STEP_UP_REQUIRED", "exchange Level 1 denied");
-  await assertNoBusinessMutation(beforeLevel1, "exchange Level 1 denial");
 
   const deniedDevice = await verifyOperator({ employee: "deniedExchange", level: 2 });
   const beforeDenied = await businessCounts();
@@ -601,20 +582,20 @@ async function testBranchShellExchange() {
   }), 403, "OPERATOR_PERMISSION_DENIED", "exchange direct denial");
   await assertNoBusinessMutation(beforeDenied, "exchange direct denial");
 
-  const level2Device = await verifyOperator({ employee: "adjustments", level: 2 });
+  const verifiedDevice = await verifyOperator({ employee: "adjustments", level: 1 });
   const success = await request("POST", "/sales/exchanges", {
     token: state.tokens.branchShell,
-    deviceId: level2Device,
+    deviceId: verifiedDevice,
     body: exchangeBody(invoice, itemId, replacement),
     idempotencyKey: `IDEM-${ns}-exchange-success`
   });
-  assert.equal(success.status, 201, "exchange succeeds with Employee Level 2");
+  assert.equal(success.status, 201, "exchange succeeds with verified Employee");
   const exchangeInvoice = await models.Invoice.findByPk(dataOf(success).id);
   assert.equal(exchangeInvoice.finalizedByEmployeeId, state.employees.adjustments.id, "exchange invoice finalized by Employee");
 
   const replay = await request("POST", "/sales/exchanges", {
     token: state.tokens.branchShell,
-    deviceId: level2Device,
+    deviceId: verifiedDevice,
     body: exchangeBody(invoice, itemId, replacement),
     idempotencyKey: `IDEM-${ns}-exchange-success`
   });
@@ -633,16 +614,6 @@ async function testInstallmentCollection() {
   }), 401, "BRANCH_ACCOUNT_EMPLOYEE_REQUIRED", "installment without Employee");
   await assertNoBusinessMutation(beforeNoEmployee, "installment no Employee denial");
 
-  const level1Device = await verifyOperator({ employee: "adjustments", level: 1 });
-  const beforeLevel1 = await businessCounts();
-  await expectError(request("POST", `/installments/${inst.id}/pay`, {
-    token: state.tokens.branchShell,
-    deviceId: level1Device,
-    body: { amount: 90, paymentMethod: "Cash" },
-    idempotencyKey: `IDEM-${ns}-installment-level1`
-  }), 403, "OPERATOR_STEP_UP_REQUIRED", "installment Level 1 denied");
-  await assertNoBusinessMutation(beforeLevel1, "installment Level 1 denial");
-
   const deniedDevice = await verifyOperator({ employee: "deniedInstallment", level: 2 });
   const beforeDenied = await businessCounts();
   await expectError(request("POST", `/installments/${inst.id}/pay`, {
@@ -653,21 +624,21 @@ async function testInstallmentCollection() {
   }), 403, "OPERATOR_PERMISSION_DENIED", "installment direct denial");
   await assertNoBusinessMutation(beforeDenied, "installment direct denial");
 
-  const level2Device = await verifyOperator({ employee: "adjustments", level: 2 });
+  const verifiedDevice = await verifyOperator({ employee: "adjustments", level: 1 });
   const success = await request("POST", `/installments/${inst.id}/pay`, {
     token: state.tokens.branchShell,
-    deviceId: level2Device,
+    deviceId: verifiedDevice,
     body: { amount: 90, paymentMethod: "Cash" },
     idempotencyKey: `IDEM-${ns}-installment-success`
   });
-  assert.equal(success.status, 200, "installment collection succeeds with Employee Level 2");
+  assert.equal(success.status, 200, "installment collection succeeds with verified Employee");
   const payment = await models.Payment.findOne({ where: { companyId: ids.company, invoiceId: invoice.id } });
   assert.ok(payment, "installment payment persisted");
   assert.equal(payment.receivedByEmployeeId, state.employees.adjustments.id, "installment payment attributed to Employee");
 
   const replay = await request("POST", `/installments/${inst.id}/pay`, {
     token: state.tokens.branchShell,
-    deviceId: level2Device,
+    deviceId: verifiedDevice,
     body: { amount: 90, paymentMethod: "Cash" },
     idempotencyKey: `IDEM-${ns}-installment-success`
   });

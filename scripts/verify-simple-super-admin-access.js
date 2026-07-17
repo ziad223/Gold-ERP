@@ -45,11 +45,11 @@ function staticContract() {
   assert.ok(salesPolicy.includes('accountTypeRequiresOperator = accountType === "branch_shell"'), "only Branch Shell is forced through employee operator gate");
   assert.ok(salesPolicy.includes("BRANCH_SELECTION_REQUIRED"), "Super Admin business commands require branch selection");
 
-  assert.ok(systemAccounts.includes("requireSuperAdminTechnicalScope(req)") && !/currentFromRequest\(req,[\s\S]{0,240}system-account\.sensitive/.test(systemAccounts), "System Accounts no longer require Employee Level 2 for Super Admin");
+  assert.ok(systemAccounts.includes("requireSuperAdminTechnicalScope(req)") && !/currentFromRequest\(req,[\s\S]{0,240}system-account\.sensitive/.test(systemAccounts), "System Accounts no longer require Employee authorization for Super Admin");
   assert.ok(systemAccounts.includes("findUserByNormalizedEmail") && systemAccounts.includes('fn("lower"'), "System Accounts enforce case-insensitive email uniqueness");
   assert.ok(systemAccounts.includes("assertNotFinalSuperAdmin") && systemAccounts.includes("revokeUserSessions"), "final Super Admin and session revocation safeguards remain");
 
-  assert.ok(authController.includes("findUserByNormalizedEmail") && !authController.includes("auth.change-password") && !authController.includes("auth.change-email"), "self password/email change do not require Employee Level 2");
+  assert.ok(authController.includes("findUserByNormalizedEmail") && !authController.includes("auth.change-password") && !authController.includes("auth.change-email"), "self password/email change do not require Employee authorization");
   assert.ok(permissionService.includes('accountType || "legacy") === "super_admin"') && permissionService.includes("return true"), "backend permission service gives Super Admin complete technical scope");
   assert.ok(usePermissions.includes('accountType === "super_admin"') && usePermissions.includes("return true"), "frontend permission hook gives Super Admin complete UI scope");
   assert.ok(usersUi.includes("errorMessage(error") && usersUi.includes("Branch Account"), "System Accounts UI catches expected errors and exposes Branch Account management");
@@ -62,7 +62,7 @@ function staticContract() {
   const migrationCount = fs.readdirSync(path.join(ROOT, "backend", "migrations")).filter((name) => name.endsWith(".js")).length;
   const verifierCount = fs.readdirSync(path.join(ROOT, "scripts")).filter((name) => /^verify-.*\.js$/.test(name)).length;
   assert.equal(migrationCount, 43, "migration count is 43 after HF5B");
-  assert.equal(verifierCount, 55, "verifier count is 55 after HF5B");
+  assert.equal(verifierCount, 56, "verifier count is 56 after HF5C");
   console.log("Simple Super Admin static contract: PASS");
 }
 

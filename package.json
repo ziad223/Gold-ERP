@@ -57,6 +57,7 @@
     "verify:super-admin-branch-shell-recovery": "node scripts/verify-super-admin-branch-shell-recovery.js",
     "verify:simple-super-admin-access": "node scripts/verify-simple-super-admin-access.js",
     "verify:simple-branch-account-access": "node scripts/verify-simple-branch-account-access.js",
+    "verify:single-level-employee-operator": "node scripts/verify-single-level-employee-operator.js",
     "demo:reset:client": "node scripts/reset-client-demo-data.js",
     "seed:client-demo:transactions": "node backend/seeders/client-demo/transactional/index.js",
     "seed:client-demo:transactions:plan": "node backend/seeders/client-demo/transactional/index.js --plan",

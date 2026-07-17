@@ -46,7 +46,13 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     if (hydrated && !isAuthenticated) router.replace("/login", { locale });
   }, [hydrated, isAuthenticated, locale, router]);
 
-  if (!hydrated || !isAuthenticated) {
+  useEffect(() => {
+    if (hydrated && isAuthenticated && user?.accountType === "branch_shell" && /^\/dashboard(?:\/|$)/.test(pathname)) {
+      router.replace("/pos", { locale });
+    }
+  }, [hydrated, isAuthenticated, locale, pathname, router, user?.accountType]);
+
+  if (!hydrated || !isAuthenticated || (user?.accountType === "branch_shell" && /^\/dashboard(?:\/|$)/.test(pathname))) {
     return (
       <div className="grid min-h-screen place-items-center bg-background">
         <div className="flex items-center gap-3 rounded-2xl border border-border bg-panel px-5 py-4 text-sm font-bold text-foreground shadow-soft">

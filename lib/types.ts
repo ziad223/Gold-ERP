@@ -635,7 +635,7 @@ export interface EmployeeOperationalSessionHistory {
   maskedDeviceLabel?: string | null;
   branch?: { id: string; name?: string | null; code?: string | null } | null;
   technicalUser?: { id: string; name?: string | null; email?: string | null } | null;
-  verificationLevel: number;
+  verificationLevel?: number;
   verifiedAt?: string | null;
   level2VerifiedAt?: string | null;
   lastActivityAt?: string | null;
@@ -724,7 +724,7 @@ export interface OperatorSessionState {
   reason?: string | null;
   sessionId?: string | null;
   employee?: OperatorEmployee | null;
-  verificationLevel: number;
+  verificationLevel?: number;
   verifiedAt?: string | null;
   level2VerifiedAt?: string | null;
   lastActivityAt?: string | null;
@@ -743,16 +743,11 @@ export interface OperatorVerifyInput {
   requestedOperation?: string | null;
 }
 
-export interface OperatorStepUpInput {
-  pin: string;
-  requiredPermission?: string | null;
-  requestedOperation?: string | null;
-}
-
 export interface OperatorVerifyResult {
   employee: OperatorEmployee;
   verification: {
-    level: number;
+    state?: "verified" | string;
+    level?: number;
     verifiedAt: string;
     expiresAt: string;
     absoluteExpiresAt?: string;

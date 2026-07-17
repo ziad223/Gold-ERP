@@ -41,7 +41,6 @@ import type {
   EmployeePermissionState,
   EmployeeVerificationAttempt,
   OperatorSessionState,
-  OperatorStepUpInput,
   OperatorVerifyInput,
   OperatorVerifyResult,
   AuditAction,
@@ -849,7 +848,6 @@ export class LocalOperatorRepository implements OperatorRepository {
     reason: "LOCAL_MODE",
     sessionId: null,
     employee: null,
-    verificationLevel: 0,
   };
 
   async current(): Promise<{ active: boolean; reason?: string | null; operatorSession: OperatorSessionState }> {
@@ -868,9 +866,7 @@ export class LocalOperatorRepository implements OperatorRepository {
         status: "present",
         branchId: input.branchId,
       },
-      verificationLevel: input.requestedLevel || 1,
       verifiedAt: now,
-      level2VerifiedAt: input.requestedLevel === 2 ? now : null,
       idleExpiresAt: now,
       absoluteExpiresAt: now,
     };
@@ -878,16 +874,10 @@ export class LocalOperatorRepository implements OperatorRepository {
       success: true,
       data: {
         employee: this.session.employee!,
-        verification: { level: this.session.verificationLevel, verifiedAt: now, expiresAt: now },
+        verification: { state: "verified", verifiedAt: now, expiresAt: now },
         operatorSession: this.session,
       },
     };
-  }
-
-  async authorizeAction(_input: OperatorStepUpInput): Promise<MutationResult<{ operatorSession: OperatorSessionState; employee: OperatorVerifyResult["employee"]; verificationAttemptId?: string }>> {
-    const now = new Date().toISOString();
-    this.session = { ...this.session, state: "active", verificationLevel: 2, level2VerifiedAt: now };
-    return { success: true, data: { operatorSession: this.session, employee: this.session.employee! } };
   }
 
   async lock(reason = "manual_lock"): Promise<MutationResult<{ operatorSession: OperatorSessionState }>> {
@@ -896,7 +886,7 @@ export class LocalOperatorRepository implements OperatorRepository {
   }
 
   async endSession(reason = "operator_session_ended"): Promise<MutationResult<{ operatorSession: OperatorSessionState }>> {
-    this.session = { ...this.session, state: "inactive", reason, employee: null, verificationLevel: 0 };
+    this.session = { ...this.session, state: "inactive", reason, employee: null };
     return { success: true, data: { operatorSession: this.session } };
   }
 }

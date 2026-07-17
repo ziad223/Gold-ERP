@@ -277,7 +277,7 @@ async function cleanup() {
     await models.Employee.create({ id: ids.empLeave, companyId: ids.company, employeeCode: `${namespace}-LEAVE`, employeeCodeNormalized: `${namespace}-LEAVE`.toUpperCase(), name: "Leave", role: "Sales", branch: "A", branchId: ids.branchA, status: "leave" });
     await models.EmployeeBranchAccess.create({ id: `EBA-${namespace}-LEAVE`, companyId: ids.company, employeeId: ids.empLeave, branchId: ids.branchA, active: true });
     await employeeAuth.setEmployeePin({ companyId: ids.company, employeeId: ids.empLeave, pin: "258036", actorUser: await models.User.findByPk(ids.admin) });
-    const leaveDenied = await request("POST", "/operator/verify", { body: { employeeCode: `${namespace}-LEAVE`, pin: "258036", branchId: ids.branchA, requestedLevel: 2 } });
+    const leaveDenied = await request("POST", "/operator/verify", { body: { employeeCode: `${namespace}-LEAVE`, pin: "258036", branchId: ids.branchA } });
     expectError(leaveDenied, 403, "EMPLOYEE_VERIFICATION_FAILED");
 
     await models.Employee.create({ id: ids.empInactive, companyId: ids.company, employeeCode: `${namespace}-INACTIVE`, employeeCodeNormalized: `${namespace}-INACTIVE`.toUpperCase(), name: "Inactive", role: "Sales", branch: "A", branchId: ids.branchA, status: "inactive" });
@@ -287,27 +287,26 @@ async function cleanup() {
     expectError(inactiveDenied, 403, "EMPLOYEE_VERIFICATION_FAILED");
 
     for (let i = 0; i < 4; i++) {
-      const fail = await request("POST", "/operator/verify", { body: { employeeCode: "EMP-A1", pin: "963852", branchId: ids.branchA, requestedLevel: 1 } });
+      const fail = await request("POST", "/operator/verify", { body: { employeeCode: "EMP-A1", pin: "963852", branchId: ids.branchA } });
       expectError(fail, 403, "EMPLOYEE_VERIFICATION_FAILED");
     }
-    const lock = await request("POST", "/operator/verify", { body: { employeeCode: "EMP-A1", pin: "963852", branchId: ids.branchA, requestedLevel: 1 } });
-    expectError(lock, 423, "EMPLOYEE_CREDENTIAL_LOCKED");
-    const lockedCorrect = await request("POST", "/operator/verify", { body: { employeeCode: "EMP-A1", pin: "258036", branchId: ids.branchA, requestedLevel: 1 } });
-    expectError(lockedCorrect, 423, "EMPLOYEE_CREDENTIAL_LOCKED");
+    const noLock = await request("POST", "/operator/verify", { body: { employeeCode: "EMP-A1", pin: "963852", branchId: ids.branchA } });
+    expectError(noLock, 403, "EMPLOYEE_VERIFICATION_FAILED");
     await credential.reload();
     assert.ok(Number(credential.failedAttemptCount) >= 5, "failure count reached threshold");
-    await credential.update({ lockedUntil: new Date(Date.now() - 1000) });
-    const postExpiry = await request("POST", "/operator/verify", { body: { employeeCode: "EMP-A1", pin: "258036", branchId: ids.branchA, requestedLevel: 2, requestedPermission: "reservations.view" } });
-    assert.equal(postExpiry.status, 200, JSON.stringify(postExpiry.body));
+    assert.equal(credential.lockedUntil, null, "failed PIN never auto-locks credential");
+    const correctAfterFailures = await request("POST", "/operator/verify", { body: { employeeCode: "EMP-A1", pin: "258036", branchId: ids.branchA, requestedPermission: "reservations.view" } });
+    assert.equal(correctAfterFailures.status, 200, JSON.stringify(correctAfterFailures.body));
     await credential.reload();
     assert.equal(Number(credential.failedAttemptCount), 0);
     assert.equal(credential.lockedUntil, null);
 
     await credential.update({ failedAttemptCount: 0, lockedUntil: null });
-    const concurrent = await Promise.all(Array.from({ length: 6 }, () => request("POST", "/operator/verify", { body: { employeeCode: "EMP-A1", pin: "963851", branchId: ids.branchA, requestedLevel: 1 } })));
-    assert.ok(concurrent.some((r) => r.status === 423), "concurrent failures trigger lockout");
+    const concurrent = await Promise.all(Array.from({ length: 6 }, () => request("POST", "/operator/verify", { body: { employeeCode: "EMP-A1", pin: "963851", branchId: ids.branchA } })));
+    assert.ok(concurrent.every((r) => r.status === 403 && (r.body?.code || r.body?.error?.code) === "EMPLOYEE_VERIFICATION_FAILED"), "concurrent failures stay generic and non-locking");
     await credential.reload();
     assert.ok(Number(credential.failedAttemptCount) >= 5, "concurrent failures not lost");
+    assert.equal(credential.lockedUntil, null, "concurrent failures do not auto-lock");
 
     const attempts = await request("GET", `/employees/${employee.id}/verification-attempts?page=1&pageSize=50`);
     assert.equal(attempts.status, 200, JSON.stringify(attempts.body));

@@ -97,7 +97,7 @@ function verifyStaticContract() {
   const migrationCount = fs.readdirSync(path.join(ROOT, "backend", "migrations")).filter((name) => name.endsWith(".js")).length;
   const verifierCount = fs.readdirSync(path.join(ROOT, "scripts")).filter((name) => /^verify-.*\.js$/.test(name)).length;
   assert.equal(migrationCount, 43, "migration count is 43");
-  assert.equal(verifierCount, 55, "verifier count is 55");
+  assert.equal(verifierCount, 56, "verifier count is 56 after HF5C");
   console.log("Simple Branch Account static contract: PASS");
 }
 

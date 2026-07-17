@@ -51,21 +51,21 @@ function staticContract() {
   assertIncludes(payment, "receivedByEmployeeId", "payment model");
   for (const token of ["technicalUserId", "employeeId", "operatorSessionId", "copyNumber"]) assertIncludes(printEvent, token, "print event model");
 
-  for (const [operation, permission, level] of [
-    ["sales.draft.create", "sales.create", "level: 1"],
-    ["sales.draft.update", "sales.create", "level: 1"],
-    ["sales.draft.cancel", "sales.create", "level: 1"],
-    ["sales.post", "sales.create", "level: 2"],
-    ["sales.legacy_immediate_post", "sales.create", "level: 2"],
-    ["pos.checkout", "pos.sell", "level: 2"],
-    ["sales.official_print", "sales.print", "level: 2"],
-    ["sales.reprint", "sales.print", "level: 2"],
-    ["pos.discount.override", "pos.discount.approve", "level: 2"]
+  for (const [operation, permission] of [
+    ["sales.draft.create", "sales.create"],
+    ["sales.draft.update", "sales.create"],
+    ["sales.draft.cancel", "sales.create"],
+    ["sales.post", "sales.create"],
+    ["sales.legacy_immediate_post", "sales.create"],
+    ["pos.checkout", "pos.sell"],
+    ["sales.official_print", "sales.print"],
+    ["sales.reprint", "sales.print"],
+    ["pos.discount.override", "pos.discount.approve"]
   ]) {
     assertIncludes(policy, operation, "sales operator policy");
     assertIncludes(policy, permission, `policy ${operation}`);
-    assertIncludes(policy, level, `policy ${operation}`);
   }
+  assert.ok(!policy.includes("requiredLevel") && !policy.includes("OPERATOR_STEP_UP_REQUIRED"), "Sales/POS policy has no active Level or step-up gate");
   assertIncludes(policy, "salesOperatorMode", "rollout mode resolver");
   assertIncludes(policy, "branchOverrides", "branch override resolver");
   assertIncludes(policy, "legacy_users", "legacy default");
@@ -117,7 +117,7 @@ function staticContract() {
   }
 
   assertIncludes(apiClient, "OPERATOR_ACTION_REQUIRED_EVENT", "frontend recovery event");
-  assertIncludes(apiClient, "OPERATOR_STEP_UP_REQUIRED", "frontend operator error handling");
+  assert.ok(!apiClient.includes("OPERATOR_STEP_UP_REQUIRED"), "frontend operator recovery has no step-up error");
   assertIncludes(operatorBar, "OPERATOR_ACTION_REQUIRED_EVENT", "operator bar recovery listener");
 
   console.log("Phase 34.5 static Sales/POS operator-enforcement contract: PASS");
@@ -707,11 +707,11 @@ async function testPosSuccessAndDiscount() {
 async function testDraftPostAndPrint() {
   const customer = await createCustomer("draft");
   const asset = await createAsset("draft", ids.branchA, 125);
-  const level1Device = await verifyOperator({ user: "salesOnly", employee: "sales", branchId: ids.branchA, level: 1 });
+  const verifiedDevice = await verifyOperator({ user: "salesOnly", employee: "sales", branchId: ids.branchA, level: 1 });
   const createDraft = await request("POST", "/sales/invoices/drafts", {
     token: state.tokens.salesOnly,
     branchId: ids.branchA,
-    deviceId: level1Device,
+    deviceId: verifiedDevice,
     body: draftBody(customer, asset),
     idempotencyKey: `IDEM-${ns}-draft-create`
   });
@@ -722,26 +722,10 @@ async function testDraftPostAndPrint() {
   assert.equal(invoice.createdByEmployeeId, state.employees.sales.id, "draft createdByEmployeeId");
   assert.equal(invoice.finalizedByEmployeeId, null, "draft has no finalizer before post");
 
-  const beforeLevelDenied = await businessCounts();
-  await expectError(
-    request("POST", `/sales/invoices/${draftId}/post`, {
-      token: state.tokens.salesOnly,
-      branchId: ids.branchA,
-      deviceId: level1Device,
-      body: { idempotencyKey: `IDEM-${ns}-post-stepup-denied` },
-      idempotencyKey: `IDEM-${ns}-post-stepup-denied`
-    }),
-    403,
-    "OPERATOR_STEP_UP_REQUIRED",
-    "draft post with level 1 session"
-  );
-  await assertNoBusinessMutation(beforeLevelDenied, "draft post level 1 denial");
-
-  const level2Device = await verifyOperator({ user: "salesOnly", employee: "sales", branchId: ids.branchA, level: 2 });
   const postResponse = await request("POST", `/sales/invoices/${draftId}/post`, {
     token: state.tokens.salesOnly,
     branchId: ids.branchA,
-    deviceId: level2Device,
+    deviceId: verifiedDevice,
     body: { idempotencyKey: `IDEM-${ns}-draft-post` },
     idempotencyKey: `IDEM-${ns}-draft-post`
   });
@@ -766,7 +750,7 @@ async function testDraftPostAndPrint() {
   const official = await request("POST", `/invoices/${draftId}/print-events`, {
     token: state.tokens.salesOnly,
     branchId: ids.branchA,
-    deviceId: level2Device,
+    deviceId: verifiedDevice,
     body: { type: "official" }
   });
   assert.equal(official.status, 201, "official print authorization");
@@ -777,7 +761,7 @@ async function testDraftPostAndPrint() {
     request("POST", `/invoices/${draftId}/print-events`, {
       token: state.tokens.salesOnly,
       branchId: ids.branchA,
-      deviceId: level2Device,
+      deviceId: verifiedDevice,
       body: { type: "official" }
     }),
     409,
@@ -788,7 +772,7 @@ async function testDraftPostAndPrint() {
     request("POST", `/invoices/${draftId}/print-events`, {
       token: state.tokens.salesOnly,
       branchId: ids.branchA,
-      deviceId: level2Device,
+      deviceId: verifiedDevice,
       body: { type: "reprint" }
     }),
     422,
@@ -798,7 +782,7 @@ async function testDraftPostAndPrint() {
   const reprint = await request("POST", `/invoices/${draftId}/print-events`, {
     token: state.tokens.salesOnly,
     branchId: ids.branchA,
-    deviceId: level2Device,
+    deviceId: verifiedDevice,
     body: { type: "reprint", reason: `${ns} verifier reprint` }
   });
   assert.equal(reprint.status, 201, "reprint authorization");
@@ -863,22 +847,7 @@ async function testBranchShellEmployeeFirstGate() {
   );
   await assertNoBusinessMutation(beforeDirectDenial, "Branch Shell direct denial");
 
-  const level1PosDevice = await verifyOperator({ user: "branchShell", employee: "pos", branchId: ids.branchA, level: 1 });
-  const stepUpProduct = await createProduct("branch-shell-step-up", ids.branchA, 2, 100);
-  const beforeStepUp = await businessCounts();
-  await expectError(
-    request("POST", "/pos/checkout", {
-      token: state.tokens.branchShell,
-      branchId: ids.branchA,
-      deviceId: level1PosDevice,
-      body: posBody(customer, stepUpProduct),
-      idempotencyKey: `IDEM-${ns}-branch-shell-step-up`
-    }),
-    403,
-    "OPERATOR_STEP_UP_REQUIRED",
-    "Branch Shell POS checkout Level 1 step-up"
-  );
-  await assertNoBusinessMutation(beforeStepUp, "Branch Shell Level 1 step-up denial");
+  const verifiedPosDevice = await verifyOperator({ user: "branchShell", employee: "pos", branchId: ids.branchA, level: 1 });
 
   const branchMismatchProduct = await createProduct("branch-shell-branch-mismatch", ids.branchA, 2, 100);
   const beforeBranchMismatch = await businessCounts();
@@ -886,7 +855,7 @@ async function testBranchShellEmployeeFirstGate() {
     request("POST", "/pos/checkout", {
       token: state.tokens.branchShell,
       branchId: ids.branchB,
-      deviceId: level1PosDevice,
+      deviceId: verifiedPosDevice,
       body: posBody(customer, branchMismatchProduct, { branchId: ids.branchB }),
       idempotencyKey: `IDEM-${ns}-branch-shell-branch-mismatch`
     }),
@@ -896,12 +865,11 @@ async function testBranchShellEmployeeFirstGate() {
   );
   await assertNoBusinessMutation(beforeBranchMismatch, "Branch Shell branch mismatch");
 
-  const posDevice = await verifyOperator({ user: "branchShell", employee: "pos", branchId: ids.branchA, level: 2 });
   const successProduct = await createProduct("branch-shell-success", ids.branchA, 2, 100);
   const success = await request("POST", "/pos/checkout", {
     token: state.tokens.branchShell,
     branchId: ids.branchA,
-    deviceId: posDevice,
+    deviceId: verifiedPosDevice,
     body: posBody(customer, successProduct),
     idempotencyKey: `IDEM-${ns}-branch-shell-success`
   });
@@ -914,17 +882,17 @@ async function testBranchShellEmployeeFirstGate() {
   assert.ok(branchShellPayment, "Branch Shell POS payment persisted");
   assert.equal(branchShellPayment.receivedByEmployeeId, state.employees.pos.id, "Branch Shell POS payment receiver is Employee");
 
-  const salesLevel1Device = await verifyOperator({ user: "branchShell", employee: "sales", branchId: ids.branchA, level: 1 });
+  const verifiedSalesDevice = await verifyOperator({ user: "branchShell", employee: "sales", branchId: ids.branchA, level: 1 });
   const draftCustomer = await createCustomer("branch-shell-draft");
   const cancelAsset = await createAsset("branch-shell-draft-cancel", ids.branchA, 125);
   const draftCreate = await request("POST", "/sales/invoices/drafts", {
     token: state.tokens.branchShell,
     branchId: ids.branchA,
-    deviceId: salesLevel1Device,
+    deviceId: verifiedSalesDevice,
     body: draftBody(draftCustomer, cancelAsset),
     idempotencyKey: `IDEM-${ns}-branch-shell-draft-create`
   });
-  assert.equal(draftCreate.status, 201, "Branch Shell draft create succeeds with Level 1 Employee");
+  assert.equal(draftCreate.status, 201, "Branch Shell draft create succeeds with verified Employee");
   const cancelDraftId = outData(draftCreate).id;
   state.invoices.push(cancelDraftId);
   let cancelDraft = await models.Invoice.findByPk(cancelDraftId);
@@ -933,24 +901,24 @@ async function testBranchShellEmployeeFirstGate() {
   const draftEdit = await request("PATCH", `/sales/invoices/${cancelDraftId}`, {
     token: state.tokens.branchShell,
     branchId: ids.branchA,
-    deviceId: salesLevel1Device,
+    deviceId: verifiedSalesDevice,
     body: { notes: `${ns} branch shell edit` }
   });
-  assert.equal(draftEdit.status, 200, "Branch Shell draft edit succeeds with Level 1 Employee");
+  assert.equal(draftEdit.status, 200, "Branch Shell draft edit succeeds with verified Employee");
 
   const draftCancel = await request("POST", `/sales/invoices/${cancelDraftId}/cancel`, {
     token: state.tokens.branchShell,
     branchId: ids.branchA,
-    deviceId: salesLevel1Device,
+    deviceId: verifiedSalesDevice,
     body: { reason: `${ns} branch shell cancel` }
   });
-  assert.equal(draftCancel.status, 200, "Branch Shell draft cancel succeeds with Level 1 Employee");
+  assert.equal(draftCancel.status, 200, "Branch Shell draft cancel succeeds with verified Employee");
 
   const postAsset = await createAsset("branch-shell-draft-post", ids.branchA, 126);
   const draftPostCreate = await request("POST", "/sales/invoices/drafts", {
     token: state.tokens.branchShell,
     branchId: ids.branchA,
-    deviceId: salesLevel1Device,
+    deviceId: verifiedSalesDevice,
     body: draftBody(draftCustomer, postAsset),
     idempotencyKey: `IDEM-${ns}-branch-shell-draft-post-create`
   });
@@ -958,30 +926,14 @@ async function testBranchShellEmployeeFirstGate() {
   const postDraftId = outData(draftPostCreate).id;
   state.invoices.push(postDraftId);
 
-  const beforeDraftPostStepUp = await businessCounts();
-  await expectError(
-    request("POST", `/sales/invoices/${postDraftId}/post`, {
-      token: state.tokens.branchShell,
-      branchId: ids.branchA,
-      deviceId: salesLevel1Device,
-      body: { idempotencyKey: `IDEM-${ns}-branch-shell-draft-post-step-up` },
-      idempotencyKey: `IDEM-${ns}-branch-shell-draft-post-step-up`
-    }),
-    403,
-    "OPERATOR_STEP_UP_REQUIRED",
-    "Branch Shell draft post Level 1 step-up"
-  );
-  await assertNoBusinessMutation(beforeDraftPostStepUp, "Branch Shell draft post step-up denial");
-
-  const salesLevel2Device = await verifyOperator({ user: "branchShell", employee: "sales", branchId: ids.branchA, level: 2 });
   const branchShellPost = await request("POST", `/sales/invoices/${postDraftId}/post`, {
     token: state.tokens.branchShell,
     branchId: ids.branchA,
-    deviceId: salesLevel2Device,
+    deviceId: verifiedSalesDevice,
     body: { idempotencyKey: `IDEM-${ns}-branch-shell-draft-post` },
     idempotencyKey: `IDEM-${ns}-branch-shell-draft-post`
   });
-  assert.equal(branchShellPost.status, 200, "Branch Shell draft post succeeds with Level 2 Employee");
+  assert.equal(branchShellPost.status, 200, "Branch Shell draft post succeeds with verified Employee");
   const postedDraft = await models.Invoice.findByPk(postDraftId);
   assert.equal(postedDraft.finalizedByEmployeeId, state.employees.sales.id, "Branch Shell draft post finalizer Employee attribution");
 }

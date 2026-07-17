@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api/client";
+import { apiClient, DarfusApiError } from "@/lib/api/client";
 import { DATA_SOURCE } from "@/lib/data-source";
 import { invalidateAffectedQueries } from "@/lib/realtime/invalidate-affected-queries";
 import { useLocale } from "next-intl";
@@ -187,13 +187,17 @@ function clearActiveBranchIfRemoved(branches: Branch[]) {
   }
 }
 
+function isExpectedBranchAccountAccessError(error: unknown, accountType?: string) {
+  return accountType === "branch_shell" && error instanceof DarfusApiError && (error.status === 401 || error.status === 403);
+}
+
 const SettingsContext = createContext<SettingsContextValue | null>(null);
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const isApi = DATA_SOURCE === "api";
   const queryClient = useQueryClient();
   const locale = useLocale();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -280,11 +284,17 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         setLoaded(false);
       }
     } catch (err) {
+      if (isExpectedBranchAccountAccessError(err, user?.accountType)) {
+        setSettings(DEFAULT_SETTINGS);
+        setLoaded(true);
+        setError(false);
+        return;
+      }
       console.error("Failed to fetch settings from API", err);
       setError(true);
       setLoaded(false);
     }
-  }, [isApi, locale, isAuthenticated]);
+  }, [isApi, locale, user?.accountType]);
 
   const refreshBranches = useCallback(async () => {
     if (!isApi) {
@@ -320,9 +330,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         clearActiveBranchIfRemoved(nextBranches);
       }
     } catch (err) {
+      if (isExpectedBranchAccountAccessError(err, user?.accountType)) return;
       console.error("Failed to fetch branches from API", err);
     }
-  }, [isApi, locale, isAuthenticated]);
+  }, [isApi, locale, user?.accountType]);
 
   // Initial load
   useEffect(() => {

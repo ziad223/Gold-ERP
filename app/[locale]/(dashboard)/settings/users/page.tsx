@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { useUserManagement } from "@/hooks/use-user-management";
 import { usePermissions } from "@/hooks/use-permissions";
-import { permissionLabel, permissionMeta, permissionModuleLabel } from "@/lib/permissions/catalog";
+import { permissionLabel, permissionModuleLabel } from "@/lib/permissions/catalog";
 
 function errorMessage(error: unknown, rtl: boolean) {
   if (error instanceof Error && error.message) return error.message;
@@ -289,7 +289,6 @@ export default function UsersManagementPage() {
                     />
                     <span>
                       {permissionLabel(permission.name, uiLocale)}
-                      {permissionMeta(permission.name).sensitivity === "level_2" && <span className="ms-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-800">{rtl ? "يتطلب المستوى 2" : "Requires Level 2"}</span>}
                       <details className="inline">
                         <summary className="ms-2 inline cursor-pointer text-slate-400">{rtl ? "تفاصيل" : "Details"}</summary>
                         <span className="ms-2 font-mono font-normal text-slate-400">{permission.name}</span>

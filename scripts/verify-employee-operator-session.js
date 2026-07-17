@@ -43,19 +43,21 @@ function staticContract() {
   for (const token of ["canonicalV1", "canonicalV2", "attachDualAuditActor", "hashVersion"]) {
     assert.ok(auditService.includes(token), `audit service has ${token}`);
   }
-  for (const token of ["currentFromRequest", "verifyOperator", "authorizeAction", "lockCurrent", "OPERATOR_SESSION_STALE_AUTHORIZATION"]) {
+  for (const token of ["currentFromRequest", "verifyOperator", "lockCurrent", "OPERATOR_SESSION_STALE_AUTHORIZATION"]) {
     assert.ok(sessionService.includes(token), `operator session service has ${token}`);
   }
   assert.ok(employeeAuth.includes("incrementEmployeeAuthorizationVersion"), "authorization version increment exists");
-  for (const endpoint of ["/operator/verify", "/operator/current", "/operator/authorize-action", "/operator/lock", "/operator/end-session"]) {
+  for (const endpoint of ["/operator/verify", "/operator/current", "/operator/lock", "/operator/end-session"]) {
     assert.ok(routes.includes(endpoint), `route contains ${endpoint}`);
   }
+  assert.ok(!routes.includes("/operator/authorize-action"), "step-up authorize-action route removed for HF5C");
   assert.ok(client.includes("X-Device-Session-ID"), "frontend sends device-session header");
   assert.ok(operatorContext.includes("OperatorProvider"), "operator provider exists");
   assert.ok(header.includes("OperatorBar"), "header exposes consolidated operator controls");
-  for (const token of ["verify", "switch", "step-up", "operator.endSession"]) {
+  for (const token of ["verify", "switch", "operator.endSession"]) {
     assert.ok(operatorBar.includes(token), `operator bar exposes ${token} control`);
   }
+  assert.ok(!operatorBar.includes("step-up") && !operatorBar.includes("Level 2"), "operator bar exposes no step-up or Level UI");
   console.log("Phase 34.3 static operator-session contract: PASS");
 }
 
@@ -285,10 +287,10 @@ async function pollutionCount() {
     const noDevice = await request("POST", "/operator/verify", { device: null, body: { employeeCode: employee.employeeCode, pin: "258036", branchId: ids.branchA } });
     expectError(noDevice, 422, "VALIDATION_FAILED");
 
-    const verify = await request("POST", "/operator/verify", { body: { employeeCode: employee.employeeCode, pin: "258036", branchId: ids.branchA, requestedLevel: 1 } });
+    const verify = await request("POST", "/operator/verify", { body: { employeeCode: employee.employeeCode, pin: "258036", branchId: ids.branchA } });
     assert.equal(verify.status, 200, JSON.stringify(verify.body));
     assert.equal(verify.body.data.employee.id, ids.employee);
-    assert.equal(verify.body.data.operatorSession.verificationLevel, 1);
+    assert.equal(verify.body.data.operatorSession.verificationLevel, undefined);
     const sessionId = verify.body.data.operatorSession.sessionId;
     const session = await models.EmployeeOperationalSession.findByPk(sessionId);
     assert.ok(session, "operator session persisted");
@@ -301,16 +303,13 @@ async function pollutionCount() {
     assert.equal(current.body.data.active, true);
     assert.equal(current.body.data.operatorSession.employee.id, ids.employee);
 
-    const stepDenied = await request("POST", "/operator/authorize-action", { body: { pin: "258036", requiredPermission: "accounting.post", requestedOperation: "manual-journal-post" } });
-    expectError(stepDenied, 403, "EMPLOYEE_PERMISSION_DENIED");
-
-    const stepUp = await request("POST", "/operator/authorize-action", { body: { pin: "258036", requiredPermission: "sales.view", requestedOperation: "sales-view" } });
-    assert.equal(stepUp.status, 200, JSON.stringify(stepUp.body));
-    assert.equal(stepUp.body.data.operatorSession.verificationLevel, 2);
+    const stepEndpointGone = await request("POST", "/operator/authorize-action", { body: { pin: "258036", requiredPermission: "sales.view", requestedOperation: "sales-view" } });
+    assert.equal(stepEndpointGone.status, 404, "step-up endpoint is not active");
     const stepped = await models.EmployeeOperationalSession.findByPk(sessionId);
-    assert.ok(stepped.level2VerifiedAt, "level 2 timestamp persisted");
+    assert.equal(Number(stepped.verificationLevel), 1, "compatibility verification level remains storage-only level 1");
+    assert.equal(stepped.level2VerifiedAt, null, "no level 2 timestamp is persisted");
 
-    const leaveVerify = await request("POST", "/operator/verify", { device: ids.secondDevice, body: { employeeCode: `${namespace}-LV`, pin: "258036", branchId: ids.branchA, requestedLevel: 2 } });
+    const leaveVerify = await request("POST", "/operator/verify", { device: ids.secondDevice, body: { employeeCode: `${namespace}-LV`, pin: "258036", branchId: ids.branchA } });
     expectError(leaveVerify, 403, "EMPLOYEE_VERIFICATION_FAILED");
 
     const staleBefore = await models.Employee.findByPk(ids.employee);
