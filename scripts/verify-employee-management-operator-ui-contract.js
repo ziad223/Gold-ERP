@@ -59,9 +59,12 @@ check(apiClient.includes("clearDeviceSessionId") && apiClient.includes("removeIt
 check(employeeList.includes("pageSize") && employeeList.includes("authorizationSummary") && employeeList.includes("credentialState"), "Employee list consumes server pagination and safe authorization summary fields");
 check(!employeeList.includes("pageSize: 100") && !employeeList.includes("? 6 : 0"), "Employee list no longer hard-caps as full dataset or hard-codes active shifts");
 check(employeeList.includes("activeOperatorSession") && employeeList.includes("Employee Code"), "Employee list supports operational-session and Employee Code visibility");
+check(employeeList.includes("Employee PIN") && employeeList.includes("Confirm Employee PIN") && employeeList.includes("PIN configured") && employeeList.includes("PIN not configured"), "Employee create/list UI exposes create-time PIN setup and clear credential status");
 check(erpRoutes.includes('router.get("/employees/:id"') && erpRoutes.includes("authorizationSummary") && erpRoutes.includes("employeeCredentialState(credential)") && erpRoutes.includes("activeOperatorSessionCount"), "Employee detail API returns backend authorization summary including credential and active-session state");
+check(erpRoutes.includes("assertEmployeeCreatePin") && erpRoutes.includes("createEmployeeCredentialForNewEmployee") && erpRoutes.includes("Employee PIN must be configured before activation"), "Employee create/reactivate routes enforce credential readiness");
 
 check(employeeDetail.includes("getOperatorSessions") || employeeDetail.includes("operatorSessions"), "Employee detail uses real operator-session history");
+check(employeeDetail.includes("PIN not configured") && employeeDetail.includes("Set PIN") && employeeDetail.includes("Reset PIN"), "Employee detail exposes Set/Reset PIN workflow with clear credential labels");
 check(!employeeDetail.includes("Local Simulation") && !employeeDetail.includes("محاكاة محلية"), "legacy simulated session UI is removed");
 check(!employeeDetail.includes("split(\",\")") && !employeeDetail.includes("comma-separated") && !employeeDetail.includes("One branch ID per line") && !employeeDetail.includes("One role ID per line") && !employeeDetail.includes("One granted permission ID per line"), "Employee authorization inputs no longer use comma-separated or raw line-based ID management");
 check(includesAll(employeeDetail, [

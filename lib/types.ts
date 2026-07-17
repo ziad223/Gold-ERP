@@ -669,6 +669,8 @@ export interface Employee {
   sessions?: EmployeeSession[];
   deactivateReason?: string;
   authorizationSummary?: EmployeeListAuthorizationSummary;
+  pin?: string;
+  pinConfirm?: string;
 }
 
 export interface EmployeeBranchAccess {

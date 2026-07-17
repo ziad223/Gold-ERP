@@ -30,7 +30,7 @@ function verifyCounts() {
     .filter((name) => /^verify-.*\.js$/.test(name)).length;
 
   assert.equal(migrationCount, 44, "Phase 35D adds one additive accounting/treasury migration after Phase 35B");
-  assert.equal(verifierCount, 58, "Phase 35D adds exactly one verifier over the Phase 35B/35C baseline");
+  assert.equal(verifierCount, 59, "HF6A adds exactly one verifier over the Phase 35D baseline");
   assert.equal(
     packageJson.scripts["verify:market-launch-safety-containment"],
     "node scripts/verify-market-launch-safety-containment.js",

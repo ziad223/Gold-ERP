@@ -579,6 +579,18 @@ export class LocalEmployeeRepository implements EmployeeRepository {
   }
 
   async create(employee: Employee): Promise<MutationResult<Employee>> {
+    if (employee.status !== "inactive") {
+      if (!/^\d{6}$/.test(employee.pin || "")) {
+        return { success: false, error: { code: "VALIDATION_FAILED", message: "PIN must be exactly 6 digits" } };
+      }
+      if (employee.pin !== employee.pinConfirm) {
+        return { success: false, error: { code: "VALIDATION_FAILED", message: "PIN confirmation does not match" } };
+      }
+    }
+    const safeEmployee = { ...employee };
+    delete safeEmployee.pin;
+    delete safeEmployee.pinConfirm;
+
     if (this.ctx.employees.some((e) => e.id === employee.id)) {
       return {
         success: false,
@@ -600,7 +612,7 @@ export class LocalEmployeeRepository implements EmployeeRepository {
     }
 
     const newEmployee: Employee = {
-      ...employee,
+      ...safeEmployee,
       status: employee.status || "present", // present is active default
       sessions: employee.sessions || [
         {

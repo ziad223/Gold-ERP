@@ -224,12 +224,12 @@ async function cleanup() {
     assert.equal(employeeAuth.normalizeEmployeeCode("０００１２３"), "000123");
     assert.equal(employeeAuth.normalizeEmployeeCode("emp-Ａ１"), "EMP-A1");
 
-    const create = await request("POST", "/employees", { body: { employeeCode: " emp-Ａ１ ", name: `${namespace} Employee`, role: "Cashier", branch: "Branch Text Only", branchId: ids.branchA, systemRole: "sales" } });
+    const create = await request("POST", "/employees", { body: { employeeCode: " emp-Ａ１ ", name: `${namespace} Employee`, role: "Cashier", branch: "Branch Text Only", branchId: ids.branchA, systemRole: "sales", pin: "258036", pinConfirm: "258036" } });
     assert.equal(create.status, 201, JSON.stringify(create.body));
     const employee = create.body.data;
     assert.equal(employee.employeeCodeNormalized, "EMP-A1");
 
-    const duplicate = await request("POST", "/employees", { body: { employeeCode: "EMP-A1", name: "Duplicate", role: "Cashier", branch: "A" } });
+    const duplicate = await request("POST", "/employees", { body: { employeeCode: "EMP-A1", name: "Duplicate", role: "Cashier", branch: "A", pin: "258036", pinConfirm: "258036" } });
     expectError(duplicate, 409, "STATE_CONFLICT");
 
     await models.Employee.create({ id: ids.empOther, companyId: ids.otherCompany, employeeCode: "EMP-A1", employeeCodeNormalized: "EMP-A1", name: "Other Company", role: "Cashier", branch: "Other", branchId: ids.otherBranch, status: "present" });

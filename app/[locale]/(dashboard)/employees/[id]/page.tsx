@@ -888,11 +888,23 @@ function EmployeeCredentialTab({
   rtl: boolean;
 }) {
   const credentialState = employee.authorizationSummary?.credentialState || "not_configured";
+  const credentialStateLabel = credentialState === "not_configured"
+    ? (rtl ? "PIN غير مهيأ" : "PIN not configured")
+    : credentialState === "reset_required"
+      ? (rtl ? "يلزم ضبط PIN" : "PIN reset required")
+      : credentialState === "active"
+        ? (rtl ? "PIN مهيأ" : "PIN configured")
+        : credentialState === "inactive"
+          ? (rtl ? "اعتماد غير نشط" : "Credential inactive")
+          : credentialState;
+  const pinActionLabel = credentialState === "not_configured"
+    ? (rtl ? "ضبط PIN" : "Set PIN")
+    : (rtl ? "إعادة تعيين PIN" : "Reset PIN");
   return (
     <Card className="p-5">
       <h3 className="font-black text-navy-950 dark:text-white">{rtl ? "إدارة الاعتماد والرقم السري الوظيفي" : "Credential & PIN Management"}</h3>
       <div className="mt-4 grid gap-4 text-xs sm:grid-cols-3">
-        <Metric label={rtl ? "حالة الاعتماد" : "Credential state"} value={credentialState} />
+        <Metric label={rtl ? "حالة PIN" : "PIN status"} value={credentialStateLabel} />
         <Metric label={rtl ? "آخر نجاح" : "Last success"} value={employee.authorizationSummary?.lastVerifiedAt ? formatDate(employee.authorizationSummary.lastVerifiedAt) : "—"} />
         <Metric label={rtl ? "جلسات مشغل نشطة" : "Active operator sessions"} value={String(employee.authorizationSummary?.activeOperatorSessionCount ?? 0)} />
       </div>
@@ -910,12 +922,12 @@ function EmployeeCredentialTab({
       {canManage ? (
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
           <form onSubmit={(event) => void onSubmit(event)} className="space-y-3 rounded-2xl border border-border p-4">
-            <h4 className="text-sm font-black">{rtl ? "إعادة تعيين الرقم السري الوظيفي بواسطة الإدارة" : "Admin reset PIN"}</h4>
-            <input className="input-base" inputMode="numeric" type="password" maxLength={6} value={pin} autoComplete="new-password" onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder={rtl ? "الرقم السري الوظيفي المؤقت · 6 أرقام" : "Temporary PIN · 6 digits"} />
+            <h4 className="text-sm font-black">{pinActionLabel}</h4>
+            <input className="input-base" inputMode="numeric" type="password" maxLength={6} value={pin} autoComplete="new-password" onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder={rtl ? "PIN الموظف · 6 أرقام" : "Employee PIN · 6 digits"} />
             <input className="input-base" inputMode="numeric" type="password" maxLength={6} value={pinConfirm} autoComplete="new-password" onChange={(event) => setPinConfirm(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder={rtl ? "تأكيد الرقم السري الوظيفي" : "Confirm PIN"} />
             <p className="text-[11px] text-muted-foreground">{rtl ? "لا يتم عرض أو حفظ الرقم السري الوظيفي في المتصفح بعد الإرسال." : "PIN values are never revealed and are cleared after every submit outcome."}</p>
             <div className="flex flex-wrap gap-2">
-              <Button type="submit">{rtl ? "إعادة التعيين" : "Reset PIN"}</Button>
+              <Button type="submit">{pinActionLabel}</Button>
               <Button type="button" variant="secondary" onClick={onCancel}>{rtl ? "إلغاء" : "Cancel"}</Button>
               <Button type="button" variant="secondary" onClick={() => void onRevokeSessions()}>{rtl ? "إنهاء جلسات المشغل" : "Revoke sessions"}</Button>
             </div>

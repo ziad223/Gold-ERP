@@ -34,6 +34,8 @@ import type { Employee, EmployeeStatus, DarfusRole } from "@/lib/types";
 const initialForm = {
   id: "",
   employeeCode: "",
+  pin: "",
+  pinConfirm: "",
   name: "",
   role: "",
   systemRole: "sales" as DarfusRole,
@@ -112,6 +114,8 @@ export default function EmployeesPage() {
     setForm({
       id: emp.id,
       employeeCode: emp.employeeCode || emp.id,
+      pin: "",
+      pinConfirm: "",
       name: emp.name,
       role: emp.role,
       systemRole: emp.systemRole || "sales",
@@ -132,6 +136,16 @@ export default function EmployeesPage() {
       toast.error(common("required"));
       return;
     }
+    if (!isEdit) {
+      if (!/^\d{6}$/.test(form.pin)) {
+        toast.error(locale === "ar" ? "أدخل رقم PIN للموظف من 6 أرقام" : "Enter a 6-digit Employee PIN");
+        return;
+      }
+      if (form.pin !== form.pinConfirm) {
+        toast.error(locale === "ar" ? "تأكيد PIN غير مطابق" : "PIN confirmation does not match");
+        return;
+      }
+    }
 
     if (isEdit) {
       const res = await updateEmployee(form.id, {
@@ -144,6 +158,8 @@ export default function EmployeesPage() {
         phone: form.phone.trim(),
         jobTitle: form.jobTitle.trim(),
         notes: form.notes.trim(),
+        pin: form.pin,
+        pinConfirm: form.pinConfirm,
       });
       if (res.success) {
         toast.success(common("saved"));
@@ -164,6 +180,8 @@ export default function EmployeesPage() {
         phone: form.phone.trim(),
         jobTitle: form.jobTitle.trim(),
         notes: form.notes.trim(),
+        pin: form.pin,
+        pinConfirm: form.pinConfirm,
       });
       if (res.success) {
         toast.success(common("saved"));
@@ -276,6 +294,15 @@ export default function EmployeesPage() {
         </span>
       );
     }
+  };
+
+  const credentialStateLabel = (state?: string | null) => {
+    if (state === "not_configured") return locale === "ar" ? "PIN غير مهيأ" : "PIN not configured";
+    if (state === "reset_required") return locale === "ar" ? "يلزم ضبط PIN" : "PIN reset required";
+    if (state === "inactive") return locale === "ar" ? "اعتماد غير نشط" : "Credential inactive";
+    if (state === "locked") return locale === "ar" ? "اعتماد مقفل" : "Credential locked";
+    if (state === "active") return locale === "ar" ? "PIN مهيأ" : "PIN configured";
+    return "—";
   };
 
   return (
@@ -422,7 +449,7 @@ export default function EmployeesPage() {
                     <span className="text-slate-500">{person.role}</span>
                     <span className="text-slate-500">{person.branch}</span>
                     <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
-                      {person.authorizationSummary?.credentialState?.replace(/_/g, " ") || "—"}
+                      {credentialStateLabel(person.authorizationSummary?.credentialState)}
                     </span>
                     <span className="text-[11px] text-slate-500">
                       {locale === "ar" ? "فروع" : "Branches"} {person.authorizationSummary?.branchAccessCount ?? 0}
@@ -542,6 +569,45 @@ export default function EmployeesPage() {
               onChange={(event) => setForm((prev) => ({ ...prev, role: event.target.value }))}
             />
           </label>
+          {!isEdit && (
+            <>
+              <label>
+                <span className="label-base">{locale === "ar" ? "PIN الموظف" : "Employee PIN"}</span>
+                <input
+                  required
+                  className="input-base font-mono"
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={6}
+                  pattern="[0-9]{6}"
+                  autoComplete="new-password"
+                  value={form.pin}
+                  onChange={(event) => setForm((prev) => ({ ...prev, pin: event.target.value.replace(/\D/g, "").slice(0, 6) }))}
+                  placeholder={locale === "ar" ? "6 أرقام" : "6 digits"}
+                />
+              </label>
+              <label>
+                <span className="label-base">{locale === "ar" ? "تأكيد PIN الموظف" : "Confirm Employee PIN"}</span>
+                <input
+                  required
+                  className="input-base font-mono"
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={6}
+                  pattern="[0-9]{6}"
+                  autoComplete="new-password"
+                  value={form.pinConfirm}
+                  onChange={(event) => setForm((prev) => ({ ...prev, pinConfirm: event.target.value.replace(/\D/g, "").slice(0, 6) }))}
+                  placeholder={locale === "ar" ? "أعد إدخال 6 أرقام" : "Repeat 6 digits"}
+                />
+              </label>
+              <p className="sm:col-span-2 text-[11px] text-slate-500">
+                {locale === "ar"
+                  ? "يتم حفظ PIN كهاش آمن فقط ولا يظهر بعد إنشاء الموظف."
+                  : "The PIN is stored as a secure hash only and is not shown after employee creation."}
+              </p>
+            </>
+          )}
           <label>
             <span className="label-base">{t("branch")}</span>
             <input
