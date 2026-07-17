@@ -1,6 +1,21 @@
 # Phase 34.5A — Super Admin, Branch Shell Accounts, Employee-First Authorization & Recovery
 
-Status: additive core with HF5A, HF5B, HF5C, and HF6A simplification/readiness hotfixes applied locally.
+Status: additive core with HF5A, HF5B, HF5C, HF6A, and HF6B simplification/readiness hotfixes applied locally.
+
+## HF6B Current Contract
+
+HF6B wires Employee permission management to the central permission catalog without redesigning Account Center.
+
+- Employee detail permission APIs return the full assignable catalog from the central `permissions` table.
+- The response separates role permissions, direct grants, direct denials, effective permissions, source explanations, and `authorizationVersion`.
+- Effective Employee access remains `(role permissions union direct grants) minus direct denials`.
+- Direct Employee denial wins over both role permissions and direct grants.
+- Employee permission changes increment `authorizationVersion` through the existing service path and stale/revoke active Employee operator sessions.
+- Branch Account technical sessions remain intact after Employee authorization changes.
+- Employee detail UI uses the full catalog for direct grants and denials, shows grouped/searchable permissions, source/status badges, and the direct-denial override warning.
+- Counts after HF6B: 44 migrations, 128 permissions, and 60 verifier files.
+
+HF6C Account Center simplification, HF6D end-to-end Branch login/access QA, Phase 35E inventory/purchase work, grouped permissions, role-builder redesign, Employee email/password login, payroll/attendance, production, and broader account redesign remain deferred.
 
 ## HF6A Current Contract
 
@@ -14,7 +29,7 @@ HF6A keeps the HF5C single-level operator model and closes Employee creation cre
 - PIN values are never displayed after submit, returned by the API, logged, or persisted in plaintext.
 - Counts after HF6A: 44 migrations, 128 permissions, and 59 verifier files.
 
-HF6B Employee Permission Catalog Wiring, HF6C Account Center simplification, HF6D broader end-to-end access QA, Employee email/password login, payroll/attendance, production, and broader account redesign remain deferred.
+HF6C Account Center simplification, HF6D broader end-to-end access QA, Employee email/password login, payroll/attendance, production, and broader account redesign remain deferred.
 
 ## HF5C Current Contract
 

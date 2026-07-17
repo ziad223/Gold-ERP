@@ -403,19 +403,19 @@ export default function EmployeeProfilePage({ params }: PageProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-4">
         <Link href="/employees">
           <Button variant="ghost" size="sm">
             <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
           </Button>
         </Link>
-        <div>
-          <span className="text-xs text-slate-400">
+        <div className="min-w-0 flex-1">
+          <span className="break-all text-xs text-slate-400">
             {rtl ? "ملف الموظف" : "Employee Profile"} · {employee.id} · {employee.employeeCode || (rtl ? "بدون كود" : "NO-CODE")}
           </span>
           <h1 className="text-xl font-black text-navy-950 dark:text-white">{employee.name}</h1>
         </div>
-        <div className="ml-auto flex gap-2 rtl:mr-auto rtl:ml-0">
+        <div className="ms-auto flex flex-wrap justify-end gap-2">
           <Badge tone={employee.status === "inactive" ? "rose" : "green"}>{employee.status === "inactive" ? (rtl ? "غير نشط" : "Inactive") : employee.status}</Badge>
           <Badge tone="blue">{employee.role}</Badge>
         </div>

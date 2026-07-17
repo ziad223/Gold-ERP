@@ -4,21 +4,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { normalizeItems } from "@/lib/api/normalize";
 import { queryKeys } from "@/lib/query-keys";
-import { invalidateAffectedQueries } from "@/lib/realtime/invalidate-affected-queries";
-
-export interface ManagedPermission {
-  id: string;
-  name: string;
-  module: string;
-  action: string;
-}
 
 export interface ManagedRole {
   id: string;
   name: string;
   slug: string;
   isAdmin?: boolean;
-  permissions?: ManagedPermission[];
 }
 
 export interface ManagedUser {
@@ -61,58 +52,12 @@ export interface BranchOption {
   code?: string | null;
 }
 
-export interface EmployeeOption {
-  id: string;
-  employeeCode?: string | null;
-  name?: string | null;
-  status?: string | null;
-}
-
 export function useUserManagement() {
   const queryClient = useQueryClient();
-
-  const usersQuery = useQuery({
-    queryKey: queryKeys.users,
-    queryFn: async () => normalizeItems<ManagedUser>(await apiClient("/users", { skipBranch: true })),
-  });
-
-  const rolesQuery = useQuery({
-    queryKey: queryKeys.roles,
-    queryFn: async () => normalizeItems<ManagedRole>(await apiClient("/roles", { skipBranch: true })),
-  });
-
-  const permissionsQuery = useQuery({
-    queryKey: queryKeys.permissions,
-    queryFn: async () => normalizeItems<ManagedPermission>(await apiClient("/permissions", { skipBranch: true })),
-  });
 
   const branchesQuery = useQuery({
     queryKey: queryKeys.branches,
     queryFn: async () => normalizeItems<BranchOption>(await apiClient("/branches?page=1&pageSize=100", { skipBranch: true })),
-  });
-
-  const employeesQuery = useQuery({
-    queryKey: ["employees-system-account-options"],
-    queryFn: async () => normalizeItems<EmployeeOption>(await apiClient("/employees?page=1&pageSize=100", { skipBranch: true })),
-  });
-
-  const createUser = useMutation({
-    mutationFn: (payload: {
-      firstName: string;
-      lastName: string;
-      email: string;
-      password: string;
-      phone?: string;
-      jobTitle?: string;
-      roleIds: string[];
-    }) => apiClient("/users", { method: "POST", body: JSON.stringify(payload), skipBranch: true }),
-    onSuccess: (data: any) => {
-      invalidateAffectedQueries(queryClient, {
-        entity: "User",
-        action: "create",
-        id: data?.id || data?.data?.id,
-      });
-    },
   });
 
   const systemAccountsQuery = useQuery({
@@ -177,37 +122,15 @@ export function useUserManagement() {
     },
   });
 
-  const updateRolePermissions = useMutation({
-    mutationFn: ({ roleId, permissions }: { roleId: string; permissions: string[] }) =>
-      apiClient(`/roles/${encodeURIComponent(roleId)}/permissions`, {
-        method: "PUT",
-        body: JSON.stringify({ permissions }),
-        skipBranch: true,
-      }),
-    onSuccess: (_data, variables) => {
-      invalidateAffectedQueries(queryClient, {
-        entity: "Permission",
-        action: "update",
-        id: variables.roleId,
-      });
-    },
-  });
-
   return {
-    users: usersQuery.data ?? [],
     systemAccounts: systemAccountsQuery.data ?? [],
     readiness: readinessQuery.data,
     branches: branchesQuery.data ?? [],
-    employees: employeesQuery.data ?? [],
-    roles: rolesQuery.data ?? [],
-    permissions: permissionsQuery.data ?? [],
-    isLoading: usersQuery.isLoading || rolesQuery.isLoading || permissionsQuery.isLoading || systemAccountsQuery.isLoading || branchesQuery.isLoading || employeesQuery.isLoading,
-    createUser: createUser.mutateAsync,
+    isLoading: systemAccountsQuery.isLoading || branchesQuery.isLoading,
     createSystemAccount: createSystemAccount.mutateAsync,
     createBranchAccount: createBranchAccount.mutateAsync,
     updateSystemAccount: updateSystemAccount.mutateAsync,
     systemAccountAction: systemAccountAction.mutateAsync,
-    updateRolePermissions: updateRolePermissions.mutateAsync,
-    isSaving: createUser.isPending || createSystemAccount.isPending || createBranchAccount.isPending || updateSystemAccount.isPending || updateRolePermissions.isPending || systemAccountAction.isPending,
+    isSaving: createSystemAccount.isPending || createBranchAccount.isPending || updateSystemAccount.isPending || systemAccountAction.isPending,
   };
 }

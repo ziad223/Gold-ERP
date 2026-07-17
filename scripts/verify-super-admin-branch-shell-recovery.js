@@ -67,7 +67,15 @@ function staticContract() {
   const systemAccountsUiApi = `${ui}\n${read("hooks/use-user-management.ts")}`;
   assert.ok(systemAccountsUiApi.includes("/system-accounts") && systemAccountsUiApi.includes("/system-accounts/branch-accounts") && systemAccountsUiApi.includes("change-email") && systemAccountsUiApi.includes("readiness"), "system accounts UI/API contracts wired");
   assert.ok(ui.includes("Super Admin Accounts") && ui.includes("Branch Accounts") && ui.includes("Security & Recovery"), "system accounts UI sections exist");
-  assert.ok(employeeUi.includes("codeHistory") && employeeUi.includes("changeOwnPin") && employeeUi.includes("permissionSourceLabel") && employeeUi.includes("Permission count"), "employee credential/effective-permission UI contracts wired");
+  assert.ok(
+    employeeUi.includes("codeHistory")
+      && employeeUi.includes("changeOwnPin")
+      && employeeUi.includes("permissionSourceLabel")
+      && employeeUi.includes("assignableCatalog")
+      && employeeUi.includes("effectiveSources")
+      && employeeUi.includes("Direct denial overrides role and direct grant"),
+    "employee credential/effective-permission UI contracts wired"
+  );
   assert.ok(usePermissions.includes('accountType === "branch_shell"') && usePermissions.includes("return false"), "frontend permission helper respects Branch Shell account type");
   assert.ok(apiClient.includes("/auth/refresh") && apiClient.includes("refreshAccessToken") && apiClient.includes("clearStoredApiAuth"), "frontend refresh/session rotation is wired");
   assert.ok(recoveryDelivery.includes("mailbox = new Map") && !recoveryDelivery.includes("appendFileSync") && !recoveryDelivery.includes("jsonl"), "development recovery delivery is memory TTL only");
