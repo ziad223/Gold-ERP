@@ -816,11 +816,19 @@ export class LocalEmployeeRepository implements EmployeeRepository {
       roles: [],
       grants: [],
       denials: [],
+      directGrants: [],
+      directDenials: [],
+      rolePermissions: [],
+      effectivePermissions: [],
+      assignableCatalog: [],
+      effectiveSources: [],
+      authorizationVersion: 1,
       authorization: {
         rolePermissionNames: [],
         directGrantNames: [],
         directDenialNames: [],
         effectivePermissionNames: [],
+        authorizationVersion: 1,
       },
     };
   }
@@ -831,9 +839,6 @@ export class LocalEmployeeRepository implements EmployeeRepository {
   ): Promise<MutationResult<{ authorization: EmployeePermissionState["authorization"] }>> {
     const grantIds = payload.grantPermissionIds || [];
     const denialIds = payload.denialPermissionIds || [];
-    if (grantIds.some((id) => denialIds.includes(id))) {
-      return { success: false, error: { code: "VALIDATION_FAILED", message: "Permission cannot be both granted and denied" } };
-    }
     return {
       success: true,
       data: {
@@ -842,6 +847,7 @@ export class LocalEmployeeRepository implements EmployeeRepository {
           directGrantNames: grantIds,
           directDenialNames: denialIds,
           effectivePermissionNames: grantIds.filter((id) => !denialIds.includes(id)),
+          authorizationVersion: 1,
         },
       },
     };

@@ -688,12 +688,44 @@ export interface EmployeeAuthorizationSummary {
   directGrantNames: string[];
   directDenialNames: string[];
   effectivePermissionNames: string[];
+  authorizationVersion?: number;
+}
+
+export type EmployeePermissionSource =
+  | "ROLE"
+  | "DIRECT_GRANT"
+  | "ROLE_AND_DIRECT_GRANT"
+  | "DENIED"
+  | "NOT_GRANTED";
+
+export interface EmployeePermissionCatalogItem {
+  id: string;
+  name: string;
+  module: string;
+  action: string;
+  description?: string | null;
+}
+
+export interface EmployeePermissionSourceRow extends EmployeePermissionCatalogItem {
+  source: EmployeePermissionSource;
+  effective: boolean;
+  denied: boolean;
+  role: boolean;
+  directGrant: boolean;
+  directDenial: boolean;
 }
 
 export interface EmployeePermissionState {
   roles: Array<{ id: string; name: string; slug: string; isAdmin?: boolean }>;
-  grants: Array<{ id: string; name: string; module: string; action: string }>;
-  denials: Array<{ id: string; name: string; module: string; action: string }>;
+  grants: EmployeePermissionCatalogItem[];
+  denials: EmployeePermissionCatalogItem[];
+  directGrants?: EmployeePermissionCatalogItem[];
+  directDenials?: EmployeePermissionCatalogItem[];
+  rolePermissions?: EmployeePermissionCatalogItem[];
+  effectivePermissions?: EmployeePermissionCatalogItem[];
+  assignableCatalog?: EmployeePermissionCatalogItem[];
+  effectiveSources?: EmployeePermissionSourceRow[];
+  authorizationVersion?: number;
   authorization: EmployeeAuthorizationSummary;
 }
 

@@ -91,7 +91,7 @@ check(includesAll(employeeDetail, [
   "EmployeeAuditActivityTab",
 ]), "Employee detail is split into focused management components");
 check(employeeDetail.includes("SearchBox") && employeeDetail.includes("Search branch by name or code") && employeeDetail.includes("Search current role templates") && employeeDetail.includes("Search permission name or module"), "Employee detail uses searchable branch, role and grouped permission controls");
-check(employeeDetail.includes("A permission cannot be both granted and denied") && employeeDetail.includes("Direct denial wins"), "Direct permission UI blocks grant/denial overlap and explains denial precedence");
+check(employeeDetail.includes("Direct denial overrides role and direct grant") && employeeDetail.includes("المنع المباشر يتجاوز الدور والسماح المباشر"), "Direct permission UI explains denial precedence over role and direct grant");
 check(employeeDetail.includes("permissionState?.authorization?.effectivePermissionNames"), "Employee detail displays backend-resolved effective permissions");
 check(employeeDetail.includes("The frontend does not calculate authority") || employeeDetail.includes("backend-resolved result only"), "Effective permissions tab states that backend response is authoritative");
 check(!employeeDetail.includes("pinHash") && !employeeDetail.includes("authSessionFingerprint") && !employeeDetail.includes("deviceSessionId"), "Employee detail does not render raw PIN hash, auth fingerprint, or raw device id");

@@ -253,8 +253,9 @@ async function cleanup() {
     const salesView = await models.Permission.findOne({ where: { name: "sales.view" } });
     const inventoryView = await models.Permission.findOne({ where: { name: "inventory.view" } });
     const reservationView = await models.Permission.findOne({ where: { name: "reservations.view" } });
-    const contradiction = await request("PUT", `/employees/${employee.id}/permissions`, { body: { roleIds: [], grantPermissionIds: [inventoryView.id], denialPermissionIds: [inventoryView.id] } });
-    expectError(contradiction, 422, "VALIDATION_FAILED");
+    const denialWinsOverGrant = await request("PUT", `/employees/${employee.id}/permissions`, { body: { roleIds: [], grantPermissionIds: [inventoryView.id], denialPermissionIds: [inventoryView.id] } });
+    assert.equal(denialWinsOverGrant.status, 200, JSON.stringify(denialWinsOverGrant.body));
+    assert.ok(!denialWinsOverGrant.body.data.authorization.effectivePermissionNames.includes("inventory.view"), "direct denial overrides overlapping direct grant");
     const perms = await request("PUT", `/employees/${employee.id}/permissions`, { body: { roleIds: [ids.roleTemplate], grantPermissionIds: [inventoryView.id, reservationView.id], denialPermissionIds: [salesView.id] } });
     assert.equal(perms.status, 200, JSON.stringify(perms.body));
     const resolved = await employeeAuth.resolveEmployeePermissions({ companyId: ids.company, employeeId: employee.id, branchId: ids.branchA });

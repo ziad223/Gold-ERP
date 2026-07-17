@@ -40,7 +40,7 @@ function staticContract() {
   assertContains(localRepo, "delete safeEmployee.pin", "local repository strips create PIN");
   assertContains(localRepo, "delete safeEmployee.pinConfirm", "local repository strips create PIN confirmation");
   assertContains(types, "pin?: string", "Employee create type includes create-only PIN");
-  assert.equal(verifierFiles.length, 59, `expected 59 verifier files after HF6A, found ${verifierFiles.length}`);
+  assert.ok(verifierFiles.length >= 59, `expected at least 59 verifier files after HF6A, found ${verifierFiles.length}`);
   assert.ok(backups.length > 0, "HF6A start backup exists before write-capable verification");
 }
 

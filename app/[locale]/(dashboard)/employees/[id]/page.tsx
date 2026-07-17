@@ -64,6 +64,14 @@ type TabId =
 
 type BranchOption = { id: string; name?: string | null; code?: string | null };
 type PermissionOption = { id: string; name: string; module?: string; action?: string };
+type PermissionSourceView = {
+  source: "ROLE" | "DIRECT_GRANT" | "ROLE_AND_DIRECT_GRANT" | "DENIED" | "NOT_GRANTED" | string;
+  effective: boolean;
+  denied: boolean;
+  role: boolean;
+  directGrant: boolean;
+  directDenial: boolean;
+};
 
 const TAB_IDS: Array<{ id: TabId; icon: any; en: string; ar: string }> = [
   { id: "overview", icon: User, en: "Overview", ar: "نظرة عامة" },
@@ -100,7 +108,13 @@ function groupPermissionName(name: string) {
 
 function toPermissionOptions(permissionState: EmployeePermissionState | null): PermissionOption[] {
   const byName = new Map<string, PermissionOption>();
-  for (const permission of [...(permissionState?.grants ?? []), ...(permissionState?.denials ?? [])]) {
+  for (const permission of [
+    ...(permissionState?.assignableCatalog ?? []),
+    ...(permissionState?.rolePermissions ?? []),
+    ...(permissionState?.effectivePermissions ?? []),
+    ...(permissionState?.grants ?? []),
+    ...(permissionState?.denials ?? []),
+  ]) {
     byName.set(permission.name, permission);
   }
   for (const name of [
@@ -112,6 +126,44 @@ function toPermissionOptions(permissionState: EmployeePermissionState | null): P
     if (!byName.has(name)) byName.set(name, { id: name, name, module: groupPermissionName(name), action: name.split(".").slice(1).join(".") });
   }
   return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function permissionSourceMap(permissionState: EmployeePermissionState | null) {
+  const rows = new Map<string, PermissionSourceView>();
+  for (const row of permissionState?.effectiveSources ?? []) {
+    rows.set(row.name, {
+      source: row.source,
+      effective: row.effective,
+      denied: row.denied,
+      role: row.role,
+      directGrant: row.directGrant,
+      directDenial: row.directDenial,
+    });
+  }
+  for (const name of permissionState?.authorization?.rolePermissionNames ?? []) {
+    const existing = rows.get(name);
+    rows.set(name, { source: existing?.source || "ROLE", effective: existing?.effective ?? true, denied: existing?.denied ?? false, role: true, directGrant: existing?.directGrant ?? false, directDenial: existing?.directDenial ?? false });
+  }
+  for (const name of permissionState?.authorization?.directGrantNames ?? []) {
+    const existing = rows.get(name);
+    rows.set(name, { source: existing?.source === "ROLE" ? "ROLE_AND_DIRECT_GRANT" : existing?.source || "DIRECT_GRANT", effective: existing?.effective ?? true, denied: existing?.denied ?? false, role: existing?.role ?? false, directGrant: true, directDenial: existing?.directDenial ?? false });
+  }
+  for (const name of permissionState?.authorization?.directDenialNames ?? []) {
+    const existing = rows.get(name);
+    rows.set(name, { source: "DENIED", effective: false, denied: true, role: existing?.role ?? false, directGrant: existing?.directGrant ?? false, directDenial: true });
+  }
+  return rows;
+}
+
+function sourceBadgeLabel(source: string, rtl: boolean) {
+  const labels: Record<string, { ar: string; en: string }> = {
+    ROLE: { ar: "من دور", en: "Role" },
+    DIRECT_GRANT: { ar: "سماح مباشر", en: "Direct grant" },
+    ROLE_AND_DIRECT_GRANT: { ar: "دور وسماح مباشر", en: "Role + direct grant" },
+    DENIED: { ar: "منع مباشر", en: "Denied" },
+    NOT_GRANTED: { ar: "غير ممنوحة", en: "Not granted" },
+  };
+  return (labels[source] || labels.NOT_GRANTED)[rtl ? "ar" : "en"];
 }
 
 function Chip({ children, onRemove }: { children: React.ReactNode; onRemove?: () => void }) {
@@ -309,11 +361,6 @@ export default function EmployeeProfilePage({ params }: PageProps) {
   };
 
   const savePermissions = async () => {
-    const overlap = grantPermissionIds.filter((idValue) => denialPermissionIds.includes(idValue));
-    if (overlap.length) {
-      toast.error(rtl ? "لا يمكن منح ومنع نفس الصلاحية" : "A permission cannot be both granted and denied");
-      return;
-    }
     const result = await updatePermissions({ roleIds: selectedRoleIds, grantPermissionIds, denialPermissionIds, reason: permissionReason || "UI permission change" });
     if (result.success) {
       toast.success(rtl ? "تم تحديث التفويض" : "Authorization updated");
@@ -699,10 +746,11 @@ function EmployeeDirectPermissionsTab({
 }) {
   const [search, setSearch] = useState("");
   const options = toPermissionOptions(permissionState);
+  const sources = permissionSourceMap(permissionState);
   const uiLocale = rtl ? "ar" : "en";
   const filtered = options.filter((permission) => {
     const meta = permissionMeta(permission.name);
-    return `${meta.label[uiLocale]} ${meta.description[uiLocale]} ${meta.module[uiLocale]}`.toLowerCase().includes(search.toLowerCase());
+    return `${permission.name} ${meta.label[uiLocale]} ${meta.description[uiLocale]} ${meta.module[uiLocale]}`.toLowerCase().includes(search.toLowerCase());
   });
   const grouped = filtered.reduce<Record<string, PermissionOption[]>>((acc, permission) => {
     const group = permission.module || groupPermissionName(permission.name);
@@ -725,7 +773,7 @@ function EmployeeDirectPermissionsTab({
     <Card className="p-5">
       <h3 className="font-black text-navy-950 dark:text-white">{rtl ? "المنح والمنع المباشر" : "Direct Grants and Denials"}</h3>
       <p className="mt-1 text-[11px] text-muted-foreground">
-        {rtl ? "المنع المباشر له الأولوية، ولا يمكن اختيار نفس الصلاحية في القائمتين." : "Direct denial wins. The same permission cannot be selected as both grant and denial."}
+        {rtl ? "المنع المباشر يتجاوز الدور والسماح المباشر. اختيار السماح أو المنع هنا يضبط الحالة المباشرة لهذه الصلاحية." : "Direct denial overrides role and direct grant. Selecting grant or denial here adjusts the direct state for that permission."}
       </p>
       <div className="mt-5 space-y-4">
         <SearchBox value={search} onChange={setSearch} placeholder={rtl ? "ابحث باسم الصلاحية أو الوحدة" : "Search permission name or module"} />
@@ -736,9 +784,15 @@ function EmployeeDirectPermissionsTab({
               <p className="text-xs font-black uppercase text-muted-foreground">{permissionModuleLabel(module, uiLocale)}</p>
               <div className="mt-3 space-y-2">
                 {permissions.map((permission) => (
-                  <div key={permission.id} className="grid gap-2 rounded-xl p-2 text-xs hover:bg-background sm:grid-cols-[1fr_auto_auto]">
-                    <span className="font-bold">
-                      {permissionLabel(permission.name, uiLocale)}
+                  <div key={permission.id} className="grid gap-2 rounded-xl p-2 text-xs hover:bg-background sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+                    <span className="min-w-0">
+                      <span className="block font-bold">{permissionLabel(permission.name, uiLocale)}</span>
+                      <span className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                        <span className="font-mono">{permission.name}</span>
+                        <span>{sourceBadgeLabel(sources.get(permission.name)?.source || "NOT_GRANTED", rtl)}</span>
+                        {sources.get(permission.name)?.effective && <span className="text-emerald-700">{rtl ? "فعال" : "Effective"}</span>}
+                        {sources.get(permission.name)?.denied && <span className="text-rose-700">{rtl ? "ممنوع" : "Denied"}</span>}
+                      </span>
                     </span>
                     <label className="inline-flex items-center gap-2 text-emerald-700"><input disabled={!canManage} type="checkbox" checked={grantPermissionIds.includes(permission.id)} onChange={(event) => toggleGrant(permission, event.target.checked)} /> {rtl ? "سماح مباشر" : "Direct grant"}</label>
                     <label className="inline-flex items-center gap-2 text-rose-700"><input disabled={!canManage} type="checkbox" checked={denialPermissionIds.includes(permission.id)} onChange={(event) => toggleDenial(permission, event.target.checked)} /> {rtl ? "منع مباشر" : "Direct denial"}</label>
@@ -747,7 +801,8 @@ function EmployeeDirectPermissionsTab({
               </div>
             </div>
           ))}
-          {!options.length && <p className="rounded-2xl bg-background p-4 text-xs text-muted-foreground">{rtl ? "لا توجد صلاحيات مباشرة حالية. الصلاحيات الفعالة ما زالت تُقرأ من الخادم فقط." : "No current direct permission rows. Effective authority remains backend-resolved only."}</p>}
+          {!options.length && <p className="rounded-2xl bg-background p-4 text-xs text-muted-foreground">{rtl ? "كتالوج الصلاحيات المركزي فارغ." : "The central assignable permission catalog is empty."}</p>}
+          {options.length > 0 && !filtered.length && <p className="rounded-2xl bg-background p-4 text-xs text-muted-foreground">{rtl ? "لا توجد صلاحيات مطابقة للبحث." : "No permissions match the search."}</p>}
         </div>
         {canManage ? (
           <div className="flex justify-end gap-2">
@@ -767,29 +822,19 @@ function EmployeeDirectPermissionsTab({
 
 function EmployeeEffectivePermissionsTab({ permissionState, rtl }: { permissionState: EmployeePermissionState | null; rtl: boolean }) {
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "allowed" | "denied" | "inherited" | "direct" | "sensitive">("all");
+  const [filter, setFilter] = useState<"all" | "allowed" | "denied" | "inherited" | "direct" | "not-granted">("all");
   const uiLocale = rtl ? "ar" : "en";
   const effective = permissionState?.authorization?.effectivePermissionNames ?? [];
-  const denied = permissionState?.authorization?.directDenialNames ?? [];
-  const roleNames = (permissionState?.roles ?? []).map((role) => role.name).join(", ");
-  const allNames = [...new Set([
-    ...(permissionState?.authorization?.rolePermissionNames ?? []),
-    ...(permissionState?.authorization?.directGrantNames ?? []),
-    ...(permissionState?.authorization?.directDenialNames ?? []),
-    ...effective,
-  ])].sort();
-  const rows = allNames.map((name) => {
-    const isDenied = denied.includes(name);
-    const isGrant = (permissionState?.authorization?.directGrantNames ?? []).includes(name);
-    const isRole = (permissionState?.authorization?.rolePermissionNames ?? []).includes(name);
-    const source = isDenied
+  const sourceRows = permissionSourceMap(permissionState);
+  const options = toPermissionOptions(permissionState);
+  const rows = options.map((permission) => {
+    const state = sourceRows.get(permission.name) || { source: "NOT_GRANTED", effective: false, denied: false, role: false, directGrant: false, directDenial: false };
+    const source = state.source === "DENIED"
       ? `${permissionSourceLabel("denial", uiLocale)} · ${permissionSourceLabel("denial_wins", uiLocale)}`
-      : isGrant
-        ? permissionSourceLabel("grant", uiLocale)
-        : permissionSourceLabel("role", uiLocale, roleNames || undefined);
-    return { name, isDenied, isGrant, isRole, source, meta: permissionMeta(name) };
+      : sourceBadgeLabel(state.source, rtl);
+    return { name: permission.name, isDenied: state.denied, isGrant: state.directGrant, isRole: state.role, isEffective: state.effective, source, meta: permissionMeta(permission.name) };
   }).filter((row) => {
-    const haystack = `${row.meta.label[uiLocale]} ${row.meta.description[uiLocale]} ${row.meta.module[uiLocale]} ${row.source}`.toLowerCase();
+    const haystack = `${row.name} ${row.meta.label[uiLocale]} ${row.meta.description[uiLocale]} ${row.meta.module[uiLocale]} ${row.source}`.toLowerCase();
     const matchesSearch = !search.trim() || haystack.includes(search.trim().toLowerCase());
     const matchesFilter =
       filter === "all" ||
@@ -797,7 +842,7 @@ function EmployeeEffectivePermissionsTab({ permissionState, rtl }: { permissionS
       (filter === "denied" && row.isDenied) ||
       (filter === "inherited" && row.isRole) ||
       (filter === "direct" && (row.isGrant || row.isDenied)) ||
-      (filter === "sensitive" && row.meta.sensitivity === "level_2");
+      (filter === "not-granted" && !row.isEffective && !row.isDenied);
     return matchesSearch && matchesFilter;
   });
   return (
@@ -814,15 +859,15 @@ function EmployeeEffectivePermissionsTab({ permissionState, rtl }: { permissionS
           <option value="denied">{rtl ? "الممنوع" : "Denied"}</option>
           <option value="inherited">{rtl ? "الموروث" : "Inherited"}</option>
           <option value="direct">{rtl ? "المباشر" : "Direct"}</option>
-          <option value="sensitive">{rtl ? "الحساس" : "Sensitive"}</option>
+          <option value="not-granted">{rtl ? "غير ممنوحة" : "Not granted"}</option>
         </select>
       </div>
       <div className="mt-3 text-xs font-bold text-muted-foreground">
-        {rtl ? "عدد الصلاحيات" : "Permission count"}: {rows.length}
+        {rtl ? "الصلاحيات الفعالة" : "Effective permissions"}: {effective.length} · {rtl ? "المعروض" : "Shown"}: {rows.length}
       </div>
       <div className="mt-5 space-y-2">
         {rows.length ? rows.map((row) => (
-          <div key={row.name} className={`rounded-2xl border p-3 text-xs ${row.isDenied ? "border-rose-200 bg-rose-50 text-rose-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
+          <div key={row.name} className={`rounded-2xl border p-3 text-xs ${row.isDenied ? "border-rose-200 bg-rose-50 text-rose-900" : row.isEffective ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-slate-200 bg-background text-muted-foreground"}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="font-black">{row.meta.label[uiLocale]}</span>
               <span>{row.meta.module[uiLocale]}</span>
