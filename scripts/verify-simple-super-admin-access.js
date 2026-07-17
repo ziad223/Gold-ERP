@@ -61,8 +61,8 @@ function staticContract() {
 
   const migrationCount = fs.readdirSync(path.join(ROOT, "backend", "migrations")).filter((name) => name.endsWith(".js")).length;
   const verifierCount = fs.readdirSync(path.join(ROOT, "scripts")).filter((name) => /^verify-.*\.js$/.test(name)).length;
-  assert.equal(migrationCount, 43, "migration count is 43 after HF5B");
-  assert.equal(verifierCount, 57, "verifier count is 57 after Phase 35B");
+  assert.equal(migrationCount, 44, "migration count is 44 after Phase 35D");
+  assert.equal(verifierCount, 58, "verifier count is 58 after Phase 35D");
   console.log("Simple Super Admin static contract: PASS");
 }
 
@@ -111,7 +111,7 @@ async function liveContract() {
   assert.equal(await bcrypt.compare(ownerPassword, owner.password), true, "offline bcrypt comparison matches existing password");
 
   assert.equal(await models.User.count({ where: { accountType: "super_admin", deletedAt: null } }), 1, "one active Super Admin exists");
-  assert.equal(await models.Permission.count(), 123, "permission count remains 123");
+  assert.equal(await models.Permission.count(), 128, "permission count is 128 after Phase 35D");
   assert.equal(await models.TechnicalAccountSession.count({ where: { userId: "USR-ADMIN", revokedAt: null } }), 0, "old owner sessions revoked before new login");
   assert.equal(await models.AuditLog.count({ where: { action: "system_account.first_super_admin_bootstrapped", technicalUserId: "USR-ADMIN", employeeId: null, operatorSessionId: null } }), 1, "bootstrap audit row exists with null employee actor");
 

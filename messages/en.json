@@ -713,7 +713,17 @@
     "trialApiOnly": "Trial balance is available in API mode only",
     "trialApiOnlyDesc": "Aggregating trial balance totals requires the live API ledger and is not computed from local data.",
     "trialNoRows": "No accounts under the selected criteria.",
-    "trialFailed": "Failed to load the trial balance"
+    "trialFailed": "Failed to load the trial balance",
+    "dateLockTitle": "Accounting date lock",
+    "dateLockDesc": "Prevent posting or changing accounting documents on or before the locked-through date.",
+    "lockedThroughDate": "Locked through date",
+    "lockReason": "Reason",
+    "noDateLock": "No accounting date lock",
+    "saveLock": "Save lock",
+    "lockSaved": "Accounting lock saved",
+    "lockSaveFailed": "Failed to save accounting lock",
+    "balanceTruthTitle": "Balance truth",
+    "balanceTruthDesc": "Launch-critical balances are calculated from posted journal lines; stored account balances are shown only as a reference."
   },
   "InventoryValuation": {
     "title": "Inventory Valuation",
@@ -1087,7 +1097,20 @@
     "categoryPlaceholder": "e.g. Rent, Payroll, Deposit...",
     "amountError": "Amount must be greater than zero",
     "closingError": "Failed to perform closing",
-    "submitError": "Failed to record the transaction"
+    "submitError": "Failed to record the transaction",
+    "registerTitle": "Cash register",
+    "registerDesc": "Open a branch cash register before cash movements and close it with a counted amount.",
+    "registerOpen": "Register open",
+    "registerClosed": "Register closed",
+    "openingCountedAmount": "Opening counted amount",
+    "closingCountedAmount": "Closing counted amount",
+    "openRegister": "Open register",
+    "closeRegister": "Close register",
+    "varianceReason": "Variance reason",
+    "varianceReasonPlaceholder": "Required when counted cash differs from expected cash",
+    "registerHistory": "Register history",
+    "registerOpenError": "Failed to open cash register",
+    "registerCloseError": "Failed to close cash register"
   },
   "Installments": {
     "title": "Installments",
@@ -1136,7 +1159,8 @@
     "redeemDesc": "Enter the voucher code and amount to deduct.",
     "redeemAmount": "Amount",
     "redeemAmountPlaceholder": "Leave empty to use full balance",
-    "redeemError": "Failed to redeem voucher"
+    "redeemError": "Failed to redeem voucher",
+    "financialWorkflowDisabled": "Gift voucher issue and redeem are disabled until liability accounting is approved. Existing vouchers remain readable."
   },
   "GoldCenter": {
     "title": "Gold Center",

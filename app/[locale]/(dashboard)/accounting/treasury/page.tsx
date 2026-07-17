@@ -42,10 +42,12 @@ export default function TreasuryPage() {
     transactions,
     transactionsTotal,
     transactionsTotalPages,
-    closings,
+    registerCurrent,
+    registers,
     loading,
     addTransaction,
-    closeTreasury,
+    openRegister,
+    closeRegister,
   } = useTreasury({ page: txPage, pageSize: txPageSize });
 
   const TX_PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
@@ -74,11 +76,13 @@ export default function TreasuryPage() {
     }
   };
 
-  // Closing state
-  const [closeAccount, setCloseAccount] = useState("cash");
+  // Cash register state
+  const [openingAmount, setOpeningAmount] = useState("");
   const [actual, setActual] = useState("");
+  const [varianceReason, setVarianceReason] = useState("");
   const [closeResult, setCloseResult] = useState<{ expected: number; actual: number; variance: number } | null>(null);
   const [closeError, setCloseError] = useState<string | null>(null);
+  const [registerBusy, setRegisterBusy] = useState(false);
 
   const openModal = (type: TxType) => {
     setTxType(type);
@@ -125,22 +129,45 @@ export default function TreasuryPage() {
     }
   };
 
-  const submitClosing = async (e: FormEvent) => {
+  const submitOpenRegister = async (e: FormEvent) => {
     e.preventDefault();
     setCloseError(null);
-    const actualNum = Number(actual);
+    setRegisterBusy(true);
     try {
-      const res = await closeTreasury(closeAccount, actualNum);
-      const data = res?.data ?? res;
-      setCloseResult({ expected: Number(data.expected), actual: Number(data.actual), variance: Number(data.variance) });
-      setActual("");
-      setTxPage(1); // a closing records a transaction; show page 1
+      await openRegister(Number(openingAmount), newIdemKey());
+      setOpeningAmount("");
+      setCloseResult(null);
     } catch (err: any) {
-      setCloseError(err?.message || t("closingError"));
+      setCloseError(err?.message || t("registerOpenError"));
+    } finally {
+      setRegisterBusy(false);
     }
   };
 
-  const expectedForClose = closeAccount === "bank" ? summary.bank : summary.cash;
+  const submitClosing = async (e: FormEvent) => {
+    e.preventDefault();
+    setCloseError(null);
+    setRegisterBusy(true);
+    const actualNum = Number(actual);
+    try {
+      const data = await closeRegister(actualNum, varianceReason || undefined, newIdemKey());
+      setCloseResult({
+        expected: Number(data.systemExpectedAmount ?? data.expected ?? 0),
+        actual: Number(data.closingCountedAmount ?? actualNum),
+        variance: Number(data.variance ?? 0),
+      });
+      setActual("");
+      setVarianceReason("");
+      setTxPage(1);
+    } catch (err: any) {
+      setCloseError(err?.message || t("registerCloseError"));
+    } finally {
+      setRegisterBusy(false);
+    }
+  };
+
+  const registerOpen = registerCurrent?.status === "OPEN";
+  const expectedForClose = Number(registerCurrent?.expected ?? registerCurrent?.systemExpectedAmount ?? summary.cash);
 
   const typeMeta: Record<string, { label: string; tone: "green" | "rose" | "blue"; icon: typeof ArrowDownLeft }> = {
     cash_in: { label: t("cashIn"), tone: "green", icon: ArrowDownLeft },
@@ -256,29 +283,50 @@ export default function TreasuryPage() {
           )}
         </Card>
 
-        {/* Closing */}
+        {/* Cash register */}
         <Card className="p-5">
-          <h2 className="flex items-center gap-2 font-black text-foreground"><Scale className="h-5 w-5 text-brand-600" />{t("closingTitle")}</h2>
-          <p className="mt-1 text-xs text-muted">{t("closingDesc")}</p>
-          <form onSubmit={submitClosing} className="mt-5 space-y-4">
+          <h2 className="flex items-center gap-2 font-black text-foreground"><Scale className="h-5 w-5 text-brand-600" />{t("registerTitle")}</h2>
+          <p className="mt-1 text-xs text-muted">{t("registerDesc")}</p>
+          <div className={`mt-4 rounded-2xl border px-4 py-3 text-xs ${registerOpen ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-500/10 dark:text-emerald-200" : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/40 dark:bg-amber-500/10 dark:text-amber-200"}`}>
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-black">{registerOpen ? t("registerOpen") : t("registerClosed")}</span>
+              <span className="font-mono font-bold">{registerCurrent?.id || "—"}</span>
+            </div>
+            {registerOpen && (
+              <div className="mt-2 flex justify-between">
+                <span className="font-bold text-muted">{t("expectedBalance")}</span>
+                <span className="font-black">{money(expectedForClose)}</span>
+              </div>
+            )}
+          </div>
+
+          {!registerOpen ? (
+          <form onSubmit={submitOpenRegister} className="mt-5 space-y-4">
             <label className="block">
-              <span className="label-base">{t("account")}</span>
-              <NativeSelect value={closeAccount} onChange={(e) => { setCloseAccount(e.target.value); setCloseResult(null); }}>
-                <option value="cash">{t("cash")}</option>
-                <option value="bank">{t("bank")}</option>
-              </NativeSelect>
+              <span className="label-base">{t("openingCountedAmount")}</span>
+              <input required type="number" min="0" step="0.01" className="input-base" value={openingAmount} onChange={(e) => setOpeningAmount(e.target.value)} placeholder="0" />
             </label>
+            <Button type="submit" className="w-full" disabled={registerBusy}>{t("openRegister")}</Button>
+            {closeError && <p className="text-xs font-bold text-rose-600">{closeError}</p>}
+          </form>
+          ) : (
+          <form onSubmit={submitClosing} className="mt-5 space-y-4">
             <div className="flex justify-between rounded-2xl bg-background px-4 py-3 text-xs">
               <span className="font-bold text-muted">{t("expectedBalance")}</span>
               <span className="font-black">{money(expectedForClose)}</span>
             </div>
             <label className="block">
-              <span className="label-base">{t("actualBalance")}</span>
+              <span className="label-base">{t("closingCountedAmount")}</span>
               <input required type="number" min="0" step="0.01" className="input-base" value={actual} onChange={(e) => setActual(e.target.value)} placeholder="0" />
             </label>
-            <Button type="submit" className="w-full">{t("performClosing")}</Button>
+            <label className="block">
+              <span className="label-base">{t("varianceReason")}</span>
+              <textarea className="input-base min-h-20" value={varianceReason} onChange={(e) => setVarianceReason(e.target.value)} placeholder={t("varianceReasonPlaceholder")} />
+            </label>
+            <Button type="submit" className="w-full" disabled={registerBusy}>{t("closeRegister")}</Button>
             {closeError && <p className="text-xs font-bold text-rose-600">{closeError}</p>}
           </form>
+          )}
 
           {closeResult && (
             <div className={`mt-4 rounded-2xl border p-4 text-xs ${Math.abs(closeResult.variance) < 0.01 ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900/40 dark:bg-emerald-500/10" : "border-rose-200 bg-rose-50 dark:border-rose-900/40 dark:bg-rose-500/10"}`}>
@@ -289,14 +337,14 @@ export default function TreasuryPage() {
             </div>
           )}
 
-          {closings.length > 0 && (
+          {registers.length > 0 && (
             <div className="mt-5 border-t border-border pt-4">
-              <p className="mb-2 text-xs font-black text-muted">{t("closingHistory")}</p>
+              <p className="mb-2 text-xs font-black text-muted">{t("registerHistory")}</p>
               <div className="space-y-2">
-                {closings.slice(0, 5).map((c) => (
+                {registers.slice(0, 5).map((c) => (
                   <div key={c.id} className="flex items-center justify-between text-[11px]">
-                    <span className="text-muted">{c.date} · {c.account === "bank" ? t("bank") : t("cash")}</span>
-                    <span className={`font-bold ${Math.abs(Number(c.variance)) < 0.01 ? "text-emerald-600" : "text-rose-600"}`}>{money(c.variance ?? 0)}</span>
+                    <span className="text-muted">{String(c.openedAt || "").slice(0, 10)} · {c.status}</span>
+                    <span className={`font-bold ${Math.abs(Number(c.variance || 0)) < 0.01 ? "text-emerald-600" : "text-rose-600"}`}>{money(c.variance ?? 0)}</span>
                   </div>
                 ))}
               </div>

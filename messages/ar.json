@@ -713,7 +713,17 @@
     "trialApiOnly": "ميزان المراجعة متاح في وضع API فقط",
     "trialApiOnlyDesc": "تجميع أرصدة ميزان المراجعة يتطلب دفتر الـAPI الحقيقي ولا يُحسب من البيانات المحلية.",
     "trialNoRows": "لا توجد حسابات ضمن المعايير المحددة.",
-    "trialFailed": "تعذّر تحميل ميزان المراجعة"
+    "trialFailed": "تعذّر تحميل ميزان المراجعة",
+    "dateLockTitle": "قفل التاريخ المحاسبي",
+    "dateLockDesc": "منع ترحيل أو تغيير المستندات المحاسبية في تاريخ القفل أو قبله.",
+    "lockedThroughDate": "مقفول حتى تاريخ",
+    "lockReason": "السبب",
+    "noDateLock": "لا يوجد قفل تاريخ محاسبي",
+    "saveLock": "حفظ القفل",
+    "lockSaved": "تم حفظ قفل المحاسبة",
+    "lockSaveFailed": "تعذّر حفظ قفل المحاسبة",
+    "balanceTruthTitle": "حقيقة الأرصدة",
+    "balanceTruthDesc": "أرصدة الإطلاق الأساسية تُحسب من القيود المرحّلة، أما رصيد الحساب المخزّن فهو مرجعي فقط."
   },
   "InventoryValuation": {
     "title": "تقييم المخزون",
@@ -1087,7 +1097,20 @@
     "categoryPlaceholder": "مثال: إيجار، رواتب، إيداع...",
     "amountError": "المبلغ يجب أن يكون أكبر من صفر",
     "closingError": "تعذّر تنفيذ الإغلاق",
-    "submitError": "تعذّر تسجيل الحركة"
+    "submitError": "تعذّر تسجيل الحركة",
+    "registerTitle": "جلسة الخزنة",
+    "registerDesc": "افتح جلسة خزنة للفرع قبل الحركات النقدية وأغلقها بالمبلغ المعدود.",
+    "registerOpen": "الخزنة مفتوحة",
+    "registerClosed": "الخزنة مغلقة",
+    "openingCountedAmount": "المبلغ المعدود عند الفتح",
+    "closingCountedAmount": "المبلغ المعدود عند الإغلاق",
+    "openRegister": "فتح الخزنة",
+    "closeRegister": "إغلاق الخزنة",
+    "varianceReason": "سبب الفرق",
+    "varianceReasonPlaceholder": "مطلوب عند اختلاف النقد المعدود عن المتوقع",
+    "registerHistory": "سجل جلسات الخزنة",
+    "registerOpenError": "تعذّر فتح جلسة الخزنة",
+    "registerCloseError": "تعذّر إغلاق جلسة الخزنة"
   },
   "Installments": {
     "title": "التقسيط",
@@ -1136,7 +1159,8 @@
     "redeemDesc": "أدخل كود القسيمة والمبلغ المراد خصمه.",
     "redeemAmount": "المبلغ",
     "redeemAmountPlaceholder": "اتركه فارغاً لاستخدام كامل الرصيد",
-    "redeemError": "تعذّر استخدام القسيمة"
+    "redeemError": "تعذّر استخدام القسيمة",
+    "financialWorkflowDisabled": "تم تعطيل إصدار واستخدام قسائم الهدايا حتى اعتماد سياسة محاسبة الالتزام. القسائم الحالية للقراءة فقط."
   },
   "GoldCenter": {
     "title": "مركز الذهب",

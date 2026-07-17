@@ -21,6 +21,8 @@ import type {
   TrialBalanceQuery,
   LedgerReconciliation,
   LedgerReconciliationQuery,
+  AccountBalanceReconciliation,
+  AccountingDateLock,
   CustomerStatement,
   CustomerStatementQuery,
   CustomerCreditReconciliationReport,
@@ -469,6 +471,24 @@ export class ApiAccountingRepository implements AccountingRepository {
       auth(),
     );
     return (res?.data ?? res) as LedgerReconciliation;
+  }
+
+  async getAccountBalanceReconciliation(): Promise<AccountBalanceReconciliation> {
+    const res = await apiClient<any>("/reports/account-balances/reconciliation", auth());
+    return (res?.data ?? res) as AccountBalanceReconciliation;
+  }
+
+  async getAccountingLock(): Promise<AccountingDateLock> {
+    const res = await apiClient<any>("/accounting/lock", auth());
+    return (res?.data ?? res) as AccountingDateLock;
+  }
+
+  async setAccountingLock(input: { lockedThroughDate?: string | null; reason?: string | null }): Promise<MutationResult<AccountingDateLock>> {
+    return apiClient<MutationResult<AccountingDateLock>>("/accounting/lock", {
+      method: "PUT",
+      body: JSON.stringify(input),
+      ...auth(),
+    });
   }
 
   async getCustomerStatementV2(customerId: string, query: CustomerStatementQuery = {}): Promise<CustomerStatement> {

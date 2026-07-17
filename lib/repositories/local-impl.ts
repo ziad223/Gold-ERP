@@ -17,6 +17,8 @@ import type {
   AccountStatement,
   TrialBalance,
   LedgerReconciliation,
+  AccountBalanceReconciliation,
+  AccountingDateLock,
   CustomerStatement,
   CustomerCreditReconciliationReport,
   CustomerStatementV3Report,
@@ -991,6 +993,18 @@ export class LocalAccountingRepository implements AccountingRepository {
   async getLedgerReconciliation(): Promise<LedgerReconciliation> {
     // Ledger reconciliation requires the API ledger; unsupported in mock/local.
     throw new Error("Ledger reconciliation is only available in API mode.");
+  }
+
+  async getAccountBalanceReconciliation(): Promise<AccountBalanceReconciliation> {
+    return { items: [], totalAccounts: 0, divergentAccounts: 0, totalAbsoluteDifference: 0 };
+  }
+
+  async getAccountingLock(): Promise<AccountingDateLock> {
+    return { companyId: "local", lockedThroughDate: null, reason: null };
+  }
+
+  async setAccountingLock(): Promise<MutationResult<AccountingDateLock>> {
+    return { success: false, error: { code: "LOCAL_UNSUPPORTED", message: "Accounting date lock is API-only." } };
   }
   async getCustomerStatementV2(): Promise<CustomerStatement> {
     // Customer sub-ledger statements require the API; unsupported in mock/local.

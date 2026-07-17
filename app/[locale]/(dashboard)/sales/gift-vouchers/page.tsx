@@ -82,11 +82,15 @@ export default function GiftVouchersPage() {
         description={t("description")}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => { setError(null); setRedeemOpen(true); }}><Ticket className="h-4 w-4" />{t("redeem")}</Button>
-            <Button onClick={() => { setError(null); setIssueOpen(true); }}><Plus className="h-4 w-4" />{t("issue")}</Button>
+            <Button variant="secondary" disabled title={t("financialWorkflowDisabled")}><Ticket className="h-4 w-4" />{t("redeem")}</Button>
+            <Button disabled title={t("financialWorkflowDisabled")}><Plus className="h-4 w-4" />{t("issue")}</Button>
           </div>
         }
       />
+
+      <Card className="border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800 dark:border-amber-900/40 dark:bg-amber-500/10 dark:text-amber-200">
+        {t("financialWorkflowDisabled")}
+      </Card>
 
       <Card className="overflow-hidden">
         <div className="border-b border-border p-5 font-black">{t("allVouchers")}</div>

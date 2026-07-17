@@ -258,8 +258,8 @@ async function dbContract() {
   const [[conn]] = await models.sequelize.query("select current_database() as database");
   assert.equal(conn.database, "darfus_erp", "connected database");
   const [[migrations]] = await models.sequelize.query('select count(*)::int c from "SequelizeMeta"');
-  assert.equal(Number(migrations.c), 43, "migration count is 43 after HF5B");
-  assert.equal(await models.Permission.count(), 123, "permission count is 123");
+  assert.equal(Number(migrations.c), 44, "migration count is 44 after Phase 35D");
+  assert.equal(await models.Permission.count(), 128, "permission count is 128 after Phase 35D");
   assert.equal(await models.Permission.count({ where: { name: ["pos.view", "pos.sell", "pos.discount.approve"] } }), 3, "POS permissions unchanged");
   const { Op } = require(path.join(BACKEND, "node_modules/sequelize"));
   assert.equal(await models.Permission.count({ where: { name: { [Op.like]: "gold_purchase.%" } } }), 24, "Gold Purchase permissions unchanged");

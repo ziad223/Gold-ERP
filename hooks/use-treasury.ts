@@ -42,6 +42,23 @@ export interface NewCashTransaction {
   description?: string;
 }
 
+export interface CashRegisterSession {
+  id?: string;
+  companyId?: string;
+  branchId?: string;
+  branchName?: string;
+  cashAccountCode?: string;
+  status: "OPEN" | "CLOSED";
+  openedAt?: string;
+  closedAt?: string | null;
+  openingCountedAmount?: number;
+  closingCountedAmount?: number | null;
+  systemExpectedAmount?: number | null;
+  expected?: number | null;
+  variance?: number | null;
+  varianceReason?: string | null;
+}
+
 const EMPTY_SUMMARY: TreasurySummary = {
   cash: 0,
   bank: 0,
@@ -66,6 +83,8 @@ export function useTreasury(options: { page?: number; pageSize?: number } = {}) 
   const [transactionsTotal, setTransactionsTotal] = useState(0);
   const [transactionsTotalPages, setTransactionsTotalPages] = useState(1);
   const [closings, setClosings] = useState<CashTransaction[]>([]);
+  const [registerCurrent, setRegisterCurrent] = useState<CashRegisterSession | null>(null);
+  const [registers, setRegisters] = useState<CashRegisterSession[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,16 +96,20 @@ export function useTreasury(options: { page?: number; pageSize?: number } = {}) 
       // Phase 6B: transactions are server-side paginated; summary + closings are
       // fetched exactly as before (summary is authoritative ledger balances).
       const txQs = new URLSearchParams({ page: String(page), pageSize: String(pageSize) }).toString();
-      const [s, txs, cls] = await Promise.all([
+      const [s, txs, cls, currentRegister, registerRows] = await Promise.all([
         apiClient<{ data: TreasurySummary }>("/treasury/summary", { locale }),
         apiClient<{ items: CashTransaction[]; total?: number; totalPages?: number }>(`/treasury/transactions?${txQs}`, { locale }),
         apiClient<{ items: CashTransaction[] }>("/treasury/closings", { locale }),
+        apiClient<{ data: CashRegisterSession }>("/treasury/register/current", { locale }),
+        apiClient<{ items: CashRegisterSession[] }>("/treasury/registers", { locale }),
       ]);
       setSummary(s.data ?? EMPTY_SUMMARY);
       setTransactions(txs.items ?? []);
       setTransactionsTotal(Number(txs.total ?? (txs.items?.length ?? 0)));
       setTransactionsTotalPages(Math.max(1, Number(txs.totalPages ?? 1)));
       setClosings(cls.items ?? []);
+      setRegisterCurrent(currentRegister.data ?? null);
+      setRegisters(registerRows.items ?? []);
     } catch (err: any) {
       setError(err?.message || "Failed to load treasury data");
     } finally {
@@ -128,6 +151,34 @@ export function useTreasury(options: { page?: number; pageSize?: number } = {}) 
     [locale, refresh],
   );
 
+  const openRegister = useCallback(
+    async (openingCountedAmount: number, idempotencyKey?: string) => {
+      const res = await apiClient<{ data: CashRegisterSession }>("/treasury/register/open", {
+        method: "POST",
+        body: JSON.stringify({ openingCountedAmount }),
+        locale,
+        ...(idempotencyKey ? { idempotencyKey } : {}),
+      });
+      await refresh();
+      return res.data;
+    },
+    [locale, refresh],
+  );
+
+  const closeRegister = useCallback(
+    async (countedAmount: number, varianceReason?: string, idempotencyKey?: string) => {
+      const res = await apiClient<{ data: CashRegisterSession }>("/treasury/register/close", {
+        method: "POST",
+        body: JSON.stringify({ countedAmount, varianceReason }),
+        locale,
+        ...(idempotencyKey ? { idempotencyKey } : {}),
+      });
+      await refresh();
+      return res.data;
+    },
+    [locale, refresh],
+  );
+
   return {
     summary,
     transactions,
@@ -136,10 +187,14 @@ export function useTreasury(options: { page?: number; pageSize?: number } = {}) 
     transactionsTotal,
     transactionsTotalPages,
     closings,
+    registerCurrent,
+    registers,
     loading,
     error,
     refresh,
     addTransaction,
     closeTreasury,
+    openRegister,
+    closeRegister,
   };
 }

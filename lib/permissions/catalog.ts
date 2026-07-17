@@ -65,6 +65,11 @@ const EXACT_LABELS: Record<string, Partial<PermissionMeta>> = {
   "system_accounts.sessions.revoke": { label: { ar: "إنهاء جلسات حسابات النظام", en: "Revoke System Account Sessions" }, sensitivity: "level_2" },
   "security.recovery.manage": { label: { ar: "إدارة الاسترجاع والأمان", en: "Manage Security and Recovery" }, sensitivity: "level_2" },
   "super_admin.manage": { label: { ar: "إدارة حسابات المدير العام", en: "Manage Super Admin Accounts" }, sensitivity: "level_2" },
+  "treasury.register.view": { label: { ar: "عرض جلسات الخزنة", en: "View Cash Register Sessions" } },
+  "treasury.register.open": { label: { ar: "فتح جلسة خزنة", en: "Open Cash Register" }, sensitivity: "level_2" },
+  "treasury.register.close": { label: { ar: "إغلاق جلسة خزنة", en: "Close Cash Register" }, sensitivity: "level_2" },
+  "accounting.lock.manage": { label: { ar: "إدارة قفل التاريخ المحاسبي", en: "Manage Accounting Date Lock" }, sensitivity: "level_2" },
+  "accounting.reconciliation.view": { label: { ar: "عرض مطابقة أرصدة الحسابات", en: "View Account Balance Reconciliation" } },
 };
 
 const ACTION_LABELS: Record<string, Record<PermissionLocale, string>> = {
@@ -124,7 +129,8 @@ export const KNOWN_PERMISSION_CODES = [
   "pos.view", "pos.sell", "pos.discount.approve",
   "inventory.view", "inventory.create", "inventory.update", "inventory.delete", "inventory.adjust", "inventory.export", "inventory.print",
   "suppliers.view", "suppliers.create", "suppliers.update", "suppliers.delete", "suppliers.export",
-  "accounting.view", "accounting.post", "accounting.export", "treasury.view", "treasury.update",
+  "accounting.view", "accounting.post", "accounting.export", "accounting.lock.manage", "accounting.reconciliation.view",
+  "treasury.view", "treasury.update", "treasury.register.view", "treasury.register.open", "treasury.register.close",
   "reports.view", "reports.export", "settings.view", "settings.update",
   "reservations.view", "reservations.view_all", "reservations.view_branch", "reservations.view_own",
   "reservations.create", "reservations.record_payment", "reservations.view_payments", "reservations.view_receipts",

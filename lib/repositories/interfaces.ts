@@ -266,6 +266,36 @@ export interface LedgerReconciliationQuery {
   onlyDifferences?: boolean;
 }
 
+export interface AccountBalanceReconciliationRow {
+  id: string;
+  code: string;
+  name: string;
+  nameAr?: string;
+  type: string;
+  nature: string;
+  storedBalance: number;
+  postedDebit: number;
+  postedCredit: number;
+  calculatedBalance: number;
+  difference: number;
+  inSync: boolean;
+  lastJournalDate?: string | null;
+}
+
+export interface AccountBalanceReconciliation {
+  items: AccountBalanceReconciliationRow[];
+  totalAccounts: number;
+  divergentAccounts: number;
+  totalAbsoluteDifference: number;
+  branchId?: string | null;
+}
+
+export interface AccountingDateLock {
+  companyId: string;
+  lockedThroughDate?: string | null;
+  reason?: string | null;
+}
+
 export interface CustomerStatementRow {
   id: string;
   type: string;
@@ -477,6 +507,9 @@ export interface AccountingRepository {
   // Phase 9G — read-only ledger reconciliation. Hits GET
   // /reports/ledger-reconciliation. Mock/local mode does not support it.
   getLedgerReconciliation(query?: LedgerReconciliationQuery): Promise<LedgerReconciliation>;
+  getAccountBalanceReconciliation(): Promise<AccountBalanceReconciliation>;
+  getAccountingLock(): Promise<AccountingDateLock>;
+  setAccountingLock(input: { lockedThroughDate?: string | null; reason?: string | null }): Promise<MutationResult<AccountingDateLock>>;
   // Phase 10C — read-only customer sub-ledger statement. Hits GET
   // /customers/:id/statement-v2. Mock/local mode does not support it.
   getCustomerStatementV2(customerId: string, query?: CustomerStatementQuery): Promise<CustomerStatement>;

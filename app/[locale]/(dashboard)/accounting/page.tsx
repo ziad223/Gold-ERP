@@ -19,7 +19,7 @@ import { useErp } from "@/contexts/erp-context";
 import { useJournalEntries, type JournalStatusGroup } from "@/hooks/use-accounting";
 import { usePermissions } from "@/hooks/use-permissions";
 import { DATA_SOURCE } from "@/lib/data-source";
-import type { AccountStatement, TrialBalance, LedgerReconciliation } from "@/lib/repositories/interfaces";
+import type { AccountBalanceReconciliation, AccountingDateLock, AccountStatement, TrialBalance, LedgerReconciliation } from "@/lib/repositories/interfaces";
 import { formatCurrency } from "@/lib/utils";
 
 const STATEMENT_PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
@@ -953,6 +953,11 @@ function ReconciliationPanel({ money }: { money: (value: number) => string }) {
   const [includeZero, setIncludeZero] = useState(false);
   const [onlyDifferences, setOnlyDifferences] = useState(true);
   const [data, setData] = useState<LedgerReconciliation | null>(null);
+  const [balanceTruth, setBalanceTruth] = useState<AccountBalanceReconciliation | null>(null);
+  const [lock, setLock] = useState<AccountingDateLock | null>(null);
+  const [lockDate, setLockDate] = useState("");
+  const [lockReason, setLockReason] = useState("");
+  const [savingLock, setSavingLock] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -962,10 +967,19 @@ function ReconciliationPanel({ money }: { money: (value: number) => string }) {
     const id = ++reqId.current;
     setLoading(true);
     setError(null);
-    accountingRepository
-      .getLedgerReconciliation({ asOf: asOf || undefined, includeZero, onlyDifferences })
-      .then((res) => {
-        if (reqId.current === id) setData(res);
+    Promise.all([
+      accountingRepository.getLedgerReconciliation({ asOf: asOf || undefined, includeZero, onlyDifferences }),
+      accountingRepository.getAccountBalanceReconciliation(),
+      accountingRepository.getAccountingLock(),
+    ])
+      .then(([ledger, truth, lockState]) => {
+        if (reqId.current === id) {
+          setData(ledger);
+          setBalanceTruth(truth);
+          setLock(lockState);
+          setLockDate(lockState.lockedThroughDate || "");
+          setLockReason(lockState.reason || "");
+        }
       })
       .catch((err: any) => {
         if (reqId.current === id) setError(err?.message || t("reconFailed"));
@@ -974,6 +988,27 @@ function ReconciliationPanel({ money }: { money: (value: number) => string }) {
         if (reqId.current === id) setLoading(false);
       });
   }, [isApi, asOf, includeZero, onlyDifferences, accountingRepository, t]);
+
+  const saveLock = async (event: FormEvent) => {
+    event.preventDefault();
+    setSavingLock(true);
+    try {
+      const result = await accountingRepository.setAccountingLock({
+        lockedThroughDate: lockDate || null,
+        reason: lockReason || null,
+      });
+      if (result.success && result.data) {
+        setLock(result.data);
+        toast.success(t("lockSaved"));
+      } else {
+        toast.error(result.error?.message || t("lockSaveFailed"));
+      }
+    } catch (err: any) {
+      toast.error(err?.message || t("lockSaveFailed"));
+    } finally {
+      setSavingLock(false);
+    }
+  };
 
   if (!isApi) {
     return (
@@ -1002,6 +1037,47 @@ function ReconciliationPanel({ money }: { money: (value: number) => string }) {
           </label>
         </div>
       </Card>
+
+      <div className="grid gap-4 xl:grid-cols-[.7fr_1.3fr]">
+        <Card className="p-5">
+          <h2 className="font-black text-foreground">{t("dateLockTitle")}</h2>
+          <p className="mt-1 text-xs text-muted">{t("dateLockDesc")}</p>
+          <form onSubmit={saveLock} className="mt-4 grid gap-3">
+            <label>
+              <span className="label-base">{t("lockedThroughDate")}</span>
+              <input type="date" className="input-base" value={lockDate} onChange={(event) => setLockDate(event.target.value)} />
+            </label>
+            <label>
+              <span className="label-base">{t("lockReason")}</span>
+              <input className="input-base" value={lockReason} onChange={(event) => setLockReason(event.target.value)} />
+            </label>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs font-bold text-muted">
+                {lock?.lockedThroughDate ? `${t("lockedThroughDate")}: ${lock.lockedThroughDate}` : t("noDateLock")}
+              </span>
+              <Button type="submit" size="sm" disabled={savingLock}>{savingLock ? common("loading") : t("saveLock")}</Button>
+            </div>
+          </form>
+        </Card>
+        <Card className="p-5">
+          <h2 className="font-black text-foreground">{t("balanceTruthTitle")}</h2>
+          <p className="mt-1 text-xs text-muted">{t("balanceTruthDesc")}</p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl bg-background px-4 py-3">
+              <p className="text-xs font-bold text-muted">{t("accountCount")}</p>
+              <p className="mt-1 text-xl font-black">{balanceTruth?.totalAccounts ?? "—"}</p>
+            </div>
+            <div className="rounded-2xl bg-background px-4 py-3">
+              <p className="text-xs font-bold text-muted">{t("differenceCount")}</p>
+              <p className="mt-1 text-xl font-black">{balanceTruth?.divergentAccounts ?? "—"}</p>
+            </div>
+            <div className="rounded-2xl bg-background px-4 py-3">
+              <p className="text-xs font-bold text-muted">{t("totalAbsDifference")}</p>
+              <p className="mt-1 text-xl font-black">{money(balanceTruth?.totalAbsoluteDifference ?? 0)}</p>
+            </div>
+          </div>
+        </Card>
+      </div>
 
       {error ? (
         <ErrorState message={error} className="m-0" />

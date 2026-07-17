@@ -112,6 +112,20 @@ function verifyScope() {
     "lib/exchange-policy.ts",
     "package.json",
     "app/[locale]/(dashboard)/accounting/treasury/page.tsx",
+    "app/[locale]/(dashboard)/accounting/page.tsx",
+    "app/[locale]/(dashboard)/sales/gift-vouchers/page.tsx",
+    "backend/migrations/20260717010000-accounting-treasury-launch-minimum.js",
+    "backend/src/bootstrap/accessControl.js",
+    "backend/src/models/accountingLock.model.js",
+    "backend/src/models/cashRegisterSession.model.js",
+    "backend/src/models/index.js",
+    "backend/src/routes/erp.routes.js",
+    "backend/src/services/account-balance.service.js",
+    "backend/src/services/accounting-lock.service.js",
+    "backend/src/services/cash-register.service.js",
+    "backend/src/services/journal.service.js",
+    "backend/src/services/posting.service.js",
+    "docs/accounting/PHASE-35D-ACCOUNTING-TREASURY-LAUNCH-MINIMUM.md",
     "hooks/use-treasury.ts",
     "messages/en.json",
     "messages/ar.json",
@@ -125,13 +139,20 @@ function verifyScope() {
     "components/sales/ExchangeSummary.tsx",
     "features/sales/hooks/use-exchange-display.ts",
     "lib/types.ts",
+    "lib/repositories/api-impl.ts",
+    "lib/repositories/interfaces.ts",
+    "lib/repositories/local-impl.ts",
     "lib/permissions/catalog.ts",
+    "scripts/verify-accounting-treasury-launch-minimum.js",
     "scripts/verify-exchange-summary-ui.js",
   ]);
   for (const file of changed) {
     assert.ok(allowed.has(file), `unexpected changed file: ${file}`);
   }
-  assert.ok(!changed.some((file) => file.includes("posting.service.js")), "posting.service was not changed");
+  assert.ok(
+    !changed.some((file) => file.includes("posting.service.js") && file !== "backend/src/services/posting.service.js"),
+    "only Phase 35D accounting-lock posting change is allowed"
+  );
   assert.ok(
     !changed.some((file) =>
       (file.startsWith("app/") &&
@@ -140,13 +161,15 @@ function verifyScope() {
         file !== "app/[locale]/(dashboard)/sales/returns/page.tsx" &&
         file !== "app/[locale]/(dashboard)/sales/exchanges/page.tsx" &&
         file !== "app/[locale]/(dashboard)/sales/installments/page.tsx" &&
-        file !== "app/[locale]/(dashboard)/accounting/treasury/page.tsx") ||
+        file !== "app/[locale]/(dashboard)/accounting/treasury/page.tsx" &&
+        file !== "app/[locale]/(dashboard)/accounting/page.tsx" &&
+        file !== "app/[locale]/(dashboard)/sales/gift-vouchers/page.tsx") ||
       file.startsWith("features/dashboard")
     ),
     "dashboard/frontend reports were not rewritten",
   );
   assert.ok(!changed.some((file) => !file.replace(/\\/g, "/").startsWith("scripts/verify-") && /features\/printing|CustomPrint|print/i.test(file)), "no print files touched");
-  assert.ok(!changed.some((file) => /migration|migrations/i.test(file)), "no migration added");
+  assert.ok(!changed.some((file) => /migration|migrations/i.test(file) && file !== "backend/migrations/20260717010000-accounting-treasury-launch-minimum.js"), "only the Phase 35D additive migration is present");
 }
 
 function verifyPackageScript() {

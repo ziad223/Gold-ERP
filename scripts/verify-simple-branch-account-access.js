@@ -96,8 +96,8 @@ function verifyStaticContract() {
 
   const migrationCount = fs.readdirSync(path.join(ROOT, "backend", "migrations")).filter((name) => name.endsWith(".js")).length;
   const verifierCount = fs.readdirSync(path.join(ROOT, "scripts")).filter((name) => /^verify-.*\.js$/.test(name)).length;
-  assert.equal(migrationCount, 43, "migration count is 43");
-  assert.equal(verifierCount, 57, "verifier count is 57 after Phase 35B");
+  assert.equal(migrationCount, 44, "migration count is 44 after Phase 35D");
+  assert.equal(verifierCount, 58, "verifier count is 58 after Phase 35D");
   console.log("Simple Branch Account static contract: PASS");
 }
 
@@ -140,7 +140,7 @@ async function verifyLiveContract() {
   const changedPassword = "BranchPass!345";
   const owner = await models.User.findByPk("USR-ADMIN");
   assert.ok(owner && owner.accountType === "super_admin", "local owner Super Admin exists");
-  assert.equal(await models.Permission.count(), 123, "permission count remains 123 before live test");
+  assert.equal(await models.Permission.count(), 128, "permission count is 128 after Phase 35D");
 
   const app = require(path.join(BACKEND, "src/app"));
   const server = await new Promise((resolve) => {
