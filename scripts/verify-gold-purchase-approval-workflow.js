@@ -18,7 +18,7 @@ function staticContract() {
   const draft = read("backend/src/services/gold-purchase-draft.service.js");
   const ui = read("features/gold-purchases/components/GoldPurchaseDraftWorkspace.tsx");
   const approvals = read("app/[locale]/(dashboard)/approvals/page.tsx");
-  const permissionsUi = read("app/[locale]/(dashboard)/settings/users/page.tsx");
+  const employeePermissionsUi = read("app/[locale]/(dashboard)/employees/[id]/page.tsx");
   const permissionCatalog = read("lib/permissions/catalog.ts");
   for (const name of permissionNames.filter((name) => !name.endsWith(".self_approve"))) assert.ok(migration.includes(name.split(".").at(-1)) && read("backend/src/bootstrap/accessControl.js").includes(name), `permission ${name}`);
   for (const name of permissionNames.filter((name) => name.endsWith(".self_approve"))) assert.ok(selfReviewMigration.includes(name) && read("backend/src/bootstrap/accessControl.js").includes(name), `permission ${name}`);
@@ -29,7 +29,14 @@ function staticContract() {
   assert.ok(draft.includes("DOCUMENT_IMMUTABLE"), "submitted/approved updates blocked");
   assert.ok(ui.includes("Submit for approval") && ui.includes("Create revision"), "maker UI actions");
   assert.ok(approvals.includes("Gold Purchase approvals") && approvals.includes("selfReview") && approvals.includes("Self Approval"), "review queue and self-review controls");
-  assert.ok(permissionCatalog.includes("gold_purchase.cgp") && permissionCatalog.includes("gold_purchase.igp") && permissionsUi.includes("permissionLabel"), "permission administration grouping");
+  assert.ok(
+    permissionCatalog.includes("gold_purchase.cgp")
+      && permissionCatalog.includes("gold_purchase.igp")
+      && employeePermissionsUi.includes("permissionLabel")
+      && employeePermissionsUi.includes("permissionModuleLabel")
+      && employeePermissionsUi.includes("permissionState?.assignableCatalog"),
+    "employee permission administration grouping"
+  );
   for (const prohibited of ["/post", "/payment", "/withdrawal", "/liquidity-transfer", "/transform", "/close"]) assert.ok(!routes.includes(prohibited), `${prohibited} endpoint absent`);
   for (const prohibited of ["Asset.create", "StockMovement.create", "JournalEntry.create", "CashTransaction.create", "CustomerGoldPool.create", "InventoryGoldPool.create"]) assert.ok(!governance.includes(prohibited), `${prohibited} side effect absent`);
   console.log("Phase 33C static contract: PASS");
