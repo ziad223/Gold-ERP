@@ -36,6 +36,7 @@ export interface NewCashTransaction {
   type: "cash_in" | "cash_out" | "transfer";
   account: string;
   toAccount?: string;
+  counterAccountCode?: string;
   amount: number;
   category?: string;
   description?: string;

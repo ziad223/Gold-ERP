@@ -1081,8 +1081,12 @@
     "modalDesc": "سجّل حركة نقدية جديدة، وسيتولّد القيد المحاسبي تلقائياً.",
     "fromAccount": "من حساب",
     "toAccount": "إلى حساب",
+    "counterAccount": "كود الحساب المقابل",
+    "counterAccountPlaceholder": "أدخل كود حساب نشط",
+    "counterAccountRequired": "كود الحساب المقابل مطلوب",
     "categoryPlaceholder": "مثال: إيجار، رواتب، إيداع...",
     "amountError": "المبلغ يجب أن يكون أكبر من صفر",
+    "closingError": "تعذّر تنفيذ الإغلاق",
     "submitError": "تعذّر تسجيل الحركة"
   },
   "Installments": {

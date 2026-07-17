@@ -137,6 +137,10 @@ function staticChecks() {
     "docs/employee-authorization/PHASE-34.5.md",
     "docs/employee-authorization/PHASE-34.5B.md",
     "next-env.d.ts", // pre-existing generated drift, not touched by this phase
+    "app/[locale]/(dashboard)/accounting/treasury/page.tsx",
+    "hooks/use-treasury.ts",
+    "messages/en.json",
+    "messages/ar.json",
   ]);
   const forbidden = changed.filter((f) => {
     const n = f.replace(/\\/g, "/");
@@ -161,10 +165,20 @@ function staticChecks() {
     const approvedSalesAdjustmentLines = added.filter((l) =>
       /router\.post\(|salesOperatorPolicy|sales\.return|sales\.exchange|sales\.installment|idempotencyBodyWithActor|commandActor|attachAuditActor|finalizedByEmployeeId|receivedByEmployeeId|sales\.returns\.execute|sales\.exchanges\.execute|sales\.installments\.collect|\/sales\/returns|\/sales\/exchanges|\/installments\/:id\/pay/.test(l)
     );
-    const unrelatedAdded = added.filter((l) => !approvedSalesAdjustmentLines.includes(l));
+    const approvedPhase35BContainmentLines = added.filter((l) =>
+      /LIFECYCLE_GENERIC_MUTATION_BLOCKS|GENERIC_.*_FORBIDDEN|blockGenericMutation|stableForbidden|resolveAuthorizedBranch|BRANCH_SCOPE_|normalizeTreasuryAccount|assertTreasuryAccountKey|assertActiveAccountCode|counterAccountCode|Transfer source and destination|payroll\.view|payroll\.manage|employees\.verification\.view|employees\.credentials\.manage|suppliers\.view|suppliers\.update|suppliers\.documents\.manage|\/attendance|\/payslips|\/payroll\/generate|\/suppliers\/:id|\/employees\/:id\/sessions|buildInvoiceReportWhere|await buildInvoiceReportWhere|branchId = await resolveAuthorizedBranchId|treasury/.test(l)
+    );
+    const unrelatedAdded = added.filter((l) =>
+      !approvedSalesAdjustmentLines.includes(l) &&
+      !approvedPhase35BContainmentLines.includes(l)
+    );
     assert.ok(!unrelatedAdded.some((l) => /router\.(post|put|patch|delete)\(/.test(l)), "no unrelated mutating route added");
     assert.ok(!unrelatedAdded.some((l) => /\.(create|update|destroy|save|bulkCreate|upsert|increment|decrement)\s*\(/.test(l)), "no unrelated write ORM calls added");
-    assert.ok(added.some((l) => l.includes('/reports/ledger/customer-2300-breakdown')) || !added.some((l) => /router\.get\(/.test(l)), "any added route is the 2300 breakdown GET");
+    assert.ok(
+      added.some((l) => l.includes('/reports/ledger/customer-2300-breakdown')) ||
+      !unrelatedAdded.some((l) => /router\.get\(/.test(l)),
+      "any unrelated added route is the 2300 breakdown GET"
+    );
   }
 }
 

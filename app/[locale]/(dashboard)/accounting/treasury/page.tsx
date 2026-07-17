@@ -58,7 +58,7 @@ export default function TreasuryPage() {
 
   const [open, setOpen] = useState(false);
   const [txType, setTxType] = useState<TxType>("cash_in");
-  const [form, setForm] = useState({ account: "cash", toAccount: "bank", amount: "", category: "", description: "" });
+  const [form, setForm] = useState({ account: "cash", toAccount: "bank", counterAccountCode: "", amount: "", category: "", description: "" });
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -78,10 +78,11 @@ export default function TreasuryPage() {
   const [closeAccount, setCloseAccount] = useState("cash");
   const [actual, setActual] = useState("");
   const [closeResult, setCloseResult] = useState<{ expected: number; actual: number; variance: number } | null>(null);
+  const [closeError, setCloseError] = useState<string | null>(null);
 
   const openModal = (type: TxType) => {
     setTxType(type);
-    setForm({ account: "cash", toAccount: "bank", amount: "", category: "", description: "" });
+    setForm({ account: "cash", toAccount: "bank", counterAccountCode: "", amount: "", category: "", description: "" });
     setFormError(null);
     idemKeyRef.current = newIdemKey(); // one stable key per transaction session
     setOpen(true);
@@ -95,6 +96,10 @@ export default function TreasuryPage() {
       setFormError(t("amountError"));
       return;
     }
+    if (txType !== "transfer" && !form.counterAccountCode.trim()) {
+      setFormError(t("counterAccountRequired"));
+      return;
+    }
     setSubmitting(true);
     // Ensure a key exists even if the modal was opened before this field existed.
     if (!idemKeyRef.current) idemKeyRef.current = newIdemKey();
@@ -106,6 +111,7 @@ export default function TreasuryPage() {
         category: form.category || undefined,
         description: form.description || undefined,
         ...(txType === "transfer" ? { toAccount: form.toAccount } : {}),
+        ...(txType !== "transfer" ? { counterAccountCode: form.counterAccountCode.trim() } : {}),
       };
       await addTransaction(payload, idemKeyRef.current);
       idemKeyRef.current = ""; // success → next transaction gets a fresh key
@@ -121,12 +127,17 @@ export default function TreasuryPage() {
 
   const submitClosing = async (e: FormEvent) => {
     e.preventDefault();
+    setCloseError(null);
     const actualNum = Number(actual);
-    const res = await closeTreasury(closeAccount, actualNum);
-    const data = res?.data ?? res;
-    setCloseResult({ expected: Number(data.expected), actual: Number(data.actual), variance: Number(data.variance) });
-    setActual("");
-    setTxPage(1); // a closing records a transaction; show page 1
+    try {
+      const res = await closeTreasury(closeAccount, actualNum);
+      const data = res?.data ?? res;
+      setCloseResult({ expected: Number(data.expected), actual: Number(data.actual), variance: Number(data.variance) });
+      setActual("");
+      setTxPage(1); // a closing records a transaction; show page 1
+    } catch (err: any) {
+      setCloseError(err?.message || t("closingError"));
+    }
   };
 
   const expectedForClose = closeAccount === "bank" ? summary.bank : summary.cash;
@@ -266,6 +277,7 @@ export default function TreasuryPage() {
               <input required type="number" min="0" step="0.01" className="input-base" value={actual} onChange={(e) => setActual(e.target.value)} placeholder="0" />
             </label>
             <Button type="submit" className="w-full">{t("performClosing")}</Button>
+            {closeError && <p className="text-xs font-bold text-rose-600">{closeError}</p>}
           </form>
 
           {closeResult && (
@@ -320,6 +332,12 @@ export default function TreasuryPage() {
             <label className="block">
               <span className="label-base">{t("category")}</span>
               <input className="input-base" value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} placeholder={t("categoryPlaceholder")} />
+            </label>
+          )}
+          {txType !== "transfer" && (
+            <label className="block">
+              <span className="label-base">{t("counterAccount")}</span>
+              <input className="input-base" value={form.counterAccountCode} onChange={(e) => setForm((f) => ({ ...f, counterAccountCode: e.target.value }))} placeholder={t("counterAccountPlaceholder")} />
             </label>
           )}
           <label className="block sm:col-span-2">

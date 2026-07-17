@@ -1081,8 +1081,12 @@
     "modalDesc": "Record a new cash movement; the journal entry is generated automatically.",
     "fromAccount": "From Account",
     "toAccount": "To Account",
+    "counterAccount": "Counter Account Code",
+    "counterAccountPlaceholder": "Enter an active GL account code",
+    "counterAccountRequired": "Counter account code is required",
     "categoryPlaceholder": "e.g. Rent, Payroll, Deposit...",
     "amountError": "Amount must be greater than zero",
+    "closingError": "Failed to perform closing",
     "submitError": "Failed to record the transaction"
   },
   "Installments": {

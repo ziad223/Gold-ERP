@@ -43,7 +43,7 @@ function staticContract() {
   const systemAccounts = read("app/[locale]/(dashboard)/settings/users/page.tsx");
   const verifierFiles = fs.readdirSync(path.join(ROOT, "scripts")).filter((file) => /^verify-.*\.js$/.test(file));
 
-  assert.equal(verifierFiles.length, 56, "verifier file count is 56");
+  assert.equal(verifierFiles.length, 57, "verifier file count is 57 after Phase 35B");
   assert.ok(employeeAuth.includes("FAILED_VERIFY_DELAY_MS") && !employeeAuth.includes("MAX_FAILURES") && !employeeAuth.includes("LOCKOUT_MINUTES"), "PIN failures use bounded delay without automatic lockout constants");
   assert.ok(employeeAuth.includes("PIN must be exactly 6 numeric digits"), "PIN policy is exactly six numeric digits");
   assert.ok(!employeeAuth.includes("lockedUntil: nowPlus") && employeeAuth.includes("lockedUntil: null"), "verification never writes an automatic credential lock");

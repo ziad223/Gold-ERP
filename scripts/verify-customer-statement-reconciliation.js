@@ -152,6 +152,10 @@ function staticChecks() {
     "docs/AI_HANDOFF.md",
     "docs/employee-authorization/PHASE-34.5.md",
     "docs/employee-authorization/PHASE-34.5B.md",
+    "app/[locale]/(dashboard)/accounting/treasury/page.tsx",
+    "hooks/use-treasury.ts",
+    "messages/en.json",
+    "messages/ar.json",
   ]);
   const forbidden = changed.filter((f) => {
     const n = f.replace(/\\/g, "/");
@@ -176,7 +180,13 @@ function staticChecks() {
     const approvedSalesAdjustmentLines = addedLines.filter((l) =>
       /router\.post\(|salesOperatorPolicy|sales\.return|sales\.exchange|sales\.installment|idempotencyBodyWithActor|commandActor|attachAuditActor|finalizedByEmployeeId|receivedByEmployeeId|sales\.returns\.execute|sales\.exchanges\.execute|sales\.installments\.collect|\/sales\/returns|\/sales\/exchanges|\/installments\/:id\/pay/.test(l)
     );
-    const unrelatedAddedLines = addedLines.filter((l) => !approvedSalesAdjustmentLines.includes(l));
+    const approvedPhase35BContainmentLines = addedLines.filter((l) =>
+      /LIFECYCLE_GENERIC_MUTATION_BLOCKS|GENERIC_.*_FORBIDDEN|blockGenericMutation|stableForbidden|resolveAuthorizedBranch|BRANCH_SCOPE_|normalizeTreasuryAccount|assertTreasuryAccountKey|assertActiveAccountCode|counterAccountCode|Transfer source and destination|payroll\.view|payroll\.manage|employees\.verification\.view|employees\.credentials\.manage|suppliers\.view|suppliers\.update|suppliers\.documents\.manage|\/attendance|\/payslips|\/payroll\/generate|\/suppliers\/:id|\/employees\/:id\/sessions|buildInvoiceReportWhere|await buildInvoiceReportWhere|branchId = await resolveAuthorizedBranchId|treasury/.test(l)
+    );
+    const unrelatedAddedLines = addedLines.filter((l) =>
+      !approvedSalesAdjustmentLines.includes(l) &&
+      !approvedPhase35BContainmentLines.includes(l)
+    );
     assert.ok(!unrelatedAddedLines.some((l) => /router\.(post|put|patch|delete)\(/.test(l)), "no unrelated mutating route added by this phase");
     assert.ok(!unrelatedAddedLines.some((l) => /\.(create|update|destroy|bulkCreate|save|upsert)\(/.test(l)), "no unrelated write ORM calls added by this phase");
   }

@@ -111,6 +111,10 @@ function verifyScope() {
     "backend/src/services/exchange-policy.service.js",
     "lib/exchange-policy.ts",
     "package.json",
+    "app/[locale]/(dashboard)/accounting/treasury/page.tsx",
+    "hooks/use-treasury.ts",
+    "messages/en.json",
+    "messages/ar.json",
     "docs/AI_HANDOFF.md",
     "docs/employee-authorization/PHASE-34.5.md",
     "docs/employee-authorization/PHASE-34.5B.md",
@@ -135,7 +139,8 @@ function verifyScope() {
         file !== "app/[locale]/(dashboard)/sales/page.tsx" &&
         file !== "app/[locale]/(dashboard)/sales/returns/page.tsx" &&
         file !== "app/[locale]/(dashboard)/sales/exchanges/page.tsx" &&
-        file !== "app/[locale]/(dashboard)/sales/installments/page.tsx") ||
+        file !== "app/[locale]/(dashboard)/sales/installments/page.tsx" &&
+        file !== "app/[locale]/(dashboard)/accounting/treasury/page.tsx") ||
       file.startsWith("features/dashboard")
     ),
     "dashboard/frontend reports were not rewritten",
