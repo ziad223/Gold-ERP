@@ -8,6 +8,7 @@ import { useOperator } from "@/contexts/operator-context";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { usePermissions } from "@/hooks/use-permissions";
 import { permissionMatches, routeRuleForPath } from "@/lib/permissions/module-access";
+import { EmployeeVerificationShell } from "@/components/operator/employee-verification-shell";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { hydrated, isAuthenticated, user } = useAuth();
@@ -41,18 +42,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const allowed = permissionMatches(required, hasPermission);
 
   if (branchAccountBusinessRoute && !operator.active) {
-    return (
-      <div className="grid min-h-screen place-items-center bg-background p-6">
-        <div className="max-w-md rounded-3xl border border-border bg-panel p-8 text-center shadow-soft">
-          <h1 className="text-xl font-black text-foreground">{locale === "ar" ? "اختر موظفًا للبدء" : "Select an employee to begin"}</h1>
-          <p className="mt-3 text-sm leading-7 text-muted-foreground">
-            {locale === "ar"
-              ? "سجل دخول حساب الفرع قائم. أدخل كود الموظف والرقم السري من الشريط العلوي لفتح الشاشات المسموح بها."
-              : "The Branch Account remains signed in. Enter an Employee Code and PIN from the top bar to open assigned screens."}
-          </p>
-        </div>
-      </div>
-    );
+    return <EmployeeVerificationShell />;
   }
 
   if ((branchAccountTechnicalRoute || (required && !allowed && !reservationAccountSettingsAccess))) {

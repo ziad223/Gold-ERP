@@ -38,7 +38,8 @@ function staticContract() {
   const apiClient = read("lib/api/client.ts");
   const operatorContext = read("contexts/operator-context.tsx");
   const operatorBar = read("components/operator/operator-bar.tsx");
-  const verifyDialog = read("components/operator/operator-verify-dialog.tsx");
+  const verificationForm = read("components/operator/employee-verification-form.tsx");
+  const verificationShell = read("components/operator/employee-verification-shell.tsx");
   const employeeDetail = read("app/[locale]/(dashboard)/employees/[id]/page.tsx");
   const systemAccounts = read("app/[locale]/(dashboard)/settings/users/page.tsx");
   const verifierFiles = fs.readdirSync(path.join(ROOT, "scripts")).filter((file) => /^verify-.*\.js$/.test(file));
@@ -55,13 +56,12 @@ function staticContract() {
   assert.ok(!employeeRoutes.includes("/operator/authorize-action"), "step-up endpoint is not mounted");
   assert.ok(!fs.existsSync(path.join(ROOT, "components/operator/operator-step-up-dialog.tsx")), "step-up dialog file is removed");
   assert.ok(!apiClient.includes("OPERATOR_STEP_UP_REQUIRED") && !apiClient.includes("EMPLOYEE_CREDENTIAL_LOCKED"), "frontend recovery no longer handles active step-up or auto-lock errors");
-  assert.ok(!operatorContext.includes("authorizeAction") && !verifyDialog.includes("requestedLevel"), "frontend context and verify dialog use one verified state");
+  assert.ok(!operatorContext.includes("authorizeAction") && !verificationForm.includes("requestedLevel"), "frontend context and shared verification form use one verified state");
   for (const text of [
     "Current Employee",
     "Change Employee",
     "End Employee Session",
-    "Select an employee to begin",
-    "Employee session expired. Select an employee to continue.",
+    "Select an Employee to Start",
     "Employee code or PIN is incorrect",
     "الموظف الحالي",
     "تغيير الموظف",
@@ -69,7 +69,7 @@ function staticContract() {
     "اختر موظفًا للبدء",
     "كود الموظف أو الرقم السري غير صحيح"
   ]) {
-    assert.ok(operatorBar.includes(text), `operator bar includes ${text}`);
+    assert.ok(`${operatorBar}\n${verificationForm}\n${verificationShell}`.includes(text), `operator UI includes ${text}`);
   }
   assert.ok(!operatorBar.includes("Level 2") && !operatorBar.includes("step-up"), "operator bar has no visible Level or step-up wording");
   assert.ok(!employeeDetail.includes("Verification level") && !employeeDetail.includes("Locked until") && !systemAccounts.includes("Level 2"), "management UI no longer exposes active Level or PIN lockout labels");

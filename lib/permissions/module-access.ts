@@ -59,3 +59,11 @@ export function permissionMatches(
 export function routeRuleForPath(pathname: string) {
   return ROUTE_PERMISSION_RULES.find((rule) => rule.pattern.test(pathname)) ?? null;
 }
+
+export function firstAllowedBusinessRoute(permissionNames: readonly string[]) {
+  const permissionSet = new Set(permissionNames);
+  return BUSINESS_ROUTE_PRIORITY.find((pathname) => {
+    const rule = routeRuleForPath(pathname);
+    return Boolean(rule?.branchBusiness && permissionMatches(rule.permission, (permission) => permissionSet.has(permission)));
+  }) ?? null;
+}

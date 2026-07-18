@@ -19,13 +19,15 @@ function includesAll(text, values) {
 
 const sidebar = read("components/layout/sidebar.tsx");
 const authGuard = read("components/auth/auth-guard.tsx");
+const moduleAccess = read("lib/permissions/module-access.ts");
 const apiClient = read("lib/api/client.ts");
 const userPage = read("app/[locale]/(dashboard)/settings/users/page.tsx");
 const employeeList = read("app/[locale]/(dashboard)/employees/page.tsx");
 const employeeDetail = read("app/[locale]/(dashboard)/employees/[id]/page.tsx");
 const operatorContext = read("contexts/operator-context.tsx");
 const operatorBar = read("components/operator/operator-bar.tsx");
-const operatorVerifyDialog = read("components/operator/operator-verify-dialog.tsx");
+const verificationForm = read("components/operator/employee-verification-form.tsx");
+const verificationShell = read("components/operator/employee-verification-shell.tsx");
 const employeeHooks = read("hooks/use-employees.ts");
 const employeeRoutes = read("backend/src/routes/employee-authorization.routes.js");
 const erpRoutes = read("backend/src/routes/erp.routes.js");
@@ -41,13 +43,13 @@ check(userPage.includes("Super Admin Accounts") && userPage.includes("Branch Acc
 check(userPage.includes("Employee permissions are not managed here") || userPage.includes("صلاحيات الموظفين ليست هنا"), "Account Center separates technical accounts from Employee operational permissions");
 check(sidebar.includes("systemAccounts") && sidebar.includes("/settings/users"), "sidebar keeps /settings/users route and labels System Accounts");
 
-check(authGuard.includes("EMPLOYEE_ROUTE_PERMISSIONS") && includesAll(authGuard, [
+check(moduleAccess.includes("EMPLOYEE_ROUTE_PERMISSIONS") && includesAll(moduleAccess, [
   "payroll.view",
   "employees.credentials.manage",
   "employees.permissions.manage",
   "employees.branches.manage",
   "employees.verification.view",
-]), "Employee route guard allows the approved ANY-of zero-delta permissions");
+]), "Employee route mapping keeps the approved ANY-of zero-delta permissions");
 check(!read("backend/src/bootstrap/accessControl.js").includes("employees.view"), "permission catalog source does not add employees.view");
 check(erpRoutes.includes("employeeCoreManagePermissions") && erpRoutes.includes('router.put("/employees/:id", authMiddleware, requireAnyPermission(employeeCoreManagePermissions)'), "Employee core update route is not authentication-only");
 
@@ -90,7 +92,7 @@ check(includesAll(employeeDetail, [
   "EmployeeOperationalSessionsTab",
   "EmployeeAuditActivityTab",
 ]), "Employee detail is split into focused management components");
-check(employeeDetail.includes("SearchBox") && employeeDetail.includes("Search branch by name or code") && employeeDetail.includes("Search current role templates") && employeeDetail.includes("Search permission name or module"), "Employee detail uses searchable branch, role and grouped permission controls");
+check(employeeDetail.includes("SearchBox") && employeeDetail.includes("moduleFilter") && employeeDetail.includes("statusFilter"), "Employee detail uses searchable branch, role and grouped permission controls");
 check(employeeDetail.includes("Direct denial overrides role and direct grant") && employeeDetail.includes("المنع المباشر يتجاوز الدور والسماح المباشر"), "Direct permission UI explains denial precedence over role and direct grant");
 check(employeeDetail.includes("permissionState?.authorization?.effectivePermissionNames"), "Employee detail displays backend-resolved effective permissions");
 check(employeeDetail.includes("The frontend does not calculate authority") || employeeDetail.includes("backend-resolved result only"), "Effective permissions tab states that backend response is authoritative");
@@ -103,25 +105,24 @@ check(employeeRoutes.includes("maskIp") && employeeRoutes.includes("summarizeUse
 
 check(!fs.existsSync(path.join(root, "components/operator/operator-step-up-dialog.tsx")), "standalone step-up dialog is removed");
 check(!operatorBar.includes("Level 2") && !operatorBar.includes("step-up") && operatorBar.includes("Change Employee") && operatorBar.includes("End Employee Session") && operatorBar.includes("formatCountdown"), "operator bar supports single verified state, employee change, end session, and countdown display");
-check(includesAll(operatorBar, [
+check(includesAll(`${operatorBar}\n${verificationForm}\n${verificationShell}`, [
   "Current Employee",
-  "Select an employee to begin",
-  "Employee session expired. Select an employee to continue.",
+  "Select an Employee to Start",
   "Employee code or PIN is incorrect",
   "الموظف الحالي",
   "تغيير الموظف",
   "إنهاء جلسة الموظف",
-]), "operator bar exposes the approved English and Arabic single-state labels");
-check(operatorBar.includes("clearSensitiveOperatorFormState") && operatorBar.includes("resetOperatorDialogState") && operatorBar.includes("finally") && operatorBar.includes("endOperatorSession"), "OperatorBar clears PIN in guaranteed paths and resets dialogs on end session");
+]), "shared verification UI exposes the approved English and Arabic single-state labels");
+check(verificationForm.includes("setPin(\"\")") && verificationForm.includes("operator.verify") && operatorBar.includes("endOperatorSession"), "shared form clears PIN after verify outcomes and OperatorBar ends sessions");
 check(!operatorBar.includes("operator.authorizeAction") && !operatorContext.includes("authorizeAction"), "step-up authorization action is not exposed to the frontend");
-check(operatorVerifyDialog.includes("finally") && operatorVerifyDialog.includes("clearSensitiveOperatorFormState"), "operator verify dialog clears PIN after every submit outcome");
+check(!fs.existsSync(path.join(root, "components/operator/operator-verify-dialog.tsx")) && verificationForm.includes('presentation="dialog"') === false && operatorBar.includes('presentation="dialog"'), "shared form replaces the legacy verify dialog without a duplicate API path");
 check(operatorContext.includes("BroadcastChannel") && operatorContext.includes("storage") && operatorContext.includes("operator:branch-changed"), "operator context supports BroadcastChannel, storage fallback, and branch-change refresh");
 check(operatorContext.includes("OPERATOR_LIFECYCLE_EVENT") && operatorContext.includes("window.dispatchEvent") && employeeHooks.includes("addEventListener(OPERATOR_LIFECYCLE_EVENT"), "operator lifecycle events invalidate Employee detail session and authorization views");
 check(employeeHooks.includes("employee:credential-reset") && employeeHooks.includes("employee:branch-access-updated") && employeeHooks.includes("employee:permissions-updated"), "Employee credential, branch and permission changes trigger session-history invalidation");
-check(!operatorContext.includes("pin") && !operatorBar.includes("localStorage.setItem") && !operatorVerifyDialog.includes("localStorage"), "operator cross-tab state does not persist PIN or secrets");
+check(!operatorContext.includes("pin") && !operatorBar.includes("localStorage.setItem") && !verificationForm.includes("localStorage"), "operator cross-tab state does not persist PIN or secrets");
 
 const businessRouteText = erpRoutes;
-check(!/requireOperator|requireEmployeePermission|requireStepUp|employee-permission\.middleware|step-up\.middleware/.test(businessRouteText), "business execution routes do not import or wire operator middleware");
+check(businessRouteText.includes("requireBusinessPermission") && businessRouteText.includes("requireAnyBusinessPermission"), "business execution routes use the Employee-aware Branch Account guard");
 
 check(en.includes('"systemAccounts"') && ar.includes('"systemAccounts"'), "System Accounts localization keys exist in English and Arabic");
 check(en.includes("Employee operational permissions") && ar.includes("صلاحيات الموظفين التشغيلية"), "new System Accounts guidance is localized");

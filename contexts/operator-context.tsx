@@ -12,7 +12,7 @@ interface OperatorContextValue {
   loading: boolean;
   reason?: string | null;
   refresh: () => Promise<void>;
-  verify: (input: OperatorVerifyInput) => Promise<void>;
+  verify: (input: OperatorVerifyInput) => Promise<EmployeeAuthorizationSummary | null>;
   lock: (reason?: string) => Promise<void>;
   endSession: (reason?: string) => Promise<void>;
 }
@@ -98,6 +98,7 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
       setActive(true);
       setReason(null);
       broadcast("operator:verified");
+      return result.data.authorization ?? null;
     } finally {
       setLoading(false);
     }
