@@ -4278,3 +4278,51 @@ reversals. Posting, receipt, assets, barcodes, inventory, accounting, treasury, 
 Liquidity Transfer, and transformation remain out of scope.
 
 MANUAL UI QA REQUIRED.
+
+## HF6D Closure Correction - Bounded HF6D-BQA Cleanup (2026-07-18)
+
+The prior HF6D documentation closure preceded the final clean-tree verification.
+The clean-tree suite then found one stale static assertion that expected
+`OperatorBar` to own a direct verification control. The approved architecture
+instead uses the shared `EmployeeVerificationForm` inline in the inactive
+Branch Account safe shell and in dialog mode for Change Employee. Verifier-only
+commit `b3a0491 test: align operator session verifier with shared employee
+verification` corrected that assertion without product, migration, permission,
+or other verifier changes. The clean committed tree passed the full `62/62`
+verifier suite.
+
+The final closure initially stopped because SELECT-only inspection found a
+retained, isolated `HF6D-BQA` QA namespace. A fresh pre-cleanup local backup
+was created and validated with `pg_restore -l`:
+`H:\WORK\jewellery-erp-master\backend\backups\darfus_erp_hf6d_bqa_cleanup_start_20260718_212942.dump`
+(`495041` bytes). Exact IDs were inventoried before deletion: one company, one
+branch, two technical Users, two Employees, two Employee credentials, two
+Employee branch-access rows, two direct grants, four verification attempts,
+three operator sessions, one technical session, and eight fixture-only audit
+rows. There were no fixture roles, role assignments, direct denials, code
+history, legacy Employee sessions, tokens, User roles, settings, customers,
+invoices, payments, products, inventory movements, journals, cash rows, or
+notifications. Every selected relationship was proven through exact primary
+keys/FKs; no real record or shared/global definition was selected.
+
+The local Docker database only (`localhost:5433 / darfus_erp`) was cleaned in
+one committed transaction. The dependency order was operator sessions,
+technical session, verification attempts, grants, branch access, credentials,
+fixture audit rows, Employees, Users, branch, and company. Pre-delete counts
+matched exactly and complete zero-count assertions passed before `COMMIT`.
+After cleanup, all `HF6D-BQA` company, branch, User, Employee, credential,
+authorization, session, audit, customer, inventory, and financial counts were
+zero. Migrations remain `44`, permissions remain `128`, and verifier files
+remain `62`.
+
+The authoritative final-clean backup is
+`H:\WORK\jewellery-erp-master\backend\backups\darfus_erp_hf6d_final_clean_20260718_213328.dump`
+(`492816` bytes), created from and validated against the same local Docker
+database with `pg_restore -l`. The prior backups remain preserved as historical
+evidence. No product or verifier source changed during cleanup; `next-env.d.ts`
+is clean, Production/Render was untouched, ports `3000`/`8000` are quiet, and
+the 11 existing stashes remain untouched.
+
+HF6D is now genuinely closed. NEXT TOOL START HERE: **HF6E - End-to-End Branch
+Login & Employee Access QA**. Do not start HF6E automatically, do not start
+NOTIF-PRE1, UX-PRE1, or Phase 35E, and do not deploy to Production.

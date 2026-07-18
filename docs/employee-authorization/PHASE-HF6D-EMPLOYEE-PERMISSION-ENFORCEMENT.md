@@ -106,3 +106,42 @@ Final backup: `H:\WORK\jewellery-erp-master\backend\backups\darfus_erp_hf6d_fina
 - Phase 35E inventory and purchase market MVP.
 - Account Center redesign, role-builder redesign, grouped permissions, and
   Employee email/password login.
+
+## Clean-Tree Closure Correction
+
+The initial documentation closure preceded the final clean-tree suite. That
+suite identified one stale static assertion in
+`scripts/verify-employee-operator-session.js`: it expected `OperatorBar` to
+contain a direct verify control. This was invalid after the approved HF6D
+architecture moved verification into the shared `EmployeeVerificationForm`,
+rendered inline in the inactive Branch Account safe shell and in dialog mode
+for Change Employee. Commit `b3a0491 test: align operator session verifier
+with shared employee verification` updated only that verifier. It preserves
+coverage for the inline form, centralized Code/PIN validation and API path,
+Change Employee dialog reuse, End Employee recovery shell, Super Admin
+separation, and no POS fallback. No product code changed.
+
+The clean committed tree then passed the full `62/62` verifier suite. The
+closure was temporarily blocked only by retained local `HF6D-BQA` browser-QA
+fixtures. After an exact FK/primary-key inventory and a validated pre-cleanup
+backup, those records were removed in one local transaction. The before /
+deleted / after matrix was: company `1/1/0`, branch `1/1/0`, Users `2/2/0`,
+Employees `2/2/0`, Employee credentials `2/2/0`, Employee branch access
+`2/2/0`, direct grants `2/2/0`, verification attempts `4/4/0`, operator
+sessions `3/3/0`, technical sessions `1/1/0`, and fixture audit rows `8/8/0`.
+Role assignments, direct denials, code history, legacy Employee sessions,
+tokens, User roles, and all inspected customer/business/inventory/financial
+rows were `0/0/0`. No real or shared row was selected.
+
+Pre-cleanup backup: `H:\WORK\jewellery-erp-master\backend\backups\darfus_erp_hf6d_bqa_cleanup_start_20260718_212942.dump`
+(`495041` bytes), validated with `pg_restore -l`. Authoritative final-clean
+backup: `H:\WORK\jewellery-erp-master\backend\backups\darfus_erp_hf6d_final_clean_20260718_213328.dump`
+(`492816` bytes), also validated with `pg_restore -l`. Both target only local
+Docker PostgreSQL at `localhost:5433 / darfus_erp`; Production/Render was not
+contacted. The historical HF6D backups remain intact.
+
+Final closure state: `44` migrations, `128` permissions, `62` verifier files,
+`62/62` clean-tree suite pass, zero `HF6D-BQA` namespace rows, clean
+`next-env.d.ts`, quiet ports `3000`/`8000`, and 11 untouched stashes. HF6D is
+closed. NEXT TOOL START HERE: **HF6E - End-to-End Branch Login & Employee
+Access QA**. Do not start it automatically.
