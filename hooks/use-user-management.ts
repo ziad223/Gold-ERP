@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { normalizeItems } from "@/lib/api/normalize";
 import { queryKeys } from "@/lib/query-keys";
+import { useAuth } from "@/contexts/auth-context";
 
 export interface ManagedRole {
   id: string;
@@ -54,15 +55,19 @@ export interface BranchOption {
 
 export function useUserManagement() {
   const queryClient = useQueryClient();
+  const { authReady, isAuthenticated, terminalAuthHandling } = useAuth();
+  const enabled = authReady && isAuthenticated && !terminalAuthHandling;
 
   const branchesQuery = useQuery({
     queryKey: queryKeys.branches,
     queryFn: async () => normalizeItems<BranchOption>(await apiClient("/branches?page=1&pageSize=100", { skipBranch: true })),
+    enabled,
   });
 
   const systemAccountsQuery = useQuery({
     queryKey: ["system-accounts"],
     queryFn: async () => normalizeItems<ManagedUser>(await apiClient("/system-accounts", { skipBranch: true })),
+    enabled,
   });
 
   const readinessQuery = useQuery({
@@ -71,6 +76,7 @@ export function useUserManagement() {
       const res = await apiClient<{ success: boolean; data: SystemAccountReadiness }>("/system-accounts/readiness", { skipBranch: true });
       return res.data;
     },
+    enabled,
   });
 
   const createSystemAccount = useMutation({

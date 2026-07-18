@@ -77,6 +77,8 @@ type RegisterError = "emailExists" | "workspaceExists";
 
 interface AuthContextValue {
   hydrated: boolean;
+  authReady: boolean;
+  terminalAuthHandling: boolean;
   isAuthenticated: boolean;
   user: DarfusUser | null;
   company: DarfusCompany | null;
@@ -87,6 +89,7 @@ interface AuthContextValue {
   login: (email: string, password: string, remember?: boolean) => Promise<{ ok: boolean; message?: string; forcePasswordChange?: boolean }>;
   register: (payload: RegistrationPayload) => Promise<{ ok: boolean; message?: RegisterError }>;
   logout: () => void;
+  beginTerminalAuthHandling: () => void;
   updateCompany: (updates: Partial<DarfusCompany>) => void;
   updateUser: (updates: Partial<DarfusUser>) => void;
 }
@@ -230,6 +233,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Shared state
   const [hydrated, setHydrated] = useState(false);
+  const [terminalAuthHandling, setTerminalAuthHandling] = useState(false);
   const [user, setUser] = useState<DarfusUser | null>(null);
   const [company, setCompany] = useState<DarfusCompany | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -338,6 +342,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           });
           if (!res.success) return { ok: false, message: "بيانات الدخول غير صحيحة" };
           saveApiSession(res.data, remember);
+          setTerminalAuthHandling(false);
           setToken(res.data.token);
           setUser(res.data.user);
           setCompany(res.data.company);
@@ -385,6 +390,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           });
           if (!res.success) return { ok: false };
           saveApiSession(res.data, true);
+          setTerminalAuthHandling(false);
           setToken(res.data.token);
           setUser(res.data.user);
           setCompany(res.data.company);
@@ -452,6 +458,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // ── Logout ─────────────────────────────────────────────────────────────────
 
   const logout = useCallback(() => {
+    void queryClient.cancelQueries();
     queryClient.clear();
     setUser(null);
     setCompany(null);
@@ -464,6 +471,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       window.sessionStorage.removeItem(SESSION_BROWSER_KEY);
     }
   }, [isApiMode, queryClient]);
+
+  const beginTerminalAuthHandling = useCallback(() => {
+    setTerminalAuthHandling(true);
+  }, []);
 
   // ── Profile updates ────────────────────────────────────────────────────────
 
@@ -510,6 +521,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<AuthContextValue>(
     () => ({
       hydrated,
+      authReady: hydrated && !terminalAuthHandling,
+      terminalAuthHandling,
       isAuthenticated: Boolean(user),
       user,
       company,
@@ -520,10 +533,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login,
       register,
       logout,
+      beginTerminalAuthHandling,
       updateCompany,
       updateUser,
     }),
-    [hydrated, user, company, token, activeBranch, activeBranchId, switchBranch, login, register, logout, updateCompany, updateUser],
+    [hydrated, terminalAuthHandling, user, company, token, activeBranch, activeBranchId, switchBranch, login, register, logout, beginTerminalAuthHandling, updateCompany, updateUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

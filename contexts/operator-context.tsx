@@ -15,6 +15,7 @@ interface OperatorContextValue {
   verify: (input: OperatorVerifyInput) => Promise<EmployeeAuthorizationSummary | null>;
   lock: (reason?: string) => Promise<void>;
   endSession: (reason?: string) => Promise<void>;
+  clearLocal: (reason?: string) => void;
 }
 
 const OperatorContext = createContext<OperatorContextValue | null>(null);
@@ -136,6 +137,14 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
     }
   }, [broadcast, operatorRepository]);
 
+  const clearLocal = useCallback((nextReason = "NOT_AUTHENTICATED") => {
+    setState(inactiveState);
+    setAuthorization(null);
+    setActive(false);
+    setReason(nextReason);
+    broadcast("operator:technical-session-ended");
+  }, [broadcast]);
+
   useEffect(() => {
     if (!token) {
       broadcast("auth:logout");
@@ -193,7 +202,8 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
     verify,
     lock,
     endSession,
-  }), [state, authorization, active, loading, reason, refresh, verify, lock, endSession]);
+    clearLocal,
+  }), [state, authorization, active, loading, reason, refresh, verify, lock, endSession, clearLocal]);
 
   return <OperatorContext.Provider value={value}>{children}</OperatorContext.Provider>;
 }

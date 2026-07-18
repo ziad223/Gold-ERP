@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
-import { clearDeviceSessionId, DarfusApiError, isOperatorRecoveryError } from "@/lib/api/client";
+import { DarfusApiError, isTerminalTechnicalAuthError, shouldRetryApiQuery } from "@/lib/api/client";
 import { AuthProvider } from "@/contexts/auth-context";
 import { ErpProvider } from "@/contexts/erp-context";
 import { OperatorProvider } from "@/contexts/operator-context";
 import { ThemeProvider } from "@/contexts/theme-context";
 
 import { SettingsProvider } from "@/contexts/settings-context";
+import { AuthSessionCoordinator } from "@/components/auth/auth-session-coordinator";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -21,27 +22,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
               toast.error(error.message, {
                 description: error.correlationId ? `Correlation ID: ${error.correlationId}` : undefined,
               });
-              if (error.status === 401 && !isOperatorRecoveryError(error)) {
-                // Session expired: clean session state and reload page after brief timeout
-                setTimeout(() => {
-                  window.localStorage.removeItem("darfus-session-v3");
-                  window.sessionStorage.removeItem("darfus-browser-session-v3");
-                  window.localStorage.removeItem("darfus-token-v1");
-                  window.localStorage.removeItem("darfus-refresh-v1");
-                  window.localStorage.removeItem("darfus-api-session-v1");
-                  window.sessionStorage.removeItem("darfus-token-v1");
-                  window.sessionStorage.removeItem("darfus-refresh-v1");
-                  window.sessionStorage.removeItem("darfus-api-session-v1");
-                  clearDeviceSessionId();
-                  window.location.reload();
-                }, 2000);
-              }
+              if (isTerminalTechnicalAuthError(error)) return;
             }
           },
         }),
         mutationCache: new MutationCache({
           onError: (error) => {
             if (error instanceof DarfusApiError) {
+              if (isTerminalTechnicalAuthError(error)) return;
               toast.error(error.message, {
                 description: error.correlationId ? `Correlation ID: ${error.correlationId}` : undefined,
               });
@@ -52,7 +40,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
           queries: {
             staleTime: 5 * 60 * 1000, // 5 minutes standard stale time
             refetchOnWindowFocus: false,
-            retry: 1,
+            retry: shouldRetryApiQuery,
+          },
+          mutations: {
+            retry: false,
           },
         },
       }),
@@ -65,6 +56,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <SettingsProvider>
             <ErpProvider>
               <OperatorProvider>
+                <AuthSessionCoordinator />
                 {children}
               </OperatorProvider>
               <Toaster position="top-right" richColors />

@@ -7,6 +7,8 @@ import { useErp } from "@/contexts/erp-context";
 import { apiClient } from "@/lib/api/client";
 import { normalizeItems, toFiniteNumber } from "@/lib/api/normalize";
 import { DATA_SOURCE } from "@/lib/data-source";
+import { useAuth } from "@/contexts/auth-context";
+import { useOptionalOperator } from "@/contexts/operator-context";
 import type {
   ApprovalRequest,
   Asset,
@@ -93,10 +95,13 @@ function numberStockMovement(m: StockMovement): StockMovement {
 
 function useApiItems<T>(key: string, path: string, skipBranch = false) {
   const locale = useLocale();
+  const { authReady, isAuthenticated, terminalAuthHandling, user } = useAuth();
+  const operator = useOptionalOperator();
+  const branchEmployeeReady = user?.accountType !== "branch_shell" || Boolean(operator?.active);
   return useQuery<T[]>({
     queryKey: [key],
     queryFn: async () => normalizeItems<T>(await apiClient(path, { locale, skipBranch })),
-    enabled: DATA_SOURCE === "api",
+    enabled: DATA_SOURCE === "api" && authReady && isAuthenticated && !terminalAuthHandling && branchEmployeeReady,
   });
 }
 

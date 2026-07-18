@@ -4461,3 +4461,229 @@ NEXT TOOL START HERE: **AUTH-1 — Production Session Propagation & Request-Stor
 Fix** after owner review and, before deployment decisions, one owner-controlled
 production login capture. Do not start AUTH-1, NOTIF-PRE1, UX-PRE1, or Phase 35E
 automatically. Do not deploy.
+
+## AUTH-1-PRE2 — Comprehensive Bearer Token, 401 Storm & SSE Security Audit (2026-07-18)
+
+This was a source-only, documentation-only audit. Starting state was clean
+`main` at `6a1f7eb1a7ee3933b6abf4f46bcdee2227816e75`, with 11 untouched stashes,
+44 migrations, 128 permissions, 62 verifier files, clean `next-env.d.ts`, and
+ports 3000/8000 quiet. No local service, database, fixture, session, browser,
+test, verifier, build, deployment, or Production mutation was performed. The
+only audit output is this additive handoff section.
+
+### Production safety gate
+
+The two previously exposed Production access tokens (including one from the SSE
+URL) are treated as compromised. They were not decoded, reused, copied, or
+recorded here. Owner confirmation that the affected technical sessions were
+revoked or the account password was changed has **not** been supplied.
+Accordingly, Production login/network capture is **BLOCKED PENDING OWNER SESSION
+REVOCATION**. The earlier unauthenticated observations remain historical evidence
+only; they do not prove the post-login propagation outcome.
+
+### Source map and Bearer contract
+
+| File | Responsibility | Token behavior / risk |
+| --- | --- | --- |
+| `backend/src/controllers/auth.controller.js` | login, refresh, logout responses | emits `data.token`, `data.refreshToken`, `data.user`, `data.company`; no auth cookie |
+| `contexts/auth-context.tsx` | login, hydrate, logout state | writes/reads canonical storage keys and safe session metadata; hydrates from storage without `/auth/me` |
+| `lib/api/client.ts` | central API transport and refresh | reads access token at request time, attaches Bearer, single-flights refresh, but replays any method once after refresh |
+| `app/providers.tsx` | React Query defaults / global errors | retries queries once and independently toasts/reloads terminal technical 401s |
+| `components/layout/header.tsx` / `hooks/use-core-erp-data.ts` | global header preloads | starts ten protected queries without an auth-ready gate |
+| `hooks/use-notifications.ts` | notification header data | starts list and unread-count queries without an auth-ready gate or polling interval |
+| `components/realtime-provider.tsx` | realtime client | reads storage independently and sends the access token in an EventSource query string |
+| `backend/src/routes/events.routes.js` | SSE endpoint | verifies JWT signature and User lookup only; bypasses persisted technical-session validation |
+| `backend/src/services/technical-session.service.js` / `backend/src/middleware/auth.middleware.js` | normal technical Bearer security | normal API path validates persisted session, expiry/revocation, passwordVersion, sessionVersion, and account activity |
+| `backend/src/app.js` / `backend/src/utils/logger.js` | production request logging | Morgan `combined` logs request URLs to unredacted Winston output, including SSE query strings |
+
+The field contract is aligned end to end: the backend returns `token` and
+`refreshToken`; `ApiAuthResponse` and `AuthProvider.login` expect the same names;
+`saveApiSession` persists them before setting React auth state; refresh returns
+the same envelope. No layer renames `token` to `accessToken`, and no source
+evidence shows a successful login can navigate before its storage write. The
+frontend has no active `/auth/me` call; server support for that endpoint exists,
+but reload hydration currently trusts the stored access token and safe user
+metadata.
+
+Canonical keys are `darfus-token-v1`, `darfus-refresh-v1`, and
+`darfus-api-session-v1`, written to localStorage for remembered sessions and
+sessionStorage otherwise. Login, API requests, refresh, logout, and terminal
+401 cleanup use those names. `RealtimeProvider` duplicates the access-key literal
+instead of using a shared storage module. The current `lib/api-client.ts` has no
+imports and is not an active request path. One raw logo-upload `fetch` manually
+adds the same Bearer header, but bypasses central refresh/terminal-error behavior.
+No storage-event cross-tab synchronization was found.
+
+### Hydration, protected queries, and terminal 401 lifecycle
+
+`AuthProvider` begins with `hydrated=false`, unauthenticated state, and no user.
+The dashboard layout composes `RealtimeProvider -> AppShell -> AuthGuard`;
+`AppShell` mounts `Header` before `AuthGuard` can redirect or show its shell.
+Header unconditionally calls `useCoreErpData` and `useNotifications`.
+
+| Time | Auth/layout state | Requests / consequence |
+| --- | --- | --- |
+| T0 | Auth not hydrated; AppShell/Header mounted | ten core ERP queries plus notification list and unread count are enabled solely by API mode |
+| T1 | Auth effect reads browser storage | stored token can be attached at request execution time, but no server-side validation or query gate exists |
+| T2 | No token or terminal invalid token | each protected query receives a final non-operator 401 after client refresh/retry handling |
+| T3 | QueryCache handles each final 401 independently | each handler toasts and schedules a two-second storage clear plus document reload; no coordinator or cancellation exists |
+| T4 | Reload / login redirect remounts shell | the same twelve global protected queries can start again |
+
+Settings loading is gated by `isAuthenticated`, but the Header preloads and
+notifications are not. `useAuditLogs` and `useUserManagement` also use API-mode
+or no `enabled` auth gating when their pages mount; page routes are normally
+behind `AuthGuard`, but they are not a protection model for globally mounted
+queries. `OperatorProvider` waits for an access token before calling
+`/operator/current`; that endpoint is passive (`touch:false`) and returns
+controlled inactive state for ordinary no-operator conditions.
+
+React Query defaults are `retry: 1`, `staleTime: 5m`, and
+`refetchOnWindowFocus: false`; no explicit reconnect policy, terminal-status
+retry predicate, query cancellation, or global terminal-401 deduplication was
+found. Notifications have no `refetchInterval`. The client refresh lock is
+single-flight, so concurrent qualifying 401s do not start multiple refresh calls,
+but all original requests are retried after a successful refresh.
+
+Minimum unauthenticated shell pressure is 12 protected queries. With the global
+one retry setting it is up to 24 protected request attempts per mount, excluding
+page queries, refresh attempts, navigation documents, and SSE. Rough source
+model: `12 base queries x 2 attempts x 30 reload/remount cycles = 720`, plus a
+small number of document/navigation or other requests, can approach the observed
+approximately 727 entries. Source proves the amplification mechanism but cannot
+prove the exact Production cycle count, preserved-log accumulation, or initiators
+without the gated owner-controlled capture.
+
+### Status boundaries and refresh findings
+
+Normal protected API calls use `Authorization: Bearer <access token>` at request
+time, only through the configured API base URL. Refresh posts the refresh token
+in JSON body to `/auth/refresh`; it rotates the persisted refresh secret and
+validates session revocation, expiry, passwordVersion, and sessionVersion.
+Refresh failure clears canonical browser auth storage. The access expiry default
+is 15 minutes and refresh expiry default is seven days; deployment values remain
+`CANNOT VERIFY`.
+
+| Category | Current behavior | Boundary assessment |
+| --- | --- | --- |
+| Technical missing/invalid/revoked session | generic 401, central client may refresh then terminal QueryCache clears/reloads | requires one coordinator and no terminal retry |
+| Employee required/expired/revoked/stale | recognized operator-recovery codes; technical storage is retained | correct technical-versus-operator separation |
+| Employee permission/direct denial/branch stale | controlled 403; no technical logout | correct boundary |
+| 403 account/permission | displayed through normal error path; no terminal cleanup | correct category |
+| Network failure | normalized to 503; no token clearing | correct category |
+| Backend 5xx | no token clearing or login redirect in client | correct category |
+
+`/operator/current` preserves Branch Account technical login and does not touch
+employee activity. Business middleware maps missing Employee session to
+`BRANCH_ACCOUNT_EMPLOYEE_REQUIRED`; stale credential/authorization and branch
+conditions remain controlled operator errors. No source evidence shows Employee
+staleness causes a technical logout, a 403 causes logout, or a network/5xx causes
+logout. Technical 401 payloads are generic rather than granular for client
+diagnostics, which is a P3 observability concern rather than a session-boundary
+defect.
+
+The refresh replay policy is unsafe for mutations: after a qualifying 401 and
+successful refresh, `lib/api/client.ts` retries the original request once without
+limiting methods to idempotent reads or proving a valid idempotency key. This is a
+source-proven **unsafe write replay risk** for POST/PUT/PATCH/DELETE, including
+financial or stock commands if the original request completed before its 401 was
+observed. No runtime duplicate transaction was created in this audit.
+
+### SSE security findings
+
+`RealtimeProvider` constructs `GET /events/stream?token=<access token>` from the
+access-token storage key. It retries a failed EventSource connection up to eight
+times, with the URL/token captured for the effect lifetime; refresh rotation does
+not itself rerender that effect. Cleanup closes the current stream and sets a
+closed flag, but reconnect timers are not retained for explicit cancellation.
+Logout normally changes company state and therefore runs cleanup; a terminal
+technical 401 relies on the later document reload.
+
+The backend accepts the query token (or Authorization fallback), verifies its JWT
+signature, and loads the User, but does **not** call
+`technicalSessions.assertAccessSession`. A revoked technical session,
+passwordVersion/sessionVersion change, or inactive-account state therefore does
+not terminate/reject an otherwise unexpired SSE JWT. The endpoint has no explicit
+per-user/session connection limit, uses an in-process client map, sends heartbeat
+events, and sets `Cache-Control: no-cache, no-transform` rather than `no-store`.
+
+| SSE risk | Evidence | Severity | Later safe options / trade-off |
+| --- | --- | --- | --- |
+| Access token in query string | frontend EventSource URL and backend query extraction | P0 | fetch-based streaming with Bearer header (recommended for evaluation) avoids URL credential but needs stream parsing/reconnect handling; single-use short-lived SSE ticket is an alternative |
+| Token reaches request logs | Morgan production `combined` logs the URL to unredacted Winston output | P0 | remove query token, redact sensitive query parameters, and set no-store; proxy/APM retention remains deployment verification |
+| SSE bypasses session revocation/version checks | route verifies JWT only, unlike normal auth middleware | P0 | route must share normal persisted technical-session validation before stream registration and close/revoke on invalidation |
+| Stale-token reconnect / bounded connection churn | effect depends on company, not token; retry timers are not explicitly cancelled | P2 | bind stream lifecycle to authenticated session generation, cancel timer, use one stream per tab/session |
+
+Helmet likely supplies a general referrer policy, but the SSE route does not set
+one explicitly and no Production proxy/APM/analytics configuration was inspected.
+Browser Network logs, copy/paste/screenshots, Render/proxy logs, and support
+bundles are credible exposure paths; browser history/referrer behavior cannot be
+fully asserted from source. Do not retain the token-in-URL design as a compensating
+control even with shorter expiry.
+
+### Deployment source audit
+
+Frontend source expects `NEXT_PUBLIC_DATA_SOURCE` and `NEXT_PUBLIC_API_URL`;
+there is no Next rewrite/proxy for API authentication and no cookie requirement.
+Backend source uses `NODE_ENV`, `JWT_SECRET`, `JWT_REFRESH_SECRET`,
+`JWT_ACCESS_EXPIRY`, `JWT_REFRESH_EXPIRY`, `CORS_ALLOWED_ORIGINS`, and
+`FRONTEND_URL`. Production secret values, CORS deployment state beyond the prior
+preflight observation, Vercel public environment values, Render proxy logging,
+and trust-proxy deployment behavior are all `CANNOT VERIFY IN DEPLOYMENT`.
+Production startup rejects missing/default/short JWT secrets by source logic.
+
+### Root-cause register and later bounded plan
+
+| ID | Finding | Source evidence | Runtime evidence | Severity | Smallest safe later fix |
+| --- | --- | --- | --- | --- | --- |
+| AUTH-01 | No token propagation defect proven | login fields, storage keys, and client use the same names | post-login capture blocked | P1 evidence gap | owner-revoked, clean-profile capture before any deployment conclusion |
+| AUTH-02 | `APP_SHELL_MOUNTS_BEFORE_AUTH` + `HEADER_PROTECTED_QUERIES_UNGATED` | layout/AppShell/Header and 12 queries | source proven | P2 | shared auth-ready gate for all protected queries and global preloads |
+| AUTH-03 | `RETRY_ON_TERMINAL_401` + `INDEPENDENT_RELOAD_TIMERS` | React Query retry and QueryCache timer per error | source proven | P2 | terminal-status retry predicate; one coordinator cancels queries, clears once, and performs one route redirect without reload |
+| AUTH-04 | `PROTECTED_QUERIES_NOT_CANCELLED` | no cancellation before reload/remount | source proven | P2 | cancel/invalidate protected query graph on terminal technical session failure |
+| AUTH-05 | `REFRESH_FLOW_DEFECT` | generic one-time retry preserves method/body | source proven | P0 | never transparently replay mutations; only retry proven-safe reads or explicit idempotency-key policy |
+| SSE-01 | `ACCESS_TOKEN_IN_QUERY_STRING` + `SSE_TOKEN_LOG_EXPOSURE` | EventSource URL, query parser, Morgan combined | source proven | P0 | replace query-token transport and redact sensitive URL logging |
+| SSE-02 | `SSE_AUTH_SCOPE_DEFECT` | SSE lacks persisted technical-session assertion | source proven | P0 | authenticate stream with same technical-session checks as normal API |
+| SSE-03 | `SSE_RECONNECT_WITH_STALE_TOKEN` | effect token lifecycle/timers | source proven | P2 | session-generation-aware stream lifecycle and cancellable backoff |
+
+**Later AUTH-1 core, design only:** centralize canonical auth storage; expose an
+explicit `authReady`/authenticated signal; gate Header/core/notification/page
+queries and realtime startup; add a status-aware query retry predicate that never
+retries terminal 401/403; add one terminal technical-401 coordinator that
+cancels protected queries, clears state once, and router-replaces login once;
+preserve all operator-recovery codes and Branch Account technical session
+boundaries; and prohibit automatic replay of mutations after refresh. Candidate
+files: `contexts/auth-context.tsx`, `lib/api/client.ts`, `app/providers.tsx`,
+`components/realtime-provider.tsx`, `components/layout/header.tsx`,
+`hooks/use-core-erp-data.ts`, `hooks/use-notifications.ts`, and other globally
+mounted protected hooks. No Cookie conversion, CORS change, rate-limit change,
+or business retry change is authorized by this audit.
+
+**Later AUTH-1-SSE, design only:** evaluate fetch-based streaming with the
+central Bearer client as the preferred no-URL-token transport; if browser stream
+parsing/reconnect compatibility is unsuitable, decide separately between a
+short-lived single-use SSE ticket and a header-capable EventSource polyfill.
+Change only `components/realtime-provider.tsx`, `backend/src/routes/events.routes.js`,
+the shared auth/session validation seam, and request-log redaction. Require
+normal technical-session validation, one scoped stream per tab/session,
+cancellable backoff, logout/session-change closure, no-store response headers,
+and deployment log-retention verification. Do not select a production transport
+or deploy until owner review.
+
+**Deferred NOTIF scope:** notification visual modernization, general toast queue
+policy, and success/info deduplication remain NOTIF-PRE1/NOTIF-1 work; they are
+not a substitute for the auth-specific terminal-401 coordinator.
+
+Later verifier/QA must prove login field/key alignment, request-time Bearer
+attachment, hydration gating before protected queries, no terminal-401 retry,
+one coordinator/no reload loop, cancellation, no mutation replay, operator
+versus technical-session separation, and 403/network/5xx boundaries. The SSE
+verifier must prove no access token occurs in a URL or logs, normal session
+revocation rejects/closes the stream, token rotation does not retain a stale
+stream, and logout closes it. Browser QA must cover Super Admin, Branch Account,
+Employee verify/stale/no-access/direct-denial, reload, terminal technical 401,
+403, offline, 5xx, logout, Arabic/English/mobile, and one reconnect. Local
+runtime and browser QA were **NOT RUN** here; no AUTH1-PRE2 fixtures exist.
+
+NEXT TOOL START HERE: Owner must first confirm revocation of the exposed
+Production technical sessions. Then create a separate bounded repair prompt from
+this evidence only; do not start AUTH-1, AUTH-1-SSE, NOTIF-PRE1, or deployment
+automatically.

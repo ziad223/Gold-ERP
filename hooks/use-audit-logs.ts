@@ -6,6 +6,7 @@ import { normalizePage } from "@/lib/api/normalize";
 import { DATA_SOURCE } from "@/lib/data-source";
 import { queryKeys } from "@/lib/query-keys";
 import { useLocale } from "next-intl";
+import { useAuth } from "@/contexts/auth-context";
 
 export interface AuditLogRow {
   id: string;
@@ -80,6 +81,7 @@ function buildAuditQueryString(q: AuditLogsQuery): string {
 export function useAuditLogs(queryState: AuditLogsQuery = { page: 1, pageSize: 20 }) {
   const locale = useLocale();
   const isApi = DATA_SOURCE === "api";
+  const { authReady, isAuthenticated, terminalAuthHandling } = useAuth();
 
   const query = useQuery({
     queryKey: [...queryKeys.auditLogs, queryState],
@@ -88,7 +90,7 @@ export function useAuditLogs(queryState: AuditLogsQuery = { page: 1, pageSize: 2
       const pageData = normalizePage<any>(res, { page: queryState.page, pageSize: queryState.pageSize });
       return { ...pageData, items: pageData.items.map(normalize) };
     },
-    enabled: isApi,
+    enabled: isApi && authReady && isAuthenticated && !terminalAuthHandling,
   });
 
   return {

@@ -25,6 +25,19 @@ export class DarfusApiError extends Error {
   }
 }
 
+export const AUTH_REFRESHED_RETRY_REQUIRED = "AUTH_REFRESHED_RETRY_REQUIRED";
+
+type TerminalAuthFailureHandler = (error: DarfusApiError) => void;
+
+let terminalAuthFailureHandler: TerminalAuthFailureHandler | null = null;
+
+export function registerTerminalAuthFailureHandler(handler: TerminalAuthFailureHandler): () => void {
+  terminalAuthFailureHandler = handler;
+  return () => {
+    if (terminalAuthFailureHandler === handler) terminalAuthFailureHandler = null;
+  };
+}
+
 // Simple UUID generator for correlation IDs
 export function generateUUID(): string {
   try {
@@ -122,14 +135,10 @@ async function refreshAccessToken(apiBaseUrl: string, locale: string): Promise<b
         });
         const text = await response.text();
         const payload = text ? JSON.parse(text) : null;
-        if (!response.ok || !payload?.data?.token || !payload?.data?.refreshToken) {
-          clearStoredApiAuth();
-          return false;
-        }
+        if (!response.ok || !payload?.data?.token || !payload?.data?.refreshToken) return false;
         writeStoredApiAuth(payload.data);
         return true;
       } catch {
-        clearStoredApiAuth();
         return false;
       } finally {
         refreshPromise = null;
@@ -137,6 +146,11 @@ async function refreshAccessToken(apiBaseUrl: string, locale: string): Promise<b
     })();
   }
   return refreshPromise;
+}
+
+function isSafeReadMethod(method?: string): boolean {
+  const normalized = (method || "GET").toUpperCase();
+  return normalized === "GET" || normalized === "HEAD" || normalized === "OPTIONS";
 }
 
 function readStoredBranchId(): string | undefined {
@@ -256,6 +270,17 @@ export async function apiClient<T>(path: string, options: ApiClientOptions = {})
     if (response.status === 401 && requestUsedAuth && !isAuthEndpoint && !operatorRecoveryRequired) {
       const refreshed = await refreshAccessToken(apiBaseUrl, options.locale || "ar");
       if (refreshed) {
+        if (!isSafeReadMethod(options.method)) {
+          throw new DarfusApiError(
+            409,
+            options.locale === "en"
+              ? "Your session was refreshed. Review the current state and retry this action manually."
+              : "تم تحديث الجلسة. راجع الحالة الحالية ثم أعد المحاولة يدويًا.",
+            undefined,
+            correlationId,
+            AUTH_REFRESHED_RETRY_REQUIRED,
+          );
+        }
         response = await execute();
         text = await response.text();
         try {
@@ -269,17 +294,21 @@ export async function apiClient<T>(path: string, options: ApiClientOptions = {})
     if (!response.ok) {
       const message = payload?.message || getFallbackErrorMessage(response.status, options.locale || "ar");
       const finalErrorCode = payload?.errorCode || payload?.code;
+      const finalOperatorRecoveryRequired = finalErrorCode ? OPERATOR_RECOVERY_CODES.has(finalErrorCode) : false;
       // Employee recovery errors belong to the operator shell, not technical
       // authentication. They must not erase the Branch Account session.
-      if (response.status === 401 && requestUsedAuth && !isAuthEndpoint && !operatorRecoveryRequired) clearStoredApiAuth();
       emitOperatorRecoverySignal(finalErrorCode);
-      throw new DarfusApiError(
+      const apiError = new DarfusApiError(
         response.status,
         message,
         payload?.errors,
         correlationId,
         finalErrorCode,
       );
+      if (isTerminalTechnicalAuthError(apiError, requestUsedAuth, isAuthEndpoint, finalOperatorRecoveryRequired)) {
+        terminalAuthFailureHandler?.(apiError);
+      }
+      throw apiError;
     }
 
     return payload as T;
@@ -309,6 +338,23 @@ const OPERATOR_RECOVERY_CODES = new Set([
 
 export function isOperatorRecoveryError(error: unknown): boolean {
   return error instanceof DarfusApiError && Boolean(error.errorCode && OPERATOR_RECOVERY_CODES.has(error.errorCode));
+}
+
+export function isTerminalTechnicalAuthError(
+  error: unknown,
+  requestUsedAuth = true,
+  isAuthEndpoint = false,
+  operatorRecoveryRequired?: boolean,
+): boolean {
+  if (!(error instanceof DarfusApiError) || error.status !== 401 || !requestUsedAuth || isAuthEndpoint) return false;
+  if (error.errorCode === AUTH_REFRESHED_RETRY_REQUIRED) return false;
+  return operatorRecoveryRequired === undefined ? !isOperatorRecoveryError(error) : !operatorRecoveryRequired;
+}
+
+export function shouldRetryApiQuery(failureCount: number, error: unknown): boolean {
+  if (failureCount >= 1) return false;
+  if (!(error instanceof DarfusApiError)) return true;
+  return error.status >= 500 && error.status <= 599;
 }
 
 export const OPERATOR_ACTION_REQUIRED_EVENT = "darfus-operator-action-required";
