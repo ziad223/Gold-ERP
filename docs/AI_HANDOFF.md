@@ -4373,3 +4373,91 @@ passed. Counts remain `44` migrations, `128` permissions, and `62` verifier
 files. Production/Render was untouched. NEXT TOOL START HERE:
 **NOTIF-PRE1 — Comprehensive Notification, Error Feedback & Performance
 Audit**. Do not start it automatically.
+
+## AUTH-PRE1 — Production Session Propagation & 401 Request-Storm Audit (2026-07-18)
+
+Audit-only starting baseline was clean `main` at
+`6f631d26a5356590ea35cde9c4dd5c5d0a01f00f`, with 11 untouched stashes,
+44 migrations, 128 permissions, 62 verifiers, clean `next-env.d.ts`, and no
+listeners on ports 3000/8000. No local services, database sessions, fixtures,
+tests, verifiers, builds, deployment settings, or Production data were changed.
+
+Production observations were read-only against
+`https://gold-erp-kappa.vercel.app` and
+`https://jewellery-erp-backend.onrender.com/api/v1`. `OPTIONS /assets` accepted
+the Vercel origin and explicitly allowed `Authorization`, `X-Branch-ID`, and
+`X-Device-Session-ID` with credentials. Unauthenticated requests to `/assets`,
+`/customers`, `/notifications?limit=20`, `/notifications/unread-count`, and
+`/auth/me` each returned `401 UNAUTHORIZED` with the generic expired/login-again
+message. This proves Render reachability and CORS allowance, not a valid
+technical session. The observed `/assets` request has no `Authorization` header;
+the backend bearer middleware rejects exactly that condition before any company,
+branch, or business-permission decision.
+
+The intended authentication mode is **Bearer token**, not Cookie session.
+`backend/src/controllers/auth.controller.js` returns access and refresh tokens in
+the JSON bodies of `/auth/login` and `/auth/refresh`; it does not set an auth
+Cookie. `backend/src/middleware/auth.middleware.js` accepts only
+`Authorization: Bearer <token>` and `technical-session.service.js` validates the
+JWT plus persisted `TechnicalAccountSession`, password/session versions, and
+revocation/expiry. `contexts/auth-context.tsx` writes the JSON tokens and safe
+session metadata to localStorage or sessionStorage; `lib/api/client.ts` reads the
+access token and attaches the Bearer header centrally. It uses a single-flight
+refresh only after a request that already carried a token returns 401. No
+`credentials: "include"` is present or required for this intended bearer design.
+The unrelated Vercel/Render domains and browser third-party-Cookie policy are
+therefore not the cause of the observed missing credential. `access-control-allow-
+credentials: true` is harmless but does not attach a Bearer header.
+
+The exact point at which a production token became absent after a claimed login
+cannot be proven without one owner-controlled login Network/Application capture:
+the audit did not submit credentials or inspect browser storage. That capture
+must confirm only the login status/envelope, no `Set-Cookie`, token presence
+category, storage-write result, and the next protected request header. Vercel
+runtime environment values and Render secret/session-store categories also remain
+`CANNOT VERIFY`; source requires frontend `NEXT_PUBLIC_DATA_SOURCE=api` and
+`NEXT_PUBLIC_API_URL`, and backend `NODE_ENV`, JWT secrets, and
+`CORS_ALLOWED_ORIGINS`/`FRONTEND_URL`. The production CORS preflight demonstrates
+that the configured allowed origin and allowed-header list currently include the
+observed frontend and Bearer header.
+
+The 401 request storm is source-proven independently of the missing-token origin.
+`app/[locale]/(dashboard)/layout.tsx` mounts `AppShell` before `AuthGuard`.
+`components/layout/header.tsx`, therefore mounted before the guard can redirect,
+unconditionally invokes `useCoreErpData` and `useNotifications`.
+`hooks/use-core-erp-data.ts` starts ten protected queries whenever data source is
+API, with no `hydrated`/`isAuthenticated`/technical-session gate; the Header also
+starts `/notifications` and `/notifications/unread-count` with no gate. One
+unauthenticated shell mount consequently starts 12 protected requests. React
+Query retries each once (`app/providers.tsx`), yielding up to 24 protected
+attempts before terminal query errors. Its global QueryCache handler independently
+toasts and schedules `window.location.reload()` after two seconds for every
+terminal non-operator 401; it neither debounces the terminal failure nor cancels
+the other queries. A reload remounts the same Header queries, so repeated reload
+cycles explain the observed hundreds of requests. There is no notification
+polling interval in `hooks/use-notifications.ts`; notifications contribute two
+initial/retry requests per cycle, not a timer-driven poll. Exact production count,
+initiators, redirect count, and login-storage outcome require a preserved-log,
+owner-controlled browser capture.
+
+Proposed AUTH-1 scope, design only: gate every protected query behind a shared
+technical `authReady && authenticated` state; prevent Header/notification data
+loads before that state; stop retrying terminal 401s; centralize terminal 401
+handling as one single-flight session-failure coordinator that clears/cancels once
+and performs one login redirect/message; preserve operator-recovery handling;
+then validate the production Bearer login/storage/header path and only correct
+deployment configuration if the owner-controlled capture proves it is wrong.
+Do not add Cookie authentication or change CORS merely because credentials are
+allowed. NOTIF-PRE1 remains paused until AUTH-1 is closed.
+
+Root-cause register: (1) `AUTHORIZATION_HEADER_MISSING` for the observed 401,
+P1, with post-login storage/propagation cause pending owner capture; (2)
+`MULTIPLE_CAUSES` request storm (`PROTECTED_QUERIES_RUN_UNAUTHENTICATED`,
+`QUERY_RETRY_ON_401`, and multiple independent terminal-401 reload timers), P2,
+source fix in AUTH-1. No authentication bypass, token exposure, Cookie rejection,
+or Render session-store defect was proven.
+
+NEXT TOOL START HERE: **AUTH-1 — Production Session Propagation & Request-Storm
+Fix** after owner review and, before deployment decisions, one owner-controlled
+production login capture. Do not start AUTH-1, NOTIF-PRE1, UX-PRE1, or Phase 35E
+automatically. Do not deploy.
