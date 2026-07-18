@@ -46,8 +46,8 @@ export default function ExchangesPage() {
 
   const dataSource = getDataSourceMode();
   const apiMode = dataSource === "api";
-  const usesEmployeeFirstSalesGate = accountType === "branch_shell" || accountType === "super_admin";
-  const canExecuteExchanges = usesEmployeeFirstSalesGate || hasPermission("sales.create");
+  const canExecuteExchanges = accountType === "super_admin"
+    || hasPermission("sales.exchanges.execute");
   const submitPermissionMessage = rtl
     ? "تنفيذ استبدال المبيعات يحتاج صلاحية استبدال المبيعات للموظف."
     : "Sales exchange submission requires Employee sales exchange permission.";

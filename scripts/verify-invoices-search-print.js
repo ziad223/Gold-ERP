@@ -123,7 +123,7 @@ function readOnlyEndpointAndFrontend() {
   const endpoint = routes.slice(start, end);
 
   assert.ok(endpoint.includes('router.get("/invoices/search-print"'), "backend endpoint is GET only");
-  assert.ok(endpoint.includes('requirePermission("sales.view")'), "endpoint uses sales.view permission");
+  assert.ok(endpoint.includes('requireBusinessPermission("sales.view")'), "endpoint uses Employee-aware sales.view permission");
   assert.ok(endpoint.includes("models.Invoice.count") && endpoint.includes("models.Invoice.findAll"), "endpoint uses read-only ORM calls");
   assert.ok(!/\.(create|update|destroy|save|bulkCreate|upsert|increment|decrement)\s*\(/.test(endpoint), "endpoint contains no ORM mutation calls");
   assert.ok(endpoint.includes("employeeFilter: false") && endpoint.includes("employeeName: null"), "employee capability is explicitly guarded, not invented");

@@ -148,6 +148,24 @@ function verifyScope() {
     "lib/types.ts",
     "lib/permissions/catalog.ts",
     "scripts/verify-exchange-summary-ui.js",
+    // HF6D: Employee-scoped Branch Account authorization and navigation.
+    "app/[locale]/(dashboard)/employees/[id]/page.tsx",
+    "app/[locale]/(dashboard)/pos/page.tsx",
+    "app/[locale]/(dashboard)/sales/exchanges/page.tsx",
+    "app/[locale]/(dashboard)/sales/installments/page.tsx",
+    "app/[locale]/(dashboard)/sales/returns/page.tsx",
+    "backend/src/middleware/business-permission.middleware.js",
+    "backend/src/routes/employee-authorization.routes.js",
+    "backend/src/services/operator-session.service.js",
+    "components/auth/auth-guard.tsx",
+    "components/layout/sidebar.tsx",
+    "contexts/operator-context.tsx",
+    "hooks/use-permissions.ts",
+    "lib/permissions/module-access.ts",
+    "lib/repositories/api-impl.ts",
+    "lib/repositories/interfaces.ts",
+    "lib/repositories/local-impl.ts",
+    "docs/employee-authorization/PHASE-HF6D-EMPLOYEE-PERMISSION-ENFORCEMENT.md",
   ]);
   for (const file of changed) {
     assert.ok(allowed.has(file), `unexpected changed file: ${file}`);

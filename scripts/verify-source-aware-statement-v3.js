@@ -55,7 +55,7 @@ assert.ok(/router\.get\(\s*['"]\/customers\/:id\/statement-v3['"]/.test(routesCo
 const routeIndex = routesContent.indexOf('router.get("/customers/:id/statement-v3"');
 assert.ok(routeIndex !== -1, "Route must be found");
 const routeSnippet = routesContent.slice(routeIndex, routeIndex + 500);
-assert.ok(routeSnippet.includes('requirePermission("customers.view")'), "Route must use customers.view permission");
+assert.ok(routeSnippet.includes('requireBusinessPermission("customers.view")'), "Route must use Employee-aware customers.view permission");
 
 // GET-only (no POST/PUT/PATCH/DELETE statement-v3)
 assert.ok(!/router\.(post|put|patch|delete)\(\s*['"]\/customers\/:id\/statement-v3['"]/i.test(routesContent), "Must not have write endpoints for statement-v3");

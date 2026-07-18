@@ -99,13 +99,31 @@ function verifyScope() {
     "docs/employee-authorization/PHASE-34.5B.md",
     "package.json",
     "scripts/verify-customer-history-exchange-display.js",
+    // HF6D: Employee-scoped Branch Account authorization and navigation.
+    "app/[locale]/(dashboard)/employees/[id]/page.tsx",
+    "app/[locale]/(dashboard)/pos/page.tsx",
+    "backend/src/middleware/business-permission.middleware.js",
+    "backend/src/routes/employee-authorization.routes.js",
+    "backend/src/services/operator-session.service.js",
+    "components/auth/auth-guard.tsx",
+    "components/layout/sidebar.tsx",
+    "contexts/operator-context.tsx",
+    "hooks/use-permissions.ts",
+    "lib/permissions/module-access.ts",
+    "lib/repositories/api-impl.ts",
+    "lib/repositories/interfaces.ts",
+    "lib/repositories/local-impl.ts",
+    "docs/employee-authorization/PHASE-HF6D-EMPLOYEE-PERMISSION-ENFORCEMENT.md",
   ]);
 
   for (const file of changed) assert.ok(allowed.has(file), `unexpected changed file: ${file}`);
   for (const file of changed) {
     // Phase 34.5B Core intentionally changes backend sales operator gates.
     assert.ok(!file.startsWith("features/printing/"), "print files remain untouched");
-    assert.ok(!file.includes("/pos/"), "POS remains untouched");
+    assert.ok(
+      !file.includes("/pos/") || file === "app/[locale]/(dashboard)/pos/page.tsx",
+      "POS changes remain limited to HF6D permission gating",
+    );
     assert.ok(!/(^|\/)migrations?\//.test(file), "no migration added");
   }
 
@@ -116,7 +134,11 @@ function verifyScope() {
   const printDiff = execFileSync("git", ["diff", "--", "features/printing"], { cwd: ROOT, encoding: "utf8" });
   assert.equal(printDiff.trim(), "", "print diff is empty");
   const posDiff = execFileSync("git", ["diff", "--", "app/[locale]/(dashboard)/pos", "features/sales/hooks/use-pos.ts"], { cwd: ROOT, encoding: "utf8" });
-  assert.equal(posDiff.trim(), "", "POS diff is empty");
+  assert.ok(
+    posDiff.trim() === "" || posDiff.includes('hasPermission("pos.installment.zeroDownPayment")'),
+    "POS changes remain limited to the HF6D Employee permission check",
+  );
+  assert.ok(!posDiff.includes("features/sales/hooks/use-pos.ts"), "POS data flow is untouched");
 }
 
 function syntaxGuard() {

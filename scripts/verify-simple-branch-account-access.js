@@ -79,7 +79,7 @@ function verifyStaticContract() {
   assert.ok(apiClient.includes("BRANCH_ACCOUNT_EMPLOYEE_REQUIRED") && apiClient.includes("EMPLOYEE_CREDENTIAL_REQUIRED"), "frontend catches expected employee-required errors");
 
   assert.ok(branchSwitcher.includes("isFixedBranchAccount") && authContext.includes("branchName") && authContext.includes("branchId !== fixedId"), "frontend locks Branch Account branch selection");
-  assert.ok(sidebar.includes("branchAccountAllowedRoutes") && sidebar.includes("operator.active"), "Branch Account navigation is allowlisted after Employee verification");
+  assert.ok(sidebar.includes("item.branchBusiness") && sidebar.includes("operator.active") && sidebar.includes("permissionMatches"), "Branch Account navigation is filtered by verified Employee permissions");
   for (const label of [
     "Branch Account",
     "Login email",

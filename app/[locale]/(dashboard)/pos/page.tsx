@@ -808,7 +808,7 @@ export default function PosPage() {
 
       if (dpNum === 0) {
         const zeroDownPaymentAllowed = settings?.allowZeroDownPayment || false;
-        const hasZeroDownPermission = user?.permissions?.includes("pos.installment.zeroDownPayment") || user?.role === "admin" || user?.role === "owner";
+        const hasZeroDownPermission = hasPermission("pos.installment.zeroDownPayment") || user?.role === "admin" || user?.role === "owner";
         if (!zeroDownPaymentAllowed && !hasZeroDownPermission) {
           setPricingError(rtl ? "البيع بالتقسيط يتطلب دفعة أولى بناءً على إعدادات النظام وصلاحيات المستخدم!" : "Installment checkout requires a down payment based on system settings and user permissions!");
           return;

@@ -41,7 +41,7 @@ function verifyBackendRoute() {
     "function normalizeCustomerCreditApplyPayload",
   );
 
-  assertIncludes(route, 'requirePermission("treasury.update")', "endpoint is protected by treasury.update");
+  assertIncludes(route, 'requireBusinessPermission("treasury.update", { touch: true })', "endpoint is protected by Employee-aware treasury.update");
   assertIncludes(route, "idempotency-key", "endpoint reads Idempotency-Key");
   assertIncludes(route, "Idempotency-Key", "endpoint reports missing Idempotency-Key clearly");
   assertIncludes(route, 'idemScope = "customer.credit_refund"', "endpoint uses customer.credit_refund scope");

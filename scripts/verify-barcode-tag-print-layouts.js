@@ -150,6 +150,10 @@ function scopeGuard() {
     "backend/src/bootstrap/accessControl.js",
     "backend/src/services/sales-operator-policy.service.js",
     "backend/src/services/system-account.service.js",
+    // HF6D Employee authorization hydration and Employee-aware business guard.
+    "backend/src/routes/employee-authorization.routes.js",
+    "backend/src/services/operator-session.service.js",
+    "backend/src/middleware/business-permission.middleware.js",
   ]);
   const forbiddenTouched = allChanged.filter((f) => !hotfixAllowed.has(f) && FORBIDDEN_AREAS.some((re) => re.test(f)));
   assert.deepEqual(forbiddenTouched, [], `phase must not touch backend/migrations/seeders/invoice-print templates (found: ${forbiddenTouched.join(", ")})`);

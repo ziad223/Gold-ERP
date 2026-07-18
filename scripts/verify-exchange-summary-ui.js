@@ -117,6 +117,21 @@ function verifyScope() {
     "docs/AI_HANDOFF.md",
     "docs/employee-authorization/PHASE-34.5.md",
     "docs/employee-authorization/PHASE-34.5B.md",
+    // HF6D: Employee-scoped Branch Account authorization and navigation.
+    "app/[locale]/(dashboard)/employees/[id]/page.tsx",
+    "app/[locale]/(dashboard)/pos/page.tsx",
+    "backend/src/middleware/business-permission.middleware.js",
+    "backend/src/routes/employee-authorization.routes.js",
+    "backend/src/services/operator-session.service.js",
+    "components/auth/auth-guard.tsx",
+    "components/layout/sidebar.tsx",
+    "contexts/operator-context.tsx",
+    "hooks/use-permissions.ts",
+    "lib/permissions/module-access.ts",
+    "lib/repositories/api-impl.ts",
+    "lib/repositories/interfaces.ts",
+    "lib/repositories/local-impl.ts",
+    "docs/employee-authorization/PHASE-HF6D-EMPLOYEE-PERMISSION-ENFORCEMENT.md",
   ]);
 
   for (const file of changed) assert.ok(allowed.has(file), `unexpected changed file: ${file}`);
@@ -124,7 +139,10 @@ function verifyScope() {
     assert.ok(!file.startsWith("features/printing/"), "print files remain untouched");
     // Phase 34.5B Core intentionally changes backend sales operator gates.
     assert.ok(!file.includes("/customers/"), "customer statement/history remains untouched");
-    assert.ok(!file.includes("/pos/"), "POS remains untouched");
+    assert.ok(
+      !file.includes("/pos/") || file === "app/[locale]/(dashboard)/pos/page.tsx",
+      "POS changes remain limited to HF6D permission gating",
+    );
     assert.ok(!/(^|\/)migrations?\//.test(file), "no migration added");
   }
 }

@@ -26,8 +26,8 @@ export default function InstallmentsPage() {
 
   const rtl = locale === "ar";
   const { items, loading, payInstallment } = useInstallments();
-  const usesEmployeeFirstSalesGate = accountType === "branch_shell" || accountType === "super_admin";
-  const canCollectInstallments = usesEmployeeFirstSalesGate || hasPermission("sales.create");
+  const canCollectInstallments = accountType === "super_admin"
+    || hasPermission("sales.installments.collect");
   const collectPermissionMessage = rtl
     ? "تحصيل الأقساط يحتاج صلاحية تحصيل الأقساط للموظف."
     : "Installment collection requires Employee installment collection permission.";

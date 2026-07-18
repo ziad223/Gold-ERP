@@ -89,7 +89,7 @@ assert.ok(!badRouteRegex.test(routesContent), "Must not have POST/PUT/PATCH/DELE
 const routeDefinitionIndex = routesContent.indexOf('router.get("/customers/:id/credit/reconciliation"');
 assert.ok(routeDefinitionIndex !== -1, "Could not find route definition start index");
 const routeSnippet = routesContent.slice(routeDefinitionIndex, routeDefinitionIndex + 500);
-assert.ok(routeSnippet.includes('requirePermission("customers.view")'), "Route must be guarded by customers.view");
+assert.ok(routeSnippet.includes('requireBusinessPermission("customers.view")'), "Route must be guarded by Employee-aware customers.view");
 
 // 5. Verify statement-v2 remains unchanged (falls back to ordinary doc math)
 const statementV2Index = routesContent.indexOf('router.get("/customers/:id/statement-v2"');
@@ -172,6 +172,26 @@ const allowedFiles = new Set([
   "docs/AI_HANDOFF.md",
   "docs/employee-authorization/PHASE-34.5.md",
   "docs/employee-authorization/PHASE-34.5B.md",
+  // HF6D Employee permission enforcement keeps customer-credit behavior but
+  // legitimately changes the shared Employee authorization boundary.
+  "backend/src/routes/employee-authorization.routes.js",
+  "backend/src/services/operator-session.service.js",
+  "backend/src/middleware/business-permission.middleware.js",
+  "app/[locale]/(dashboard)/employees/[id]/page.tsx",
+  "app/[locale]/(dashboard)/pos/page.tsx",
+  "app/[locale]/(dashboard)/sales/returns/page.tsx",
+  "app/[locale]/(dashboard)/sales/exchanges/page.tsx",
+  "app/[locale]/(dashboard)/sales/installments/page.tsx",
+  "components/auth/auth-guard.tsx",
+  "components/layout/sidebar.tsx",
+  "contexts/operator-context.tsx",
+  "hooks/use-permissions.ts",
+  "lib/repositories/api-impl.ts",
+  "lib/repositories/interfaces.ts",
+  "lib/repositories/local-impl.ts",
+  "lib/types.ts",
+  "lib/permissions/module-access.ts",
+  "docs/employee-authorization/PHASE-HF6D-EMPLOYEE-PERMISSION-ENFORCEMENT.md",
 ]);
 
 const forbiddenFiles = changedFiles.filter((file) => {

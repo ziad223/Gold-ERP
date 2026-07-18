@@ -51,9 +51,9 @@ export function permissionMatches(
   hasPermission: (permission: string) => boolean,
 ) {
   if (!requirement) return true;
-  return Array.isArray(requirement)
-    ? requirement.some((permission) => hasPermission(permission))
-    : hasPermission(requirement);
+  return typeof requirement === "string"
+    ? hasPermission(requirement)
+    : requirement.some((permission) => hasPermission(permission));
 }
 
 export function routeRuleForPath(pathname: string) {

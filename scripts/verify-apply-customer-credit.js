@@ -41,7 +41,7 @@ function verifyBackendRoute() {
     'router.post("/customers/:id/credit/deposit"',
   );
 
-  assertIncludes(route, 'requirePermission("sales.create")', "endpoint is protected by sales.create");
+  assertIncludes(route, 'requireBusinessPermission("sales.create", { touch: true })', "endpoint is protected by Employee-aware sales.create");
   assertIncludes(route, "idempotency-key", "endpoint reads Idempotency-Key");
   assertIncludes(route, "Idempotency-Key", "endpoint reports missing Idempotency-Key clearly");
   assertIncludes(route, 'idemScope = "customer.credit_apply"', "endpoint uses customer.credit_apply scope");

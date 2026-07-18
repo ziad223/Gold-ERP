@@ -40,8 +40,8 @@ export default function ReturnsPage() {
 
   const dataSource = getDataSourceMode();
   const apiMode = dataSource === "api";
-  const usesEmployeeFirstSalesGate = accountType === "branch_shell" || accountType === "super_admin";
-  const canExecuteReturns = usesEmployeeFirstSalesGate || hasPermission("sales.create");
+  const canExecuteReturns = accountType === "super_admin"
+    || hasPermission("sales.returns.execute");
   const submitPermissionMessage = rtl
     ? "تنفيذ مرتجع المبيعات يحتاج صلاحية مرتجعات المبيعات للموظف."
     : "Sales return submission requires Employee sales return permission.";

@@ -92,9 +92,9 @@ function verifyScopeHardening() {
 function verifySensitiveReadGuards() {
   assertContains(erpRoutes, 'router.get("/employees/:id/sessions", authMiddleware, requirePermission("employees.verification.view")', "employee sessions read is guarded");
   assertContains(erpRoutes, 'router.delete("/employees/:id/sessions/:sessionId", authMiddleware, requirePermission("employees.credentials.manage")', "employee session revoke is guarded");
-  assertContains(erpRoutes, 'router.get("/suppliers/:id/purchase-orders", authMiddleware, requirePermission("suppliers.view")', "supplier purchase-orders read is guarded");
-  assertContains(erpRoutes, 'router.get("/suppliers/:id/consignments", authMiddleware, requirePermission("suppliers.view")', "supplier consignments read is guarded");
-  assertContains(erpRoutes, 'router.get("/suppliers/:id/documents", authMiddleware, requirePermission("suppliers.view")', "supplier documents read is guarded");
+  assertContains(erpRoutes, 'router.get("/suppliers/:id/purchase-orders", authMiddleware, requireBusinessPermission("suppliers.view")', "supplier purchase-orders read uses Employee-aware guard");
+  assertContains(erpRoutes, 'router.get("/suppliers/:id/consignments", authMiddleware, requireBusinessPermission("suppliers.view")', "supplier consignments read uses Employee-aware guard");
+  assertContains(erpRoutes, 'router.get("/suppliers/:id/documents", authMiddleware, requireBusinessPermission("suppliers.view")', "supplier documents read uses Employee-aware guard");
   assertContains(erpRoutes, 'router.post("/suppliers/:id/documents", authMiddleware, requireAnyPermission(["suppliers.update", "suppliers.documents.manage"])', "supplier document upload is guarded before upload handling");
   assertContains(erpRoutes, 'router.delete("/suppliers/:id/documents/:docId", authMiddleware, requireAnyPermission(["suppliers.update", "suppliers.documents.manage"])', "supplier document delete is guarded");
 }

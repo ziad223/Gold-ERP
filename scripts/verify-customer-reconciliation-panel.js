@@ -94,6 +94,22 @@ const allowedFiles = new Set([
   "docs/AI_HANDOFF.md",
   "docs/employee-authorization/PHASE-34.5.md",
   "docs/employee-authorization/PHASE-34.5B.md",
+  // HF6D: Employee-scoped Branch Account authorization and navigation.
+  "app/[locale]/(dashboard)/employees/[id]/page.tsx",
+  "app/[locale]/(dashboard)/pos/page.tsx",
+  "backend/src/middleware/business-permission.middleware.js",
+  "backend/src/routes/employee-authorization.routes.js",
+  "backend/src/services/operator-session.service.js",
+  "components/auth/auth-guard.tsx",
+  "components/layout/sidebar.tsx",
+  "contexts/operator-context.tsx",
+  "hooks/use-permissions.ts",
+  "lib/permissions/module-access.ts",
+  "lib/types.ts",
+  "lib/repositories/api-impl.ts",
+  "lib/repositories/interfaces.ts",
+  "lib/repositories/local-impl.ts",
+  "docs/employee-authorization/PHASE-HF6D-EMPLOYEE-PERMISSION-ENFORCEMENT.md",
 ]);
 
 const forbiddenFiles = changedFiles.filter((file) => {

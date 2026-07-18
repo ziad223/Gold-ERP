@@ -745,12 +745,31 @@ function EmployeeDirectPermissionsTab({
   setPermissionReason: (value: string) => void;
 }) {
   const [search, setSearch] = useState("");
+  const [moduleFilter, setModuleFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "role" | "grant" | "denial" | "effective">("all");
+  const [openModules, setOpenModules] = useState<string[]>([]);
   const options = toPermissionOptions(permissionState);
   const sources = permissionSourceMap(permissionState);
   const uiLocale = rtl ? "ar" : "en";
+  const modules = [...new Set(options.map((permission) => permission.module || groupPermissionName(permission.name)))].sort();
+  const counts = {
+    role: permissionState?.authorization?.rolePermissionNames?.length ?? 0,
+    grants: grantPermissionIds.length,
+    denials: denialPermissionIds.length,
+    effective: permissionState?.authorization?.effectivePermissionNames?.length ?? 0,
+  };
   const filtered = options.filter((permission) => {
     const meta = permissionMeta(permission.name);
-    return `${permission.name} ${meta.label[uiLocale]} ${meta.description[uiLocale]} ${meta.module[uiLocale]}`.toLowerCase().includes(search.toLowerCase());
+    const source = sources.get(permission.name);
+    const matchesText = `${permission.name} ${meta.label[uiLocale]} ${meta.description[uiLocale]} ${meta.module[uiLocale]}`.toLowerCase().includes(search.toLowerCase());
+    const moduleName = permission.module || groupPermissionName(permission.name);
+    const matchesModule = moduleFilter === "all" || moduleName === moduleFilter;
+    const matchesStatus = statusFilter === "all"
+      || (statusFilter === "role" && Boolean(source?.role))
+      || (statusFilter === "grant" && grantPermissionIds.includes(permission.id))
+      || (statusFilter === "denial" && denialPermissionIds.includes(permission.id))
+      || (statusFilter === "effective" && Boolean(source?.effective));
+    return matchesText && matchesModule && matchesStatus;
   });
   const grouped = filtered.reduce<Record<string, PermissionOption[]>>((acc, permission) => {
     const group = permission.module || groupPermissionName(permission.name);
@@ -776,13 +795,35 @@ function EmployeeDirectPermissionsTab({
         {rtl ? "المنع المباشر يتجاوز الدور والسماح المباشر. اختيار السماح أو المنع هنا يضبط الحالة المباشرة لهذه الصلاحية." : "Direct denial overrides role and direct grant. Selecting grant or denial here adjusts the direct state for that permission."}
       </p>
       <div className="mt-5 space-y-4">
-        <SearchBox value={search} onChange={setSearch} placeholder={rtl ? "ابحث باسم الصلاحية أو الوحدة" : "Search permission name or module"} />
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Metric label={rtl ? "من الدور" : "From role"} value={String(counts.role)} />
+          <Metric label={rtl ? "سماح مباشر" : "Direct grants"} value={String(counts.grants)} />
+          <Metric label={rtl ? "منع مباشر" : "Direct denials"} value={String(counts.denials)} />
+          <Metric label={rtl ? "فعالة" : "Effective"} value={String(counts.effective)} />
+        </div>
+        <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_180px_180px]">
+          <SearchBox value={search} onChange={setSearch} placeholder={rtl ? "ابحث بالاسم أو الكود" : "Search label or code"} />
+          <select className="input-base" value={moduleFilter} onChange={(event) => setModuleFilter(event.target.value)}>
+            <option value="all">{rtl ? "كل الوحدات" : "All modules"}</option>
+            {modules.map((module) => <option key={module} value={module}>{permissionModuleLabel(module, uiLocale)}</option>)}
+          </select>
+          <select className="input-base" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}>
+            <option value="all">{rtl ? "كل الحالات" : "All sources"}</option>
+            <option value="role">{rtl ? "من الدور" : "Role"}</option>
+            <option value="grant">{rtl ? "سماح مباشر" : "Direct grant"}</option>
+            <option value="denial">{rtl ? "منع مباشر" : "Direct denial"}</option>
+            <option value="effective">{rtl ? "فعالة" : "Effective"}</option>
+          </select>
+        </div>
         <input className="input-base" value={permissionReason} onChange={(event) => setPermissionReason(event.target.value)} placeholder={rtl ? "سبب تغيير الصلاحيات" : "Permission change reason"} />
         <div className="space-y-4">
           {Object.entries(grouped).map(([module, permissions]) => (
             <div key={module} className="rounded-2xl border border-border p-3">
-              <p className="text-xs font-black uppercase text-muted-foreground">{permissionModuleLabel(module, uiLocale)}</p>
-              <div className="mt-3 space-y-2">
+              <button type="button" onClick={() => setOpenModules((current) => current.includes(module) ? current.filter((value) => value !== module) : [...current, module])} className="flex w-full items-center justify-between gap-3 text-start text-xs font-black uppercase text-muted-foreground">
+                <span>{permissionModuleLabel(module, uiLocale)}</span>
+                <span>{permissions.length} {rtl ? "صلاحية" : "permissions"} {openModules.includes(module) ? "−" : "+"}</span>
+              </button>
+              {(openModules.includes(module) || Boolean(search) || moduleFilter !== "all" || statusFilter !== "all") && <div className="mt-3 space-y-2">
                 {permissions.map((permission) => (
                   <div key={permission.id} className="grid gap-2 rounded-xl p-2 text-xs hover:bg-background sm:grid-cols-[minmax(0,1fr)_auto_auto]">
                     <span className="min-w-0">
@@ -798,14 +839,14 @@ function EmployeeDirectPermissionsTab({
                     <label className="inline-flex items-center gap-2 text-rose-700"><input disabled={!canManage} type="checkbox" checked={denialPermissionIds.includes(permission.id)} onChange={(event) => toggleDenial(permission, event.target.checked)} /> {rtl ? "منع مباشر" : "Direct denial"}</label>
                   </div>
                 ))}
-              </div>
+              </div>}
             </div>
           ))}
           {!options.length && <p className="rounded-2xl bg-background p-4 text-xs text-muted-foreground">{rtl ? "كتالوج الصلاحيات المركزي فارغ." : "The central assignable permission catalog is empty."}</p>}
           {options.length > 0 && !filtered.length && <p className="rounded-2xl bg-background p-4 text-xs text-muted-foreground">{rtl ? "لا توجد صلاحيات مطابقة للبحث." : "No permissions match the search."}</p>}
         </div>
         {canManage ? (
-          <div className="flex justify-end gap-2">
+          <div className="sticky bottom-3 flex justify-end gap-2 rounded-xl border border-border bg-card/95 p-2 backdrop-blur">
             <Button type="button" variant="secondary" onClick={() => {
               setGrantPermissionIds(permissionState?.grants?.map((permission) => permission.id) ?? []);
               setDenialPermissionIds(permissionState?.denials?.map((permission) => permission.id) ?? []);

@@ -90,7 +90,7 @@ function staticContract() {
     assertIncludes(routes, guardToken, `guard ${routeToken}`);
   }
 
-  assertIncludes(routes, 'requireAnyPermission(["pos.view", "pos.sell"])', "POS read-only compatibility");
+  assertIncludes(routes, 'requireAnyBusinessPermission(["pos.view", "pos.sell"])', "POS read-only compatibility uses Employee permission enforcement");
   assertIncludes(routes, "GENERIC_INVOICE_MUTATION_FORBIDDEN", "generic invoice mutation bypass closure");
   assertIncludes(routes, "POS_DISCOUNT_APPROVAL_REQUIRED", "discount override denial");
   assertIncludes(routes, "OFFICIAL_PRINT_ALREADY_AUTHORIZED", "official print duplicate denial");
@@ -101,11 +101,9 @@ function staticContract() {
   assertIncludes(routes, "receivedByEmployeeId: commandActor.employeeId || null", "payment receiver attribution");
   assertIncludes(routes, "commandActorContext.attachAuditActor", "dual audit actor propagation");
   assertIncludes(routes, "permissionService.userHasPermission(req.user, \"pos.discount.approve\")", "discount technical permission DB resolution");
-  assertIncludes(authGuard, "salesPosOperatorRouteAccess", "frontend Sales/POS operator route compatibility gate");
-  assertIncludes(authGuard, 'user?.accountType === "branch_shell"', "frontend Branch Shell Sales/POS route access");
-  assertIncludes(authGuard, 'user?.accountType === "super_admin"', "frontend Super Admin Sales/POS route access");
-  assertIncludes(authGuard, '/^\\/pos(?:\\/|$)/', "frontend POS route compatibility scope");
-  assertIncludes(authGuard, '/^\\/sales(?:\\/|$)/', "frontend Sales route compatibility scope");
+  assertIncludes(authGuard, "routeRuleForPath", "frontend route permission mapping is centralized");
+  assertIncludes(authGuard, "branchAccountBusinessRoute", "frontend Branch Account business route gate");
+  assertIncludes(authGuard, "operator.active", "frontend business routes require a verified Employee");
 
   for (const excluded of [
     'requireSalesOperator("sales.return"',
