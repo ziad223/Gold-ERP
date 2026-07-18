@@ -232,9 +232,11 @@ export async function apiClient<T>(path: string, options: ApiClientOptions = {})
   const mergedHeaders = { ...headers, ...options.headers };
 
   try {
+    let requestUsedAuth = false;
     const execute = () => {
       const latestToken = readStoredToken() ?? options.token;
       const requestHeaders: Record<string, string> = { ...(mergedHeaders as Record<string, string>) };
+      requestUsedAuth = Boolean(latestToken);
       if (latestToken) requestHeaders.Authorization = `Bearer ${latestToken}`;
       return fetch(`${apiBaseUrl}${path}`, { ...options, headers: requestHeaders });
     };
@@ -250,7 +252,8 @@ export async function apiClient<T>(path: string, options: ApiClientOptions = {})
 
     const isAuthEndpoint = path.startsWith("/auth/login") || path.startsWith("/auth/refresh") || path.startsWith("/auth/forgot-password") || path.startsWith("/auth/reset-password") || path.startsWith("/auth/validate-reset-token");
     const errorCode = payload?.errorCode || payload?.code;
-    if (response.status === 401 && !isAuthEndpoint && errorCode !== "OPERATOR_SESSION_REQUIRED") {
+    const operatorRecoveryRequired = errorCode ? OPERATOR_RECOVERY_CODES.has(errorCode) : false;
+    if (response.status === 401 && requestUsedAuth && !isAuthEndpoint && !operatorRecoveryRequired) {
       const refreshed = await refreshAccessToken(apiBaseUrl, options.locale || "ar");
       if (refreshed) {
         response = await execute();
@@ -266,7 +269,9 @@ export async function apiClient<T>(path: string, options: ApiClientOptions = {})
     if (!response.ok) {
       const message = payload?.message || getFallbackErrorMessage(response.status, options.locale || "ar");
       const finalErrorCode = payload?.errorCode || payload?.code;
-      if (response.status === 401 && !isAuthEndpoint) clearStoredApiAuth();
+      // Employee recovery errors belong to the operator shell, not technical
+      // authentication. They must not erase the Branch Account session.
+      if (response.status === 401 && requestUsedAuth && !isAuthEndpoint && !operatorRecoveryRequired) clearStoredApiAuth();
       emitOperatorRecoverySignal(finalErrorCode);
       throw new DarfusApiError(
         response.status,
@@ -301,6 +306,10 @@ const OPERATOR_RECOVERY_CODES = new Set([
   "EMPLOYEE_BRANCH_ACCESS_DENIED",
   "EMPLOYEE_CREDENTIAL_REQUIRED",
 ]);
+
+export function isOperatorRecoveryError(error: unknown): boolean {
+  return error instanceof DarfusApiError && Boolean(error.errorCode && OPERATOR_RECOVERY_CODES.has(error.errorCode));
+}
 
 export const OPERATOR_ACTION_REQUIRED_EVENT = "darfus-operator-action-required";
 

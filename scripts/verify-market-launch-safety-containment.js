@@ -95,8 +95,8 @@ function verifySensitiveReadGuards() {
   assertContains(erpRoutes, 'router.get("/suppliers/:id/purchase-orders", authMiddleware, requireBusinessPermission("suppliers.view")', "supplier purchase-orders read uses Employee-aware guard");
   assertContains(erpRoutes, 'router.get("/suppliers/:id/consignments", authMiddleware, requireBusinessPermission("suppliers.view")', "supplier consignments read uses Employee-aware guard");
   assertContains(erpRoutes, 'router.get("/suppliers/:id/documents", authMiddleware, requireBusinessPermission("suppliers.view")', "supplier documents read uses Employee-aware guard");
-  assertContains(erpRoutes, 'router.post("/suppliers/:id/documents", authMiddleware, requireAnyPermission(["suppliers.update", "suppliers.documents.manage"])', "supplier document upload is guarded before upload handling");
-  assertContains(erpRoutes, 'router.delete("/suppliers/:id/documents/:docId", authMiddleware, requireAnyPermission(["suppliers.update", "suppliers.documents.manage"])', "supplier document delete is guarded");
+  assertContains(erpRoutes, 'router.post("/suppliers/:id/documents", authMiddleware, requireAnyBusinessPermission(["suppliers.update", "suppliers.documents.manage"], { touch: true })', "supplier document upload is Employee-aware before upload handling");
+  assertContains(erpRoutes, 'router.delete("/suppliers/:id/documents/:docId", authMiddleware, requireAnyBusinessPermission(["suppliers.update", "suppliers.documents.manage"], { touch: true })', "supplier document delete is Employee-aware");
 }
 
 function verifyTreasuryUiContract() {

@@ -5,20 +5,12 @@ import { useLocale } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { EmployeeVerificationForm } from "@/components/operator/employee-verification-form";
-import { firstAllowedBusinessRoute } from "@/lib/permissions/module-access";
-import type { EmployeeAuthorizationSummary } from "@/lib/types";
 
 export function EmployeeVerificationShell() {
   const locale = useLocale();
   const rtl = locale === "ar";
   const router = useRouter();
   const { logout } = useAuth();
-
-  const handleVerified = (authorization: EmployeeAuthorizationSummary | null) => {
-    const permissionNames = authorization?.effectivePermissionNames ?? authorization?.effectivePermissions ?? [];
-    const firstRoute = firstAllowedBusinessRoute(permissionNames);
-    if (firstRoute) router.replace(firstRoute);
-  };
 
   const signOut = () => {
     void logout();
@@ -31,7 +23,7 @@ export function EmployeeVerificationShell() {
         <h1 className="text-xl font-black text-foreground">{rtl ? "اختر موظفًا للبدء" : "Select an Employee to Start"}</h1>
         <p className="mt-3 text-sm leading-7 text-muted-foreground">{rtl ? "أدخل كود الموظف والرقم السري للمتابعة." : "Enter the Employee Code and PIN to continue."}</p>
         <div className="mt-6">
-          <EmployeeVerificationForm presentation="inline" onVerified={handleVerified} />
+          <EmployeeVerificationForm presentation="inline" />
         </div>
         <button type="button" onClick={signOut} className="mt-4 inline-flex items-center gap-2 text-xs font-bold text-rose-600 hover:underline">
           <LogOut className="h-4 w-4" /> {rtl ? "تسجيل الخروج" : "Log out"}

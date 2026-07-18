@@ -3,10 +3,13 @@
 import { useEffect, useState } from "react";
 import { LogOut, RefreshCw, UserRoundCheck } from "lucide-react";
 import { useLocale } from "next-intl";
+import { useRouter } from "@/i18n/navigation";
 import { OPERATOR_ACTION_REQUIRED_EVENT } from "@/lib/api/client";
 import { useAuth } from "@/contexts/auth-context";
 import { useOperator } from "@/contexts/operator-context";
 import { EmployeeVerificationForm } from "@/components/operator/employee-verification-form";
+import { firstAllowedBusinessRoute } from "@/lib/permissions/module-access";
+import type { EmployeeAuthorizationSummary } from "@/lib/types";
 
 function formatCountdown(seconds: number) {
   const mins = Math.floor(seconds / 60);
@@ -17,10 +20,12 @@ function formatCountdown(seconds: number) {
 export function OperatorBar() {
   const locale = useLocale();
   const rtl = locale === "ar";
+  const router = useRouter();
   const { activeBranchId, activeBranch } = useAuth();
   const operator = useOperator();
   const [open, setOpen] = useState(false);
   const [changeOpen, setChangeOpen] = useState(false);
+  const [pendingEmployeeId, setPendingEmployeeId] = useState<string | null>(null);
   const [tick, setTick] = useState(Date.now());
   const employee = operator.state?.employee;
   const idleSeconds = operator.state?.idleExpiresAt ? Math.max(0, Math.floor((new Date(operator.state.idleExpiresAt).getTime() - tick) / 1000)) : 0;
@@ -41,12 +46,26 @@ export function OperatorBar() {
     return () => window.removeEventListener(OPERATOR_ACTION_REQUIRED_EVENT, handleOperatorActionRequired);
   }, [operator]);
 
+  useEffect(() => {
+    if (!pendingEmployeeId || operator.authorization?.employeeId !== pendingEmployeeId) return;
+    const firstRoute = firstAllowedBusinessRoute(
+      operator.authorization.effectivePermissionNames ?? operator.authorization.effectivePermissions ?? [],
+    );
+    setPendingEmployeeId(null);
+    if (firstRoute) router.replace(firstRoute);
+  }, [operator.authorization, pendingEmployeeId, router]);
+
   if (!operator.active) return null;
 
   const endOperatorSession = async () => {
     await operator.endSession("operator_session_ended");
     setOpen(false);
     setChangeOpen(false);
+  };
+
+  const handleChangedEmployee = (authorization: EmployeeAuthorizationSummary | null) => {
+    setChangeOpen(false);
+    setPendingEmployeeId(authorization?.employeeId || null);
   };
 
   return (
@@ -89,7 +108,7 @@ export function OperatorBar() {
       )}
 
       {changeOpen && (
-        <EmployeeVerificationForm presentation="dialog" onVerified={() => setChangeOpen(false)} onCancel={() => setChangeOpen(false)} />
+        <EmployeeVerificationForm presentation="dialog" onVerified={handleChangedEmployee} onCancel={() => setChangeOpen(false)} />
       )}
     </div>
   );

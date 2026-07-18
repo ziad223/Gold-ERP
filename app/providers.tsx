@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
-import { clearDeviceSessionId, DarfusApiError } from "@/lib/api/client";
+import { clearDeviceSessionId, DarfusApiError, isOperatorRecoveryError } from "@/lib/api/client";
 import { AuthProvider } from "@/contexts/auth-context";
 import { ErpProvider } from "@/contexts/erp-context";
 import { OperatorProvider } from "@/contexts/operator-context";
@@ -21,7 +21,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
               toast.error(error.message, {
                 description: error.correlationId ? `Correlation ID: ${error.correlationId}` : undefined,
               });
-              if (error.status === 401) {
+              if (error.status === 401 && !isOperatorRecoveryError(error)) {
                 // Session expired: clean session state and reload page after brief timeout
                 setTimeout(() => {
                   window.localStorage.removeItem("darfus-session-v3");

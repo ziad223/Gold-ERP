@@ -21,6 +21,10 @@ function staticContract() {
   const operatorContext = read("contexts/operator-context.tsx");
   const header = read("components/layout/header.tsx");
   const operatorBar = read("components/operator/operator-bar.tsx");
+  const verificationForm = read("components/operator/employee-verification-form.tsx");
+  const verificationShell = read("components/operator/employee-verification-shell.tsx");
+  const authGuard = read("components/auth/auth-guard.tsx");
+  const dashboardLayout = read("app/[locale]/(dashboard)/layout.tsx");
 
   for (const token of [
     "employee_operational_sessions",
@@ -54,9 +58,19 @@ function staticContract() {
   assert.ok(client.includes("X-Device-Session-ID"), "frontend sends device-session header");
   assert.ok(operatorContext.includes("OperatorProvider"), "operator provider exists");
   assert.ok(header.includes("OperatorBar"), "header exposes consolidated operator controls");
-  for (const token of ["verify", "switch", "operator.endSession"]) {
-    assert.ok(operatorBar.includes(token), `operator bar exposes ${token} control`);
-  }
+  assert.ok(verificationForm.includes("data-employee-verification-form"), "one shared Employee verification component exists");
+  assert.ok(verificationForm.includes('pattern="[0-9]{6}"'), "shared verification component validates a six-digit PIN");
+  assert.ok(verificationForm.includes("operator.verify"), "shared verification component owns the verification API path");
+  assert.ok(verificationShell.includes('presentation="inline"'), "inactive Branch Account safe shell renders shared verification inline");
+  assert.ok(authGuard.includes("EmployeeVerificationShell"), "inactive Branch Account access uses the verification shell without OperatorBar dependence");
+  assert.ok(dashboardLayout.includes("<AppShell>") && dashboardLayout.includes("<AuthGuard>{children}</AuthGuard>"), "AppShell remains mounted around guarded Branch Account content");
+  assert.ok(operatorBar.includes('presentation="dialog"'), "Change Employee reuses the shared verification component in dialog mode");
+  assert.ok(operatorBar.includes("Change Employee") && operatorBar.includes("End Employee Session"), "OperatorBar exposes active Employee change and end controls");
+  assert.ok(operatorBar.includes("operator.endSession"), "End Employee Session uses the operator-session boundary");
+  assert.ok(!operatorBar.includes("operator.verify("), "OperatorBar does not duplicate the verification API path");
+  assert.ok(operatorContext.includes("setAuthorization(null)") && operatorContext.includes("operatorRepository.endSession"), "ending an Employee session clears Employee authorization without technical logout");
+  assert.ok(!authGuard.includes('router.replace("/pos")'), "no POS fallback is reintroduced");
+  assert.ok(authGuard.includes('user?.accountType === "branch_shell"') && authGuard.includes("branchAccountBusinessRoute && !operator.active"), "only inactive Branch Accounts require Employee verification, leaving Super Admin outside the flow");
   assert.ok(!operatorBar.includes("step-up") && !operatorBar.includes("Level 2"), "operator bar exposes no step-up or Level UI");
   console.log("Phase 34.3 static operator-session contract: PASS");
 }

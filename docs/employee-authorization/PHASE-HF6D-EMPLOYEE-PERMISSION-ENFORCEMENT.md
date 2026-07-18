@@ -75,18 +75,34 @@ technical-account permission management.
 
 ## Browser QA Status
 
-Browser QA was attempted with local backend/frontend services on ports 8000 and
-3000 after a successful production build. The in-app browser could not connect
-to localhost and returned `ERR_CONNECTION_REFUSED`, while host-side HTTP
-requests succeeded. No browser login, Employee verification, RTL, or responsive
-claims are recorded as passed from that environment. Services were stopped
-after the attempt. This environmental gap must be resolved before claiming
-full HF6D browser closure.
+The HF6D-PRE-CLOSE1 audit proved that `AuthGuard` rendered the Branch Account
+safe shell before `AppShell` and its header/OperatorBar mounted. That made the
+old message-only safe shell a first-login dead end. The correction renders the
+shell inside `AppShell` and uses one shared `EmployeeVerificationForm` in two
+modes: inline for an inactive Branch Account and dialog mode for Change
+Employee. End, expired, revoked, and stale operator sessions return to the
+inline form while preserving the technical Branch Account session.
+
+The audit also proved that the React Query global 401 handler incorrectly
+cleared the technical session for expected operator-recovery errors after End
+Employee Session. `isOperatorRecoveryError` now prevents that logout path;
+real technical authentication failures retain the API client's existing refresh
+and invalidation behavior.
+
+Host-local Playwright QA using isolated `HF6D-BQA-*` data passed: English and
+Arabic safe shells, desktop and mobile layouts without horizontal overflow,
+controlled invalid PIN feedback, first verification to the first permitted
+route, Change Employee with replacement permissions, End Employee Session,
+revoked-session recovery, preserved Branch Account token, Super Admin without
+an Employee prompt, and no console or runtime-overlay errors. The temporary
+QA script, fixtures, technical sessions, and operator sessions were removed.
+Services were stopped and ports 3000/8000 are quiet.
+
+Final backup: `H:\WORK\jewellery-erp-master\backend\backups\darfus_erp_hf6d_final_20260718_210622.dump` (493583 bytes), created from local Docker PostgreSQL and validated with `pg_restore -l`.
 
 ## Deferred
 
-- HF6E end-to-end Branch login/access QA after a browser-capable local runner
-  is available.
+- HF6E end-to-end Branch login/access QA across fuller day-to-day roles.
 - Phase 35E inventory and purchase market MVP.
 - Account Center redesign, role-builder redesign, grouped permissions, and
   Employee email/password login.
