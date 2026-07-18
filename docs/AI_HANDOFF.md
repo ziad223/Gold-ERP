@@ -4326,3 +4326,50 @@ the 11 existing stashes remain untouched.
 HF6D is now genuinely closed. NEXT TOOL START HERE: **HF6E - End-to-End Branch
 Login & Employee Access QA**. Do not start HF6E automatically, do not start
 NOTIF-PRE1, UX-PRE1, or Phase 35E, and do not deploy to Production.
+
+## HF6E - End-to-End Branch Login and Employee Access QA (Closed)
+
+HF6E began from `64c8eb0b68b9788a1ab2aa8256b86009e7955caa` on local `main`.
+The initial run proved `HF6E_INVENTORY_REVERIFY_ROUTE_MISMATCH`: after ending
+a Sales Employee session on `/en/sales`, successful inline verification of an
+Inventory Employee changed authorization but retained the denied Sales page.
+The source cause was frontend-only: the inline shared form had no post-success
+route callback, `AuthGuard` redirected only from `/dashboard`, and the dialog
+flow separately waited for asynchronous provider state.
+
+Commit `9cbde94599f76cf44693da8cf8d0c132740090cf`
+(`fix: route inline employee verification to allowed workspace`) adds
+`resolveEmployeeWorkspaceRoute`. It consumes the fresh server-returned
+`EmployeeAuthorizationSummary`; inline verification and Change Employee use it
+with locale-aware `router.replace`. It maps only to the first authorized
+business workspace or neutral `/dashboard` for no business access, and
+`AuthGuard` renders a controlled no-assigned-access state. No POS fallback,
+authorization-model change, backend change, permission change, or
+technical-account shortcut was introduced.
+
+Targeted Chrome QA passed with `HF6E_INLINE_REVERIFY_ROUTE_RECOVERY_PASSED`.
+The complete fresh `HF6E-BQA-RERUN-*` Chrome run passed Cashier, Sales,
+Inventory, Treasury, Manager, direct-denial, no-access, stale/reverify,
+reload/current, Change Employee, End Employee, full logout, Super Admin
+separation, Employee permission UI, English/Arabic, and desktop/mobile. Sales
+could call Customers but not Inventory; Inventory could call Inventory but not
+Customers. Browser Back did not restore an unauthorized Sales workspace; no
+runtime overlay, console errors, or horizontal overflow was observed. All
+fixture companies, branches, Users, Employees, credentials, access,
+grants/denials, attempts, technical/operator sessions, and audit rows were
+confirmed zero after cleanup. Temporary QA scripts were removed; ports
+`3000`/`8000` are quiet and `next-env.d.ts` is clean.
+
+Backups are local Docker PostgreSQL only (`localhost:5433 / darfus_erp`) and
+all passed `pg_restore -l`: historical start
+`backend/backups/darfus_erp_hf6e_start_20260718_214214.dump` (`492816` bytes),
+HF6E-FIX1 start
+`backend/backups/darfus_erp_hf6e_fix1_start_20260718_215735.dump` (`492816`
+bytes), and authoritative final
+`backend/backups/darfus_erp_hf6e_final_20260718_221056.dump` (`494060` bytes).
+Typecheck, lint (18 established warnings and zero errors), build, focused
+regressions, `git diff --check`, and the clean committed `62/62` verifier suite
+passed. Counts remain `44` migrations, `128` permissions, and `62` verifier
+files. Production/Render was untouched. NEXT TOOL START HERE:
+**NOTIF-PRE1 — Comprehensive Notification, Error Feedback & Performance
+Audit**. Do not start it automatically.

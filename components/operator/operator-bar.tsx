@@ -8,7 +8,7 @@ import { OPERATOR_ACTION_REQUIRED_EVENT } from "@/lib/api/client";
 import { useAuth } from "@/contexts/auth-context";
 import { useOperator } from "@/contexts/operator-context";
 import { EmployeeVerificationForm } from "@/components/operator/employee-verification-form";
-import { firstAllowedBusinessRoute } from "@/lib/permissions/module-access";
+import { resolveEmployeeWorkspaceRoute } from "@/lib/permissions/module-access";
 import type { EmployeeAuthorizationSummary } from "@/lib/types";
 
 function formatCountdown(seconds: number) {
@@ -25,7 +25,6 @@ export function OperatorBar() {
   const operator = useOperator();
   const [open, setOpen] = useState(false);
   const [changeOpen, setChangeOpen] = useState(false);
-  const [pendingEmployeeId, setPendingEmployeeId] = useState<string | null>(null);
   const [tick, setTick] = useState(Date.now());
   const employee = operator.state?.employee;
   const idleSeconds = operator.state?.idleExpiresAt ? Math.max(0, Math.floor((new Date(operator.state.idleExpiresAt).getTime() - tick) / 1000)) : 0;
@@ -46,15 +45,6 @@ export function OperatorBar() {
     return () => window.removeEventListener(OPERATOR_ACTION_REQUIRED_EVENT, handleOperatorActionRequired);
   }, [operator]);
 
-  useEffect(() => {
-    if (!pendingEmployeeId || operator.authorization?.employeeId !== pendingEmployeeId) return;
-    const firstRoute = firstAllowedBusinessRoute(
-      operator.authorization.effectivePermissionNames ?? operator.authorization.effectivePermissions ?? [],
-    );
-    setPendingEmployeeId(null);
-    if (firstRoute) router.replace(firstRoute);
-  }, [operator.authorization, pendingEmployeeId, router]);
-
   if (!operator.active) return null;
 
   const endOperatorSession = async () => {
@@ -65,7 +55,7 @@ export function OperatorBar() {
 
   const handleChangedEmployee = (authorization: EmployeeAuthorizationSummary | null) => {
     setChangeOpen(false);
-    setPendingEmployeeId(authorization?.employeeId || null);
+    router.replace(resolveEmployeeWorkspaceRoute(authorization).pathname);
   };
 
   return (

@@ -1,3 +1,5 @@
+import type { EmployeeAuthorizationSummary } from "@/lib/types";
+
 export type PermissionRequirement = string | readonly string[];
 
 export interface RoutePermissionRule {
@@ -66,4 +68,22 @@ export function firstAllowedBusinessRoute(permissionNames: readonly string[]) {
     const rule = routeRuleForPath(pathname);
     return Boolean(rule?.branchBusiness && permissionMatches(rule.permission, (permission) => permissionSet.has(permission)));
   }) ?? null;
+}
+
+export interface EmployeeWorkspaceRoute {
+  pathname: string;
+  hasAssignedBusinessAccess: boolean;
+}
+
+// This consumes the backend-resolved authorization summary. It never derives
+// permissions from technical-account state or from a stale provider snapshot.
+export function resolveEmployeeWorkspaceRoute(authorization: EmployeeAuthorizationSummary | null): EmployeeWorkspaceRoute {
+  const effectivePermissions = authorization?.effectivePermissionNames
+    ?? authorization?.effectivePermissions
+    ?? [];
+  const pathname = firstAllowedBusinessRoute(effectivePermissions);
+  return {
+    pathname: pathname ?? "/dashboard",
+    hasAssignedBusinessAccess: Boolean(pathname),
+  };
 }
