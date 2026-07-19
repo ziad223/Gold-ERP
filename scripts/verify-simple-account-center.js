@@ -47,7 +47,7 @@ function staticContract() {
   assert.ok(service.includes("passwordSet: true") && !service.includes("generatePolicyCompliantPassword") && !service.includes("return { account: safeUser(user), temporaryPassword"), "technical password operations do not generate or return plaintext passwords");
   assert.ok(routes.includes("/:id/reset-password") && routes.includes("/:id/change-email") && routes.includes("/:id/revoke-sessions"), "technical account action routes remain mounted");
   assert.equal(migrationFiles.length, 44, "HF6C does not add migration 45");
-  assert.equal(verifierFiles.length, 62, `expected 62 verifier files after HF6D, found ${verifierFiles.length}`);
+  assert.equal(verifierFiles.length, 63, `expected 63 verifier files after AUTH-1, found ${verifierFiles.length}`);
   assert.equal(pkg.scripts["verify:simple-account-center"], "node scripts/verify-simple-account-center.js", "package verifier registered");
 }
 

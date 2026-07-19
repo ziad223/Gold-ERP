@@ -4687,3 +4687,39 @@ NEXT TOOL START HERE: Owner must first confirm revocation of the exposed
 Production technical sessions. Then create a separate bounded repair prompt from
 this evidence only; do not start AUTH-1, AUTH-1-SSE, NOTIF-PRE1, or deployment
 automatically.
+
+## AUTH-1 - Auth Security Containment Closure
+
+AUTH-1 is locally verified from starting commit
+`a3a033b2e947135dc278b54df2dd0dcbe6e4ce24`. No Production deployment,
+configuration, or data change occurred.
+
+Implementation commits are `6177dbb` (auth-readiness, protected-query gating,
+terminal-401 coordination, safe refresh replay, persisted logout revocation),
+`cafbb4a` (Authorization-header SSE, query-token rejection, full technical
+session revalidation, single-stream lifecycle, and URL log redaction), and
+`4c5063b` (proven terminal-error toast suppression plus count-aligned legacy
+verifiers). The Next development-server concern was first-route compilation
+timing only, not an AUTH-1 runtime defect.
+
+The follow-up terminal-401 browser proof observed 15 concurrent 401 responses,
+zero per-query toast elements, one auth clear, and one login transition. Core
+and SSE browser matrices passed with `AUTH1_CORE_BROWSER_QA_PASSED` and
+`AUTH1_SSE_BROWSER_QA_PASSED`. The focused verifier emitted `AUTH SECURITY
+CONTAINMENT PASSED`; targeted regressions passed; the clean committed suite
+passed `63/63`; typecheck and build passed; lint passed with 18 pre-existing
+warnings and no errors; and `git diff --check` passed.
+
+Local-only backups were validated with `pg_restore -l`:
+
+- `backend/backups/darfus_erp_auth1_start_20260718_232028.dump` (497449 bytes)
+- `backend/backups/darfus_erp_auth1_final_20260719_205017.dump` (497611 bytes)
+
+`AUTH1-BQA-*` fixtures and associated sessions were cleaned to zero. Migrations
+remain 44, permissions 128, and verifier files 63. Generated `next-env.d.ts`
+was restored only after the documented one-line Next development drift and is
+clean. Ports 3000 and 8000 are quiet.
+
+NEXT TOOL START HERE: `AUTH-DEPLOY1 - Controlled Production Auth Security
+Deployment & Validation`, only after owner approval. `NOTIF-PRE1`, `UX-PRE1`,
+and Phase 35E remain paused. Do not deploy or change Production automatically.

@@ -19,10 +19,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
         queryCache: new QueryCache({
           onError: (error) => {
             if (error instanceof DarfusApiError) {
+              if (isTerminalTechnicalAuthError(error)) return;
               toast.error(error.message, {
                 description: error.correlationId ? `Correlation ID: ${error.correlationId}` : undefined,
               });
-              if (isTerminalTechnicalAuthError(error)) return;
             }
           },
         }),

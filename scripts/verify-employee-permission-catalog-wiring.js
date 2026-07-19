@@ -37,7 +37,7 @@ function staticContract() {
   assertContains(types, "EmployeePermissionCatalogItem", "frontend type has catalog item contract");
   assertNotContains(employeePage, "No current direct permission rows", "old false zero-options state is removed");
   assert.equal(migrationFiles.length, 44, "HF6B does not add migration 45");
-  assert.equal(verifierFiles.length, 62, `expected 62 verifier files after HF6D, found ${verifierFiles.length}`);
+  assert.equal(verifierFiles.length, 63, `expected 63 verifier files after AUTH-1, found ${verifierFiles.length}`);
 }
 
 staticContract();

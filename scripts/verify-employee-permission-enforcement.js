@@ -68,7 +68,7 @@ function staticContract() {
   contains(apiClient, "requestUsedAuth", "unauthenticated pre-login requests cannot clear a newly-created technical session");
   contains(apiClient, "operatorRecoveryRequired", "an Employee verification requirement cannot clear a valid Branch Account session");
   contains(apiClient, "isOperatorRecoveryError", "API errors expose operator recovery classification to query handling");
-  contains(read("app/providers.tsx"), "isOperatorRecoveryError(error)", "query handling preserves the technical session for operator recovery errors");
+  contains(read("app/providers.tsx"), "isTerminalTechnicalAuthError(error)", "query handling sends only terminal technical errors to the shared coordinator");
   contains(moduleAccess, "pos.sell", "POS navigation recognizes the checkout permission");
   contains(businessGuard, "operatorSessionService.currentFromRequest", "Branch Account business APIs require a live Employee session");
   contains(businessGuard, "EMPLOYEE_PERMISSION_DENIED", "business guard returns a stable Employee denial");
@@ -82,7 +82,7 @@ function staticContract() {
   contains(employeePage, "Direct denial overrides role and direct grant", "permission UI warns that denial wins");
   contains(employeePage, "منع مباشر", "Arabic direct-denial wording remains visible");
   assert.equal(packageJson.scripts["verify:employee-permission-enforcement"], "node scripts/verify-employee-permission-enforcement.js", "focused verifier is registered");
-  assert.equal(verifierFiles.length, 62, `expected 62 verifier files after HF6D, found ${verifierFiles.length}`);
+  assert.equal(verifierFiles.length, 63, `expected 63 verifier files after AUTH-1, found ${verifierFiles.length}`);
 }
 
 if (process.env.NODE_ENV === "production" || process.env.RENDER || process.env.VERCEL) {

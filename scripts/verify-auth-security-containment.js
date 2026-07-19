@@ -39,6 +39,7 @@ function verifyCoreContainment() {
   requireText(providers, "mutations: {\n            retry: false", "mutations do not auto-retry");
   assert.ok(!providers.includes("window.location.reload"), "terminal 401 never reloads the document");
   requireText(providers, "isTerminalTechnicalAuthError(error)", "terminal errors bypass per-query toast handling");
+  requireText(providers, "if (isTerminalTechnicalAuthError(error)) return;\n              toast.error", "terminal query failures are filtered before any per-query toast");
   requireText(api, "AUTH_REFRESHED_RETRY_REQUIRED", "refresh-required mutation error is typed");
   requireText(api, "isSafeReadMethod", "only safe read methods may replay after refresh");
   requireText(api, "if (!isSafeReadMethod(options.method))", "mutations are blocked from automatic replay");
