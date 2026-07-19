@@ -14,8 +14,8 @@ import { LoadingState } from "@/components/ui/loading-state";
 import { Modal } from "@/components/ui/modal";
 import { NativeSelect } from "@/components/ui/native-select";
 import { PageHeader } from "@/components/ui/page-header";
-import { useAuth } from "@/contexts/auth-context";
 import { useErp } from "@/contexts/erp-context";
+import { useAccountingDashboardSummary } from "@/hooks/use-accounting-dashboard-summary";
 import { useJournalEntries, type JournalStatusGroup } from "@/hooks/use-accounting";
 import { usePermissions } from "@/hooks/use-permissions";
 import { DATA_SOURCE } from "@/lib/data-source";
@@ -69,7 +69,6 @@ export default function AccountingPage() {
   const filtersT = useTranslations("Filters");
   const locale = useLocale();
   const rtl = locale === "ar";
-  const { company } = useAuth();
   const { postJournalEntries } = usePermissions();
   const { accountingRepository } = useErp();
 
@@ -93,6 +92,7 @@ export default function AccountingPage() {
     error,
     refetch,
   } = useJournalEntries({ page, pageSize, search: query, statusGroup: status });
+  const accountingSummary = useAccountingDashboardSummary();
 
   const rows: JournalRow[] = useMemo(
     () =>
@@ -129,6 +129,7 @@ export default function AccountingPage() {
       if (result.success) {
         toast.success(t("postSuccess"));
         refetch();
+        void accountingSummary.refetch();
       } else {
         toast.error(result.error?.message || t("postFailed"));
       }
@@ -159,6 +160,7 @@ export default function AccountingPage() {
       if (result.success) {
         toast.success(t("reverseSuccess"));
         refetch();
+        void accountingSummary.refetch();
       } else {
         toast.error(result.error?.message || t("reverseFailed"));
       }
@@ -341,13 +343,14 @@ export default function AccountingPage() {
     setPage(Math.min(Math.max(nextPage, 1), safeTotalPages));
   };
 
-  const currency = company?.currency ?? "AED";
+  const summary = accountingSummary.data;
+  const currency = summary?.currency ?? "AED";
   const money = (value: number) => formatCurrency(value, currency, locale);
-  const statCards: Array<{ label: string; value: string; icon: LucideIcon; classes: string }> = [
-    { label: t("cashBalance"), value: money(486250), icon: WalletCards, classes: "bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300" },
-    { label: t("bankAccounts"), value: money(1240800), icon: Landmark, classes: "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300" },
-    { label: t("receipts"), value: money(328900), icon: ArrowDownLeft, classes: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300" },
-    { label: t("payments"), value: money(176450), icon: ArrowUpRight, classes: "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300" },
+  const statCards: Array<{ label: string; value: number | null; icon: LucideIcon; classes: string }> = [
+    { label: t("cashBalance"), value: summary?.balances.cash ?? null, icon: WalletCards, classes: "bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300" },
+    { label: t("bankAccounts"), value: summary?.balances.bank ?? null, icon: Landmark, classes: "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300" },
+    { label: t("netReceipts"), value: summary?.activity.receipts ?? null, icon: ArrowDownLeft, classes: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300" },
+    { label: t("netPayments"), value: summary?.activity.payments ?? null, icon: ArrowUpRight, classes: "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300" },
   ];
 
   return (
@@ -395,11 +398,27 @@ export default function AccountingPage() {
         ))}
       </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {statCards.map(({ label, value, icon: Icon, classes }) => <Card key={label} className="p-5"><div className={`mb-4 grid h-11 w-11 place-items-center rounded-2xl ${classes}`}><Icon className="h-5 w-5" /></div><p className="text-xs font-semibold text-muted">{label}</p><p className="mt-2 text-2xl font-black text-foreground">{value}</p></Card>)}
+        {statCards.map(({ label, value, icon: Icon, classes }) => (
+          <Card key={label} className="p-5">
+            <div className={`mb-4 grid h-11 w-11 place-items-center rounded-2xl ${classes}`}><Icon className="h-5 w-5" /></div>
+            <p className="text-xs font-semibold text-muted">{label}</p>
+            {accountingSummary.isLoading ? (
+              <p className="mt-2 text-sm font-bold text-muted">{common("loading")}</p>
+            ) : accountingSummary.isError ? (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <p className="text-xs font-bold text-rose-700 dark:text-rose-300">{t("summaryFailed")}</p>
+                <Button type="button" variant="secondary" size="sm" onClick={() => void accountingSummary.refetch()}>{common("retry")}</Button>
+              </div>
+            ) : value === null ? (
+              <p className="mt-2 text-sm font-bold text-muted">{t("summaryUnavailable")}</p>
+            ) : (
+              <p className="mt-2 text-2xl font-black text-foreground">{money(value)}</p>
+            )}
+          </Card>
+        ))}
       </div>
       {view === "entries" ? (
       <>
-      <div className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
         <Card className="overflow-hidden">
           <div className="border-b border-border p-5 font-black">{t("latestEntries")}</div>
           <DataToolbar query={query} onQueryChange={handleSearchChange} placeholder={t("search")} resultCount={resultTotal} resultLabel={filtersT("results")} resetLabel={filtersT("reset")} onReset={resetFilters} filters={[{ id: "status", label: t("status"), value: status, onChange: handleStatusChange, options: [{ value: "all", label: filtersT("allStatuses") }, { value: "balanced", label: t("balanced") }, { value: "pending", label: t("pending") }] }]} />
@@ -446,8 +465,6 @@ export default function AccountingPage() {
             </div>
           )}
         </Card>
-        <Card className="p-5"><h2 className="font-black text-foreground">{t("financialIndicators")}</h2><div className="mt-5 space-y-5">{[[t("grossMargin"), 68], [t("receivablesCollection"), 82], [t("inventoryTurnover"), 56], [t("liquidityRatio"), 74]].map(([label, value]) => <div key={String(label)}><div className="mb-2 flex justify-between text-xs"><span className="font-bold text-muted">{label}</span><span className="font-black">{value}%</span></div><div className="h-2 rounded-full bg-background"><div className="h-2 rounded-full bg-brand-600" style={{ width: `${value}%` }} /></div></div>)}</div></Card>
-      </div>
 
       <Modal open={open} onClose={closeModal} title={t("manualEntryTitle")} description={t("manualEntryDescription")}>
         <form onSubmit={submitDraft} className="space-y-5">

@@ -63,7 +63,7 @@ function staticContract() {
   assertContains(routes, '"/treasury/register/open"', "register open route exists");
   assertContains(routes, '"/treasury/register/close"', "register close route exists");
   assertContains(cashRegisterService, "CASH_REGISTER_REQUIRED", "cash mutation without open register has stable error");
-  assertContains(routes, 'source: "posted_journal_lines"', "treasury summary declares journal-line source");
+  assertContains(routes, 'source: "reportable_ledger_journal_lines"', "treasury summary declares reportable journal-line source");
   assertContains(routes, "ACCOUNT_BALANCE_DIRECT_MUTATION_FORBIDDEN", "direct account balance mutation is denied");
   assertContains(routes, "GIFT_VOUCHER_FINANCIAL_WORKFLOW_DISABLED", "gift voucher write workflow is disabled");
   assertContains(posting, "assertDateUnlocked", "posting engine enforces accounting date lock");

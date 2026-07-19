@@ -4723,3 +4723,164 @@ clean. Ports 3000 and 8000 are quiet.
 NEXT TOOL START HERE: `AUTH-DEPLOY1 - Controlled Production Auth Security
 Deployment & Validation`, only after owner approval. `NOTIF-PRE1`, `UX-PRE1`,
 and Phase 35E remain paused. Do not deploy or change Production automatically.
+
+## ACC-PRE1 — Post-Reset Accounting Source-of-Truth Audit (2026-07-19)
+
+**Audit boundary and safety.** This was a read-only audit from
+`1af3a799000191d7bb4f34a35f1c69c6263d23a3` on `main`. The initial tree was
+clean, the 11 stashes were untouched, and the local target inspected was only
+Docker PostgreSQL `localhost:5433 / darfus_erp` using `SELECT` queries. No
+application service was started, no verifier/build/test was run, no database
+row or schema was changed, and no Production deployment, configuration, cache,
+or data was changed. The Production accounting page was inspected read-only;
+no direct Production DB connection was attempted. The browser capability did
+not provide a fresh-profile/Incognito session or Network request/header/body
+capture, so those parts of Production runtime attribution remain explicitly
+unverified.
+
+### Proven production-page source mismatch
+
+The owner-reported Production page rendered the exact four monetary values,
+four KPI percentages, and `0 نتيجة` again after a hard reload. Source proves
+that this is not a reconciliation of two backend summaries:
+
+| UI item | Frontend source | API/backend source used by this card | Classification | Authoritative? |
+| --- | --- | --- | --- | --- |
+| Cash-register / treasury balance | `app/[locale]/(dashboard)/accounting/page.tsx:347`, `money(486250)` | None | `HARDCODED_FINANCIAL_VALUES` | No |
+| Bank accounts | same file:348, `money(1240800)` | None | `HARDCODED_FINANCIAL_VALUES` | No |
+| Receipts | same file:349, `money(328900)` | None | `HARDCODED_FINANCIAL_VALUES` | No |
+| Payments | same file:350, `money(176450)` | None | `HARDCODED_FINANCIAL_VALUES` | No |
+| Gross margin, receivables collection, inventory turnover, liquidity ratio | same file:449, literal `[68, 82, 56, 74]` | None | `HARDCODED_FINANCIAL_VALUES` / KPI placeholder | No |
+| Latest journal list/count | `useJournalEntries` → `ApiAccountingRepository.listJournalEntries` | `GET /journal-entries` → generic `ErpController.list` → `journal_entries` | Server value | Yes, for the list's company scope |
+
+The values `486250` also occur in `lib/demo-data.ts:488` and
+`backend/seeders/20260616000000-demo-data.js:420` as the demo `ACC-1100`
+mirror balance. Those seed rows explain historical/demo origins but are **not**
+needed to produce the observed Production cards: the accounting page itself
+contains the literals. The visible currency comes only from the authenticated
+company currency formatter; it does not make the amounts data-backed.
+
+The journal page initializes `page=1`, `pageSize=20`, empty search, and status
+`all`. The API call is `GET /journal-entries?page=1&pageSize=20`; it has no
+default date range or status filter. The generic controller always applies
+`companyId=req.companyId`, sorts by `createdAt DESC`, and filters status only
+when the UI explicitly selects a non-`all` group. It attempts a `?branch=`
+filter only for a model attribute named `branch`; `JournalEntry` has `branchId`,
+so that generic branch filter is not applied to journal entries. Thus the
+visible zero is not explained by a default date, status, or selected-branch
+filter. The exact Production API status/body and company identity were not
+capturable, so a physically empty Production response is not asserted beyond
+the rendered page evidence.
+
+### Backend contract and treasury/register findings
+
+Phase 35D's authoritative implementation still exists in
+`backend/src/services/account-balance.service.js`: it derives balances from
+`journal_lines` joined to `journal_entries` constrained to the authorized
+company and `status='posted'`, optionally `branchId`. `Account.balance` is
+returned as `storedBalance` only with `difference` / `inSync` reconciliation
+metadata. `GET /reports/account-balances/reconciliation` uses that service and
+prevents direct account-balance mutation.
+
+`GET /treasury/summary` is likewise ledger-backed: it resolves the authorized
+branch and calculates account `1110` cash and `1120` bank from posted journal
+lines, returning mirror differences. The dedicated treasury screen calls this
+endpoint through `useTreasury`; the main accounting card page does not.
+Cash-register expected cash is `openingCountedAmount + posted movement since
+open` in `cash-register.service.js`; a register session is not the global
+source of a cash balance. Separate invoice-based report endpoints exist, but
+they explicitly mark themselves `ledgerBased: false`; there is no accounting
+dashboard endpoint used by the hardcoded cards or KPIs.
+
+### Reset mechanisms and target evidence
+
+| Mechanism | Target category | Clear/reseed behavior | Guard / conclusion |
+| --- | --- | --- | --- |
+| `npm run demo:reset:client` → `scripts/reset-client-demo-data.js` | Verified local disposable demo DB only; `darfus_erp` only with an extra owner-local flag | Backup, drop/recreate, migrate, `db:seed:all`, then deterministic client-demo / transactional seeds | Rejects production-like env, remote hosts, and unconfirmed targets. It cannot be the proven Production reset mechanism. |
+| `backend npm run db:reset` | Whatever DB the backend environment resolves | undo all migrations, migrate, `db:seed:all` | No equivalent source-level environment guard. It could seed data if pointed at a database, but no execution evidence exists. |
+| Docker backend startup | Compose local database | `db:migrate` only | No seed command in the actual command. |
+| Settings `resetDemo` action | In-memory/local demo state | Replaces local context arrays only | Not a database reset and Production API mode forbids mock/local as the source of business data. |
+
+The frontend forces Production to `NEXT_PUBLIC_DATA_SOURCE=api` and requires a
+configured `NEXT_PUBLIC_API_URL`; the backend resolves `DB_NAME`, `DB_HOST`,
+and `DB_PORT` from its environment (with local defaults in source). The
+Production frontend API target, backend database, company scope, and the DB
+target of the reported reset cannot be matched without authorized Production
+environment/API-network/DB evidence: **CANNOT VERIFY — PRODUCTION DB
+AUTHORIZATION REQUIRED**. Therefore the reset mechanism actually used is
+`UNKNOWN_MORE_EVIDENCE_REQUIRED`; no claim is made that demo data was reseeded
+in Production or that a wrong Production database was reset.
+
+### Local read-only inventory (not Production evidence)
+
+The local Docker database is demonstrably not an empty post-reset state. All
+financial rows below belong to `CMP-DEMO`; other local companies are HF fixture
+records and have no reported financial aggregate here.
+
+| Entity | Local rows / non-zero evidence | Notes |
+| --- | --- | --- |
+| Accounts | 20 accounts; 17 non-zero; stored total `15,243,942.00` | `1100=486,250`, `1110=245,024`, `1120=302,159.50`; 15 of 20 differ from ledger result, total absolute difference `15,069,938.00`. |
+| Journal entries / lines | 53 entries (50 posted, 2 balanced, 1 reversed); 139 lines; debit=credit=`321,129.50` | Branch distribution includes `BR-DXB`, `BR-FAC`, one Arabic branch value, and null. |
+| Cash transactions / registers | 29 transactions, amount total `307,166.50`; 0 register sessions | No separate opening-balance table was found. |
+| Invoices / payments / installments | 16 invoices total `115,257.00`; 15 payments total `35,562.00`; 6 installments | Includes one return and one exchange. |
+| Purchases / stock | 5 purchase orders total `141,100.00`; 9 stock movements total cost `38,200.00` | Operational source rows remain. |
+| Customers / suppliers / assets | 32 / 4 / 20 | Counts only; no personal data was recorded. |
+| Materialized/aggregate/bank tables | No materialized views; no opening-balance table; only `cash_register_sessions` matched the aggregate/bank/treasury table-name scan | No materialized aggregate persistence was found. |
+
+### Cache assessment and correct reset zero state
+
+The four cards/KPIs cannot be caused by React Query, HTTP ETag/304, Next/CDN,
+or browser cache because their values are compile-time literals and the page
+does not fetch a financial-summary endpoint for them. `useJournalEntries` uses
+local React state/effect rather than React Query. The app-wide React Query
+default has a five-minute `staleTime`, but no accounting-specific `initialData`,
+persisted cache, service-worker registration, or accounting API cache-control
+policy was found. The hard-reload UI still showed the literals and zero journal
+state. Production response headers and CDN behavior are **CANNOT VERIFY** from
+the available browser capture; cache remains a secondary, unproven possibility
+for the journal API only.
+
+| Metric after a complete financial reset | Correct state | Reason |
+| --- | --- | --- |
+| Cash and bank | `0.00` from posted-ledger source | No posted account movement. |
+| Receipts and payments | `0.00` from defined posted/source-document query | No qualifying operational rows. |
+| Gross margin | em dash / `Insufficient data` when revenue is zero | Formula `(revenue - COGS) / revenue` has a zero denominator. |
+| Receivables collection | em dash / `Insufficient data` when collection base is zero | A defined denominator is required; never fabricate a percentage. |
+| Inventory turnover | em dash / `Insufficient data` when average inventory is zero/unavailable | A defined COGS and average-inventory basis is required. |
+| Liquidity ratio | em dash / `Insufficient data` when current liabilities are zero/unavailable | A defined denominator is required. |
+| Journal list | empty state and zero count from the same authorized scope | No fallback/demo rows. |
+
+### Root-cause register and proposed ACC-1 boundary
+
+| ID | Finding | Evidence | Severity | Smallest safe future fix |
+| --- | --- | --- | --- | --- |
+| ACC-01 | Main accounting cards and all four KPIs are hardcoded | Exact literals in `accounting/page.tsx:347-350,449`; Production UI matches after hard reload | P1 | Replace only these cards/KPIs with a server response and explicit zero/insufficient-data states. |
+| ACC-02 | Journal zero and non-zero cards are a source mismatch | Journal list is company-scoped API data; cards make no request | P1 | One documented dashboard contract with matching company/branch/period metadata. |
+| ACC-03 | `Account.balance` mirrors diverge locally | Ledger reconciliation service and local SELECT show 15 divergent accounts | P1 risk | Keep mirror compatibility-only; do not use it for cards. Reconcile only through existing ledger report. |
+| ACC-04 | Reported reset target/data coverage cannot be attributed | No Production DB/env/network evidence; guarded local reset cannot target remote Production | P2 evidence gap | Obtain separate owner-authorized Production deployment/DB audit before data correction. |
+| ACC-05 | KPI zero-denominator behavior is absent | Literal percentages have no formula or empty-state contract | P2 | Return nullable/insufficient-data values from backend; render them without client calculation. |
+
+**ACC-1 design only, after owner review.** Create one read-only accounting
+dashboard contract from posted journal lines for cash/bank and explicitly
+documented server-side sources for receipts/payments/KPIs; include authoritative
+company/branch/period and source metadata. Do not derive financial balances or
+ratios in the frontend and never substitute `Account.balance`. Use explicit
+nullable denominator results for unavailable KPIs. Candidate files are
+`backend/src/routes/erp.routes.js` plus a small dedicated accounting-dashboard
+service, `lib/repositories/interfaces.ts`, `lib/repositories/api-impl.ts`, a
+new accounting dashboard hook, and
+`app/[locale]/(dashboard)/accounting/page.tsx`; add only focused verifier and
+translation changes required by that contract. A separately authorized reset
+plan must define FK order: operational documents and payments/returns/exchanges
+→ journal lines → journal entries → cash/register sessions and movements →
+compatibility mirrors and approved opening balances → inventory valuation
+artifacts; it must preserve companies, branches, users/roles/settings and
+immutable audit history unless a separate retention policy authorizes otherwise.
+It must never reseed demo rows into Production. Verify company/branch scope,
+posted-only authority, zero states, no hardcoded values/fallbacks/client
+financial calculations, reconciliation, response caching policy, and a
+fresh-profile browser/API comparison.
+
+NEXT TOOL START HERE: After owner review, `ACC-1 — Accounting Reset Consistency
+& Financial Zero-State Fix`. Do not start automatically. `NOTIF-PRE1`,
+`UX-PRE1`, and Phase 35E remain paused.

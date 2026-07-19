@@ -32,6 +32,8 @@ export const queryKeys = {
 
   treasury: ["treasury"] as const,
   accounting: ["accounting"] as const,
+  accountingDashboardSummary: (companyId?: string | null, branchId?: string | null) =>
+    ["accounting-dashboard-summary", companyId || "none", branchId || "all"] as const,
 
   notifications: ["notifications"] as const,
   notificationUnreadCount: ["notifications", "unread-count"] as const,
