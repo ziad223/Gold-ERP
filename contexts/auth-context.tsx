@@ -460,6 +460,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(() => {
     void queryClient.cancelQueries();
     queryClient.clear();
+    if (isApiMode && token) {
+      // Capture the current Bearer token before local cleanup so the persisted
+      // technical session is revoked without replaying or blocking logout UX.
+      void apiClient("/auth/logout", { method: "POST" }).catch(() => undefined);
+    }
     setUser(null);
     setCompany(null);
     setToken(null);
@@ -470,7 +475,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       window.localStorage.removeItem(SESSION_KEY);
       window.sessionStorage.removeItem(SESSION_BROWSER_KEY);
     }
-  }, [isApiMode, queryClient]);
+  }, [isApiMode, queryClient, token]);
 
   const beginTerminalAuthHandling = useCallback(() => {
     setTerminalAuthHandling(true);
