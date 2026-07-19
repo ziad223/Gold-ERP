@@ -38,6 +38,10 @@ export function registerTerminalAuthFailureHandler(handler: TerminalAuthFailureH
   };
 }
 
+export function reportTerminalTechnicalAuthFailure(error: DarfusApiError): void {
+  if (isTerminalTechnicalAuthError(error)) terminalAuthFailureHandler?.(error);
+}
+
 // Simple UUID generator for correlation IDs
 export function generateUUID(): string {
   try {
@@ -79,6 +83,10 @@ function readStoredToken(): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+export function getStoredAccessToken(): string | undefined {
+  return readStoredToken();
 }
 
 function readStoredRefreshToken(): string | undefined {
@@ -306,7 +314,7 @@ export async function apiClient<T>(path: string, options: ApiClientOptions = {})
         finalErrorCode,
       );
       if (isTerminalTechnicalAuthError(apiError, requestUsedAuth, isAuthEndpoint, finalOperatorRecoveryRequired)) {
-        terminalAuthFailureHandler?.(apiError);
+        reportTerminalTechnicalAuthFailure(apiError);
       }
       throw apiError;
     }

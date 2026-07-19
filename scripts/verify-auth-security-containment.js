@@ -21,6 +21,9 @@ function verifyCoreContainment() {
   const notifications = read("hooks/use-notifications.ts");
   const audits = read("hooks/use-audit-logs.ts");
   const accounts = read("hooks/use-user-management.ts");
+  const realtime = read("components/realtime-provider.tsx");
+  const eventsRoute = read("backend/src/routes/events.routes.js");
+  const app = read("backend/src/app.js");
 
   requireText(auth, "authReady: hydrated && !terminalAuthHandling", "AuthProvider exposes the shared readiness state");
   requireText(auth, "beginTerminalAuthHandling", "AuthProvider owns terminal-auth state");
@@ -44,6 +47,17 @@ function verifyCoreContainment() {
   requireText(coordinator, "clearLocal(\"TECHNICAL_SESSION_EXPIRED\")", "terminal technical failure clears Employee state locally");
   requireText(coordinator, "router.replace(\"/login\", { locale })", "terminal auth performs one localized router redirect");
   requireText(coordinator, "registerTerminalAuthFailureHandler(handleTerminalFailure)", "coordinator registers the shared API callback");
+
+  assert.ok(!realtime.includes("EventSource("), "realtime uses fetch streaming instead of EventSource");
+  assert.ok(!realtime.includes("events/stream?token="), "realtime never places an access token in the stream URL");
+  requireText(realtime, "Authorization: `Bearer ${token}`", "realtime stream uses a Bearer header");
+  requireText(realtime, "AbortController", "realtime stream aborts on cleanup");
+  requireText(realtime, "getStoredAccessToken", "reconnect obtains the current token instead of a captured URL token");
+  requireText(eventsRoute, "authMiddleware", "SSE uses the normal technical-session middleware");
+  assert.ok(!eventsRoute.includes("req.query.token"), "SSE rejects legacy query-token authentication");
+  requireText(eventsRoute, '"Cache-Control": "no-cache, no-store"', "SSE response is no-store");
+  requireText(app, "sanitizedRequestUrl", "request logging sanitizes URLs");
+  requireText(app, "SENSITIVE_QUERY_KEYS", "request logging redacts sensitive query parameters");
 }
 
 verifyCoreContainment();
