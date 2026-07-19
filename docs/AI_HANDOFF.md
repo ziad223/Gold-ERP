@@ -4884,3 +4884,70 @@ fresh-profile browser/API comparison.
 NEXT TOOL START HERE: After owner review, `ACC-1 — Accounting Reset Consistency
 & Financial Zero-State Fix`. Do not start automatically. `NOTIF-PRE1`,
 `UX-PRE1`, and Phase 35E remain paused.
+
+## ACC-1 - Accounting Zero-State and Reversal-Aware Ledger Reporting (2026-07-20)
+
+ACC-1 is locally verified on `main`; Production/Render was not contacted,
+configured, deployed, or mutated. It started from
+`e9941caef72d0517ce6cec29d029a4f72396490d` and used only Docker PostgreSQL
+at `localhost:5433 / darfus_erp`.
+
+The P1 defect was proven from manual reversal: a posted original becomes
+`reversed` while a new `manual_reversal` remains `posted`. The known local
+pair had cash/bank deltas `-5000` and `+5000`; the prior posted-only reporting
+query showed a false `+5000` movement. The new central
+`backend/src/services/ledger-reporting.service.js` uses reportable statuses
+`posted` and `reversed`, and validates reversal integrity before reporting.
+Every reversed original needs exactly one same-company/same-branch posted
+manual reversal with valid `reversal_of` and `source_id` linkage. JournalEntry
+has no currency/book field to independently assert.
+
+The reusable account-balance engine, treasury summary, accounting dashboard,
+trial balance, account ledger, ledger reconciliation, cash reconciliation, and
+AR/AP account-total helper now use this reportable population. `Account.balance`
+remains a compatibility mirror/reconciliation value only. The dashboard API is
+`GET /api/v1/accounting/dashboard-summary`, declares
+`reportable_ledger_journal_lines`, and is company/branch authoritative.
+
+The accounting page no longer renders hardcoded financial values or KPI
+placeholders. It uses an API-gated summary hook with controlled
+loading/error/unavailable states. Activity is **net external cash activity**:
+original/reversal pairs are grouped and neutralized before receipt/payment
+classification, and internal cash-to-bank transfers are net zero across cash
+and bank.
+
+`scripts/verify-accounting-dashboard-source-of-truth.js` emits
+`ACCOUNTING DASHBOARD SOURCE OF TRUTH PASSED` and covers the reversal pair,
+draft exclusion, scope isolation, orphan-integrity rejection, API parity, and
+cleanup. The manual reversal verifier was aligned with AUTH-1 technical
+sessions. Three stale verifier-count assertions were updated from 63 to 64.
+
+Local Playwright QA used only disposable `ACC1-BQA-*` fixtures. English LTR,
+Arabic RTL, desktop and narrow mobile passed without overflow or browser
+console/runtime errors. The journal search and manual-draft dialog were usable,
+the summary was requested once per navigation, and AED/QAR/USD/EGP formatting
+was rendered from server currency. All ACC1-FIX1/API/BQA fixtures and
+technical/operator sessions were confirmed at zero. Ports 3000/8000 were
+stopped.
+
+Validated local backups:
+
+- `backend/backups/darfus_erp_acc1_start_20260719_225538.dump` (818759 bytes)
+- `backend/backups/darfus_erp_acc1_final_20260720_001652.dump` (495429 bytes)
+
+Both were validated with `pg_restore -l`. Syntax, focused accounting
+verifiers, manual reversal verifier (29 checks), typecheck, lint, build, and
+diff-check passed. The clean committed root suite passed `64/64`. Counts remain
+44 migrations, 128 permissions, and 64 verifier files.
+
+Implementation commits before this documentation closure:
+
+- `109e6ff fix: replace accounting placeholders with ledger summary`
+- `b37bc82 test: align verifier count after accounting dashboard`
+
+NEXT TOOL START HERE
+
+`ACC-DEPLOY1 - Controlled Production Accounting Zero-State Deployment & Validation`
+
+Wait for owner approval. Do not automatically start `NOTIF-PRE1`, `UX-PRE1`,
+or Phase 35E.
