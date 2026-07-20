@@ -127,14 +127,16 @@ function assertLocalEnvironment() {
   if (process.env.NODE_ENV === "production" || process.env.RENDER || process.env.VERCEL) {
     throw new Error("Refusing production/Render verification");
   }
-  if (process.env.DATABASE_URL && !/localhost|127\.0\.0\.1|5433/.test(process.env.DATABASE_URL)) {
-    throw new Error("Refusing non-local DATABASE_URL");
-  }
-  if (process.env.DB_NAME && process.env.DB_NAME !== "darfus_erp") {
-    throw new Error(`Refusing unexpected DB_NAME ${process.env.DB_NAME}`);
-  }
-  if (process.env.DB_HOST && !["localhost", "127.0.0.1"].includes(process.env.DB_HOST)) {
-    throw new Error(`Refusing unexpected DB_HOST ${process.env.DB_HOST}`);
+  const approvedName = "darfus_erp_branch1_qa";
+  if (process.env.DB_NAME !== approvedName) throw new Error(`Refusing unexpected DB_NAME ${process.env.DB_NAME || "<missing>"}`);
+  if (!["localhost", "127.0.0.1"].includes(process.env.DB_HOST)) throw new Error(`Refusing unexpected DB_HOST ${process.env.DB_HOST || "<missing>"}`);
+  if (String(process.env.DB_PORT) !== "5433") throw new Error(`Refusing unexpected DB_PORT ${process.env.DB_PORT || "<missing>"}`);
+  if (process.env.DATABASE_URL) {
+    let target;
+    try { target = new URL(process.env.DATABASE_URL); } catch { throw new Error("Refusing malformed DATABASE_URL"); }
+    if (!['postgres:', 'postgresql:'].includes(target.protocol) || !["localhost", "127.0.0.1"].includes(target.hostname) || target.port !== "5433" || target.pathname !== `/${approvedName}`) {
+      throw new Error("Refusing DATABASE_URL outside the exact isolated QA target");
+    }
   }
 }
 
@@ -142,9 +144,9 @@ async function databaseContract(models) {
   const { Op } = require(path.join(BACKEND, "node_modules/sequelize"));
   models.sequelize.options.logging = false;
   const [[connection]] = await models.sequelize.query("select current_database() as database, inet_server_addr()::text as server_addr, inet_server_port()::int as server_port");
-  assert.equal(connection.database, "darfus_erp", "connected database is darfus_erp");
+  assert.equal(connection.database, "darfus_erp_branch1_qa", "connected database is the exact isolated BRANCH-1 QA target");
   const [migrations] = await models.sequelize.query('select count(*)::int c from "SequelizeMeta"');
-  assert.equal(Number(migrations[0].c), 45, "migration count is 45 after RESET-1");
+  assert.equal(Number(migrations[0].c), 47, "migration count is 47 after BRANCH-1");
   const permissionCount = await models.Permission.count();
   assert.equal(permissionCount, 128, "permission count is 128 after Phase 35D");
   const pos = await models.Permission.findAll({ where: { name: ["pos.view", "pos.sell", "pos.discount.approve"] } });

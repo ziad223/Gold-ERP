@@ -12,18 +12,20 @@ const read = (file) => fs.readFileSync(path.join(ROOT, file), "utf8");
 
 process.env.NODE_ENV = process.env.NODE_ENV === "production" ? process.env.NODE_ENV : "test";
 require(path.join(BACKEND, "node_modules/dotenv")).config({ path: path.join(BACKEND, ".env") });
-process.env.DB_HOST = process.env.DB_HOST || "localhost";
-process.env.DB_PORT = process.env.DB_PORT || "5433";
-process.env.DB_NAME = process.env.DB_NAME || "darfus_erp";
-process.env.DB_USER = process.env.DB_USER || "postgres";
-process.env.DB_PASS = process.env.DB_PASS || process.env.DB_PASSWORD || "postgres";
 
 function assertLocalEnvironment() {
   if (process.env.NODE_ENV === "production" || process.env.RENDER || process.env.VERCEL) throw new Error("Refusing production verification");
-  if (process.env.DATABASE_URL) throw new Error("Refusing DATABASE_URL verification");
-  if (process.env.DB_NAME !== "darfus_erp") throw new Error(`Refusing DB ${process.env.DB_NAME}`);
-  if (!["localhost", "127.0.0.1"].includes(process.env.DB_HOST)) throw new Error(`Refusing DB host ${process.env.DB_HOST}`);
-  if (String(process.env.DB_PORT) !== "5433") throw new Error(`Refusing DB port ${process.env.DB_PORT}`);
+  const approvedName = "darfus_erp_branch1_qa";
+  if (process.env.DB_NAME !== approvedName) throw new Error(`Refusing DB ${process.env.DB_NAME || "<missing>"}`);
+  if (!["localhost", "127.0.0.1"].includes(process.env.DB_HOST)) throw new Error(`Refusing DB host ${process.env.DB_HOST || "<missing>"}`);
+  if (String(process.env.DB_PORT) !== "5433") throw new Error(`Refusing DB port ${process.env.DB_PORT || "<missing>"}`);
+  if (process.env.DATABASE_URL) {
+    let target;
+    try { target = new URL(process.env.DATABASE_URL); } catch { throw new Error("Refusing malformed DATABASE_URL"); }
+    if (!['postgres:', 'postgresql:'].includes(target.protocol) || !["localhost", "127.0.0.1"].includes(target.hostname) || target.port !== "5433" || target.pathname !== `/${approvedName}`) {
+      throw new Error("Refusing DATABASE_URL outside the exact isolated QA target");
+    }
+  }
 }
 
 function staticContract() {
@@ -46,8 +48,8 @@ function staticContract() {
   assert.ok(service.includes("branch_account_branch_changed") && service.includes("assertNoBranchAccountForBranch(nextBranchId"), "Branch Account branch edit validates uniqueness and invalidates sessions");
   assert.ok(service.includes("passwordSet: true") && !service.includes("generatePolicyCompliantPassword") && !service.includes("return { account: safeUser(user), temporaryPassword"), "technical password operations do not generate or return plaintext passwords");
   assert.ok(routes.includes("/:id/reset-password") && routes.includes("/:id/change-email") && routes.includes("/:id/revoke-sessions"), "technical account action routes remain mounted");
-  assert.equal(migrationFiles.length, 45, "RESET-1 adds the authorized system-account-role migration");
-  assert.equal(verifierFiles.length, 65, `expected 65 verifier files after RESET-1, found ${verifierFiles.length}`);
+  assert.equal(migrationFiles.length, 47, "BRANCH-1 adds the two authorized branch-isolation migrations");
+  assert.equal(verifierFiles.length, 66, `expected 66 verifier files after BRANCH-1, found ${verifierFiles.length}`);
   assert.equal(pkg.scripts["verify:simple-account-center"], "node scripts/verify-simple-account-center.js", "package verifier registered");
 }
 

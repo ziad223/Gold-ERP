@@ -82,21 +82,25 @@ function staticContract() {
   contains(employeePage, "Direct denial overrides role and direct grant", "permission UI warns that denial wins");
   contains(employeePage, "منع مباشر", "Arabic direct-denial wording remains visible");
   assert.equal(packageJson.scripts["verify:employee-permission-enforcement"], "node scripts/verify-employee-permission-enforcement.js", "focused verifier is registered");
-  assert.equal(verifierFiles.length, 65, `expected 65 verifier files after RESET-1, found ${verifierFiles.length}`);
+  assert.equal(verifierFiles.length, 66, `expected 66 verifier files after BRANCH-1, found ${verifierFiles.length}`);
 }
 
 if (process.env.NODE_ENV === "production" || process.env.RENDER || process.env.VERCEL) {
   throw new Error("Refusing production/Render verification");
 }
+if (process.env.DATABASE_URL) {
+  let parsed;
+  try { parsed = new URL(process.env.DATABASE_URL); } catch { throw new Error("Refusing malformed DATABASE_URL"); }
+  if (!['localhost', '127.0.0.1'].includes(parsed.hostname) || parsed.port !== "5433" || parsed.pathname !== "/darfus_erp_branch1_qa") {
+    throw new Error("Refusing non-isolated DATABASE_URL");
+  }
+}
 
 process.chdir(ROOT);
 process.env.NODE_ENV = process.env.NODE_ENV || "test";
 require(path.join(ROOT, "backend", "node_modules", "dotenv")).config({ path: path.join(ROOT, "backend", ".env") });
-process.env.DB_HOST = process.env.DB_HOST || "localhost";
-process.env.DB_PORT = process.env.DB_PORT || "5433";
-process.env.DB_NAME = process.env.DB_NAME || "darfus_erp";
-if (process.env.DB_NAME !== "darfus_erp" || !["localhost", "127.0.0.1"].includes(process.env.DB_HOST) || String(process.env.DB_PORT) !== "5433") {
-  throw new Error("Refusing non-local HF6D verification target");
+if (process.env.DB_NAME !== "darfus_erp_branch1_qa" || !["localhost", "127.0.0.1"].includes(process.env.DB_HOST) || String(process.env.DB_PORT) !== "5433") {
+  throw new Error("Refusing non-isolated HF6D verification target");
 }
 
 const jwt = require(path.join(ROOT, "backend", "node_modules", "jsonwebtoken"));

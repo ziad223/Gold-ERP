@@ -5249,3 +5249,506 @@ After owner review:
 
 Do not start RESET-1 automatically. `NOTIF-PRE1`, `UX-PRE1`, and Phase 35E
 remain paused.
+
+## BRANCH-PRE1 — Branch Financial, Customer, Inventory & Reservation Isolation Audit
+
+**Decision: BRANCH-PRE1 AUDIT COMPLETED — NO IMPLEMENTATION OR DATABASE MUTATION
+PERFORMED.** Documentation-only source and local SELECT-only audit on 2026-07-20.
+Starting/final HEAD: `29aceecc7202c8fc6704b259e6dab5b2dcb1f9e3`, branch `main`.
+Preflight passed: clean tree, nothing staged, 11 untouched stashes, clean
+`next-env.d.ts`, `git diff --check` clean, ports 3000/8000 quiet. Local-only
+PostgreSQL `localhost:5433/darfus_erp` was inspected with SELECT statements;
+no Product, verifier, migration, configuration, fixture, reset, seed, backup,
+deployment, Production access, or data mutation occurred.
+
+### Owner contract and evidence
+
+Target: every branch owns one automatic protected account:
+`companyId + branchId + CUSTOMER_DEPOSIT_LIABILITY -> active same-branch
+liability/credit Account`. The effective branch comes from the authenticated
+session; business users may select only a same-branch receiving destination,
+never a ledger account or branch override. Owner screenshots are source-backed:
+`app/[locale]/(dashboard)/settings/page.tsx` renders the editable **Reservation
+Advances Account** dropdown, its `— Not configured —` option, and text saying
+reservation deposits cannot be recorded until it is selected. POS treats
+`settings.reservationAdvancesAccountId` as readiness. That is legacy
+user-configured company setup and does not meet the per-branch contract.
+
+### Effective branch trace
+
+| Flow | Branch source | Client override? | Server evidence / risk |
+| --- | --- | --- | --- |
+| Branch Account login | `User.branchId` -> technical session -> `req.branchId` | Header is rejected if different | `auth.middleware` verifies active same-company branch and fixes the branch. |
+| Super Admin | selected company/header; no default branch | Yes within selected company | Explicit branch resolution is required for any operational write. |
+| Company/legacy account | header or request context | Yes subject to company/cross-branch permission logic | Not a default branch-isolation boundary. |
+| Employee session | `EmployeeOperationalSession.branchId` | `verifyOperator` accepts body branch if request lacks one | Session checks employee branch access, credential/authorization versions and direct-deny-wins permissions. |
+| Treasury routes | `resolveAuthorizedBranch*` | body/query/header accepted | Same-company active branch validation; rejects a different fixed branch. Good reusable pattern. |
+| Reservation routes | `req.branchId || body.branchId` | Body is used when request branch absent | Conditional checks allow branchless parent/resources. P1. |
+
+### Ownership inventory
+
+| Entity / area | Current scope | Has branchId? | Current server filter | Target gap |
+| --- | --- | ---:| --- | --- |
+| Company, Account, Supplier, Settings | COMPANY | no | company only | Account role/settings have no branch dimension; supplier sharing policy undefined. |
+| Branch (store/warehouse/factory) | COMPANY child | n/a | active/company checks | Branch is the current warehouse concept; no Warehouse table. |
+| User / Branch Account | COMPANY_WITH_OPTIONAL_BRANCH | yes | fixed for `branch_shell` | Technical boundary is sound; Super Admin remains company-selectable. |
+| Employee / access/session | COMPANY_WITH_OPTIONAL_BRANCH | yes | employee access/session validation | Preserve Employee-first, direct-deny and freshness behavior. |
+| Customer/balance/loyalty/credit | COMPANY | **no** | company-only lists/lookups | P1 cross-branch visibility and use remain possible. |
+| Reservation/payment/refund | COMPANY_WITH_OPTIONAL_BRANCH | yes, nullable | company plus conditional branch compare | P1; no universal non-null/same-branch invariant. |
+| Invoice/payment | COMPANY_WITH_OPTIONAL_BRANCH | yes, nullable | many POS paths compare branch | historic branchless rows remain. |
+| Cash register session | BRANCH | non-null | dedicated resolved-branch service | Good; no independent register master. |
+| Cash transaction | COMPANY_WITH_OPTIONAL_BRANCH | yes, nullable | treasury routes resolve branch | historic branchless rows; bank is GL code, not BankAccount. |
+| Asset/product/movement | COMPANY_WITH_OPTIONAL_BRANCH | yes, nullable | POS rejects different asset branch | reservation permits branchless asset. |
+| Purchase order / receipt | COMPANY | PO no | company-first | P1: no purchase-order branch/warehouse entity policy. |
+| Journal entry/line | COMPANY_WITH_OPTIONAL_BRANCH | entry yes, nullable; line no | report branch filters | branch/account dimension incomplete. |
+| Audit/security logs | COMPANY_WITH_OPTIONAL_BRANCH | yes, nullable | actor/session attribution where supplied | historic attribution not guaranteed. |
+| Reports/dashboards | COMPANY_WITH_OPTIONAL_BRANCH | n/a | several use resolver | one backend default/elevation policy is still needed. |
+
+### Deposit role, settings and bootstrap
+
+`20260720010000-system-account-roles.js` defines only
+`(company_id, role_code, account_id)`, uniquely keyed by company+role.
+`SystemAccountRole` and `Account` have no `branchId`.
+`company-bootstrap.service.resolveSystemAccountRole(companyId, role)` validates
+same-company, active liability/credit account and raises `422
+CUSTOMER_DEPOSIT_ROLE_NOT_CONFIGURED` before reservation/payment/journal writes.
+It correctly has no name, Demo-ID or first-record fallback, but is conclusively
+**COMPANY_SCOPED_ONLY**.
+
+The legacy `reservationAdvancesAccountId` Setting remains both bootstrap-adoption
+input and a user-visible API/UI selector. `GET
+/settings/reservation-advances-account` lists company active liability/credit
+leaf accounts; authorized PATCH `/settings` can select or clear it. BRANCH-1
+must replace that selector with protected read-only diagnostics after branch
+bootstrap, not merely hide it client-side.
+
+There is no idempotent per-branch operational bootstrap. The existing company
+bootstrap only creates/adopts a company role account and setting. The legacy
+startup helper can seed default demo branches, which is explicitly unsuitable.
+No Warehouse or BankAccount table/model exists; Branch `type` currently models
+store/warehouse/factory, cash register is a branch session, and bank/cash use
+shared account codes `1120`/`1110`.
+
+| Existing state | Safe future adoption | Blocker |
+| --- | --- | --- |
+| No mapping (current local state) | Explicit privileged bootstrap creates zero-balance branch account. | Active branch required. |
+| Valid mapping + one active branch | Adopt only with audit evidence. | Never silently generalize to future branches. |
+| Valid mapping + several branches | Do not copy it. | Manual designate/create each branch role. |
+| Invalid/cross-company/inactive/duplicate | Block. | Dedicated remediation only; no fallback. |
+| Existing history | Preserve actual account/branch evidence. | Backfill only when unambiguous. |
+
+### Reservation, customer, treasury and inventory trace
+
+Reservation creation locks a company customer, active branch and assets, then
+resolves the company-only deposit role and creates reservation/payment/journal
+atomically. It rejects asset branch mismatch only if both the request branch
+and asset branch are non-null. Later payment/completion/cancel/refund load by
+`(id, companyId)` and reject a mismatch only when both stored/request branches
+exist. Payment method maps to cash `1110` or bank `1120`; it has no
+cash-register/bank-account ID or same-branch destination validation. Preserve
+the transaction boundary, lifecycle guards, posted/reversed ledger source of
+truth, no generic `/assets` mutation, and no retry/replay behavior.
+
+`Customer` has no `branchId`; POS/search/CRM/loyalty/history use company-scoped
+lookups. Recommendation: **company Customer identity + BranchCustomer
+relationship**, providing branch-specific relationship/activity/balance/credit/
+loyalty and authorized consolidated reporting without duplicate identities.
+This is safer than branch-owned duplicate customer rows and preserves history.
+
+Assets/products/movements have nullable branch/warehouse fields. POS post
+validates asset branch equality; reservation allows a branchless asset. Generic
+asset/product/stock-movement mutation blocks are present and must remain.
+Supplier and PurchaseOrder are company scoped; PurchaseOrder has no branch ID,
+so centralized procurement can be a future explicit policy but receiving and
+payables cannot yet claim branch isolation.
+
+JournalEntry has nullable `branchId`; JournalLine does not. ACC-1 remains
+authoritative: reportable posted/reversed ledger history is the source of truth
+and `Account.balance` is compatibility-only. The safe target is hybrid: branch
+protected control accounts, shared chart/P&L accounts where appropriate, and a
+mandatory branch dimension on new operational JournalEntries; reversals retain
+the source branch. Backend reports default to effective branch, while explicit
+authorized company roles may request consolidated reads only.
+
+Transfers have source/destination fields but no proven request -> approval ->
+dispatch -> in-transit -> receipt lifecycle. Generic transfer mutation is
+forbidden. Direct asset branch reassignment is unsafe and remains deferred to
+TRANSFER-PRE1; BRANCH-1 must not implement transfers.
+
+### IDOR and local historical inventory
+
+| Resource IDs | Classification | Required BRANCH-1 control |
+| --- | --- | --- |
+| customer, account, supplier, purchase order | COMPANY_ONLY_NOT_BRANCH | effective branch predicate or explicit shared-company policy. |
+| reservation, payment, refund, invoice | MIXED | mandatory parent/resource branch predicate; branchless legacy rows non-writable until classified. |
+| cash session/transaction | SAFE_SCOPED_LOOKUP on dedicated routes | non-null new writes and deny cross-branch lookup. |
+| asset, product, movement | MIXED | same branch/warehouse validation on every lifecycle lookup. |
+| journal entry/line | COMPANY_ONLY_NOT_BRANCH / report-dependent | entry branch predicate and parent-derived line attribution. |
+| Branch Account/Employee | SAFE_SCOPED_LOOKUP | retain fixed branch, Employee authorization and freshness. |
+
+Missing customer/branchless financial-stock server checks are P1 (P0 if future
+controlled QA proves an authenticated cross-branch write). This audit executed
+no mutation probe and therefore claims no live exploit.
+
+Local SELECT-only facts: 9 companies, 16 branches, 20 accounts, 32 customers
+(5 active), 20 assets, 1 product, 4 reservations, 9 reservation payments, 1
+refund, 16 invoices, 15 payments, 29 cash transactions, 9 stock movements, 5
+purchase orders, 53 journals, 15 employees and 319 users. There are **zero**
+`system_account_roles`, so every local company has zero deposit-role mappings.
+There is one legacy setting, but it cannot satisfy the protected resolver.
+
+| Entity | Total | Branch-scoped | Branchless | Future action |
+| --- | ---:| ---:| ---:| --- |
+| Reservations | 4 | 3 | 1 | Parent/session/asset evidence or manual review. |
+| Reservation payments/refunds | 9 / 1 | 9 / 1 | 0 / 0 | Current parent joins have no mismatch. |
+| Invoices/payments | 16 / 15 | 11 / 15 | 5 / 0 | Backfill invoice only from unambiguous parent evidence. |
+| Cash transactions | 29 | 27 | 2 | Manual review where journal/session absent. |
+| Assets/movements | 20 / 9 | 14 / 9 | 6 / 0 | Never infer warehouse from display text. |
+| Products/purchase orders | 1 / 5 | 1 / 0 | 0 / 5 | Purchase branch schema/policy missing. |
+| Journal entries | 53 | 45 | 8 | Eight legacy textual branch values (`فرع دبي مول`) do not resolve to Branch IDs. |
+| Customers/accounts/suppliers | 32 / 20 / 4 | n/a | company-only | Need relationship/dimension; never guess ownership. |
+
+Observed joins show zero reservation/customer company mismatch, reservation
+branch-company mismatch, payment/refund-parent mismatch, invoice/customer
+mismatch, asset branch-company mismatch and movement/asset mismatch. There are
+11 employee-branch-access rows with zero wrong-company joins. These prove only
+the current local database; Production is **CANNOT VERIFY**.
+
+### Root causes and bounded BRANCH-1 plan
+
+| ID | Finding | Classification | Severity | Smallest safe fix |
+| --- | --- | --- | --- | --- |
+| B1 | Company-only deposit role | COMPANY_SCOPED_DEPOSIT_ROLE / BRANCH_ROLE_MAPPING_MISSING | P1 | company+branch+role resolver. |
+| B2 | Editable setting selector | USER_SELECTABLE_SYSTEM_ACCOUNT / SETTINGS_UI_EXPOSES_SYSTEM_MAPPING | P2 | remove write selector; protected diagnostic. |
+| B3 | No branch bootstrap | BRANCH_BOOTSTRAP_MISSING / READINESS_BRANCH_SCOPE_MISSING | P1 | idempotent privileged bootstrap, zero balance/data. |
+| B4 | Customer company scope | CUSTOMER_COMPANY_SCOPED / CUSTOMER_CROSS_BRANCH_VISIBILITY / CUSTOMER_BALANCE_SHARED | P1 | BranchCustomer plus scoped services. |
+| B5 | Nullable operational branch values | MISSING_SERVER_BRANCH_CHECK / HISTORICAL_BRANCH_DATA_AMBIGUOUS | P1 | non-null new writes, parent checks, safe/manual backfill. |
+| B6 | Bank/warehouse policy absent | BANK_SCOPE_UNDEFINED / WAREHOUSE_CROSS_BRANCH_RISK | P1 | explicit resource/shared-bank policy. |
+| B7 | Journal/account dimension incomplete | JOURNAL_BRANCH_ATTRIBUTION_MISSING / ACCOUNT_BRANCH_OWNERSHIP_UNDEFINED | P1 | mandatory operational journal branch/hybrid chart. |
+| B8 | Optional report scope | COMPANY_ONLY_QUERY_SCOPE / REPORT_CLIENT_ONLY_FILTER risk | P1 | central backend default/elevation policy. |
+| B9 | Transfer workflow absent | TRANSFER_LIFECYCLE_MISSING | P1 | keep direct mutation denied; defer. |
+
+Design-only BRANCH-1 scope:
+
+1. Add additive schema (do not create migration now): branch system account role
+with unique `(company, branch, role)`, same-company/branch account validation;
+BranchCustomer relationship; and proven missing operational attribution.
+2. Add privileged, idempotent bootstrap returning `created`, `adopted`,
+`alreadyPresent`, `blocking`, with no balances, journals, Demo data, suppliers,
+customers, or products.
+3. Resolve customer-deposit account from authenticated effective branch only;
+reject client account/branch overrides and same-company-but-other-branch
+destinations, retaining atomic posting and stable errors.
+4. Scope customer/POS/reservation/credit/loyalty/history and all operational
+ID lookups server-side; preserve Employee-first authorization and direct deny.
+5. Make Branch the explicit current warehouse policy; require same-branch
+asset/movement/receipt and prohibit direct transfer/reassignment. Decide whether
+bank is branch-owned or explicitly shared before allowing it.
+6. Require attribution on new invoices/payments/purchases/receipts/cash/
+reservation descendants/journals, filter reports server-side, and preserve
+branch across reversal.
+7. Backfill only unambiguous rows; classify all other history as
+SINGLE_BRANCH_ADOPTION, AMBIGUOUS_MANUAL_REVIEW, CANNOT_BACKFILL, or
+HISTORICAL_COMPANY_ONLY.
+
+| Proposed file / area | Change | Verification |
+| --- | --- | --- |
+| migration 46 (future) | additive branch roles/customer relation/attribution only as proven | schema + safe-backfill checker |
+| system-account model/bootstrap | branch key, resolver, readiness/bootstrap | idempotent A/B and invalid-role checks |
+| reservation/ERP/POS/settings | effective-branch deposit and same-branch resource checks; no selector | cross-branch API denial + UI QA |
+| customer/inventory/purchase/treasury/ledger/report layers | scoped lookup/report helpers and shared policy | IDOR/report parity tests |
+| `scripts/verify-branch-operational-isolation.js` | future verifier | emits `BRANCH OPERATIONAL ISOLATION PASSED` |
+
+Future two-branch QA: create isolated `BRANCH1-QA-A/B` data; prove separate
+bootstrap/deposit/register/warehouse/employee/customer/reservation/asset;
+cross-branch customer/reservation/register/bank/account/warehouse/asset/
+purchase/journal and submitted branch override are rejected with stable code,
+zero write, no inappropriate existence leakage and audit event; employee A
+cannot switch B; company/Super Admin writes require explicit branch;
+reversal/refund retains branch; reports separate/consolidate only as authorized;
+transfers unavailable; Arabic/English desktop/mobile pass; cleanup zero.
+
+Roadmap: `BRANCH-PRE1 -> BRANCH-1 -> BRANCH-DEPLOY1 -> TRANSFER-PRE1 ->
+TRANSFER-1 -> NOTIF-PRE1 -> NOTIF-1 -> UX-PRE1 -> UX-1`.
+
+**RESET-DEPLOY1 remains paused** because a company-scoped mapping does not meet
+the approved per-branch contract. **TRANSFER-PRE1 and NOTIF-PRE1 remain
+paused.**
+
+Production confirmation: **NO RESET, SEED, MIGRATION, CONFIGURATION,
+DEPLOYMENT, OR DATA CHANGE.**
+
+NEXT TOOL START HERE
+
+BRANCH-1 — Per-Branch Deposit Account & Operational Data Isolation
+
+Do not start automatically. Wait for owner review.
+
+---
+
+## BRANCH-1 local implementation status - 2026-07-20 (NOT CLOSED)
+
+BRANCH-1 selected the documented **company identity + BranchCustomer** model. Two additive migrations implement branch-scoped system-account roles/accounts and the BranchCustomer relationship (47 migrations total). The protected customer-deposit role is resolved by company, authenticated branch and role; bootstrap is idempotent, creates only a minimal branch liability account and mapping, and returns explicit manual-review blockers for ambiguous multi-branch legacy mappings. The ordinary Settings selector has been removed in favour of read-only readiness status. Reservation/POS and generic ERP branch scopes now reject mismatched client branch values and enforce branch ownership for the implemented paths. No transfer workflow or direct asset branch reassignment was added; the generic asset guard remains.
+
+The empty localhost-only `darfus_erp_branch1_qa` database was migrated and cleaned/dropped after the focused verifier passed with `BRANCH OPERATIONAL ISOLATION PASSED`. Syntax checks, typecheck, lint (18 existing warnings, zero errors), and build passed. Start/final primary backups were archive-validated; the primary database was neither migrated nor written.
+
+**This phase is not closed:** the mandatory 66/66 clean-tree verifier suite and Arabic/English desktop/mobile two-branch browser QA matrix remain incomplete. Do not treat this as BRANCH-DEPLOY1 authorization. Historical branchless rows remain manual-review/read-only; none was guessed or backfilled. Production remains untouched. `TRANSFER-PRE1` and `NOTIF-PRE1` remain paused; `RESET-DEPLOY1` remains superseded/paused.
+
+NEXT TOOL START HERE
+
+BRANCH-1 - Complete the remaining local full-suite and browser QA, then obtain owner review before any deployment phase.
+
+---
+
+## BRANCH-1-DIAG1 - verifier inventory and invoice contract audit (2026-07-20)
+
+Diagnostic-only run at `51e4d61`; no Product, verifier, migration, permission,
+configuration, primary, or Production change was made. A fresh local
+`darfus_erp_branch1_qa` database was migrated through 47 migrations and
+permission-bootstrapped to 128 permissions. All 66 verifier files were invoked
+independently in alphabetical suite order: **60 PASS, 6 FAIL, 0 BLOCKED**.
+
+The six failures were `verify-invoice-crud-guards.js`,
+`verify-sales-adjustment-operator-enforcement.js`,
+`verify-sales-pos-operator-enforcement.js`, `verify-simple-account-center.js`,
+`verify-single-level-employee-operator.js`, and
+`verify-super-admin-branch-shell-recovery.js`. The immediate invoice failure is
+`draft update must reach item.update()`.
+
+Invoice primary classification: **STALE_INTERNAL_METHOD_ASSERTION (P2)**.
+The verifier mocks generic `ErpController.update` and requires its instance
+`item.update()` sentinel. The supported draft route in `erp.routes.js` instead
+performs a transaction-scoped `invoice.update`, deletes existing
+`InvoiceItem` rows, recreates incoming rows, writes an audit event, and emits a
+draft-update event. This is a different atomic mutation strategy, not evidence
+that a valid draft update cannot occur. Posted/cancelled guards remain separate
+and strict. BRANCH-1-FIX1 must replace the fragile generic-controller sentinel
+with stable draft-route behavior/atomicity, total, status, and branch-scope
+assertions, then separately classify the remaining five failures and their
+fixtures/QA guards.
+
+Primary local baseline remained `companies/assets/journals/system roles/
+permissions = 9|20|53|0|128`; Production was untouched. The isolated QA DB was
+used only for diagnostics and must be dropped before any follow-up repair.
+
+NEXT TOOL START HERE
+
+BRANCH-1-FIX1 - Consolidated Verified Failure Resolution
+
+Do not start automatically. BRANCH-DEPLOY1, TRANSFER-PRE1, and NOTIF-PRE1
+remain paused.
+
+---
+
+## BRANCH-1-BROWSER-DIAG1 — Local Frontend Route Availability, Locale Runtime & Auth-Shell Audit (2026-07-20)
+
+Diagnostic-only audit from `12bbeafae1bb6c6d2a996a7f05b556853081f2e5`
+(`test: align identity isolated QA verifier guards`). No Product, frontend,
+configuration, verifier, migration, permission, database, or Production change
+was made. `fdf131d`, `f74faee`, `be0d89e`, and `12bbeaf` were inspected: their
+scopes are documentation and verifier files only; no runtime, migration,
+permission, or configuration paths changed.
+
+### Safety and baseline
+
+`main` was clean with 11 untouched stashes, `next-env.d.ts` clean, and ports
+3000/8000 quiet before the audit. Node was `v24.14.0`, npm was `11.11.0`, and
+the frontend is Next `16.2.9` / next-intl `4.8.4` from
+`H:\WORK\jewellery-erp-master`, managed by npm with `package-lock.json`.
+The supported frontend commands are `npm run dev` (`next dev`), `npm run build`
+(`next build`), and `npm run start` (`next start`). Non-secret runtime variables
+loaded from `.env` are `NEXT_PUBLIC_DATA_SOURCE` and `NEXT_PUBLIC_API_URL`; no
+secret value is recorded here.
+
+Both BRANCH-1 archives were revalidated before runtime work:
+
+| Backup | Size | `pg_restore -l` | Result |
+| --- | ---: | --- | --- |
+| `backend/backups/darfus_erp_branch1_start_20260720_132745.dump` | 498,512 bytes | pass | valid |
+| `backend/backups/darfus_erp_branch1_final_20260720_133606.dump` | 498,512 bytes | pass | valid |
+
+The isolated QA database was absent. Read-only local-primary evidence remained
+`companies/assets/journals/system roles/permissions = 9|20|53|0|128`.
+Repository counts remain 47 migrations, 128 permissions, and 66 verifier files;
+the prior clean-tree 66/66 verifier result is preserved.
+
+### Source, locale, and build trace
+
+The frontend uses the App Router only. Localized source pages exist under
+`app/[locale]/(dashboard)` for dashboard, POS, customers, reservations,
+sales/invoices, inventory, purchases, treasury, accounting, reports, and
+settings; login is `app/[locale]/login/page.tsx`. The route-group layout applies
+`AppShell`, `AuthGuard`, and `RealtimeProvider`; it does not remove the route.
+`app/[locale]/layout.tsx` accepts only `ar` and `en`, sets RTL/LTR, and calls
+`notFound()` only for an unsupported locale.
+
+`next.config.ts` has no basePath, assetPrefix, rewrites, redirects, trailingSlash,
+output, distDir, or standalone override. Its relevant behavior is the
+next-intl request plugin and global response headers. `proxy.ts` uses the
+next-intl matcher for all non-API/static paths. `i18n/routing.ts` declares
+`ar,en`, default `ar`, `localePrefix: "always"`, and disabled locale detection.
+Thus `/`, `/login`, `/dashboard`, and `/pos` are expected locale redirects;
+`/en/*` and `/ar/*` are the actual route forms.
+
+Before rebuild, source and existing artifacts already contained dashboard/POS.
+The fresh `npm run build` passed and listed both localized dashboard and POS
+routes for Arabic and English. The resulting build ID was
+`KgTR7lazXD9xvscjZWDvR`; `routes-manifest.json` and
+`server/app-paths-manifest.json` both contain `/[locale]/dashboard` and
+`/[locale]/pos`. The build reports `Proxy (Middleware)`. The legacy-named
+middleware manifest has no entries, but this is not a runtime failure: controlled
+Dev logs show `proxy.ts` executing and Start returns the correct locale redirects.
+No service worker/PWA registration was found in source.
+
+### Controlled runtime and response evidence
+
+The earlier 404 process had already been stopped before this audit, so its PID,
+working directory, and build identity cannot be reconstructed safely. A fresh,
+controlled runtime was therefore started only after proving port 3000 free:
+
+| Mode | Command | Working directory | Port owner | Result |
+| --- | --- | --- | --- | --- |
+| Dev | `npm run dev` | repository root | local Next Node process | all localized critical routes 200 |
+| Start | `npm run start` after fresh build | repository root | local Next Node process | all localized critical routes 200 |
+
+Both processes were confirmed to originate in this repository, then stopped by
+their exact listening PID; port 3000 returned to quiet. The backend was not
+started, and it received no route requests. Every current response is therefore
+identified as a local Next response, not Express, proxy, or another port owner.
+
+| URL form | Dev | Start | Classification |
+| --- | --- | --- | --- |
+| `/`, `/login`, `/dashboard`, `/pos` | 307 to `/ar/...` | 307 to `/ar/...` | expected locale redirect |
+| `/en`, `/ar` | 307 to localized login | 307 to localized login | expected page redirect |
+| `/en/login`, `/ar/login` | 200 | 200 | pass |
+| English/Arabic dashboard, POS, customers, reservations, sales, inventory, purchases, treasury, reports, settings | 200 | 200 | pass |
+
+The same direct-HTTP results occurred on `http://localhost:3000` and
+`http://127.0.0.1:3000`; origin choice did not affect locale routing. Browser
+navigation on the controlled Start runtime also opened `/en/dashboard` and
+`/en/pos`, including a hard reload of POS, without a 404. The pre-existing local
+Branch Account browser context reached the Employee verification shell, which is
+the expected safe auth-shell state without an active Employee session. Its only
+console errors were expected failed API settings/branches fetches because the
+local backend intentionally remained stopped; they did not change the route
+status or produce a raw error page. No browser storage was inspected or changed,
+and no credential, PIN, cookie, token, or business action was recorded.
+
+### Result and split-safe next phase
+
+The prior `/en/dashboard` and `/en/pos` 404 evidence is classified as
+`STALE_LOCAL_FRONTEND_PROCESS_OR_RUNTIME_STATE` / `ROUTE-RUNTIME-01` (P2), not
+a proven route-module, locale-middleware, auth-shell, proxy, configuration, or
+Product defect. The exact prior process cannot be attributed retrospectively,
+but a clean repository-root Dev and production-style Start invocation fully
+reproduces the complete authorized localized route surface without any 404.
+Dashboard/POS source-to-runtime divergence therefore occurs before the current
+controlled Next process, not in either route, locale layout, AuthGuard, or
+manifest route registration.
+
+Proposed **BRANCH-1-BROWSER-FIX1 — Proven Localized Route Runtime Resolution**
+is operational/runbook-only unless a recurrence is captured with a conflicting
+PID, working directory, and build evidence:
+
+| Order | Proposed subject | Type | Exact files | Preconditions |
+| ---: | --- | --- | --- | --- |
+| 1 | no Product/config change | operational | none | prove port owner/CWD and record .next build ID before stopping a recurrence |
+| 2 | `docs: record local frontend route runbook` | documentation only | `docs/AI_HANDOFF.md` | owner approval after repeatable operational evidence |
+
+Focused future evidence should repeat the direct Dev/Start English/Arabic route
+matrix, authenticated safe-shell navigation, hard refresh, client navigation,
+and local origin comparison before resuming BRANCH-1 business Browser QA. Do not
+add aliases, rewrites, middleware changes, or route pages absent a new captured
+code/config defect.
+
+Cleanup closed the diagnostic Browser tab, stopped local frontend processes,
+removed temporary logs, left the QA DB absent, and restored the known generated
+`next-env.d.ts` state after all Next processes stopped. Primary and Production
+remain untouched.
+
+NEXT TOOL START HERE
+
+BRANCH-1-BROWSER-FIX1 — Proven Localized Route Runtime Resolution
+
+Do not start automatically.
+
+BRANCH-DEPLOY1 remains paused.
+TRANSFER-PRE1 remains paused.
+NOTIF-PRE1 remains paused.
+
+---
+
+## BRANCH-1-DIAG1-CONT1 - remaining failure classification and FIX1 plan (2026-07-20)
+
+This is a diagnostic-only continuation at `51e4d61`. It preserved the existing
+DIAG1 handoff text and made no Product, verifier, fixture, migration,
+permission, configuration, primary-database, or Production change. A fresh,
+empty localhost-only `darfus_erp_branch1_qa` database was created for the five
+remaining independent reproductions, migrated through all 47 migrations, and
+permission-bootstrapped to 128 permissions. The five verifiers all stopped at
+their environment target guard before a live Product assertion or a verifier
+write was reached.
+
+Both existing BRANCH-1 primary backups were revalidated:
+`backend/backups/darfus_erp_branch1_start_20260720_132745.dump` and
+`backend/backups/darfus_erp_branch1_final_20260720_133606.dump` are each
+498,512 bytes and each passes `pg_restore -l`.
+
+### Fresh isolated-QA reproduction matrix
+
+| Verifier | Fresh result and preflight location | Primary classification | Product assertion/write reached? | Severity |
+| --- | --- | --- | --- | --- |
+| `verify-invoice-crud-guards.js` | DIAG1 failure: draft `REACHED_UPDATE` sentinel did not occur. Source trace shows the generic controller now calls `applyBranchWriteScope` before `item.update`; the mock request has no `branchId`. | `STALE_FIXTURE_OR_MOCK` / `MISSING_BRANCH_CONTEXT`; secondary `FRAGILE_INTERNAL_METHOD_ASSERTION` | No valid branch-aware draft path was exercised; no DB write. | P2 |
+| `verify-sales-adjustment-operator-enforcement.js` | static contract PASS, then `Refusing DB darfus_erp_branch1_qa` at `assertLocalEnvironment` line 80, before `runLiveHttpVerifier` line 740. | `STALE_QA_TARGET_GUARD` (`QA-GUARD-SALES-01`) | No / no. | P2 |
+| `verify-sales-pos-operator-enforcement.js` | static contract PASS, then `Refusing unexpected DB_NAME darfus_erp_branch1_qa` at `assertLocalEnvironment` line 134, before `runLiveHttpVerifier` line 975. Its subsequent DB contract also hard-codes `darfus_erp`. | `STALE_QA_TARGET_GUARD` (`QA-GUARD-SALES-01`) | No / no. | P2 |
+| `verify-simple-account-center.js` | immediate `Refusing DB darfus_erp_branch1_qa` at `assertLocalEnvironment` line 24, before static/live assertions. | `STALE_QA_TARGET_GUARD` (`QA-GUARD-IDENTITY-01`) | No / no. | P2 |
+| `verify-single-level-employee-operator.js` | immediate `Refusing unexpected DB_NAME darfus_erp_branch1_qa` at `assertLocalDatabaseEnv` line 25, before static/live assertions. | `STALE_QA_TARGET_GUARD` (`QA-GUARD-IDENTITY-01`) | No / no. | P2 |
+| `verify-super-admin-branch-shell-recovery.js` | static contract PASS, then `Refusing DB darfus_erp_branch1_qa` at `assertLocalEnvironment` line 17, before `runLive` line 449. | `STALE_QA_TARGET_GUARD` (`QA-GUARD-IDENTITY-01`) | No / no. | P2 |
+
+The previous DIAG1 invoice label is refined, not a Product regression: the
+generic `ErpController.update` still reaches `item.update` after its guards,
+but BRANCH-1 added the deliberate operational-write requirement for an
+effective authenticated branch. The legacy mock provides `companyId` only.
+The supported draft endpoint remains transaction-scoped and performs draft
+invoice update, optional item replacement, audit recording, and a
+`draft-update` event. Therefore no evidence currently proves a draft-invoice,
+branch, Employee, cash, inventory, accounting, or authorization Product
+defect. No P0 or P1 failure was found.
+
+### Consolidated roots and future split-safe BRANCH-1-FIX1 plan
+
+| Root / scope | Proven cause | Future bounded verifier-only change | Required proof before/after |
+| --- | --- | --- | --- |
+| `INVOICE-CONTRACT-01` | Legacy controller mock omits effective branch context and observes an internal `item.update` sentinel instead of the documented branch-aware draft behavior. | Update only `verify-invoice-crud-guards.js`: supply matching authenticated `branchId` to the generic-controller fixtures, retain posted/cancelled/lifecycle denials and zero-write assertions, and distinguish the generic guard from the dedicated draft-route transactional behavior. | `node --check`; guarded draft/posted/cancelled tests; branch mismatch/missing-context denial; no relaxation of lifecycle or posted/reversed assertions. |
+| `QA-GUARD-SALES-01` | Two sales operator verifiers retain a primary-only local DB allowlist and POS also asserts the primary DB name. | In one isolated verifier-only step, align only the two sales verifier guards/contracts to the exact BRANCH-1 QA target. | Exact QA target passes; primary `darfus_erp`, remote hosts, arbitrary `*_qa`, missing/malformed target, and Production refuse before writes; all sales static/live assertions remain strict. |
+| `QA-GUARD-IDENTITY-01` | Three identity/account/Employee verifiers retain a primary-only local DB allowlist. | In one isolated verifier-only step, align only simple-account-center, single-level Employee, and Super Admin recovery guards to the exact BRANCH-1 QA target. | The same target/refusal matrix; all account-center, Employee-first, fixed-branch, recovery, and authorization assertions remain unchanged. |
+
+The future safe target contract is exact, not broad: host must be localhost or
+127.0.0.1, port 5433, database name must be exactly
+`darfus_erp_branch1_qa`, and the process must not be Production/Render/Vercel.
+It must reject the primary `darfus_erp`, remote hosts, arbitrary QA names,
+missing or malformed URLs/targets, and Production before any write. No Product
+change is currently planned or authorized.
+
+Suggested FIX1 sequence is intentionally split by root: (1) invoice
+branch-aware fixture/assertion repair, (2) sales QA-guard alignment, (3)
+identity QA-guard alignment, each with a clean-tree targeted run; then one
+fresh QA full 66-verifier suite. Only after 66/66 passes may the deferred
+two-branch API and browser matrices run. Any failure after the relevant
+verifier-only repair must be newly classified rather than hidden by broader
+allowlists or assertion removal.
+
+The isolated QA DB used for this continuation was dropped and confirmed absent.
+The primary baseline remained `9|20|53|0|128`; no Demo or authentication
+counter data was touched. Ports 3000/8000 were quiet and the only intentional,
+unstaged working-tree change is this appended handoff document. The full suite
+and two-branch API/browser QA remain deferred pending the owner-authorized
+FIX1 repairs. Production confirmation: **NO RESET, SEED, MIGRATION,
+CONFIGURATION, DEPLOYMENT, OR DATA CHANGE.**
+
+NEXT TOOL START HERE
+
+BRANCH-1-FIX1 - Consolidated Verified Failure Resolution
+
+Do not start automatically. BRANCH-DEPLOY1, TRANSFER-PRE1, and NOTIF-PRE1
+remain paused.

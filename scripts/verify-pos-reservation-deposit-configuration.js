@@ -34,27 +34,27 @@ function accountRoleContract() {
   const routes = read(ROUTES);
   assert.ok(bootstrap.includes("new AppError(`${ar} | ${en}`, 422, code)"), "missing or invalid customer-deposit role is an HTTP 422 blocker");
   assert.ok(bootstrap.includes('CUSTOMER_DEPOSIT_LIABILITY: "CUSTOMER_DEPOSIT_LIABILITY"'), "customer-deposit role has a stable protected identifier");
-  assert.ok(bootstrap.includes('where: { companyId, roleCode }'), "role lookup is company-scoped");
-  assert.ok(bootstrap.includes('where: { id: accountId, companyId, isActive: true }'), "mapped account must belong to the company and be active");
+  assert.ok(bootstrap.includes('where: { companyId, branchId, roleCode }'), "role lookup is company-and-branch-scoped");
+  assert.ok(bootstrap.includes('where: { id: accountId, companyId, branchId, isActive: true }'), "mapped account must belong to the company, branch, and be active");
   assert.ok(bootstrap.includes('account.type !== "liability" || account.nature !== "credit"'), "mapped account must be liability/credit classified");
   assert.ok(bootstrap.includes('"CUSTOMER_DEPOSIT_ROLE_NOT_CONFIGURED"'), "missing role has the current stable blocker code");
   assert.ok(bootstrap.includes('"CUSTOMER_DEPOSIT_ROLE_INVALID"'), "invalid or cross-company role has a stable blocker code");
-  assert.ok(bootstrap.includes("reservationAdvancesAccountId") && bootstrap.includes("report.adopted"), "bootstrap adopts a valid existing company setting into the protected role");
-  assert.ok(!/CMP-DEMO|findOne\(\{[^}]*companyId[^}]*\}\)/.test(bootstrap.slice(bootstrap.indexOf("async resolveSystemAccountRole"), bootstrap.indexOf("async readConfiguredDepositAccount"))), "role resolution has no demo or first-account fallback");
-  assert.ok(routes.includes('router.get("/readiness/operations"') && routes.includes("companyReadiness(req.companyId)"), "readiness is company-scoped");
+  assert.ok(bootstrap.includes("CUSTOMER_DEPOSIT_ROLE_MANUAL_REVIEW") && bootstrap.includes("report.adopted"), "single-branch legacy mapping adoption is explicit and multi-branch ambiguity blocks");
+  assert.ok(!/CMP-DEMO|findOne\(\{[^}]*companyId[^}]*\}\)/.test(bootstrap.slice(bootstrap.indexOf("async resolveSystemAccountRole"), bootstrap.indexOf("async legacyRole"))), "role resolution has no demo or first-account fallback");
+  assert.ok(routes.includes('router.get("/readiness/operations"') && routes.includes("branchReadiness(req.companyId, branch.id)"), "readiness is branch-scoped");
   assert.ok(errors.includes("res.status(statusCode).json") && errors.includes("code: errorCode") && errors.includes("error: {"), "stable errors use the documented safe response envelope");
 }
 
 function backendContract() {
   const service = read(SERVICE);
   const createFn = service.slice(service.indexOf("_createReservationInTransaction"), service.indexOf("async addPayment"));
-  assert.ok(service.includes("resolveSystemAccountRole(companyId, SYSTEM_ACCOUNT_ROLES.CUSTOMER_DEPOSIT_LIABILITY"), "reservation deposit liability account is resolved server-side by protected role");
+  assert.ok(service.includes("resolveSystemAccountRole(companyId, branchId, SYSTEM_ACCOUNT_ROLES.CUSTOMER_DEPOSIT_LIABILITY"), "reservation deposit liability account is resolved server-side by protected branch role");
   assert.ok(!service.includes("RESERVATION_ADVANCES_ACCOUNT_NOT_CONFIGURED") && !service.includes("RESERVATION_ADVANCES_ACCOUNT_INVALID"), "retired settings-only error codes are not asserted by the posting service");
   assert.ok(service.includes("RESERVATION_INITIAL_PAYMENT_REQUIRED"), "backend enforces the mandatory initial payment");
   // The mandatory-initial-payment check lives in the public manual creation path,
   // not in the internal renewal successor path.
   assert.ok(createFn.includes("RESERVATION_INITIAL_PAYMENT_REQUIRED"), "manual creation requires an initial payment");
-  assert.ok(createFn.indexOf("getReservationAdvancesAccount(companyId, transaction)") < createFn.indexOf("models.Reservation.create"), "missing or invalid role blocks before reservation/deposit/journal writes");
+  assert.ok(createFn.indexOf("getReservationAdvancesAccount(companyId, branch.id, transaction)") < createFn.indexOf("models.Reservation.create"), "missing or invalid role blocks before reservation/deposit/journal writes");
   assert.ok(createFn.includes("models.sequelize.transaction") || service.includes("models.sequelize.transaction"), "reservation creation is transactional with no partial write on blocker");
   assert.ok(!/findOne\([^)]*Account[^)]*\)(?![\s\S]*companyId)/.test(service), "reservation posting has no first-account fallback");
   assert.ok(!/findOne\([^)]*(nameAr|name)[^)]*\)/.test(service.slice(service.indexOf("async getReservationAdvancesAccount"), service.indexOf("function reservationStatusForTotals"))), "reservation role resolution has no localized-name lookup");

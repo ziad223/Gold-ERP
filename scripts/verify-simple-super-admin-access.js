@@ -61,7 +61,7 @@ function staticContract() {
 
   const migrationCount = fs.readdirSync(path.join(ROOT, "backend", "migrations")).filter((name) => name.endsWith(".js")).length;
   const verifierCount = fs.readdirSync(path.join(ROOT, "scripts")).filter((name) => /^verify-.*\.js$/.test(name)).length;
-  assert.equal(migrationCount, 45, "migration count is 45 after RESET-1");
+  assert.equal(migrationCount, 47, "migration count is 47 after BRANCH-1");
   assert.ok(verifierCount >= 59, "verifier count remains at or above the HF6A baseline");
   console.log("Simple Super Admin static contract: PASS");
 }

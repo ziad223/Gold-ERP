@@ -10,17 +10,24 @@ const BACKEND = path.join(ROOT, "backend");
 const read = (file) => fs.readFileSync(path.join(ROOT, file), "utf8");
 
 function assertLocalDatabaseEnv() {
-  const databaseUrl = process.env.DATABASE_URL || "";
-  if (databaseUrl && !/(localhost|127\.0\.0\.1).*(5433|darfus_erp)/.test(databaseUrl)) {
-    throw new Error("Refusing non-local DATABASE_URL");
+  if (process.env.NODE_ENV === "production" || process.env.RENDER || process.env.VERCEL) {
+    throw new Error("Refusing production verification");
   }
-  if (process.env.DB_HOST && !["localhost", "127.0.0.1"].includes(process.env.DB_HOST)) {
+  const databaseUrl = process.env.DATABASE_URL || "";
+  if (databaseUrl) {
+    let parsed;
+    try { parsed = new URL(databaseUrl); } catch { throw new Error("Refusing malformed DATABASE_URL"); }
+    if (!['localhost', '127.0.0.1'].includes(parsed.hostname) || parsed.port !== "5433" || parsed.pathname !== "/darfus_erp_branch1_qa") {
+      throw new Error("Refusing non-isolated DATABASE_URL");
+    }
+  }
+  if (!["localhost", "127.0.0.1"].includes(process.env.DB_HOST)) {
     throw new Error(`Refusing unexpected DB_HOST ${process.env.DB_HOST}`);
   }
-  if (process.env.DB_PORT && String(process.env.DB_PORT) !== "5433") {
+  if (String(process.env.DB_PORT) !== "5433") {
     throw new Error(`Refusing unexpected DB_PORT ${process.env.DB_PORT}`);
   }
-  if (process.env.DB_NAME && process.env.DB_NAME !== "darfus_erp") {
+  if (process.env.DB_NAME !== "darfus_erp_branch1_qa") {
     throw new Error(`Refusing unexpected DB_NAME ${process.env.DB_NAME}`);
   }
 }
@@ -102,7 +109,7 @@ async function databaseContract() {
   process.env.NODE_ENV = "test";
   process.env.DB_HOST = process.env.DB_HOST || "localhost";
   process.env.DB_PORT = process.env.DB_PORT || "5433";
-  process.env.DB_NAME = process.env.DB_NAME || "darfus_erp";
+  process.env.DB_NAME = "darfus_erp_branch1_qa";
   process.env.DB_USER = process.env.DB_USER || "postgres";
   process.env.DB_PASS = process.env.DB_PASS || "postgres";
 
@@ -119,7 +126,7 @@ async function databaseContract() {
     models.sequelize.query("select to_regclass('public.accounting_locks') as accounting_locks, to_regclass('public.cash_register_sessions') as cash_register_sessions", { type: QueryTypes.SELECT }),
     models.sequelize.query("select name from permissions where name in ('treasury.register.view','treasury.register.open','treasury.register.close','accounting.lock.manage','accounting.reconciliation.view') order by name", { type: QueryTypes.SELECT }),
   ]);
-  assert.equal(migrationCount.count, 45, "migration count is 45 after RESET-1");
+  assert.equal(migrationCount.count, 47, "migration count is 47 after BRANCH-1");
   assert.equal(permissionCount.count, 128, "permission count is 128 after Phase 35D");
   assert.equal(schemaRows[0].accounting_locks, "accounting_locks", "accounting_locks table exists");
   assert.equal(schemaRows[0].cash_register_sessions, "cash_register_sessions", "cash_register_sessions table exists");

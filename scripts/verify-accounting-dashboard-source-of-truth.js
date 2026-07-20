@@ -17,15 +17,20 @@ function routeBlock(source, route) {
 }
 
 function assertLocalDatabaseEnv() {
-  const databaseUrl = process.env.DATABASE_URL || "";
-  if (databaseUrl && !/(localhost|127\.0\.0\.1).*(5433|darfus_erp)/.test(databaseUrl)) {
-    throw new Error("Refusing non-local DATABASE_URL");
+  if (process.env.NODE_ENV === "production" || process.env.RENDER || process.env.VERCEL) {
+    throw new Error("Refusing production verification");
   }
-  for (const [key, expected] of [["DB_HOST", ["localhost", "127.0.0.1"]], ["DB_PORT", ["5433"]], ["DB_NAME", ["darfus_erp"]]]) {
-    if (process.env[key] && !expected.includes(String(process.env[key]))) {
-      throw new Error(`Refusing unexpected ${key}`);
+  const databaseUrl = process.env.DATABASE_URL || "";
+  if (databaseUrl) {
+    let parsed;
+    try { parsed = new URL(databaseUrl); } catch { throw new Error("Refusing malformed DATABASE_URL"); }
+    if (!['localhost', '127.0.0.1'].includes(parsed.hostname) || parsed.port !== "5433" || parsed.pathname !== "/darfus_erp_branch1_qa") {
+      throw new Error("Refusing non-isolated DATABASE_URL");
     }
   }
+  if (!["localhost", "127.0.0.1"].includes(process.env.DB_HOST)) throw new Error(`Refusing unexpected DB_HOST ${process.env.DB_HOST || "<missing>"}`);
+  if (String(process.env.DB_PORT) !== "5433") throw new Error(`Refusing unexpected DB_PORT ${process.env.DB_PORT || "<missing>"}`);
+  if (process.env.DB_NAME !== "darfus_erp_branch1_qa") throw new Error(`Refusing unexpected DB_NAME ${process.env.DB_NAME || "<missing>"}`);
 }
 
 function staticContract() {
@@ -71,10 +76,11 @@ function line(id, journalEntryId, account, debit, credit) {
 
 async function databaseContract() {
   assertLocalDatabaseEnv();
+  const verifiedDatabaseName = process.env.DB_NAME;
   require(path.join(BACKEND, "node_modules", "dotenv")).config({ path: path.join(BACKEND, ".env") });
   process.env.DB_HOST = "localhost";
   process.env.DB_PORT = "5433";
-  process.env.DB_NAME = "darfus_erp";
+  process.env.DB_NAME = verifiedDatabaseName;
   process.env.DB_USER = process.env.DB_USER || "postgres";
   process.env.DB_PASS = process.env.DB_PASS || "postgres";
 
@@ -190,9 +196,10 @@ async function databaseContract() {
 
 async function apiContract() {
   assertLocalDatabaseEnv();
+  const verifiedDatabaseName = process.env.DB_NAME;
   process.env.DB_HOST = "localhost";
   process.env.DB_PORT = "5433";
-  process.env.DB_NAME = "darfus_erp";
+  process.env.DB_NAME = verifiedDatabaseName;
   process.env.DB_USER = process.env.DB_USER || "postgres";
   process.env.DB_PASS = process.env.DB_PASS || "postgres";
 

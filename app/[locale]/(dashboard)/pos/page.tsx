@@ -191,8 +191,15 @@ export default function PosPage() {
   const [resNotes, setResNotes] = useState("");
   const [creatingReservation, setCreatingReservation] = useState(false);
   const [createdReservation, setCreatedReservation] = useState<{ id: string; paidTotal?: string | number; remainingTotal?: string | number; agreedTotal?: string | number; expiresAt?: string } | null>(null);
-  const reservationAccountConfigured = Boolean(settings?.reservationAdvancesAccountId);
+  const [reservationAccountConfigured, setReservationAccountConfigured] = useState(false);
   const canConfigureSettings = hasPermission("settings.update");
+  useEffect(() => {
+    let cancelled = false;
+    apiClient<{ success: boolean; data: { status: "READY" | "BLOCKED" | "MANUAL_REVIEW" } }>("/readiness/operations")
+      .then((result) => { if (!cancelled) setReservationAccountConfigured(result.data.status === "READY"); })
+      .catch(() => { if (!cancelled) setReservationAccountConfigured(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   // Split payment details
   const [splitCash, setSplitCash] = useState("0");
@@ -769,7 +776,7 @@ export default function PosPage() {
         return;
       }
       if (!reservationAccountConfigured) {
-        setPricingError(rtl ? "لا يمكن تسجيل حجز بعربون قبل تحديد حساب دفعات مقدمة العملاء للحجوزات من الإعدادات المحاسبية." : "A reservation deposit cannot be recorded until the Reservation Advances Account is configured in Accounting Settings.");
+        setPricingError(rtl ? "لا يمكن تسجيل حجز بعربون قبل تشغيل إعداد حساب الفرع التلقائي." : "A reservation deposit cannot be recorded until automatic branch setup is complete.");
         return;
       }
       setResInitialPayment("");
@@ -897,7 +904,7 @@ export default function PosPage() {
     if (!resExpiry) { setPricingError(rtl ? "تاريخ ووقت انتهاء الحجز مطلوب." : "Reservation expiry date/time is required."); return; }
     const expiryDate = new Date(resExpiry);
     if (Number.isNaN(expiryDate.getTime()) || expiryDate.getTime() <= Date.now()) { setPricingError(rtl ? "يجب أن يكون تاريخ الانتهاء في المستقبل." : "Expiry must be in the future."); return; }
-    if (!reservationAccountConfigured) { setPricingError(rtl ? "حساب دفعات مقدمة العملاء للحجوزات غير محدد." : "Reservation advances account is not configured."); return; }
+    if (!reservationAccountConfigured) { setPricingError(rtl ? "حساب دفعات الفرع غير مهيأ." : "The branch deposit account is not configured."); return; }
 
     setCreatingReservation(true);
     try {
@@ -1480,9 +1487,9 @@ export default function PosPage() {
               <>
                 {method === "deposit" && !reservationAccountConfigured && (
                   <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
-                    <p>{rtl ? "لا يمكن تسجيل حجز بعربون قبل تحديد حساب دفعات مقدمة العملاء للحجوزات من الإعدادات المحاسبية." : "A reservation deposit cannot be recorded until the Reservation Advances Account is configured in Accounting Settings."}</p>
+                    <p>{rtl ? "لا يمكن تسجيل حجز بعربون قبل تشغيل إعداد حساب الفرع التلقائي." : "A reservation deposit cannot be recorded until automatic branch setup is complete."}</p>
                     {canConfigureSettings ? (
-                      <Link href="/settings" className="mt-1 inline-block underline">{rtl ? "فتح الإعدادات المحاسبية" : "Open Accounting Settings"}</Link>
+                      <Link href="/settings" className="mt-1 inline-block underline">{rtl ? "فتح حالة الفرع" : "Open branch status"}</Link>
                     ) : (
                       <p className="mt-1">{rtl ? "يرجى التواصل مع مسؤول معتمد." : "Please contact an authorized administrator."}</p>
                     )}
@@ -1567,7 +1574,7 @@ export default function PosPage() {
             <input className="input-base mt-1" value={resNotes} onChange={(e) => setResNotes(e.target.value)} />
           </label>
           {!reservationAccountConfigured && (
-            <p className="text-xs font-bold text-amber-600">{rtl ? "حساب دفعات الحجوزات غير محدد في الإعدادات المحاسبية." : "The Reservation Advances Account is not configured in Accounting Settings."}</p>
+            <p className="text-xs font-bold text-amber-600">{rtl ? "حساب دفعات الفرع غير مهيأ." : "The automatic branch deposit account is not configured."}</p>
           )}
           <div className="flex justify-end gap-2 pt-4 border-t border-border">
             <Button type="button" variant="secondary" onClick={() => setShowReservationDialog(false)}>{common("cancel")}</Button>

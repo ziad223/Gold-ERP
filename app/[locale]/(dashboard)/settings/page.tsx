@@ -189,10 +189,9 @@ export default function SettingsPage() {
   const [installmentMaxCount, setInstallmentMaxCount] = useState("24");
   const [installmentMinDownPaymentPercent, setInstallmentMinDownPaymentPercent] = useState("0");
   const [savingSystem, setSavingSystem] = useState(false);
-  // Phase 32.6-Post-C — Reservation Advances Account configuration.
-  const [reservationAdvancesAccountId, setReservationAdvancesAccountId] = useState("");
+  // BRANCH-1: server-resolved protected role; never a user-selected ledger account.
+  const [branchDepositStatus, setBranchDepositStatus] = useState<"configured" | "missing" | "invalid" | "manual_review">("missing");
   const [reservationExpiryWarningHours, setReservationExpiryWarningHours] = useState("72");
-  const [liabilityAccounts, setLiabilityAccounts] = useState<Array<{ id: string; code?: string; name?: string; nameAr?: string; type?: string; nature?: string; isActive?: boolean }>>([]);
 
   // --- Barcode Settings State ---
   const [barcodeForm, setBarcodeForm] = useState({
@@ -496,7 +495,6 @@ export default function SettingsPage() {
       setInstallmentDefaultFrequency(settings.installmentDefaultFrequency || "monthly");
       setInstallmentMaxCount(toEnglishDigits(settings.installmentMaxCount ?? 24));
       setInstallmentMinDownPaymentPercent(toEnglishDigits(settings.installmentMinDownPaymentPercent ?? 0));
-      setReservationAdvancesAccountId(settings.reservationAdvancesAccountId || "");
       setReservationExpiryWarningHours(toEnglishDigits(settings.reservationExpiryWarningHours ?? 72));
       setPaymentMethods(settings.paymentMethods || ["cash", "card", "transfer", "installment", "deposit"]);
       if (settings.receipt) {
@@ -532,14 +530,13 @@ export default function SettingsPage() {
       try {
         const res = await apiClient<{
           success: boolean;
-          data: { reservationAdvancesAccountId: string; accounts: any[] };
-        }>("/settings/reservation-advances-account", { locale, skipBranch: true });
+          data: { status: "READY" | "BLOCKED" | "MANUAL_REVIEW" };
+        }>("/readiness/operations", { locale });
         if (!cancelled) {
-          setReservationAdvancesAccountId(res.data.reservationAdvancesAccountId || "");
-          setLiabilityAccounts(res.data.accounts || []);
+          setBranchDepositStatus(res.data.status === "READY" ? "configured" : res.data.status === "MANUAL_REVIEW" ? "manual_review" : "missing");
         }
       } catch {
-        if (!cancelled) setLiabilityAccounts([]);
+        if (!cancelled) setBranchDepositStatus("invalid");
       }
     })();
     return () => { cancelled = true; };
@@ -745,7 +742,6 @@ export default function SettingsPage() {
         installmentDefaultFrequency,
         installmentMaxCount: Number(toEnglishDigits(installmentMaxCount)),
         installmentMinDownPaymentPercent: Number(toEnglishDigits(installmentMinDownPaymentPercent)),
-        reservationAdvancesAccountId: reservationAdvancesAccountId || "",
         reservationExpiryWarningHours: Number(toEnglishDigits(reservationExpiryWarningHours))
       });
       if (success) {
@@ -755,24 +751,6 @@ export default function SettingsPage() {
       }
     } catch (err: any) {
       toast.error(err.message || "Error saving system settings");
-    } finally {
-      setSavingSystem(false);
-    }
-  };
-
-  const handleSaveReservationAccount = async () => {
-    setSavingSystem(true);
-    try {
-      const success = await updateSettings({
-        reservationAdvancesAccountId: reservationAdvancesAccountId || ""
-      });
-      if (success) {
-        toast.success(rtl ? "تم حفظ حساب دفعات الحجوزات بنجاح" : "Reservation advances account saved successfully");
-      } else {
-        toast.error(rtl ? "فشل حفظ حساب دفعات الحجوزات" : "Failed to save reservation advances account");
-      }
-    } catch (err: any) {
-      toast.error(err.message || "Error saving reservation advances account");
     } finally {
       setSavingSystem(false);
     }
@@ -2274,34 +2252,11 @@ export default function SettingsPage() {
 
           <div className="border-t border-border pt-5">
             <h3 className="text-sm font-black text-foreground">{rtl ? "محاسبة الحجوزات" : "Reservation Accounting"}</h3>
-            <label className="block mt-3 max-w-xl">
-              <span className="label-base">{rtl ? "حساب دفعات مقدمة من العملاء – حجوزات" : "Reservation Advances Account"}</span>
-              <select
-                className="input-base mt-1"
-                value={reservationAdvancesAccountId}
-                onChange={(e) => setReservationAdvancesAccountId(e.target.value)}
-                disabled={!canConfigureReservationAccount}
-              >
-                <option value="">{rtl ? "— غير محدد —" : "— Not configured —"}</option>
-                {liabilityAccounts.map((account) => (
-                  <option key={account.id} value={account.id} className="bg-panel text-foreground">
-                    {(account.code ? `${account.code} · ` : "")}{rtl ? (account.nameAr || account.name) : (account.name || account.nameAr)}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1.5 text-[10px] text-slate-400">
-                {rtl
-                  ? "الحساب الدائن المستخدم لتسجيل الدفعات الأولى والدفعات اللاحقة للحجوزات قبل إتمام البيع النهائي. تُعرض حسابات الخصوم الدائنة النشطة فقط، ويُعاد التحقق منها في الخادم."
-                  : "The liability account credited for reservation payments before final sale completion. Only active credit-nature liability accounts are shown; the backend re-validates the selection."}
-              </p>
-              {reservationAdvancesAccountId === "" && (
-                <p className="mt-1.5 text-[10px] font-bold text-amber-600">
-                  {rtl
-                    ? "بدون هذا الحساب لا يمكن تسجيل حجز بعربون في نقطة البيع أو صفحة الحجوزات."
-                    : "Without this account, reservation deposits cannot be recorded in POS or the Reservations page."}
-                </p>
-              )}
-            </label>
+            <div className="mt-3 max-w-xl rounded-lg border border-border bg-muted/30 p-3 text-sm">
+              <p className="font-bold">{rtl ? "حالة حساب دفعات الحجوزات للفرع" : "Branch reservation-deposit account status"}</p>
+              <p className="mt-1 text-muted">{branchDepositStatus === "configured" ? (rtl ? "مُهيأ تلقائياً ومحمي لهذا الفرع." : "Configured automatically and protected for this branch.") : branchDepositStatus === "manual_review" ? (rtl ? "يتطلب مراجعة يدوية قبل التشغيل." : "Manual review is required before operation.") : (rtl ? "غير مهيأ أو غير صالح؛ اطلب من المسؤول تشغيل إعداد الفرع." : "Missing or invalid; ask an administrator to run branch setup.")}</p>
+              <p className="mt-1 text-xs text-muted">{rtl ? "لا يمكن اختيار أو تجاوز حساب دفتر الأستاذ من الإعدادات أو نقطة البيع." : "The ledger account cannot be selected or overridden from Settings or POS."}</p>
+            </div>
 
             {canUpdateAllSettings && <label className="block mt-4 max-w-xl">
               <span className="label-base">{rtl ? "عدد الساعات قبل انتهاء الحجز لإرسال التنبيه" : "Reservation expiry warning hours"}</span>
@@ -2322,13 +2277,11 @@ export default function SettingsPage() {
           </div>
 
           <div className="pt-2">
-            <Button onClick={canUpdateAllSettings ? handleSaveSystem : handleSaveReservationAccount} disabled={savingSystem || !canConfigureReservationAccount}>
+            <Button onClick={handleSaveSystem} disabled={savingSystem || !canUpdateAllSettings}>
               <Save className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
               {savingSystem
                 ? common("saving")
-                : hasGranularReservationAccountOnly
-                  ? (rtl ? "حفظ حساب دفعات الحجوزات" : "Save Reservation Account")
-                  : (rtl ? "حفظ إعدادات النظام" : "Save Settings")}
+                : (rtl ? "حفظ إعدادات النظام" : "Save Settings")}
             </Button>
           </div>
         </Card>
