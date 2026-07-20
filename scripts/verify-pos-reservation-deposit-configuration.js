@@ -25,8 +25,6 @@ const SERVICE = "backend/src/services/reservation.service.js";
 const BOOTSTRAP_SERVICE = "backend/src/services/company-bootstrap.service.js";
 const ERROR_MIDDLEWARE = "backend/src/middleware/error.middleware.js";
 const ROUTES = "backend/src/routes/erp.routes.js";
-const SETTINGS_PAGE = "app/[locale]/(dashboard)/settings/page.tsx";
-const SETTINGS_CTX = "contexts/settings-context.tsx";
 const POS_PAGE = "app/[locale]/(dashboard)/pos/page.tsx";
 const RES_PAGE = "app/[locale]/(dashboard)/sales/reservations/page.tsx";
 
@@ -34,6 +32,7 @@ function accountRoleContract() {
   const bootstrap = read(BOOTSTRAP_SERVICE);
   const errors = read(ERROR_MIDDLEWARE);
   const routes = read(ROUTES);
+  assert.ok(bootstrap.includes("new AppError(`${ar} | ${en}`, 422, code)"), "missing or invalid customer-deposit role is an HTTP 422 blocker");
   assert.ok(bootstrap.includes('CUSTOMER_DEPOSIT_LIABILITY: "CUSTOMER_DEPOSIT_LIABILITY"'), "customer-deposit role has a stable protected identifier");
   assert.ok(bootstrap.includes('where: { companyId, roleCode }'), "role lookup is company-scoped");
   assert.ok(bootstrap.includes('where: { id: accountId, companyId, isActive: true }'), "mapped account must belong to the company and be active");
