@@ -5540,6 +5540,115 @@ remain paused.
 
 ---
 
+## BRANCH-1-IDOR-DIAG1 — Scoped Resource Identity Binding Audit (2026-07-20)
+
+Diagnostic-only audit from `112475f` with no Product, verifier, migration,
+permission, configuration, primary-DB, or Production change. Entry safety was
+clean `main`, 11 stashes, 47 migrations, 128 permissions, 66 verifier files,
+documented 66/66 baseline, quiet ports, absent QA DB, and primary baseline
+`9|20|53|0|128`. Both BRANCH-1 dumps are 498,512 bytes and pass `pg_restore -l`.
+
+Fresh localhost-only `darfus_erp_branch1_qa` was migrated through all 47
+migrations and bootstrapped to 128 permissions. (The repository's `test`
+configuration suffixes its DB name, so the initially refused test invocation
+made no migration; the exact QA target succeeded under the committed
+development configuration.) Namespaced `BRANCH1-IDOR-DIAG1-*` fixtures contained
+one company, A/B fixed Branch Accounts and verified Employees, A1/A2/B1/B2
+Customers plus BranchCustomer rows, assets, reservations, invoices/items,
+payments, journals, protected accounts, and cash sessions. No primary data was
+copied.
+
+### Proven generic Customer ID collision (`IDOR-CUSTOMER-01`, P1)
+
+`setupCrud("customers") → ErpController.getById → applyBranchReadScope` starts
+with `{ id: requestedId, companyId }`, then loads active A BranchCustomer rows
+and assigns `where.id = { [Op.in]: [A1,A2] }`. That mutable top-level assignment
+replaces the route ID rather than combining it. The final logical query is
+`company_id = C AND id IN (A1,A2) LIMIT 1`, with no include scope, so A1 wins.
+
+| Request by verified A actor | Status | Returned / mutated ID | Result |
+| --- | ---: | --- | --- |
+| `GET A1` | 200 | A1 | exact success |
+| `GET A2` | 200 | A1 | wrong-resource substitution |
+| `GET B1` | 200 | A1 | wrong-resource substitution |
+| `GET unknown` | 200 | A1 | requested ID dropped |
+| `PATCH B1` harmless note | 200 | A1 | **A1 changed; B1 unchanged** |
+
+The same helper path is used by generic Customer get, update, deactivate,
+reactivate, and delete. The PATCH is the minimum isolated wrong-target write
+proof; no further destructive generic scenarios were run.
+
+### Dedicated Customer routes omit BranchCustomer scope (`IDOR-CUSTOMER-02`, P1)
+
+Dedicated routes use `Customer.findOne({ id: req.params.id, companyId })` and
+omit BranchCustomer/effective-branch authorization. A received actual B data:
+
+| Endpoint requested with B1 | Result |
+| --- | --- |
+| `/customers/B1/invoices` | 200; B invoice returned |
+| `/customers/B1/statement` | 200; B invoice summary returned |
+| `/customers/B1/credit` | 200; `customerId=B1` |
+| `/customers/B1/loyalty` | 200; `customerId=B1` |
+
+The same company-only lookup is present in attachment, KYC, lifecycle,
+statement-v2/v3, credit-reconciliation, loyalty earn/redeem, and credit
+deposit/refund code. Credit deposit/refund then create cash, credit-ledger, and
+journal effects and accept a branch candidate without binding it to the fixed
+authenticated branch: **P0 financial wrong-customer/cross-branch posting risk
+proven by source composition**. No financial request was executed after the P1
+write proof.
+
+### Control matrix and shared cause boundary
+
+Asset, Invoice, JournalEntry, and Reservation same-branch reads returned the
+exact requested IDs; cross-branch reads returned 404. Cross-branch Employee
+read returned 403 and treasury register query with B scope returned 403
+`BRANCH_SCOPE_FORBIDDEN`. Those models carry `branchId`, so the generic helper
+adds a distinct branch predicate and does not overwrite `id`. No second shared
+top-level-ID scope assignment was found. Payments/receipts and purchase
+receiving do not use this generic by-ID controller and require their own future
+runtime matrix; no safety claim is made for them here.
+
+The focused branch verifier proves BranchCustomer creation/assertion and that
+scope helpers are named, but lacks A1/A2/B1/unknown by-ID equality, wrong-target
+write, nested Customer read, and final response-ID assertions. This is why
+66/66 passed.
+
+### BRANCH-1-IDOR-FIX1 split-safe plan (not executed)
+
+1. `fix: preserve generic customer resource identity under branch scope` —
+   `backend/src/controllers/erp.controller.js`; preserve route ID and intersect
+   it with BranchCustomer scope.
+2. `test: cover generic customer scoped resource identity` — exact A1/A2,
+   B/unknown rejection, response-ID equality, and zero wrong-target write.
+3. `fix: bind dedicated customer routes to effective branch` —
+   `backend/src/routes/erp.routes.js` plus only a narrowly justified helper in
+   `backend/src/services/branch-isolation.service.js`.
+4. `fix: bind customer financial posting routes to effective branch` — credit
+   deposit/refund and invoice-credit application separately; prove no
+   cross-branch cash, credit, journal, or idempotency effect.
+5. Separate verifier coverage, then fresh two-branch API/browser QA and 66/66.
+
+Every slice must verify exact same-branch identity, cross-branch/unknown safe
+rejection, no substitute response, zero write, atomic rollback where relevant,
+domain regressions, and full clean-tree suite. No migration is indicated.
+
+Cleanup required after this diagnostic: stop the controlled backend, remove
+temporary `scripts/branch1-idor-diag1-*.cjs`, drop only the isolated QA DB, and
+recheck the primary baseline. Production is untouched.
+
+NEXT TOOL START HERE
+
+BRANCH-1-IDOR-FIX1 — Scoped Resource Identity Binding Resolution
+
+Do not start automatically.
+
+BRANCH-DEPLOY1 remains paused.
+TRANSFER-PRE1 remains paused.
+NOTIF-PRE1 remains paused.
+
+---
+
 ## BRANCH-1-BROWSER-DIAG1 — Local Frontend Route Availability, Locale Runtime & Auth-Shell Audit (2026-07-20)
 
 Diagnostic-only audit from `12bbeafae1bb6c6d2a996a7f05b556853081f2e5`
