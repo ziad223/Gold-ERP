@@ -1,14 +1,14 @@
 /**
- * Phase 32.6-Post-C — POS reservation deposit workflow + reservation advances
- * account configuration.
+ * Phase RESET-1 — POS reservation deposit workflow + protected customer-deposit
+ * account role.
  *
  * Default mode is static and non-mutating. Live mode is explicitly gated by:
  *   VERIFY_POS_RESERVATION_LIVE=true
  *   VERIFY_DATABASE_NAME=darfus_erp
  *
- * Live mode reads and restores the company's prior reservation-advances setting,
- * creates isolated T32PC records, cleans only that namespace, and never runs
- * reset/seed/remote checks.
+ * Live mode requires an already bootstrapped local company role, creates
+ * isolated T32PC records, cleans only that namespace, and never runs
+ * reset/seed/remote checks or changes company configuration.
  */
 
 const assert = require("node:assert/strict");
@@ -22,35 +22,44 @@ const read = (rel) => fs.readFileSync(path.resolve(ROOT, rel), "utf8");
 const exists = (rel) => fs.existsSync(path.resolve(ROOT, rel));
 
 const SERVICE = "backend/src/services/reservation.service.js";
+const BOOTSTRAP_SERVICE = "backend/src/services/company-bootstrap.service.js";
+const ERROR_MIDDLEWARE = "backend/src/middleware/error.middleware.js";
+const ROUTES = "backend/src/routes/erp.routes.js";
 const SETTINGS_PAGE = "app/[locale]/(dashboard)/settings/page.tsx";
 const SETTINGS_CTX = "contexts/settings-context.tsx";
 const POS_PAGE = "app/[locale]/(dashboard)/pos/page.tsx";
 const RES_PAGE = "app/[locale]/(dashboard)/sales/reservations/page.tsx";
 
-function settingsContract() {
-  const ctx = read(SETTINGS_CTX);
-  assert.ok(ctx.includes("reservationAdvancesAccountId"), "settings context types the reservation advances account id");
-  const page = read(SETTINGS_PAGE);
-  assert.ok(page.includes("reservationAdvancesAccountId"), "settings page binds the reservation advances account");
-  assert.ok(
-    page.includes('"/settings/reservation-advances-account"')
-      && page.includes("liabilityAccounts")
-      && page.includes("Only active credit-nature liability accounts are shown"),
-    "settings page consumes the backend-filtered active credit-nature liability account contract"
-  );
-  assert.ok(page.includes("Reservation Advances Account") || page.includes("حساب دفعات مقدمة"), "settings page shows the reservation advances account label");
+function accountRoleContract() {
+  const bootstrap = read(BOOTSTRAP_SERVICE);
+  const errors = read(ERROR_MIDDLEWARE);
+  const routes = read(ROUTES);
+  assert.ok(bootstrap.includes('CUSTOMER_DEPOSIT_LIABILITY: "CUSTOMER_DEPOSIT_LIABILITY"'), "customer-deposit role has a stable protected identifier");
+  assert.ok(bootstrap.includes('where: { companyId, roleCode }'), "role lookup is company-scoped");
+  assert.ok(bootstrap.includes('where: { id: accountId, companyId, isActive: true }'), "mapped account must belong to the company and be active");
+  assert.ok(bootstrap.includes('account.type !== "liability" || account.nature !== "credit"'), "mapped account must be liability/credit classified");
+  assert.ok(bootstrap.includes('"CUSTOMER_DEPOSIT_ROLE_NOT_CONFIGURED"'), "missing role has the current stable blocker code");
+  assert.ok(bootstrap.includes('"CUSTOMER_DEPOSIT_ROLE_INVALID"'), "invalid or cross-company role has a stable blocker code");
+  assert.ok(bootstrap.includes("reservationAdvancesAccountId") && bootstrap.includes("report.adopted"), "bootstrap adopts a valid existing company setting into the protected role");
+  assert.ok(!/CMP-DEMO|findOne\(\{[^}]*companyId[^}]*\}\)/.test(bootstrap.slice(bootstrap.indexOf("async resolveSystemAccountRole"), bootstrap.indexOf("async readConfiguredDepositAccount"))), "role resolution has no demo or first-account fallback");
+  assert.ok(routes.includes('router.get("/readiness/operations"') && routes.includes("companyReadiness(req.companyId)"), "readiness is company-scoped");
+  assert.ok(errors.includes("res.status(statusCode).json") && errors.includes("code: errorCode") && errors.includes("error: {"), "stable errors use the documented safe response envelope");
 }
 
 function backendContract() {
   const service = read(SERVICE);
-  assert.ok(service.includes("RESERVATION_ADVANCES_ACCOUNT_NOT_CONFIGURED"), "backend has a stable not-configured error code");
-  assert.ok(service.includes("RESERVATION_ADVANCES_ACCOUNT_INVALID"), "backend has a stable invalid-account error code");
+  const createFn = service.slice(service.indexOf("_createReservationInTransaction"), service.indexOf("async addPayment"));
+  assert.ok(service.includes("resolveSystemAccountRole(companyId, SYSTEM_ACCOUNT_ROLES.CUSTOMER_DEPOSIT_LIABILITY"), "reservation deposit liability account is resolved server-side by protected role");
+  assert.ok(!service.includes("RESERVATION_ADVANCES_ACCOUNT_NOT_CONFIGURED") && !service.includes("RESERVATION_ADVANCES_ACCOUNT_INVALID"), "retired settings-only error codes are not asserted by the posting service");
   assert.ok(service.includes("RESERVATION_INITIAL_PAYMENT_REQUIRED"), "backend enforces the mandatory initial payment");
-  assert.ok(/account\.type\s*!==\s*"liability"\s*\|\|\s*account\.nature\s*!==\s*"credit"/.test(service), "backend validates liability/credit classification");
   // The mandatory-initial-payment check lives in the public manual creation path,
   // not in the internal renewal successor path.
-  const createFn = service.slice(service.indexOf("_createReservationInTransaction"), service.indexOf("async addPayment"));
   assert.ok(createFn.includes("RESERVATION_INITIAL_PAYMENT_REQUIRED"), "manual creation requires an initial payment");
+  assert.ok(createFn.indexOf("getReservationAdvancesAccount(companyId, transaction)") < createFn.indexOf("models.Reservation.create"), "missing or invalid role blocks before reservation/deposit/journal writes");
+  assert.ok(createFn.includes("models.sequelize.transaction") || service.includes("models.sequelize.transaction"), "reservation creation is transactional with no partial write on blocker");
+  assert.ok(!/findOne\([^)]*Account[^)]*\)(?![\s\S]*companyId)/.test(service), "reservation posting has no first-account fallback");
+  assert.ok(!/findOne\([^)]*(nameAr|name)[^)]*\)/.test(service.slice(service.indexOf("async getReservationAdvancesAccount"), service.indexOf("function reservationStatusForTotals"))), "reservation role resolution has no localized-name lookup");
+  assert.ok(!/CMP-DEMO|ACC-2300|SYS-CUSTOMER-DEPOSIT-LIABILITY/.test(service), "reservation posting has no demo-id or hardcoded deposit-account dependency");
   assert.ok(service.includes("_renewInTransaction") && service.includes("_transferAndActivateSuccessor"), "internal renewal path remains intact");
   const renewFn = service.slice(service.indexOf("_renewInTransaction"), service.indexOf("_transferAndActivateSuccessor"));
   assert.ok(!renewFn.includes("RESERVATION_INITIAL_PAYMENT_REQUIRED"), "internal renewal successor creation is not gated by the manual initial-payment rule");
@@ -63,7 +72,6 @@ function posContract() {
   assert.ok(pos.includes('method === "deposit"'), "POS branches on the deposit method into reservation mode");
   assert.ok(pos.includes("createReservationFromPos"), "POS has a dedicated reservation creation handler");
   assert.ok(pos.includes('apiClient<{ success: boolean; data: { reservation: any } }>("/reservations"') || /apiClient\([^)]*"\/reservations"/.test(pos), "POS creates the reservation via the dedicated endpoint");
-  assert.ok(pos.includes("reservationAccountConfigured"), "POS is aware of the reservation advances account configuration");
   assert.ok(pos.includes("Create Reservation and Record Initial Payment") || pos.includes("إنشاء الحجز وتسجيل الدفعة الأولى"), "POS reservation confirm label is explicit");
   // The deposit branch must return before the normal invoice/sale posting path.
   const completeFn = pos.slice(pos.indexOf("const completeSale"), pos.indexOf("createReservationFromPos"));
@@ -76,18 +84,25 @@ function posContract() {
   assert.ok(resFn.includes("initialPayment") && resFn.includes("expiresAt") && resFn.includes("assetId: item.id"), "reservation payload carries initial payment, expiry, and asset ids");
   // Scope the trusted-value check to the request body only (response handling may read server values).
   const bodyStart = resFn.indexOf("body: JSON.stringify");
-  const requestBody = resFn.slice(bodyStart, resFn.indexOf("})", bodyStart));
-  for (const forbidden of ["tax:", "vatAmount", "vatRate", "journalLines", "cogs", "reservationAdvancesAccountId", "agreedTotal", "paidTotal", "remainingTotal", "total:"]) {
+  const requestBody = resFn.slice(bodyStart, resFn.indexOf("});", bodyStart) + 3);
+  for (const forbidden of ["tax:", "vatAmount", "vatRate", "journalLines", "cogs", "reservationAdvancesAccountId", "accountId", "liabilityAccountId", "agreedTotal", "paidTotal", "remainingTotal", "total:"]) {
     assert.ok(!requestBody.includes(forbidden), `POS reservation payload does not submit trusted ${forbidden}`);
   }
+  assert.ok(requestBody.includes("paymentMethod: resMethod"), "POS retains cash/bank/payment-destination selection without selecting the liability account");
+  assert.ok(!resFn.includes("retry:") && pos.includes("disabled={creatingReservation"), "POS reservation mutation has no automatic retry/replay and disables duplicate submit");
 }
 
 function reservationPageContract() {
   const page = read(RES_PAGE);
-  assert.ok(page.includes("reservationAccountConfigured"), "reservation page checks account configuration");
   assert.ok(page.includes("An initial payment greater than zero is required") || page.includes("يجب إدخال دفعة أولى أكبر من صفر"), "reservation page enforces mandatory initial payment");
   assert.ok(page.includes("depositMethod"), "reservation page collects a payment method");
-  assert.ok(/disabled=\{[^}]*!reservationAccountConfigured/.test(page), "reservation confirm is disabled without account configuration");
+  const requestStart = page.indexOf('apiClient("/reservations"');
+  const request = page.slice(requestStart, page.indexOf("});", requestStart) + 3);
+  for (const forbidden of ["reservationAdvancesAccountId", "accountId", "liabilityAccountId"]) {
+    assert.ok(!request.includes(forbidden), `reservation page does not expose or submit ${forbidden} to a business user`);
+  }
+  assert.ok(request.includes("paymentMethod: depositMethod"), "reservation page retains payment-destination selection");
+  assert.ok(!page.includes("liabilityAccounts"), "reservation deposit flow has no business-user ledger-account selector");
 }
 
 function docsAndPackage() {
@@ -112,7 +127,7 @@ function scopeGuard() {
 }
 
 function runStatic() {
-  settingsContract();
+  accountRoleContract();
   backendContract();
   posContract();
   reservationPageContract();
@@ -200,7 +215,6 @@ async function runLive() {
   }
 
   const before = await counts();
-  let settingState = null;
   let company, branch, customer;
   try {
     console.log(`LIVE DB IDENTITY host=${process.env.DB_HOST} port=${process.env.DB_PORT} db=${process.env.DB_NAME} env=${process.env.NODE_ENV}`);
@@ -210,42 +224,12 @@ async function runLive() {
     [customer] = await q("select id, name from customers where company_id = :c limit 1", { c: company.id });
     assert.ok(branch?.id && customer?.id, "branch and customer exist");
 
-    // Select a valid liability/credit account by classification (never assume a code).
-    const account = await models.Account.findOne({ where: { companyId: company.id, type: "liability", nature: "credit", isActive: true } });
-    assert.ok(account, "live DB has an active credit-nature liability account");
-
-    const setAdvances = async (value) => {
-      const existing = await models.Setting.findOne({ where: { companyId: company.id, key: "reservationAdvancesAccountId" } });
-      if (existing) { existing.value = value; await existing.save(); return; }
-      await models.Setting.create({ companyId: company.id, key: "reservationAdvancesAccountId", value });
-    };
-    const clearAdvances = async () => {
-      const existing = await models.Setting.findOne({ where: { companyId: company.id, key: "reservationAdvancesAccountId" } });
-      if (existing) await existing.destroy();
-    };
-
-    // Read + store the prior setting so it can be restored exactly.
-    const prior = await models.Setting.findOne({ where: { companyId: company.id, key: "reservationAdvancesAccountId" } });
-    settingState = { existed: Boolean(prior), priorValue: prior ? prior.value : undefined };
-
-    // (7) Missing configuration is rejected.
-    await clearAdvances();
-    const a0 = await createAsset(company.id, branch, 100);
-    await expectReject("missing advances account", () => reservationService.createReservation({
-      companyId: company.id, branchId: branch.id, user, idempotencyKey: `${namespace}-NOCFG`,
-      body: { id: nextResId(), customerId: customer.id, branchId: branch.id, expiresAt: "2027-12-31T00:00:00.000Z", items: [{ assetId: a0.id, agreedPrice: money(100) }], initialPayment: { amount: money(50), paymentMethod: "cash" } }
-    }), "RESERVATION_ADVANCES_ACCOUNT_NOT_CONFIGURED");
-
-    // (8) Invalid/inactive account is rejected.
-    await setAdvances(`${namespace}-NO-SUCH-ACCOUNT`);
-    const aInv = await createAsset(company.id, branch, 100);
-    await expectReject("invalid advances account", () => reservationService.createReservation({
-      companyId: company.id, branchId: branch.id, user, idempotencyKey: `${namespace}-BADCFG`,
-      body: { id: nextResId(), customerId: customer.id, branchId: branch.id, expiresAt: "2027-12-31T00:00:00.000Z", items: [{ assetId: aInv.id, agreedPrice: money(100) }], initialPayment: { amount: money(50), paymentMethod: "cash" } }
-    }), "RESERVATION_ADVANCES_ACCOUNT_INVALID");
-
-    // Configure the valid account for the remaining tests.
-    await setAdvances(account.id);
+    // Live mode never changes company account mappings. It is available only when
+    // local bootstrap has already installed a valid protected role.
+    const role = await models.SystemAccountRole.findOne({ where: { companyId: company.id, roleCode: "CUSTOMER_DEPOSIT_LIABILITY" } });
+    assert.ok(role, "live verifier requires an already bootstrapped CUSTOMER_DEPOSIT_LIABILITY role");
+    const account = await models.Account.findOne({ where: { id: role.accountId, companyId: company.id, type: "liability", nature: "credit", isActive: true } });
+    assert.ok(account, "live verifier requires an active company-scoped liability/credit role account");
 
     // (1-6) Initial payment validation.
     const mk = (over = {}) => ({ id: nextResId(), customerId: customer.id, branchId: branch.id, expiresAt: "2027-12-31T00:00:00.000Z", ...over });
@@ -321,11 +305,6 @@ async function runLive() {
     const [succ] = await q("select status, paid_total from reservations where id = :id", { id: `${namespace}-SUC-1` });
     assert.equal(succ.status, "fully_paid", "renewal successor funded by transfer");
 
-    // Restore prior setting exactly.
-    if (settingState.existed) await setAdvances(settingState.priorValue);
-    else await clearAdvances();
-    settingState = null;
-
     await cleanup();
     const after = await counts();
     assert.deepEqual(after, before, `live verifier cleanup preserved counts before=${JSON.stringify(before)} after=${JSON.stringify(after)}`);
@@ -333,13 +312,7 @@ async function runLive() {
     console.log("No persistent test pollution detected.");
   } catch (error) {
     try {
-      if (settingState && company) {
-        const current = await models.Setting.findOne({ where: { companyId: company.id, key: "reservationAdvancesAccountId" } });
-        if (settingState.existed) {
-          if (current) { current.value = settingState.priorValue; await current.save(); }
-          else await models.Setting.create({ companyId: company.id, key: "reservationAdvancesAccountId", value: settingState.priorValue });
-        } else if (current) { await current.destroy(); }
-      }
+      // Company account mappings are deliberately not mutated by this verifier.
     } catch (_) {}
     try { await cleanup(); } catch (e) { console.error(`Cleanup failed for ${namespace}: ${e.message}`); }
     throw error;

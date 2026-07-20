@@ -280,7 +280,7 @@ async function runtimeContract() {
   const [[conn]] = await models.sequelize.query("select current_database() as database, inet_server_port()::int as port");
   assert.equal(conn.database, "darfus_erp", "connected to darfus_erp");
   const [[migrations]] = await models.sequelize.query('select count(*)::int c from "SequelizeMeta"');
-  assert.equal(Number(migrations.c), 44, "migration count is 44 after Phase 35D");
+  assert.equal(Number(migrations.c), 45, "migration count is 45 after RESET-1");
   assert.equal(await models.Permission.count(), 128, "permission count is 128 after Phase 35D");
 
   const device = `DEV-${ns}-PRIMARY-0001`;

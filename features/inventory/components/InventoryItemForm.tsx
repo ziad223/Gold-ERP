@@ -20,6 +20,7 @@ import { useMemo, useState, type ComponentType } from "react";
 import { useLocale } from "next-intl";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Link } from "@/i18n/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { useAssets } from "@/features/assets/hooks/use-assets";
 import { useBarcodeSettings } from "@/features/settings/hooks/use-barcode-settings";
@@ -79,7 +80,7 @@ export function InventoryItemForm({ mode = "add", initialAsset = null, onDone, o
   const locale = useLocale();
   const rtl = locale === "ar";
   const { activeBranch } = useAuth();
-  const { createAsset, updateAsset, isCreating } = useAssets();
+  const { updateAsset } = useAssets();
   const { inventoryCodes, itemCodes } = useBarcodeSettings();
 
   const [type, setType] = useState<AssetType>(initialAsset?.type ?? "gold-weight");
@@ -149,6 +150,21 @@ export function InventoryItemForm({ mode = "add", initialAsset = null, onDone, o
 
   const FieldGroup = TYPE_FIELD_GROUPS[type];
 
+  // Direct generic asset creation is intentionally unavailable. Inventory
+  // intake must enter the supplier receiving transaction so asset, movement,
+  // purchase and accounting rows commit together.
+  if (mode === "add") {
+    return (
+      <section className="space-y-4 rounded-3xl border border-amber-200 bg-amber-50 p-5 text-sm dark:border-amber-900/50 dark:bg-amber-500/10">
+        <h3 className="font-black text-amber-900 dark:text-amber-200">{rtl ? "الاستلام عبر دورة التوريد" : "Receive through supplier purchasing"}</h3>
+        <p className="text-amber-800 dark:text-amber-300">
+          {rtl ? "لا يمكن إنشاء أصل مخزون مباشرة. استخدم استلام المشتريات لضمان إنشاء الأصل وحركة المخزون والقيد المحاسبي معًا." : "Direct inventory-asset creation is unavailable. Use purchase receiving so the asset, stock movement, and accounting entry are committed together."}
+        </p>
+        <Link href="/suppliers/purchases"><Button type="button">{rtl ? "فتح استلام المشتريات" : "Open purchase receiving"}</Button></Link>
+      </section>
+    );
+  }
+
   const validate = (): string | null => {
     if (!draft.name || String(draft.name).trim().length < 2) return rtl ? "اسم الصنف مطلوب" : "Item name is required";
     if (!effectiveItemCode) return rtl ? "كود القطعة مطلوب" : "Item code is required";
@@ -199,31 +215,6 @@ export function InventoryItemForm({ mode = "add", initialAsset = null, onDone, o
         return;
       }
 
-      const gross = Number(draft.grossWeight) || 0;
-      await createAsset({
-        name: String(draft.name).trim(),
-        type,
-        category: String(draft.category).trim() || config.label,
-        // Taxonomy only — the backend allocates the final serial + stored barcode.
-        inventoryCode: resolvedInventoryCode,
-        itemCode: effectiveItemCode,
-        karat: draft.karat ? Number(draft.karat) : undefined,
-        inventorySubtype: draft.variant,
-        metadataSchemaVersion: INVENTORY_METADATA_SCHEMA_VERSION,
-        metadata: buildMetadata(),
-        grossWeight: gross,
-        netWeight: Number(draft.netWeight) || gross,
-        goldWeight: draft.goldWeight ? Number(draft.goldWeight) : undefined,
-        cost: draft.cost ? Number(draft.cost) : undefined,
-        price: Number(draft.price) || 0,
-        branch: draft.branch || undefined,
-        location: String(draft.location).trim() || "Showroom",
-        source: draft.source || undefined,
-        rfid: draft.rfid || undefined,
-        status: draft.status as AssetStatus,
-      });
-      toast.success(rtl ? "تم إنشاء الصنف" : "Item created");
-      onDone();
     } catch (submitError: any) {
       toast.error(submitError?.message || (rtl ? "تعذر حفظ الصنف" : "Could not save the item"));
     }
@@ -345,8 +336,8 @@ export function InventoryItemForm({ mode = "add", initialAsset = null, onDone, o
         {onCancel && (
           <Button type="button" variant="secondary" onClick={onCancel}>{rtl ? "إلغاء" : "Cancel"}</Button>
         )}
-        <Button type="submit" disabled={isCreating}>
-          {mode === "edit" ? (rtl ? "حفظ التعديلات" : "Save changes") : (rtl ? "إنشاء الصنف" : "Create item")}
+        <Button type="submit">
+          {rtl ? "حفظ التعديلات" : "Save changes"}
         </Button>
       </div>
     </form>

@@ -120,7 +120,6 @@ export default function SupplierPurchasesPage() {
     if (!selectedInventoryCode || isQuantityBased) return;
     const preferred = selectedInventoryCode.defaultItemCode;
     if (preferred && availableItemCodes.some((code) => code.code === preferred) && itemCode !== preferred) setItemCode(preferred);
-    else if (!availableItemCodes.some((code) => code.code === itemCode) && availableItemCodes[0]) setItemCode(availableItemCodes[0].code);
     if (!selectedInventoryCode.requiresKarat) setKarat("");
   }, [selectedInventoryCode, availableItemCodes, itemCode, isQuantityBased]);
   const money = (value: number) => formatCurrency(value, currency, locale);
@@ -481,9 +480,10 @@ export default function SupplierPurchasesPage() {
                   </div>
                 )}
                 {!suppliersLoading && !suppliersError && activeSuppliers.length === 0 && (
-                  <p className="mt-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-700 dark:border-amber-900/40 dark:bg-amber-500/10 dark:text-amber-300">
-                    {rtl ? "لا يوجد موردون متاحون. أضف موردًا أولًا من صفحة الموردين." : "No suppliers available. Add a supplier first from the suppliers page."}
-                  </p>
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-700 dark:border-amber-900/40 dark:bg-amber-500/10 dark:text-amber-300">
+                    <span>{rtl ? "لا يوجد موردون منشأون بعد." : "No suppliers created."}</span>
+                    <Link href="/suppliers" className="underline">{rtl ? "إضافة مورد" : "Add supplier"}</Link>
+                  </div>
                 )}
               </label>
 
@@ -539,9 +539,11 @@ export default function SupplierPurchasesPage() {
 
               {!isQuantityBased && <label className="block">
                 <span className="label-base">{rtl ? "كود القطعة" : "Item Code"}</span>
-                <NativeSelect value={itemCode} onChange={(e) => setItemCode(e.target.value)}>
+                <NativeSelect value={itemCode} onChange={(e) => setItemCode(e.target.value)} disabled={availableItemCodes.length === 0}>
+                  <option value="">{rtl ? "اختر كود القطعة" : "Select item code"}</option>
                   {availableItemCodes.map((code) => <option key={code.id} value={code.code}>{code.code} — {code.displayName}</option>)}
                 </NativeSelect>
+                {availableItemCodes.length === 0 && <p className="mt-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] font-bold text-rose-700 dark:border-rose-950/40 dark:bg-rose-950/10 dark:text-rose-300">{rtl ? "لا توجد أكواد قطع نشطة لهذا النوع. أكمل إعداد تصنيف المخزون قبل الاستلام." : "No active item codes exist for this inventory type. Complete inventory taxonomy setup before receiving."}</p>}
               </label>}
 
               <label className="block">

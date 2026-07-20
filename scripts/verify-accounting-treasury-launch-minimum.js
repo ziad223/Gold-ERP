@@ -119,7 +119,7 @@ async function databaseContract() {
     models.sequelize.query("select to_regclass('public.accounting_locks') as accounting_locks, to_regclass('public.cash_register_sessions') as cash_register_sessions", { type: QueryTypes.SELECT }),
     models.sequelize.query("select name from permissions where name in ('treasury.register.view','treasury.register.open','treasury.register.close','accounting.lock.manage','accounting.reconciliation.view') order by name", { type: QueryTypes.SELECT }),
   ]);
-  assert.equal(migrationCount.count, 44, "migration count is 44 after Phase 35D");
+  assert.equal(migrationCount.count, 45, "migration count is 45 after RESET-1");
   assert.equal(permissionCount.count, 128, "permission count is 128 after Phase 35D");
   assert.equal(schemaRows[0].accounting_locks, "accounting_locks", "accounting_locks table exists");
   assert.equal(schemaRows[0].cash_register_sessions, "cash_register_sessions", "cash_register_sessions table exists");

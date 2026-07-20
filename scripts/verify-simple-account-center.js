@@ -46,8 +46,8 @@ function staticContract() {
   assert.ok(service.includes("branch_account_branch_changed") && service.includes("assertNoBranchAccountForBranch(nextBranchId"), "Branch Account branch edit validates uniqueness and invalidates sessions");
   assert.ok(service.includes("passwordSet: true") && !service.includes("generatePolicyCompliantPassword") && !service.includes("return { account: safeUser(user), temporaryPassword"), "technical password operations do not generate or return plaintext passwords");
   assert.ok(routes.includes("/:id/reset-password") && routes.includes("/:id/change-email") && routes.includes("/:id/revoke-sessions"), "technical account action routes remain mounted");
-  assert.equal(migrationFiles.length, 44, "HF6C does not add migration 45");
-  assert.equal(verifierFiles.length, 64, `expected 64 verifier files after ACC-1, found ${verifierFiles.length}`);
+  assert.equal(migrationFiles.length, 45, "RESET-1 adds the authorized system-account-role migration");
+  assert.equal(verifierFiles.length, 65, `expected 65 verifier files after RESET-1, found ${verifierFiles.length}`);
   assert.equal(pkg.scripts["verify:simple-account-center"], "node scripts/verify-simple-account-center.js", "package verifier registered");
 }
 

@@ -22,7 +22,7 @@ import { useAppSettings } from "@/contexts/settings-context";
 import { useAssets } from "@/features/assets/hooks/use-assets";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useProductsList, useAssetsList } from "@/features/inventory/hooks/use-inventory-list";
-import { Link } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { BarcodePrintTemplate } from "@/features/printing/components/BarcodePrintTemplate";
 import { ClientBarcodeTagTemplate } from "@/features/printing/components/ClientBarcodeTagTemplate";
 import { renderPrintDocument } from "@/features/printing/components/render-print-document";
@@ -37,7 +37,6 @@ import type { Asset, AssetStatus, AssetType, Product, StockMovement } from "@/li
 import { useCoreErpData } from "@/hooks/use-core-erp-data";
 import { apiClient } from "@/lib/api/client";
 import { useBarcodeSettings } from "@/features/settings/hooks/use-barcode-settings";
-import { InventoryItemForm } from "@/features/inventory/components/InventoryItemForm";
 
 const initialForm = {
   name: "",
@@ -71,6 +70,7 @@ export default function InventoryPage() {
   const filtersT = useTranslations("Filters");
   const printT = useTranslations("PrintExport");
   const locale = useLocale();
+  const router = useRouter();
   const rtl = locale === "ar";
   const { company, user } = useAuth();
   const { addAuditLog } = useErp();
@@ -79,7 +79,7 @@ export default function InventoryPage() {
   const canPrintBarcode = isAuthorized("printBarcode");
   
   const { products, assets, isLoading: isErpLoading, error: erpError, refetch } = useCoreErpData();
-  const { createAsset, updateAsset } = useAssets();
+  const { updateAsset } = useAssets();
   const { inventoryCodes: barcodeInventoryCodes, itemCodes: barcodeItemCodes } = useBarcodeSettings();
   
   const [activeTab, setActiveTab] = useState<"products" | "assets">("products");
@@ -119,7 +119,6 @@ export default function InventoryPage() {
   const [productsPageSize, setProductsPageSize] = useState(20);
   const [assetsPage, setAssetsPage] = useState(1);
   const [assetsPageSize, setAssetsPageSize] = useState(20);
-  const [open, setOpen] = useState(false);
   const [form, setForm] = useState(initialForm);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
@@ -868,9 +867,9 @@ export default function InventoryPage() {
                 {rtl ? "تاج العميل (وجه/ظهر)" : "Client Tags"}
               </Button>
             )}
-            <Button onClick={() => setOpen(true)}>
+            <Button onClick={() => router.push("/suppliers/purchases")}>
               <Plus className="h-4 w-4" />
-              {t("newAsset")}
+              {rtl ? "استلام توريد جديد" : "Receive supplier purchase"}
             </Button>
           </div>
         }
@@ -1350,20 +1349,6 @@ export default function InventoryPage() {
           </Button>
         </div>
       )}
-
-      <Modal open={open} onClose={() => setOpen(false)} title={t("addTitle")} description={t("addDescription")}>
-        {/* Phase 32.2-Fix — type-driven item-type Add form (Gold By Weight/Piece,
-            Diamond, Gem Stone, Pearl, Watch). Reuses the Phase 32.1 barcode/
-            inventory foundation; the backend allocates the final stored barcode. */}
-        <InventoryItemForm
-          mode="add"
-          onDone={() => {
-            setOpen(false);
-            refetch();
-          }}
-          onCancel={() => setOpen(false)}
-        />
-      </Modal>
 
       {/* Product Details Modal */}
       <Modal 

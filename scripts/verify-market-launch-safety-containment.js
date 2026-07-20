@@ -29,7 +29,7 @@ function verifyCounts() {
   const verifierCount = fs.readdirSync(path.join(ROOT, "scripts"))
     .filter((name) => /^verify-.*\.js$/.test(name)).length;
 
-  assert.equal(migrationCount, 44, "Phase 35D adds one additive accounting/treasury migration after Phase 35B");
+  assert.equal(migrationCount, 45, "RESET-1 adds the authorized system-account-role migration");
   assert.ok(verifierCount >= 59, "verifier count remains at or above the HF6A baseline");
   assert.equal(
     packageJson.scripts["verify:market-launch-safety-containment"],

@@ -82,7 +82,7 @@ function staticContract() {
   contains(employeePage, "Direct denial overrides role and direct grant", "permission UI warns that denial wins");
   contains(employeePage, "منع مباشر", "Arabic direct-denial wording remains visible");
   assert.equal(packageJson.scripts["verify:employee-permission-enforcement"], "node scripts/verify-employee-permission-enforcement.js", "focused verifier is registered");
-  assert.equal(verifierFiles.length, 64, `expected 64 verifier files after ACC-1, found ${verifierFiles.length}`);
+  assert.equal(verifierFiles.length, 65, `expected 65 verifier files after RESET-1, found ${verifierFiles.length}`);
 }
 
 if (process.env.NODE_ENV === "production" || process.env.RENDER || process.env.VERCEL) {

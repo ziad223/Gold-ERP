@@ -65,6 +65,7 @@
     "verify:market-launch-safety-containment": "node scripts/verify-market-launch-safety-containment.js",
     "verify:accounting-treasury-launch-minimum": "node scripts/verify-accounting-treasury-launch-minimum.js",
     "verify:accounting-dashboard-source-of-truth": "node scripts/verify-accounting-dashboard-source-of-truth.js",
+    "verify:post-reset-operational-bootstrap": "node scripts/verify-post-reset-operational-bootstrap.js",
     "demo:reset:client": "node scripts/reset-client-demo-data.js",
     "seed:client-demo:transactions": "node backend/seeders/client-demo/transactional/index.js",
     "seed:client-demo:transactions:plan": "node backend/seeders/client-demo/transactional/index.js --plan",

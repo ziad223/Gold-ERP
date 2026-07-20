@@ -106,7 +106,7 @@ async function databaseContract() {
   const [[connection]] = await models.sequelize.query("select current_database() as database, inet_server_addr()::text as server_addr, inet_server_port()::int as server_port");
   assert.equal(connection.database, "darfus_erp", "connected database is darfus_erp");
   const [migrations] = await models.sequelize.query('select count(*)::int c from "SequelizeMeta"');
-  assert.equal(Number(migrations[0].c), 44, "migration count is 44 after Phase 35D");
+  assert.equal(Number(migrations[0].c), 45, "migration count is 45 after RESET-1");
   assert.equal(await models.Permission.count(), 128, "permission count is 128 after Phase 35D");
   assert.equal(await models.Permission.count({ where: { name: ["sales.returns.execute", "sales.exchanges.execute", "sales.installments.collect"] } }), 3, "all three Phase 34.5B permissions exist");
   assert.equal(await models.Permission.count({ where: { name: ["pos.view", "pos.sell", "pos.discount.approve"] } }), 3, "POS permissions unchanged");

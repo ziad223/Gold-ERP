@@ -4951,3 +4951,297 @@ NEXT TOOL START HERE
 
 Wait for owner approval. Do not automatically start `NOTIF-PRE1`, `UX-PRE1`,
 or Phase 35E.
+
+## RESET-PRE1 — Post-Reset Bootstrap, Hardcoded Dependencies & Operational Readiness Audit (2026-07-20)
+
+### Decision and safety
+
+`RESET-PRE1 AUDIT COMPLETED — NO RESET, IMPLEMENTATION, OR DATABASE MUTATION PERFORMED.`
+
+This documentation-only audit started and ended on `main` at
+`10252379f3d282ae6d341a98dc16b0247fd80e86`. The tree was clean before the
+authorized documentation append; no staged files existed; 11 stashes were
+preserved; `next-env.d.ts` was clean; and ports 3000/8000 were quiet. No
+Product, verifier, configuration, migration, seed, reset, deployment, or
+Production change was made. Local PostgreSQL inspection was SELECT-only through
+Docker at `localhost:5433/darfus_erp`; it is not evidence of the reported
+Production reset. Production was not contacted.
+
+Owner-reported Production evidence is recorded, not independently reproduced:
+
+- reservation deposit asked for an account and had no available selection;
+- supplier/item-code related selectors were empty after reset;
+- adding a gold inventory asset returned `Inventory asset mutations must use
+  dedicated inventory lifecycle endpoints.` twice, once with a correlation ID.
+
+### Reset and seed/bootstrapping inventory
+
+| Reset mechanism | Scope / target selection | Deleted / preserved | Seeds or bootstrap | Production guard / evidence |
+| --- | --- | --- | --- | --- |
+| `npm run demo:reset:client` → `scripts/reset-client-demo-data.js` | Explicit local disposable demo target only; requires `ALLOW_CLIENT_DEMO_RESET=true`, `RESET_TARGET=demo`, exact confirmed DB name, and local host | Backs up then recreates the eligible DB; target data is replaced | Runs migrations, baseline seeders, and client-demo/transactional seed paths | Strong source guards reject production-like environment/name/host; no execution in this phase |
+| `backend npm run db:reset` | Whatever backend environment resolves | `sequelize db:migrate:undo:all`, migrate, then seed-all | All Sequelize seeders | **P1 RESET_TARGET_MISMATCH risk**: source has no comparable explicit local/demo guard; no execution evidence |
+| Docker backend command | Compose PostgreSQL database selected by environment | Does not reset | `npm run db:migrate` only | Local compose only; no seed command in startup command |
+| `ensureAdmin()` on backend startup | First company found, or creates a company | Does not reset; may create admin/company/branches/roles/permissions and legacy asset→product migration side effects | Runtime bootstrap, not a clean company bootstrap contract | **P1 COMPANY_BOOTSTRAP_INCOMPLETE**: startup mutations are broad, use the first company, and default branch IDs/names are fixed |
+| Settings `resetDemo` / local provider | Browser/local in-memory state | Not database data | None | Not a Production database reset |
+
+The actual Production reset mechanism, target, tables, FK order, sequence
+handling, and post-reset validation are **CANNOT VERIFY — separate
+Production read-only deployment/database authorization is required**. No source
+proves that demo data was reseeded in Production.
+
+| Seed / bootstrap | Data type | Idempotent? | Production-safe? | Product dependency / demo risk |
+| --- | --- | --- | --- | --- |
+| `backend/seeders/20260616000000-demo-data.js` | DEMO_DATA: `CMP-DEMO`, users, branches, masters, accounts, journals, assets and transactions | No clean per-company contract; bulk demo data | No — `db:seed:all` includes it | **P1 DEMO_SEED_DEPENDENCY risk**; fixed IDs/codes/names and financial demo rows |
+| `backend/seeders/client-demo/index.js` | DEMO_DATA taxonomy/assets | Partly (`findOrCreate` / asset skip) | No explicit Production guard | Uses first company and first branch; therefore dangerous after reset |
+| `backend/seeders/client-demo/transactional/*` | TEST_FIXTURE/DEMO_DATA transactions | Deterministic plan, not bootstrap | Not Production-safe | Fixed `CMP-DEMO` context and operational transactions |
+| `bootstrap/accessControl.js` | SYSTEM_REFERENCE_DATA and per-company system roles | Permission/role creates use duplicate-tolerant operations | Conditional; invoked by runtime bootstrap | No financial account-role bootstrap |
+| `bootstrap/ensureAdmin.js` | MANDATORY_COMPANY_BOOTSTRAP mixed with legacy migration | Partial/no-op only after an admin exists | Production requires configured admin env | Creates company/admin/branches but not chart, account-role mappings, payment setup, warehouse readiness, or explicit readiness result |
+
+### Data classification and minimum reset state
+
+| Entity/table group | Classification | Required after reset? | Creator | Can be empty? | Failure if missing |
+| --- | --- | --- | --- | --- | --- |
+| permissions, permission catalog, lifecycle enums | SYSTEM_REFERENCE_DATA | Yes | migration/runtime access-control bootstrap | No | authorization/lifecycle integrity failure |
+| companies, company settings, branches | MANDATORY_COMPANY_BOOTSTRAP | Company/one active branch required to operate | authorized setup/bootstrap | No for active company; additional branches yes | scope resolution and all operational flows block |
+| roles, role_permissions, user_roles; users/employees/credentials | SYSTEM_REFERENCE_DATA + SECURITY_AUDIT_DATA | roles/permissions yes; identities per owner setup | access-control bootstrap / authorized admin setup | no role catalog; identities may be empty only before first setup | no secure administration/Employee access |
+| chart accounts and mandatory account-role mappings | MANDATORY_COMPANY_BOOTSTRAP | Yes for financial workflows | future company bootstrap | Not for a configured financial area | safe posting must block |
+| cash registers, bank accounts, payment methods, taxes | OPTIONAL_CONFIGURATION or MANDATORY_COMPANY_BOOTSTRAP by enabled area | cash/bank destination is required for payment operations; tax policy per enabled tax area | setup wizard | Yes until area enabled | block only the affected operation |
+| suppliers, customers, products, categories, supplier types | USER_MASTER_DATA | No | authorized users | Yes | clear create/recovery path, never silent blank selector |
+| barcode inventory/item codes, karat/purity, units | SYSTEM_REFERENCE_DATA or per-company configured taxonomy | Required by barcode/item-entry path | explicit taxonomy setup/bootstrap | No for the enabled inventory path | item form cannot safely create/receive |
+| warehouses/warehouse branches, asset statuses, movement reasons | MANDATORY_COMPANY_BOOTSTRAP + SYSTEM_REFERENCE_DATA | Warehouse/branch yes for stock receipt; reason definitions by operation | bootstrap/configuration | Not for an enabled lifecycle | inventory operation blocks |
+| assets, movements, purchases, reservations, deposits, invoices, receipts/payments, journals | TRANSACTIONAL_DATA | No | dedicated lifecycle services | Yes | zero state is valid |
+| audit logs, technical/Employee sessions, verification attempts, idempotency | SECURITY_AUDIT_DATA | retention policy required; no automatic deletion policy proven | runtime | may begin empty | do not delete/seed without explicit policy |
+| reporting/cache/aggregate state | DERIVED_DATA | Rebuildable only if a defined job exists | derived services | Yes | report reads must calculate safely; no cache was relied on here |
+
+Minimum safe future state is: global permission/lifecycle definitions; one
+explicitly configured company and active branch/warehouse; secure first admin;
+company currency/settings; an idempotent chart of accounts with unique,
+protected system-role mappings for enabled financial flows; and explicit
+readiness status. Suppliers, customers, products, inventory, balances, and
+transactions must remain empty after a clean Production bootstrap.
+
+### Mandatory system-account and reservation-deposit trace
+
+Current reservation flow is `POST /reservations` →
+`reservation.service.createReservation` → locked customer/branch/assets →
+`getReservationAdvancesAccount(companyId)` → immutable
+`reservation_payments` → `postingService.postReservationPaymentEntry` in one
+transaction. The configured setting key is `reservationAdvancesAccountId`; it
+stores an account ID, then validates same company, active status,
+`type=liability`, and `nature=credit`. Missing/invalid linkage returns stable
+422 configuration errors and rolls the transaction back. It does not select by
+name and has no fallback to account 2300. Payment method currently maps cash
+to code 1110 and card/bank/transfer to 1120; this is a fixed-code dependency
+that must become role/mapping based before reset-safe multi-account support.
+
+| Business operation | Current lookup | Required role | Auto-created? | User selects? | Reset risk / correct contract |
+| --- | --- | --- | --- | --- | --- |
+| Reservation initial/later payment | Setting account ID; treasury code 1110/1120 from method | customer reservation advances; cash/bank destination | No | User selects payment method, not advances account | **P1 CUSTOMER_DEPOSIT_ACCOUNT_MISSING** if setting/account absent; protected per-company role mapping |
+| Reservation completion | Validated advances account then settlement to AR code 1300 | advances + receivable | No | No ledger selector | Same role/mapping requirement |
+| Reservation refund/forfeit | Validated advances account and selected treasury code | advances + cash/bank | No | Treasury destination currently prompted in UI for refunds | Replace free account-code prompt with allowed destination selection |
+| Supplier purchase receive/pay | fixed inventory/AP/cash-bank codes (1200/2100/1110/1120), settings VAT codes | inventory, AP, treasury, VAT roles | No | Payment method only | bootstrap role mappings required |
+| Sales/returns/exchange/treasury | multiple fixed account codes and settings defaults | revenue, AR, tax, COGS, cash/bank, discounts/returns | No | Depends on workflow | inventory all hardcoded code dependencies in RESET-1; do not silently remap |
+
+**Deposit conclusion: `SYSTEM_ACCOUNT_SHOULD_BE_AUTOMATIC`.** The existing
+design already correctly keeps the reservation-advances ledger account out of
+the creation payload and has a safe missing-account failure. The owner-reported
+selector is therefore an incomplete/stale UI or setup-state issue, not a reason
+to let users choose arbitrary liability accounts. RESET-1 should create/link a
+dedicated, unique per-company role during bootstrap, leave the user to choose
+only a permitted receiving method/destination, and return a clear admin
+readiness block when absent.
+
+### Dropdown/readiness findings
+
+| Screen / dropdown group | Source | Must exist? | Empty classification | Correct empty UX / root cause |
+| --- | --- | --- | --- | --- |
+| Reservation payment method / advances readiness | settings + accounts + reservation config endpoint | method/destination and valid advances role required | EMPTY_MANDATORY_BOOTSTRAP_DEFECT | block deposit with settings/readiness link; no ledger selector |
+| Supplier in investment-gold draft | `GET /suppliers?page=1&limit=100`, filters inactive, catch sets `[]` | Supplier is user master | EMPTY_REQUIRES_USER_CREATION | explain no suppliers and link authorized creation; current result is silent empty list |
+| Supplier-related piece/item code in inventory form | company barcode item-code settings | Required by enabled barcode asset receipt | EMPTY_MANDATORY_BOOTSTRAP_DEFECT or EMPTY_PERMISSION_OR_SCOPE_DEFECT | admin readiness/setup action; current form falls back to free-text item code |
+| Product/category/customer | scoped generic list endpoints | User masters | EMPTY_REQUIRES_USER_CREATION | explicit no-records/create route, not a blank selector |
+| Karat/purity, inventory code, item code | barcode settings/config | Required for selected subtype | EMPTY_MANDATORY_BOOTSTRAP_DEFECT | no submit until taxonomy exists; do not use demo defaults |
+| Branch/warehouse | auth branch + `branches` / receive validation | Required for receipt/movement | EMPTY_MANDATORY_BOOTSTRAP_DEFECT | safely block affected inventory/purchase operation |
+| cash register/bank/payment/tax/account selectors | settings/accounts endpoints | varies by enabled operation | EMPTY_MANDATORY_BOOTSTRAP_DEFECT / OPTIONAL_CONFIGURATION | area-specific readiness message, no global freeze |
+| asset type/status/movement reason | source/config enums and lifecycle route | Required by selected lifecycle | EMPTY_MANDATORY_BOOTSTRAP_DEFECT | expose enabled lifecycle only |
+| employee/role | employee authorization endpoints | required only for protected task | EMPTY_PERMISSION_OR_SCOPE_DEFECT or user setup | show access/setup explanation, preserve unrelated routes |
+
+Every critical dropdown requires a source → company/branch filter → active
+filter → permission → bootstrap-owner audit in RESET-1. The current supplier
+gold-draft catch-to-empty behavior and item-code free-text fallback do not meet
+the required recovery UX.
+
+### Inventory lifecycle trace and guard assessment
+
+The reported gold asset form is source-proven as:
+
+`InventoryItemForm` → `useAssets.createAsset` → `POST /assets` →
+`setupCrud("assets")` → `LIFECYCLE_GENERIC_MUTATION_BLOCKS.assets` → 403
+`GENERIC_INVENTORY_MUTATION_FORBIDDEN`.
+
+The guard is intentional and correct. The form also uses generic PATCH for
+edits, which is blocked for the same reason. The safe existing intake path is
+`POST /purchase-orders/receive` (alias `/supplier-purchases/receive`) →
+validates supplier and branch/warehouse → creates PO/assets/barcodes,
+`PURCHASE_RECEIVED` events, stock movements where applicable, journal and
+optional cash transaction in one transaction. It requires supplier, active
+company branch/warehouse, item taxonomy/payload, permissions, employee/session
+policy, and accounting configuration.
+
+| User action | Current endpoint | Required lifecycle endpoint | Dependencies | Accounting / stock effect |
+| --- | --- | --- | --- | --- |
+| Add generic gold item | `POST /assets` | No dedicated opening-stock intake endpoint proven | form has taxonomy/branch but no supplier/receipt/lifecycle contract | Guard blocks correctly; no partial write |
+| Receive supplier asset | UI support must be verified | `POST /purchase-orders/receive` | supplier, branch/warehouse, items, permission, account settings, idempotency | creates asset/event/PO and posts inventory/AP/cash-bank transactionally |
+| Customer/investment gold purchase draft | `/gold-purchases/{cgp|igp}/drafts` | draft/approval routes only | customer/supplier, branch, permissions | explicitly creates no inventory/journal at draft/approval stage |
+| Reserve/sell/return/exchange | dedicated reservation and sales routes | existing dedicated routes | inventory availability, scope, financial roles | lifecycle-specific stock/journal behavior |
+| Transfer, adjustment, damage/loss, dispose, reactivate/correct | generic endpoints blocked; no complete dedicated UI/route coverage proven | CANNOT VERIFY / likely future lifecycle work | reason/warehouse/permissions/account role | do not re-enable generic CRUD |
+
+Required conclusion: `MULTIPLE_CAUSES` — primary
+`INVENTORY_LIFECYCLE_ENDPOINT_MISMATCH` plus
+`GENERIC_ASSET_MUTATION_BLOCKED_CORRECTLY`; there is also a
+`READINESS_CONTRACT_MISSING` because the form presents a forbidden action
+instead of an available lifecycle path/readiness explanation. It is not
+evidence that the guard should be weakened. Current lifecycle coverage is
+purchase receive, reservation, sale, return/exchange, and limited manufacturing/customer-gold
+paths; opening inventory, transfer, adjustment, damage/loss, disposal, and
+correction require route/UI contract proof before they are enabled.
+
+### Hardcoded dependency register
+
+| ID | File / assumption | Classification | Runtime impact / severity | Correct replacement |
+| --- | --- | --- | --- | --- |
+| HD-01 | `backend/seeders/20260616000000-demo-data.js`: `CMP-DEMO`, `BR-*`, `ACC-*` and demo financial rows | DEMO_IDENTIFIER_DEPENDENCY | P1 if seed-all targets a real reset | isolate demo seed; never Production bootstrap |
+| HD-02 | `client-demo/index.js`: first `Company.findOne` / first branch | FIRST_RECORD_FALLBACK | P1 cross-company/demo insertion risk | explicit guarded demo target and company |
+| HD-03 | `ensureAdmin.js`: `Company.findOne`, global fixed branch IDs/names | FIRST_RECORD_FALLBACK + DEMO_IDENTIFIER_DEPENDENCY | P1 company/bootstrap ambiguity and collisions | explicit company bootstrap transaction and unique per-company branch policy |
+| HD-04 | reservation treasury mapping 1110/1120 and settlement AR 1300 | SYSTEM_ROLE_CODE currently represented as fixed codes | P1 reset/configuration failure or wrong account in multi-account setup | protected company system-account-role service |
+| HD-05 | purchase posting 1200/2100/1110/1120; settings default VAT 1400/2210 | SYSTEM_ROLE_CODE | P1 missing/incorrect chart linkage after reset | per-company role mapping, validate before post |
+| HD-06 | returns/exchange/sales/cash-register fixed account codes | SYSTEM_ROLE_CODE | P1 financial configuration dependency | same role service; no translated-name lookup |
+| HD-07 | `InventoryItemForm` free-text fallback when barcode item codes empty | MISSING_EMPTY_STATE | P2 hides missing mandatory taxonomy | explicit readiness block/setup action |
+| HD-08 | `GoldPurchaseDraftWorkspace` catch sets supplier references to `[]` | MISSING_EMPTY_STATE | P2 silent empty supplier selector | differentiated permission/API/zero-master state |
+| HD-09 | `lib/demo-data.ts` and local provider demo accounts/assets | STATIC_UI_PLACEHOLDER / DEMO_IDENTIFIER_DEPENDENCY | P2 if API mode protection regresses | retain only isolated local/demo mode |
+| HD-10 | account-name/account-code copied into journal lines | SAFE_TECHNICAL_CONSTANT only as historical display | P2 if used as lookup (none proven in reservation) | account ID/role mapping; display names never lookup keys |
+
+No localized account-name lookup was proven in the reservation payment path. No
+hardcoded financial record ID was found there; the critical defect is that
+system roles are represented by fixed account codes elsewhere rather than
+validated company mappings.
+
+### Local read-only DB inventory
+
+The local database is not a clean post-reset state. SELECT counts were:
+companies 9; branches 16; users 319; employees 15; roles 15; permissions 128;
+accounts 20; settings 13; suppliers 4; customers 32; products 1; assets 20;
+barcode inventory/item codes 6/19; reservations 4; reservation payments 9;
+purchase orders 5; stock movements 9; invoices 16; journals/lines 53/139;
+cash transactions 29; technical/Employee sessions 35/1. All 20 accounts and
+the only `reservationAdvancesAccountId` setting are on `CMP-DEMO`; its setting
+points to `ACC-2300`. One demo company marker and 13 demo-marked assets exist.
+Consequently it proves the data model can hold the linkage, but does **not**
+prove Production reset state or a valid per-company bootstrap.
+
+### Failure, notification, readiness, and root-cause policy
+
+| Missing dependency / finding | Current behavior | Safe? | Expected behavior | Severity |
+| --- | --- | --- | --- | --- |
+| Reservation advances account | stable bilingual configuration error and transaction rollback | Yes | admin readiness message/settings recovery | P1 |
+| Supplier/user master absent | empty selector in at least gold-draft path | No | create-authorized-master explanation | P2 |
+| Barcode item taxonomy absent | free-text fallback | No for controlled taxonomy | block or authorized taxonomy setup | P1/P2 by enabled flow |
+| Generic asset creation/update | 403 lifecycle guard | Yes | route user to supported intake lifecycle | P1 operational/P2 UX |
+| Gold form failure notification | mutation cache toast with correlation ID plus local form catch toast | No, duplicate | one normalized visible error; preserve correlation ID appropriately | P2; hand off to NOTIF-PRE1 |
+| Area not configured | no shared readiness contract proven | No | per-area blocking/warnings, never global freeze | P1 |
+
+Duplicate-notification handoff: screenshot evidence says one duplicate lacked a
+correlation ID and one included it. Source independently proves the likely
+`GLOBAL_LOCAL_DUPLICATE_HANDLING` mechanism: `app/providers.tsx` has global
+React Query mutation `onError` toast handling with correlation ID, while
+`InventoryItemForm` catches the same mutation and calls `toast.error` again.
+Do not change notification behavior in RESET-1 unless NOTIF-PRE1 is separately
+resumed.
+
+| ID | Finding | Classification | Severity | Smallest safe future fix |
+| --- | --- | --- | --- | --- |
+| RC-01 | Production reset target and execution are not evidenced | UNKNOWN_MORE_EVIDENCE_REQUIRED | P2 evidence gap | separately authorize read-only Production reset/deployment audit |
+| RC-02 | `db:reset` combines migration and demo seed without source guard | RESET_TARGET_MISMATCH / DEMO_SEED_DEPENDENCY | P1 | replace only under RESET-1 with guarded dry-run/reset contract |
+| RC-03 | No idempotent company chart/system-account-role bootstrap | COMPANY_BOOTSTRAP_MISSING / SYSTEM_ACCOUNT_ROLE_MISSING | P1 | transactional role mapping bootstrap + uniqueness checks |
+| RC-04 | Reservation UI/setup can expose missing account state | CUSTOMER_DEPOSIT_ACCOUNT_MISSING / INCORRECT_USER_ACCOUNT_SELECTION | P1 | automatic role lookup, no ledger selector, readiness block |
+| RC-05 | Supplier and taxonomy dropdowns can be blank/silent | USER_MASTER_DATA_EMPTY / MANDATORY_LOOKUP_MISSING / DROPDOWN_EMPTY_STATE_MISSING | P2/P1 | classified empty UX and authorized recovery paths |
+| RC-06 | Inventory item form calls guarded generic assets route | INVENTORY_LIFECYCLE_ENDPOINT_MISMATCH / GENERIC_ASSET_MUTATION_BLOCKED_CORRECTLY | P1 | wire only a defined intake lifecycle; retain guard |
+| RC-07 | Duplicate inventory error toasts | DUPLICATE_ERROR_NOTIFICATION | P2 | defer to NOTIF-PRE1 |
+| RC-08 | No area-level readiness diagnostics | READINESS_CONTRACT_MISSING | P1 | read-only per-area diagnostics |
+
+### Smallest safe RESET-1 design boundary (not implemented)
+
+1. Define an idempotent, Production-safe **system seed** for global permission,
+   lifecycle, error-code, and locale/reference definitions only. It must not
+   create a company, branch, supplier, customer, product, inventory, balance,
+   journal, cash register, bank balance, password/PIN, or fictional tax/payment
+   data.
+2. Define a separate, idempotent **company bootstrap** transaction that creates
+   only an approved zero-balance chart/template and unique protected mappings
+   for mandatory system account roles. It must validate company ownership,
+   active/posting status, uniqueness, no translated-name lookup, and no first
+   record fallback.
+3. Add a protected system-account-role lookup service; migrate reservation and
+   only the proven purchase/sales/treasury account-code consumers required for
+   the initial contract. Do not silently map unrelated accounts.
+4. Keep reservation deposits automatic against the customer-advances role;
+   offer only a supported receiving destination/method and an admin readiness
+   recovery state.
+5. Replace the generic inventory add/edit UI invocation with one explicitly
+   designed lifecycle intake path. The existing supplier-purchase receipt path
+   can be reused only if its full supplier/warehouse/accounting business
+   contract is intended; otherwise add a distinct opening-inventory lifecycle
+   endpoint. Never re-open generic `/assets` mutation.
+6. Add per-area read-only readiness diagnostics (`reservations`, `inventory`,
+   `purchases`) with BLOCKING, RECOVERABLE_BY_USER, OPTIONAL, and
+   SYSTEM_INTEGRITY_FAILURE levels. One area must not freeze the application.
+7. Replace guarded reset behavior with explicit target report, environment
+   refusal, backup/dry-run, system seed, company bootstrap, no demo seed, and
+   post-reset smoke verification. Preserve audit/security history unless a
+   separate retention policy permits otherwise.
+
+Candidate later files (subject to owner-approved RESET-1 scope):
+`backend/src/bootstrap/accessControl.js`, a new company bootstrap/system-account
+role service and migration, `backend/src/services/reservation.service.js`,
+`backend/src/services/posting.service.js`, `backend/src/routes/erp.routes.js`,
+`backend/src/routes/system-account.routes.js`, reset/seed scripts,
+`features/inventory/components/InventoryItemForm.tsx`,
+`features/assets/hooks/use-assets.ts`, reservation/settings hooks and
+translations, plus one focused RESET-1 verifier. No file except this handoff
+was changed in RESET-PRE1.
+
+The future verifier must assert: no Product demo-ID dependency; no hardcoded
+account record IDs/localized account-name lookup; unique per-company mandatory
+roles; separated idempotent system seed/company bootstrap/demo seed; Production
+demo-seed refusal; automatic deposit role/no ledger selector; safe missing-role
+block; explicit critical dropdown states; lifecycle UI endpoint alignment while
+generic guard remains; no partial write; readiness coverage; guarded reset
+target report; and no demo financial records after clean bootstrap.
+
+Future isolated local QA must cover secure Super Admin/Branch/Employee access;
+company/branch/currency bootstrap; reservation create/settle/refund and missing
+role; empty-to-created supplier/taxonomy behavior; supplier purchase gold
+receipt with asset/event/journal; generic asset rejection; mandatory/optional/
+permission-empty dropdowns; zero-ledger state; one error notification;
+Arabic/English desktop/mobile; and a final clean bootstrap with no demo
+credentials, balances, transactions, or inventory.
+
+### Required reset coverage order (design only)
+
+| Entity group | Reset policy | Recreate / order / policy gap |
+| --- | --- | --- |
+| companies, branches, settings, roles/permissions | preserve unless explicitly doing a tenant reset | recreate mandatory configuration only through bootstrap; current policy incomplete |
+| users, Employees, credentials, technical/operator sessions | preserve security/audit history by default | no reset/delete without explicit retention/security policy |
+| chart and role mappings | preserve or recreate transactionally before operations | no present role-mapping bootstrap |
+| user master data | reset only with expressly scoped company/tenant policy | never replace with demo data |
+| purchases/sales/reservations/payments/invoices/assets/movements/journals | clear only in a separately approved transaction reset following documented FK order | operational documents → dependent lines/allocations → journals/movements; policy and FK plan incomplete |
+| audit/idempotency/notifications/cache/sequences | retention/rebuild policy required | do not automatically delete immutable security/audit history |
+| demo/test namespace | remove only under explicit local/demo target | must be refused for Production bootstrap |
+
+NEXT TOOL START HERE
+
+After owner review:
+
+`RESET-1 — Post-Reset Bootstrap & Mandatory Operational Data Recovery`
+
+Do not start RESET-1 automatically. `NOTIF-PRE1`, `UX-PRE1`, and Phase 35E
+remain paused.

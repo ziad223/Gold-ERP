@@ -66,7 +66,8 @@ function staticChecks() {
   for (const token of [
     "sequelize.transaction",
     "lock: true",
-    "reservationAdvancesAccountId",
+    "resolveSystemAccountRole",
+    "CUSTOMER_DEPOSIT_LIABILITY",
     "ReservationPayment.create",
     "ReservationItem.create",
     "AssetEvent.create",
@@ -82,6 +83,7 @@ function staticChecks() {
   ]) assert.ok(service.includes(token), `reservation service includes ${token}`);
   assert.ok(!/invoice\.total|postDepositEntry|sales\/invoices\/draft/.test(service), "reservation service does not use invoices or deposit posting");
   assert.ok(!/2300/.test(service), "reservation service has no hardcoded 2300 fallback");
+  assert.ok(!service.includes('where: { companyId, key: "reservationAdvancesAccountId" }'), "reservation posting no longer resolves the liability account from a settings record");
 
   const posting = read(files.posting);
   const reservationBlock = posting.slice(posting.indexOf("async postReservationPaymentEntry"), posting.indexOf("  /**", posting.indexOf("async postReservationPaymentEntry") + 10));

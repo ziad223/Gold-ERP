@@ -76,7 +76,7 @@ function formStructure() {
   // Uses the Phase 32.1 barcode/inventory foundation.
   assert.ok(form.includes("inventorySubtype"), "form uses inventory_subtype");
   assert.ok(form.includes("metadata") && form.includes("INVENTORY_METADATA_SCHEMA_VERSION"), "form uses metadata + schema version foundation");
-  assert.ok(form.includes("inventoryCode:") && form.includes("itemCode:"), "form sends taxonomy (inventory/item code) to the backend allocator");
+  assert.ok(form.includes("Direct inventory-asset creation is unavailable") && !form.includes("await createAsset("), "Add mode does not submit generic assets");
   // Edit mode must not resend identity fields (backend rejects them post-barcode).
   assert.ok(/mode === "edit"/.test(form) && /updateAsset\(/.test(form), "form supports edit via updateAsset");
 }
@@ -88,7 +88,7 @@ function barcodeSafety() {
   // No browser-side final barcode assignment in the create/update payloads.
   assert.ok(!/\bbarcode:\s*[^,\n]/.test(form), "form never sets a final stored barcode field in its payloads");
   assert.ok(!/allocateBarcodeSerial|generateBarcodeForAsset|formatBarcode/.test(form + preview), "no barcode allocation/format logic runs in the browser");
-  assert.ok(/backend/i.test(form) && /source of truth|allocates the final/i.test(form), "form documents backend as barcode source of truth");
+  assert.ok(/Direct inventory-asset creation is unavailable/.test(form), "form documents that creation is routed to the dedicated backend lifecycle");
   assert.ok(/Preview only/i.test(preview) && /NNNNNN|placeholder/i.test(preview), "tag preview is a labelled read-only placeholder");
 }
 
@@ -102,10 +102,10 @@ function watchProvisional() {
   assert.ok(read(FORM).includes("WATCH_FALLBACK_CODES"), "form resolves watch taxonomy from settings with documented fallback");
 }
 
-// ── (F) Inventory page aligned to the new form (no second flow) ──────────────
+// ── (F) Inventory page uses the dedicated receiving lifecycle ───────────────
 function pageAligned() {
   const page = read(PAGE);
-  assert.ok(page.includes("InventoryItemForm") && page.includes('mode="add"'), "inventory page Add flow is aligned to the type-driven form");
+  assert.ok(page.includes('router.push("/suppliers/purchases")') && !page.includes("<InventoryItemForm"), "inventory Add routes to supplier purchase receiving");
   assert.ok(read(VIEWER).includes("InventoryMetadataViewer"), "read-only metadata viewer exists");
 }
 
@@ -143,7 +143,7 @@ function scopeGuard() {
     /^backend\/src\/services\/statement-reconciliation\.service\.js$/,
     /^backend\/src\/services\/full-2300-reconciliation\.service\.js$/,
     /^backend\/src\/services\/customer-credit\.service\.js$/,
-    /^backend\/(src\/)?migrations\//,
+    /^backend\/(src\/)?migrations\/(?!20260620010000-add-product-id-to-purchase-order-items\.js$|20260720010000-system-account-roles\.js$)/,
     /^backend\/src\/seeders\//,
   ];
   const forbiddenTouched = allChanged.filter((f) => FORBIDDEN_AREAS.some((re) => re.test(f)));
