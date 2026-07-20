@@ -51,13 +51,12 @@ function verifyBackendRoute() {
   assertIncludes(route, "idempotencyService.succeed", "endpoint stores success response");
 
   assertIncludes(refundSection, "amount <= 0", "endpoint validates positive amount");
-  assertIncludes(refundSection, '["1110", "1120"].includes(accountCode)', "endpoint restricts account codes to 1110/1120");
-  assertIncludes(refundSection, 'paymentMethod === "cash" && accountCode !== "1110"', "cash must use 1110");
-  assertIncludes(refundSection, 'paymentMethod === "bank" && accountCode !== "1120"', "bank must use 1120");
-  assertIncludes(route, "Customer.findOne", "endpoint loads customer");
-  assertIncludes(route, "LOCK.UPDATE", "endpoint locks customer row");
+  assertIncludes(refundSection, 'Object.prototype.hasOwnProperty.call(body, "accountCode")', "client treasury-account override is rejected");
+  assertIncludes(refundSection, 'paymentMethod === "bank" ? "1120" : "1110"', "server derives the treasury account key");
+  assertIncludes(route, "requireBranchCustomerResource", "endpoint binds the exact customer to the effective branch");
+  assertIncludes(route, "effectiveBranchId", "endpoint resolves an authoritative effective branch");
   assertIncludes(route, "customer.status", "endpoint rejects inactive customers");
-  assertIncludes(route, "Branch.findOne", "endpoint validates branch when provided");
+  assertIncludes(route, "resolveSystemAccountRole", "endpoint resolves the protected branch deposit role");
 
   assertIncludes(route, "getCustomerCreditSummary", "endpoint checks available credit");
   assertIncludes(route, "availableBefore", "endpoint computes available credit before refund");
@@ -65,14 +64,15 @@ function verifyBackendRoute() {
   assertIncludes(route, "CashTransaction.create", "endpoint creates CashTransaction");
   assertIncludes(route, 'type: "cash_out"', "cash transaction is cash_out");
   assertIncludes(route, 'category: "customer_credit_refund"', "cash transaction is categorized as customer refund");
-  assertIncludes(route, 'counterAccountCode: "2300"', "cash transaction references 2300 as counter account metadata");
+  assertIncludes(route, "counterAccountCode: depositAccount.code", "cash transaction references the resolved branch deposit account");
   assertIncludes(route, "customerCreditService.recordCreditOut", "endpoint records customer credit_out through service");
   assertIncludes(route, 'sourceType: "credit_refund"', "credit sourceType is credit_refund");
   assertIncludes(route, "cashTransactionId: cashTransaction.id", "credit row links cashTransactionId");
   assertIncludes(route, "glPosting", "endpoint passes glPosting");
   assertIncludes(route, "enabled: true", "glPosting is enabled");
-  assertIncludes(route, 'debitAccountCode: "2300"', "GL debit uses 2300");
+  assertIncludes(route, "debitAccountCode: depositAccount.code", "GL debit uses the resolved branch deposit account");
   assertIncludes(route, "creditAccountCode: payload.accountCode", "GL credit uses 1110/1120 payload account");
+  assertIncludes(route, "customerDepositAccountCode: depositAccount.code", "credit service validates the resolved branch deposit account");
   assertIncludes(route, "cashTransaction.update({ journalEntryId: creditRow.journalEntryId }", "cash transaction links generated journalEntryId");
   assertIncludes(route, "availableCredit", "response includes available credit");
   assertIncludes(route, 'ledgerBased: true', "response is marked ledger-based");
