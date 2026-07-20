@@ -9,6 +9,7 @@ const ROOT = path.resolve(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(ROOT, file), "utf8");
 const ErpController = require(path.join(ROOT, "backend/src/controllers/erp.controller"));
 const erpRouter = require(path.join(ROOT, "backend/src/routes/erp.routes"));
+const reservationService = require(path.join(ROOT, "backend/src/services/reservation.service"));
 
 async function invokeCustomerCrud(controller, { companyId, branchId, id, method, body = {}, query = {} }) {
   let status = null;
@@ -39,6 +40,22 @@ async function invokeCustomerRoute(routePath, { companyId, branchId, id }) {
   return { status, payload, error: forwarded };
 }
 
+async function invokeReservationRoute(routePath, { companyId, branchId, id, body = {} }) {
+  const layer = erpRouter.stack.find((entry) => entry.route?.path === routePath);
+  assert.ok(layer, `reservation route ${routePath} is registered`);
+  const handler = layer.route.stack.at(-1).handle;
+  let status = null;
+  let payload = null;
+  let forwarded = null;
+  const req = {
+    params: { id }, body, query: {}, companyId, branchId, headers: {},
+    user: { id: "USR-BRANCH1-VERIFY", role: "sales", firstName: "QA", lastName: "Verifier" },
+  };
+  const res = { status(code) { status = code; return this; }, json(value) { payload = value; return value; } };
+  await handler(req, res, (error) => { forwarded = error; });
+  return { status, payload, error: forwarded };
+}
+
 function staticContract() {
   const migration = read("backend/migrations/20260720020000-branch-system-account-roles.js");
   const customerMigration = read("backend/migrations/20260720030000-branch-customer-operational-isolation.js");
@@ -59,6 +76,10 @@ function staticContract() {
   assert.ok(account.includes("branchId") && role.includes("branchId"), "account and role models expose branch attribution");
   assert.ok(bootstrap.includes("bootstrapBranchAccounts") && bootstrap.includes("CUSTOMER_DEPOSIT_ROLE_MANUAL_REVIEW") && bootstrap.includes("branchReadinessReport"), "bootstrap is idempotent and ambiguous legacy mapping blocks/manual-reviews");
   assert.ok(reservation.includes("assertBranchCustomer") && reservation.includes("assertSameBranch") && reservation.includes("resolveSystemAccountRole(companyId, branchId"), "reservation is server-scoped to branch customer, asset, and protected role");
+  assert.ok(reservation.includes("if (branchId)") && reservation.includes("where.branchId = branchId") && reservation.includes("requireReservationInBranch"), "authenticated branch context scopes reservation reads and actions by exact reservation/company/branch");
+  for (const operation of ["addPayment", "_completeSaleInTransaction", "cancelReservation", "requestRefund", "approveRefund", "_executeRefundInTransaction", "_amendItemsInTransaction", "extendExpiry", "_renewInTransaction", "approveRenewalExcessRefund", "_executeRenewalExcessRefundInTransaction"]) {
+    assert.ok(reservation.includes(`async ${operation}`), `reservation operation ${operation} remains covered by the service contract`);
+  }
   assert.ok(!settings.includes("Reservation Advances Account") && !settings.includes("reservationAdvancesAccountId:"), "ordinary Settings has no editable deposit account selector");
   assert.ok(settings.includes("Branch reservation-deposit account status") && pos.includes("automatic branch setup"), "UI displays protected branch status instead of a selector");
   assert.ok(controller.includes("applyBranchReadScope") && controller.includes("applyBranchWriteScope") && controller.includes("BranchCustomer"), "generic customer/branch resource reads and writes are server-scoped");
@@ -66,6 +87,10 @@ function staticContract() {
   for (const routePath of ["/customers/:id/invoices", "/customers/:id/statement", "/customers/:id/statement-v2", "/customers/:id/credit", "/customers/:id/credit/reconciliation", "/customers/:id/statement-v3", "/customers/:id/loyalty"]) {
     assert.ok(routes.includes(routePath) && routes.includes("requireBranchCustomerResource"), `${routePath} is bound to branch-scoped customer resolution`);
   }
+  for (const routePath of ["/reservations/:id/amendments", "/reservations/:id/extensions", "/reservations/:id/renewal"]) {
+    assert.ok(routes.includes(routePath) && routes.includes("await reservationService.getById({ companyId: req.companyId, id: req.params.id"), `${routePath} validates the scoped parent reservation before nested reads`);
+  }
+  assert.ok(routes.includes("const reservation = await reservationService.getById({ companyId: req.companyId, id: req.params.id, user: req.user, branchId: req.branchId });"), "generic reservation note update resolves the exact scoped reservation");
   assert.ok(routes.includes("resolveAuthorizedBranchId(req, body.branchId") && routes.includes("/readiness/branches"), "POS and readiness resolve authoritative branch context server-side");
   assert.ok(routes.includes("GENERIC_INVENTORY_MUTATION_FORBIDDEN") && routes.includes("GENERIC_TRANSFER_MUTATION_FORBIDDEN"), "generic inventory guard and transfer prohibition remain");
   console.log("Branch isolation static contract: PASS");
@@ -81,7 +106,8 @@ async function runtimeContract() {
   const ids = {
     company: `CMP-${ns}`, a: `BR-${ns}-A`, b: `BR-${ns}-B`,
     a1: `CUS-${ns}-A1`, a2: `CUS-${ns}-A2`, b1: `CUS-${ns}-B1`,
-    invA1: `INV-${ns}-A1`, invA2: `INV-${ns}-A2`, invB1: `INV-${ns}-B1`, asset: `AST-${ns}`,
+    invA1: `INV-${ns}-A1`, invA2: `INV-${ns}-A2`, invB1: `INV-${ns}-B1`, asset: `AST-${ns}-A`, bAsset: `AST-${ns}-B`,
+    reservationA1: `RSV-${ns}-A1`, reservationA2: `RSV-${ns}-A2`, reservationB1: `RSV-${ns}-B1`, unknownReservation: `RSV-${ns}-UNKNOWN`,
   };
   const permissionCountBefore = await models.Permission.count();
   try {
@@ -165,14 +191,48 @@ async function runtimeContract() {
         assert.equal(result.error?.statusCode, 404, `${route.path} uses stable safe rejection`);
       }
     }
-    await models.Asset.create({ id: ids.asset, companyId: ids.company, branchId: ids.a, name: `${ns} Asset`, type: "gold-piece", category: "qa", grossWeight: 1, netWeight: 1, price: 1, cost: 1, branch: `${ns} A`, location: "QA", barcode: `${ns}-BAR` });
+    await models.Asset.bulkCreate([
+      { id: ids.asset, companyId: ids.company, branchId: ids.a, name: `${ns} Asset A`, type: "gold-piece", category: "qa", grossWeight: 1, netWeight: 1, price: 1, cost: 1, branch: `${ns} A`, location: "QA", barcode: `${ns}-A` },
+      { id: ids.bAsset, companyId: ids.company, branchId: ids.b, name: `${ns} Asset B`, type: "gold-piece", category: "qa", grossWeight: 1, netWeight: 1, price: 1, cost: 1, branch: `${ns} B`, location: "QA", barcode: `${ns}-B` },
+    ]);
     const asset = await models.Asset.findByPk(ids.asset);
     scope.assertSameBranch(asset, ids.a, "Asset");
     assert.throws(() => scope.assertSameBranch(asset, ids.b, "Asset"));
+    await models.Reservation.bulkCreate([
+      { id: ids.reservationA1, companyId: ids.company, branchId: ids.a, branch: `${ns} A`, assetId: ids.asset, assetName: `${ns} Asset A`, customerId: ids.a1, customerName: `${ns} A1`, currency: "EGP", deposit: 0, agreedTotal: 1, paidTotal: 0, remainingTotal: 1, excessTotal: 0, expiresAt: "2027-01-01T00:00:00.000Z", workflowVersion: 2, isLegacy: false, status: "active" },
+      { id: ids.reservationA2, companyId: ids.company, branchId: ids.a, branch: `${ns} A`, assetId: ids.asset, assetName: `${ns} Asset A`, customerId: ids.a2, customerName: `${ns} A2`, currency: "EGP", deposit: 0, agreedTotal: 1, paidTotal: 0, remainingTotal: 1, excessTotal: 0, expiresAt: "2027-01-01T00:00:00.000Z", workflowVersion: 2, isLegacy: false, status: "active" },
+      { id: ids.reservationB1, companyId: ids.company, branchId: ids.b, branch: `${ns} B`, assetId: ids.bAsset, assetName: `${ns} Asset B`, customerId: ids.b1, customerName: `${ns} B1`, currency: "EGP", deposit: 0, agreedTotal: 1, paidTotal: 0, remainingTotal: 1, excessTotal: 0, expiresAt: "2027-01-01T00:00:00.000Z", workflowVersion: 2, isLegacy: false, status: "active" },
+    ]);
+    const reservationActor = { id: "USR-BRANCH1-VERIFY", role: "sales", firstName: "QA", lastName: "Verifier" };
+    for (const reservationId of [ids.reservationA1, ids.reservationA2]) {
+      const reservation = await reservationService.getById({ companyId: ids.company, id: reservationId, user: reservationActor, branchId: ids.a });
+      assert.equal(reservation.id, reservationId, "same-branch reservation read returns the exact requested ID");
+      assert.equal(reservation.branchId, ids.a, "same-branch reservation read keeps the effective branch");
+    }
+    for (const reservationId of [ids.reservationB1, ids.unknownReservation]) {
+      await assert.rejects(() => reservationService.getById({ companyId: ids.company, id: reservationId, user: reservationActor, branchId: ids.a }), (error) => error?.statusCode === 404, "cross-branch and unknown reservations reject without substitute data");
+    }
+    const reservationsBefore = await models.Reservation.findAll({ where: { companyId: ids.company }, raw: true, order: [["id", "ASC"]] });
+    for (const routePath of ["/reservations/:id/amendments", "/reservations/:id/extensions", "/reservations/:id/renewal"]) {
+      const same = await invokeReservationRoute(routePath, { companyId: ids.company, branchId: ids.a, id: ids.reservationA1 });
+      assert.equal(same.status, 200, `${routePath} permits the exact same-branch reservation parent`);
+      const cross = await invokeReservationRoute(routePath, { companyId: ids.company, branchId: ids.a, id: ids.reservationB1 });
+      assert.equal(cross.status, null, `${routePath} has no cross-branch success response`);
+      assert.equal(cross.payload, null, `${routePath} leaks no cross-branch nested data`);
+      assert.equal(cross.error?.statusCode, 404, `${routePath} rejects the cross-branch parent safely`);
+    }
+    const noteUpdate = await invokeReservationRoute("/reservations/:id", { companyId: ids.company, branchId: ids.a, id: ids.reservationB1, body: { notes: "must-not-write" } });
+    assert.equal(noteUpdate.error?.statusCode, 404, "cross-branch reservation update is safely rejected");
+    await assert.rejects(() => reservationService.cancelReservation({ companyId: ids.company, branchId: ids.a, user: reservationActor, reservationId: ids.reservationB1, body: { reason: "must-not-write" } }), (error) => error?.statusCode === 404, "cross-branch cancellation is rejected before writes");
+    await assert.rejects(() => reservationService.addPayment({ companyId: ids.company, branchId: ids.a, user: reservationActor, reservationId: ids.reservationB1, body: { amount: "1" }, idempotencyKey: `${ns}-cross-payment` }), (error) => error?.statusCode === 404, "cross-branch payment is rejected before writes");
+    await assert.rejects(() => reservationService.completeSale({ companyId: ids.company, branchId: ids.a, user: reservationActor, reservationId: ids.reservationB1, body: {}, idempotencyKey: `${ns}-cross-complete` }), (error) => error?.statusCode === 404, "cross-branch completion is rejected before writes");
+    const reservationsAfter = await models.Reservation.findAll({ where: { companyId: ids.company }, raw: true, order: [["id", "ASC"]] });
+    assert.deepEqual(reservationsAfter, reservationsBefore, "rejected reservation operations have zero reservation write effect");
     const readiness = await bootstrap.branchReadinessReport(ids.company);
     assert.equal(readiness.branches.length, 2, "readiness reports both branches");
     assert.equal(await models.Permission.count(), permissionCountBefore, "verifier creates no permissions");
   } finally {
+    await models.Reservation.destroy({ where: { companyId: ids.company }, force: true });
     await models.Invoice.destroy({ where: { companyId: ids.company }, force: true });
     await models.BranchCustomer.destroy({ where: { companyId: ids.company }, force: true });
     await models.Asset.destroy({ where: { companyId: ids.company }, force: true });

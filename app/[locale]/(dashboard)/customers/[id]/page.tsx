@@ -920,7 +920,6 @@ const getCustomerCreditCashSignature = (form: CustomerCreditCashForm, customerId
     customerId,
     amount: form.amount.trim(),
     paymentMethod: form.paymentMethod,
-    accountCode: form.paymentMethod === "bank" ? "1120" : "1110",
     date: form.date,
     description: form.description.trim(),
     reference: form.reference.trim(),
@@ -1124,7 +1123,6 @@ function CustomerStatementPanel({ customerId, money }: { customerId: string; mon
         body: JSON.stringify({
           amount,
           paymentMethod: depositForm.paymentMethod,
-          accountCode: depositForm.paymentMethod === "bank" ? "1120" : "1110",
           date: depositForm.date,
           description: depositForm.description.trim() || (rtl ? "إيداع رصيد دائن للعميل" : "Customer credit deposit"),
           reference: depositForm.reference.trim() || undefined,
@@ -1168,7 +1166,6 @@ function CustomerStatementPanel({ customerId, money }: { customerId: string; mon
         body: JSON.stringify({
           amount,
           paymentMethod: refundForm.paymentMethod,
-          accountCode: refundForm.paymentMethod === "bank" ? "1120" : "1110",
           date: refundForm.date,
           description: refundForm.description.trim() || (rtl ? "رد رصيد دائن للعميل" : "Customer credit refund"),
           reference: refundForm.reference.trim() || undefined,

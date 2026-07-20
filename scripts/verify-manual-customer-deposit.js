@@ -93,7 +93,18 @@ function verifyModelAndFrontend() {
   assertIncludes(page, "credit/deposit", "frontend calls customer credit deposit endpoint");
   assertIncludes(page, "generateUUID", "frontend generates an idempotency key");
   assertIncludes(page, "idempotencyKey", "frontend sends Idempotency-Key through apiClient");
-  assertIncludes(page, 'paymentMethod === "bank" ? "1120" : "1110"', "frontend maps bank/cash to 1120/1110");
+  const signature = sliceBetween(page, "const getCustomerCreditCashSignature", "const getCustomerCreditApplySignature");
+  const submitDeposit = sliceBetween(page, "const submitDeposit", "const submitRefund");
+  assertIncludes(signature, "paymentMethod: form.paymentMethod", "idempotency signature retains payment method");
+  assertNotMatches(signature, /accountCode|accountId|depositAccount|liabilityAccount|treasuryAccount|branchId|companyId/, "idempotency signature has no client account or scope override");
+  assertIncludes(submitDeposit, "amount,", "deposit payload retains amount");
+  assertIncludes(submitDeposit, "paymentMethod: depositForm.paymentMethod", "deposit payload retains payment method");
+  assertIncludes(submitDeposit, "date: depositForm.date", "deposit payload retains date");
+  assertIncludes(submitDeposit, "description: depositForm.description.trim()", "deposit payload retains description");
+  assertIncludes(submitDeposit, "reference: depositForm.reference.trim()", "deposit payload retains reference");
+  assertNotMatches(submitDeposit, /accountCode|accountId|depositAccount|liabilityAccount|treasuryAccount|branchId|companyId/, "normal deposit payload cannot select an account or authority scope");
+  assertIncludes(submitDeposit, "setDepositSubmitting(true)", "deposit blocks duplicate submission while pending");
+  assertIncludes(submitDeposit, "toast.error(err?.message", "deposit shows a safe server error without false success");
   assertIncludes(page, "does not settle any invoice", "frontend warning says deposit does not settle invoices");
   assertIncludes(page, "apply-customer-credit", "approved customer detail apply-credit UI may coexist with deposit");
 }
