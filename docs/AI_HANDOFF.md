@@ -1,5 +1,11 @@
 # READ THIS FIRST — CURRENT PROJECT HANDOFF
 
+> **LOCAL-DB-VERIFIER-ADOPT1-CONT1 checkpoint:** `d6824eb` added the strict adopted-local database guard and negative tests; `7d13da6` converted the first verifier group to guarded static/live behavior. The sole allowed live target is `localhost/127.0.0.1/::1:5432/darfus_erp`, with explicit owner/live confirmation, exact DB identity, run ID, and validated local backup for V2/V3. V4 existing-data mutation and V5 destructive verifiers are blocked. Fresh backup `backend/backups/darfus_erp_local_db_verifier_adopt1_cont1_20260721121700.dump` is 368,763 bytes and passes `pg_restore -l`. Static approved subset: 44 PASS (29 original V0 plus 15 adapted static modes). Permission divergence is exact: source 119, DB 125, historical 128; DB lacks `sales.returns.execute`, `sales.exchanges.execute`, `sales.installments.collect` and retains nine retired activation-state permissions. No permission or Product data changed; no second DB, remote, or Production action occurred. **NEXT TOOL START HERE: BRANCH-1-VERIFIER-VALIDATE1 only after owner accepts the partial V4/V5 redesign backlog. Do not start automatically.**
+
+> **LOCAL-DB-VERIFIER-REDESIGN1 blocked by scope:** Source inspection found `backend/src/config/database.js` and `backend/src/config/config.js` retain DB host/port/name defaults. The phase forbids Product runtime/config edits, so Production missing-ENV fail-closed behavior cannot be proven or repaired here. Finding `MR1-F010` requires `ENV-CONTRACT-FIX1`, a separately authorized bounded Product configuration phase. No verifier, Product, `.env`, database, remote, or Production mutation was made by this redesign preflight. Do not start BRANCH-1 validation from this checkpoint.
+
+> **ENV-CONTRACT-FIX1 completed locally:** `backend/src/config/database-env.js` is the shared resolver for runtime and Sequelize CLI config. Development retains ENV-driven local defaults; staging/Production require explicit target and credentials or a valid PostgreSQL `DATABASE_URL`, reject malformed port/SSL and DB URL conflicts, and emit secret-safe `CONFIG_ERROR` before connection. `backend/.env.example` documents safe placeholders and disabled per-run verifier variables; actual `backend/.env` remains ignored and unchanged. Focused resolver and verifier-guard tests pass. **NEXT TOOL START HERE: LOCAL-DB-VERIFIER-REDESIGN1-RESUME. Do not start automatically.**
+
 > **PHASE RESET-1 — Post-Reset Operational Recovery (closed locally):** Local `main` now contains `988a063`, `074964e`, `f0f5a3a`, and `cd13598 test: align reservation and lifecycle guard verifiers`; this documentation closure is the fifth RESET-1 commit. CONT2 removed the active verifier's retired settings-only reservation-deposit expectation and now proves the supported server-side, company-scoped `CUSTOMER_DEPOSIT_LIABILITY` role contract. The exact safe missing/invalid-role response is HTTP `422 CUSTOMER_DEPOSIT_ROLE_NOT_CONFIGURED`; a valid legacy `reservationAdvancesAccountId` is adopted during explicit bootstrap, but it is not a business-user account selector or runtime sole source of truth. CONT3 also aligned the allowed posting verifier with the current generic-inventory lifecycle guard and posted-record `409` behavior. No Product logic changed. Targeted checks and the clean committed verifier suite passed `65/65`; counts remain 45 migrations, 128 permissions, and 65 verifier files. Local browser QA passed Arabic/English POS desktop/mobile rendering with no liability-account selector, payment destinations present, no overflow/crash/console error, supplier-purchase routing for inventory intake, and no write fixture. Source/API evidence proves the role blocker occurs before reservation/deposit/journal writes, generic `/assets` mutation remains blocked, receiving remains transaction-backed, reset commands default-deny the primary/prod environment, and startup does not seed Demo data. Cleanup returned the local baseline to companies/suppliers/assets/journal entries `9/4/20/53`, RESET1 fixtures zero, QA DB absent, ports quiet, and `next-env.d.ts` clean. Start backup: `backend/backups/darfus_erp_reset1_start_20260720_093812.dump` (498818 bytes); final validated local archive: `backend/backups/darfus_erp_reset1_final_20260720_110256.dump` (501936 bytes). Production was not accessed or changed. **NEXT TOOL START HERE: RESET-DEPLOY1 — Controlled Production Bootstrap Recovery Deployment & Read-Only Validation. Do not deploy automatically. NOTIF-PRE1 remains paused until RESET-DEPLOY1 is closed.**
 
 > **RESET-1-CONT4 — Retired Reservation Error-Code Record Completion:** Starting HEAD `061dea1` had a documentation-only omission: the retired settings-only identifiers were not written literally. The historical codes are `RESERVATION_ADVANCES_ACCOUNT_NOT_CONFIGURED` and `RESERVATION_ADVANCES_ACCOUNT_INVALID`. They must not be reintroduced as active runtime behavior; they are retained only for historical traceability and verifier-migration evidence. The active replacement is HTTP `422`, `CUSTOMER_DEPOSIT_ROLE_NOT_CONFIGURED`, and the protected company-scoped `CUSTOMER_DEPOSIT_LIABILITY` role. The liability account is server-resolved; clients cannot choose/override it and no business-user ledger selector exists, while cash-register/bank/payment destinations remain user-selectable. Valid legacy setting adoption is preserved; missing, invalid, inactive, or cross-company mapping blocks before reservation/deposit/journal writes, with no first-account fallback, localized account-name lookup, Demo-ID dependency, or partial write. CONT4 is documentation-only: no Product, verifier, migration, configuration, database, backup, or Production change occurred. The omission did not affect RESET-1 behavior, 65/65 verification, Browser/API QA, backups, database state, or Production. Final documentation commit: `docs: complete retired reservation error code record`; next phase remains RESET-DEPLOY1 and NOTIF-PRE1 remains paused. **NEXT TOOL START HERE: RESET-DEPLOY1 — Controlled Production Bootstrap Recovery Deployment & Read-Only Validation. Do not start automatically.**
@@ -5250,6 +5256,32 @@ After owner review:
 Do not start RESET-1 automatically. `NOTIF-PRE1`, `UX-PRE1`, and Phase 35E
 remain paused.
 
+---
+
+## LOCAL-DB-VERIFIER-REDESIGN1-RESUME (2026-07-21)
+
+Implementation checkpoint: `e3215f9 test: redesign safe live verifiers`. Only verifier infrastructure changed: shared guard validates `pg_restore -l`, rejects staging, legacy Employee/Super-Admin verifiers are static-by-default and shared V3-guarded, and an exact-owned historical Employee-fixture cleanup helper was added. Fresh ignored backup `backend/backups/darfus_erp_local_db_verifier_redesign1_20260721124738.dump` is 368,763 bytes and valid. Guard/helper tests pass; V3 PASS: Employee authorization foundation, Employee operator session, Employee permission enforcement. V3 permission-catalog, single-level Employee, and Super Admin recovery are blocked by DB permissions `125` versus historical `128`; V4/V5 remain blocked. Historical `CMP-T34-2-*`/`CMP-T34-3-*`: 11 owned tenants deleted transactionally; post-check zero.
+
+Default matrix after the commit: 58 PASS and 8 scope-BLOCKED. The only scope blocker is exact untracked binary `H:\\WORK\\jewellery-erp-master\\-` (368,763 bytes), made by failed first backup argument binding; deletion was rejected by local tool policy. It is unstaged and not Product data. Protected CRLF-only paths remain unstaged and semantic-no-diff. No Product, migration, permission, config, remote, staging, Production, deployment, reset, seed, restore, or second database action occurred. Do not use obsolete 5433/`darfus_erp_branch1_qa` verifier copies. `scripts/bootstrap-first-super-admin.js` retains 5433 but is outside this verifier-only scope.
+
+NEXT TOOL START HERE
+
+LOCAL-DB-VERIFIER-REDESIGN2 — Remove the exact local cleanup blocker, resolve only named verifier readiness blockers without Product business changes, then rerun the clean 66-verifier matrix.
+
+Do not start automatically.
+
+## LOCAL-DB-VERIFIER-REDESIGN2-RESUME (2026-07-21)
+
+Owner manually removed the root artifact and Codex confirmed `Test-Path -LiteralPath 'H:\\WORK\\jewellery-erp-master\\-'` is `False`; it was not deleted again by tools. `4fbb977 fix: remove obsolete bootstrap database default` makes `scripts/bootstrap-first-super-admin.js` import-safe and reuse `backend/src/config/database-env.js`; it no longer defaults to 5433 or the obsolete QA target. `947ce71` aligns the focused static verifier. Bootstrap was never executed in mutation mode.
+
+Current evidence: eight prior scope verifiers PASS; canonical static matrix **66 PASS / 0 FAIL / 0 BLOCKED**. Fresh ignored backup `backend/backups/darfus_erp_local_db_verifier_redesign2_20260721132707.dump` is 367,530 bytes and `pg_restore -l` PASS. Guarded V3 is **3 PASS / 0 FAIL / 3 BLOCKED**: permission catalog wiring, single-level Employee, and Super Admin recovery stop only at DB permission count `125` versus historical `128`. Exact reconciliation returned zero owned companies/employees; no permission, Product, migration, seed, reset, restore, second database, remote, staging, Production, or deployment action occurred. Typecheck/build PASS; lint PASS with 18 warnings.
+
+NEXT TOOL START HERE
+
+PERMISSION-BASELINE-RECONCILE1 — Determine and implement the canonical permission catalog/DB/verifier contract without blind seeding or deleting legacy permissions.
+
+Do not start automatically.
+
 ## BRANCH-PRE1 — Branch Financial, Customer, Inventory & Reservation Isolation Audit
 
 **Decision: BRANCH-PRE1 AUDIT COMPLETED — NO IMPLEMENTATION OR DATABASE MUTATION
@@ -5536,6 +5568,200 @@ NEXT TOOL START HERE
 BRANCH-1-FIX1 - Consolidated Verified Failure Resolution
 
 Do not start automatically. BRANCH-DEPLOY1, TRANSFER-PRE1, and NOTIF-PRE1
+remain paused.
+
+## PERMISSION-BASELINE-RECONCILE1 — COMPLETED 2026-07-21
+
+Official workspace `H:\WORK\jewellery-erp-master`, branch `main`, reconciled from `50d32c1` through implementation commits `fba8a3f`, `65e897b`, `d0a689b`, and `0398b8b`. Canonical v1.0.0 source is `backend/src/bootstrap/permission-baseline-v1.js`: 128 exact active slugs. The historical `128` was `116` shared rows plus three missing sales adjustment permissions and nine active lifecycle permissions. The lifecycle permissions remain canonical (not deprecated) because Customer, Supplier, and Branch routes enforce them; default grants are admin/owner only. Sales return/exchange/installment permissions are granted only to default admin, owner, and manager roles. Custom roles are never broadened automatically; direct denial remains authoritative; Super Admin protected access and Branch Account Employee-first separation are unchanged.
+
+Forward migration `20260721010000-reconcile-canonical-permission-baseline.js` was applied only to owner-confirmed development target `::1:5432/darfus_erp` after fresh ignored backup `backend/backups/darfus_erp_permission_baseline_reconcile1_20260721103957.dump` (367,530 bytes; `pg_dump` 0; `pg_restore -l` 0). DB is now 48 migrations, exact 128 permission slugs, zero orphan role-permission rows, default role counts `admin 128 / owner 128 / manager 114 / accountant 30 / sales 27`. Rerun reports no pending migrations. No remote, Staging, Production, reset, truncate, broad seed, or permission deletion occurred.
+
+Validation: focused baseline/ENV/bootstrap tests PASS; 66 static/readiness PASS / 0 FAIL / 0 BLOCKED; guarded V3 Employee/authorization suite PASS 6 / 0 / 0; typecheck PASS; lint 18 warnings / 0 errors; build PASS; diff check PASS. Two early failed catalog-verifier namespaces were exactly identified and cleaned to zero after the verifier-count binding repair. The only remaining working-tree paths are the pre-existing CRLF-only protected files `backend/package-lock.json`, `backend/package.json`, `backend/src/app.js`, `backend/src/controllers/erp.controller.js`, and `backend/src/routes/events.routes.js`; they remain unstaged and semantic-diff clean. Do not use obsolete 5433 or contaminated copies.
+
+NEXT TOOL START HERE
+
+BRANCH-1-VERIFIER-VALIDATE1 — Run the finalized verifier matrix against the reconciled local test database and produce formal branch verification evidence without Product business changes.
+
+Do not start automatically. BRANCH-DEPLOY1, TRANSFER-PRE1, NOTIF-PRE1, and RESET-DEPLOY1 remain paused.
+
+---
+
+## MARKET-RELEASE-AUDIT1 — Official v1.0.0 audit and roadmap (2026-07-21)
+
+The official workspace is `H:\WORK\jewellery-erp-master` on `main`, audited
+from `cff507f781823a799d13123a654894c6293c2a56`; the adopted Product baseline
+ancestor is `85c7bd59428f992f556dd0eccb2d72d187ce0e00`. The only owner-approved
+local development/test database is `::1/localhost:5432/darfus_erp`, development
+environment. A valid audit backup was created at
+`backend/backups/darfus_erp_market_release_audit1_20260721083402.dump`
+(368,660 bytes; `pg_restore -l` PASS); it is ignored and unstaged. No reset,
+truncate, seed, migration, Product change, Primary/Production access, or
+deployment occurred.
+
+Current read-only DB evidence: PostgreSQL 18.4, 47 migration rows, 84 public
+tables, 12 companies, 22 branches, 125 permission rows, six employees, one
+Super Admin, no Branch Accounts, no System Account Role mappings, no legacy
+reservation-advances setting, no open CashRegister sessions, one legacy/active
+reservation, and no reservation payments/refunds/reservation journals. Source
+has 119 bootstrap permission names, while prior handoff claims 128; this is a
+release-readiness divergence. Reservation deposits are source-protected by a
+branch-scoped `CUSTOMER_DEPOSIT_LIABILITY` role, so the adopted DB is currently
+not configured to post them. A separate P1 source finding: reservation refund
+execution accepts `body.treasuryAccountCode` ahead of the stored method-derived
+account and the UI prompts for it; no exploit request was sent.
+
+Static evidence: 159 backend JS files pass `node --check`; typecheck PASS;
+lint PASS with 18 warnings/zero errors; production build PASS. `npm audit
+--omit=dev` reports 3 high and 3 moderate advisories (including `xlsx`, `next`,
+`next-intl`, and Playwright/PostCSS dependency paths). The build normalized the
+approved generated `next-env.d.ts` development hunk to its committed state;
+no manual restore was authorized or performed. The five protected backend
+checkout/index artifacts remain semantically unchanged and unstaged; 11 stashes
+remain untouched.
+
+Runtime/Browser acceptance is not current evidence: 3000/8000 were occupied by
+unidentified existing Node processes and were not reused. A controlled 8001
+backend launch with bootstrap and reservation-expiry scheduler disabled was
+blocked by platform policy before execution. Docker/compose and 24 verifier or
+deployment files retain obsolete `5433`/`darfus_erp_branch1_qa` assumptions,
+while `docker-compose.yml` also defaults to development credentials. No server
+or Production details were accessed.
+
+Authoritative findings and phased roadmap are in `docs/FINDINGS_REGISTER.md`,
+`docs/PRODUCT_ROADMAP.md`, `docs/RELEASE_PLAN.md`,
+`docs/TEST_ACCEPTANCE_MATRIX.md`, and `docs/DEPLOYMENT_RUNBOOK.md`.
+
+NEXT TOOL START HERE
+
+LOCAL-DB-VERIFIER-ADOPT1 — Safely adapt verifier execution to the
+owner-confirmed local test database `localhost:5432/darfus_erp`, preserving
+remote/Production rejection, backup, namespaced fixtures, rollback, and cleanup
+guarantees.
+
+Do not start automatically. BRANCH-DEPLOY1, TRANSFER-PRE1, NOTIF-PRE1, and
+RESET-DEPLOY1 remain paused.
+
+---
+
+## BRANCH-1-VERIFIER-RECONCILE1 — Verifier Reconciliation and validation status (2026-07-21)
+
+The owner has adopted `H:\WORK\jewellery-erp-master` on `main` as the only
+official workspace. This phase started at `97fe569db7c32343d01428e21ea9bbbe139f5376`
+(`docs: record current baseline adoption audit`) and retains the accepted
+Product baseline `85c7bd59428f992f556dd0eccb2d72d187ce0e00`. No recovery
+checkout, Primary database, remote database, Production system, deployment,
+Product source, migration, permission, manifest, lockfile, or configuration
+was changed.
+
+The six pre-existing paths remain unstaged and preserved: five approved
+checkout/index artifacts (`backend/package-lock.json`, `backend/package.json`,
+`backend/src/app.js`, `backend/src/controllers/erp.controller.js`, and
+`backend/src/routes/events.routes.js`) retain no semantic hunk; `next-env.d.ts`
+retains only its approved generated Next development-reference hunk. The eight
+scope verifiers now use `git diff HEAD` semantic evidence, ignore only that
+exact generated hunk, and still reject a genuine protected-file edit. Group B
+commits are `636e1cd` (`test: make verifier scope guards semantic`) and
+`eeda64b` (`test: harden verifier semantic scope guards`); the latter closes an
+initially over-broad `next-env.d.ts` exception. The exact changed verifiers are:
+
+`verify-customer-credit-existing-rows-checker.js`,
+`verify-customer-history-exchange-display.js`,
+`verify-exchange-display-api-enrichment.js`, `verify-exchange-summary-ui.js`,
+`verify-exchange-tax-customer-facing-policy.js`,
+`verify-installment-reconciliation.js`, `verify-ledger-reporting-foundation.js`,
+and `verify-live-exchange-tax-policy.js`.
+
+The HF6A verifier now has default static/readiness mode and an explicit,
+opt-in write-capable mode (`VERIFY_EMPLOYEE_CREDENTIAL_SETUP_RUNTIME=true`).
+Opt-in mode requires the exact localhost/127.0.0.1:5433
+`darfus_erp_branch1_qa` target and an authenticated
+`darfus_erp_hf6a_start_*.dump` artifact; a missing artifact fails clearly
+before any DB connection. Its commit is `29a8378`
+(`test: make hf6a verifier prerequisite explicit`). The previously reported
+eight stale route-boundary failures were not reproducible at this current
+baseline: their static contracts passed, so no unjustified Group A change was
+made.
+
+Validation: all eight repaired scope verifiers PASS; the 17 named rerun is
+16 PASS / 0 verifier failures / 1 QA-infrastructure block (accounting dashboard
+source-of-truth). The canonical 66-file attempt, pinned to
+`127.0.0.1:5433/darfus_erp_branch1_qa` with no `DATABASE_URL`, is 47 PASS /
+0 classified verifier failures / 19 BLOCKED by `ECONNREFUSED`. Docker Desktop
+Service was stopped and its Linux engine pipe absent, so QA identity, database
+creation/migration, 128-permission bootstrap, archive-backed live mode, final
+66/66, and disposable-copy typecheck/lint/build were not rerun. The accepted
+prior evidence remains 47 migrations, 128 permissions, typecheck PASS, lint
+PASS (18 warnings, 0 errors), and build PASS, but it is baseline evidence only.
+No active process was stopped or reused.
+
+False-pass evidence: in the isolated old validation copy only, a temporary
+semantic edit to `backend/src/app.js` was rejected as
+`unexpected changed file: backend/src/app.js`; official Product files were not
+modified. The same temporary directory could not be removed because the
+environment policy rejected the narrowly authorized `Remove-Item` command;
+it contains no running process and must be removed only when platform policy
+permits. All 11 stashes remain untouched; no remote is configured. The phase is
+blocked solely on safe local QA/Docker availability and temporary-directory
+cleanup, not on a Product defect.
+
+NEXT TOOL START HERE
+
+BRANCH-1-VERIFIER-RECONCILE1-VALIDATION-RESUME — Restore only the verified local
+Docker/QA capability, remove the exact old disposable directory, rerun QA
+migrations/bootstrap, all 66 verifiers, and disposable-copy typecheck/lint/build.
+
+Do not start automatically. BRANCH-DEPLOY1, TRANSFER-PRE1, and NOTIF-PRE1
+remain paused.
+
+---
+
+## BRANCH-1-CURRENT-BASELINE-ADOPT1 COMPLETED — 2026-07-21
+
+Owner decision: `main@85c7bd59428f992f556dd0eccb2d72d187ce0e00`
+(`test: cover customer credit UI payload contract`) is the official working
+baseline. Do not require or recover `fc00ef3`, a recovery branch, or a
+recovery-cutover document.
+
+Pre-existing worktree paths were preserved byte-for-byte. The five backend
+paths (`backend/package-lock.json`, `backend/package.json`,
+`backend/src/app.js`, `backend/src/controllers/erp.controller.js`, and
+`backend/src/routes/events.routes.js`) have no semantic diff: their raw and
+filtered Git blob hashes equal HEAD and they are checkout/index-stat artifacts.
+They remain unstaged. `next-env.d.ts` is the only semantic worktree diff; it is
+generated Next dev-path drift and remains uncommitted/unmodified by this phase.
+
+Temporary-copy validation at exact HEAD completed 47 migrations and the
+verifier bootstrap reached 128 permissions. Typecheck passed; lint passed with
+18 warnings and zero errors; production build passed. The independently-run
+suite result is 49 PASS / 17 FAIL / 0 BLOCKED. Failures are committed verifier
+scope/static-contract/archive defects, not a current backend Product diff:
+stale route-boundary assertions, CRLF/index-stat scope guards, and the missing
+HF6A local start archive. Existing focused BRANCH operational isolation,
+Customer-credit payload, reservation, employee-permission, and sales/POS
+verifiers passed. Two-branch Browser/API/financial end-to-end acceptance was
+not run after the suite failed; isolated service launch was policy-blocked, and
+the active 3000/8000 services were not used as a substitute. The local QA DB
+`darfus_erp_branch1_qa` was dropped and confirmed absent. A disposable clone
+remains at `H:\WORK\_DARFUS_TEMP_VALIDATION\ADOPT1-20260721-0900` because
+automated recursive removal was policy-blocked; it contains no running service
+or QA DB and must be removed safely before or during the next authorized
+cleanup step.
+
+Open findings: ADOPT1-F001/P1 verifier suite 49/17; ADOPT1-F002/P1 stale
+static verifier contracts; ADOPT1-F003/P2 CRLF/index-stat scope guards;
+ADOPT1-F004/P2 HF6A archive dependency; ADOPT1-F005/P2 Browser acceptance
+blocked; ADOPT1-F006/P2 disposable-copy cleanup blocked; ADOPT1-F007/P3 active
+ports 3000/8000 were already occupied. Primary and Production were not
+accessed or written. Current diffs remain uncommitted unless separately
+authorized.
+
+True decision: **CURRENT BASELINE ACCEPTED — READY FOR TARGETED IMPLEMENTATION**.
+
+NEXT TOOL START HERE
+
+BRANCH-1-VERIFIER-RECONCILE1 — Verifier-only repair of the 17 proven
+scope/static/archive failures, followed by isolated-QA rerun. Do not start
+automatically. BRANCH-DEPLOY1, TRANSFER-PRE1, NOTIF-PRE1, and RESET-DEPLOY1
 remain paused.
 
 ---

@@ -29,7 +29,7 @@ function verifyCounts() {
   const verifierCount = fs.readdirSync(path.join(ROOT, "scripts"))
     .filter((name) => /^verify-.*\.js$/.test(name)).length;
 
-  assert.equal(migrationCount, 47, "BRANCH-1 adds the two authorized branch-isolation migrations");
+  assert.equal(migrationCount, 48, "permission baseline reconciliation adds one forward-only migration");
   assert.ok(verifierCount >= 59, "verifier count remains at or above the HF6A baseline");
   assert.equal(
     packageJson.scripts["verify:market-launch-safety-containment"],

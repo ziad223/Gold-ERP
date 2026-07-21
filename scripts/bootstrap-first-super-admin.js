@@ -1,17 +1,14 @@
 #!/usr/bin/env node
 
 const crypto = require("crypto");
+const { resolveDatabaseEnv } = require("../backend/src/config/database-env");
 
 const TARGET_ID = "USR-ADMIN";
 const TARGET_EMAIL = "admin@admin.com";
 const CONFIRM_FLAG = "BOOTSTRAP_FIRST_SUPER_ADMIN";
-const LOCAL_DB = {
-  host: "localhost",
-  port: "5433",
-  name: "darfus_erp",
-  user: "postgres",
-  password: "postgres"
-};
+const ADOPTED_LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+const ADOPTED_LOCAL_PORT = 5432;
+const ADOPTED_LOCAL_DATABASE = "darfus_erp";
 
 function argValue(name) {
   const index = process.argv.indexOf(name);
@@ -24,28 +21,13 @@ function fail(message) {
   process.exit(1);
 }
 
-function assertLocalOnly() {
-  const nodeEnv = String(process.env.NODE_ENV || "development").toLowerCase();
-  if (["production", "prod", "staging"].includes(nodeEnv) || process.env.RENDER || process.env.VERCEL) {
-    fail("Refusing production, Render, Vercel, or staging execution.");
+function resolveBootstrapDatabaseTarget(env = process.env) {
+  const target = resolveDatabaseEnv(env);
+  if (target.environment !== "development" || !ADOPTED_LOCAL_HOSTS.has(target.host)
+    || target.port !== ADOPTED_LOCAL_PORT || target.database !== ADOPTED_LOCAL_DATABASE) {
+    throw new Error("BOOTSTRAP_LOCAL_DATABASE_REQUIRED");
   }
-  if (process.env.DATABASE_URL) {
-    fail("Refusing DATABASE_URL. Use the explicit local DB endpoint only.");
-  }
-  const requested = {
-    host: process.env.DB_HOST || LOCAL_DB.host,
-    port: String(process.env.DB_PORT || LOCAL_DB.port),
-    name: process.env.DB_NAME || LOCAL_DB.name
-  };
-  if (requested.host !== LOCAL_DB.host || requested.port !== LOCAL_DB.port || requested.name !== LOCAL_DB.name) {
-    fail(`Refusing DB ${requested.name}@${requested.host}:${requested.port}; expected ${LOCAL_DB.name}@${LOCAL_DB.host}:${LOCAL_DB.port}.`);
-  }
-  process.env.NODE_ENV = "test";
-  process.env.DB_HOST = LOCAL_DB.host;
-  process.env.DB_PORT = LOCAL_DB.port;
-  process.env.DB_NAME = LOCAL_DB.name;
-  process.env.DB_USER = process.env.DB_USER || LOCAL_DB.user;
-  process.env.DB_PASS = process.env.DB_PASS || LOCAL_DB.password;
+  return Object.freeze({ environment: target.environment, host: target.host, port: target.port, database: target.database, ssl: target.ssl });
 }
 
 function fingerprint(value) {
@@ -58,7 +40,7 @@ async function main() {
   if (!email) fail("--email is required.");
   if (email !== TARGET_EMAIL) fail(`Refusing target email '${email}'. Expected ${TARGET_EMAIL}.`);
   if (confirm !== CONFIRM_FLAG) fail(`--confirm ${CONFIRM_FLAG} is required.`);
-  assertLocalOnly();
+  resolveBootstrapDatabaseTarget();
 
   const models = require("../backend/src/models");
   const auditService = require("../backend/src/services/audit.service");
@@ -174,7 +156,11 @@ async function main() {
   await models.sequelize.close();
 }
 
-main().catch((error) => {
-  console.error(`[bootstrap-first-super-admin] ${error.message}`);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(`[bootstrap-first-super-admin] ${error.message}`);
+    process.exit(1);
+  });
+}
+
+module.exports = { resolveBootstrapDatabaseTarget };

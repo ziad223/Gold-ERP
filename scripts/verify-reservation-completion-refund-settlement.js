@@ -12,6 +12,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const { assertAdoptedLocalDatabase } = require("./lib/verify-local-database-guard");
 const { execFileSync } = require("node:child_process");
 
 const ROOT = path.resolve(__dirname, "..");
@@ -193,14 +194,15 @@ function assertLocalLiveEnvironment() {
   assert.equal(process.env.VERIFY_RESERVATION_SETTLEMENT_LIVE, "true", "live verification requires VERIFY_RESERVATION_SETTLEMENT_LIVE=true");
   assert.equal(process.env.VERIFY_DATABASE_NAME, "darfus_erp", "live verification requires VERIFY_DATABASE_NAME=darfus_erp");
   assert.ok(["development", "test", "demo"].includes(process.env.NODE_ENV), "live verification requires development/test/demo NODE_ENV");
-  assert.ok(["localhost", "127.0.0.1"].includes(process.env.DB_HOST), `live verification requires local DB host, got ${process.env.DB_HOST}`);
-  assert.equal(String(process.env.DB_PORT), "5433", "live verification requires DB_PORT=5433");
+  assert.ok(["localhost", "127.0.0.1", "::1"].includes(process.env.DB_HOST), `live verification requires local DB host, got ${process.env.DB_HOST}`);
+  assert.equal(String(process.env.DB_PORT), "5432", "live verification requires DB_PORT=5432");
   assert.equal(process.env.DB_NAME, process.env.VERIFY_DATABASE_NAME, "live verification DB_NAME must match VERIFY_DATABASE_NAME");
   for (const key of ["ALLOW_CLIENT_DEMO_RESET", "RESET_TARGET", "CONFIRM_DATABASE_NAME", "OWNER_CONFIRMED_DEMO_ONLY"]) {
     assert.ok(!process.env[key], `${key} must not be set for read-only/live verifier cleanup mode`);
   }
   const url = `${process.env.DATABASE_URL || ""} ${process.env.RENDER || ""} ${process.env.RENDER_EXTERNAL_URL || ""}`.toLowerCase();
   assert.ok(!url.includes("render") && !url.includes("amazonaws") && !url.includes("supabase"), "remote/managed database indicators are rejected");
+  assertAdoptedLocalDatabase({ riskClass: "V3_WRITE_CLEANUP" });
 }
 
 function money(n) {

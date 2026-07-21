@@ -4,6 +4,8 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const { assertAdoptedLocalDatabase } = require("./lib/verify-local-database-guard");
+const { baseline, assertCanonicalPermissionBaseline } = require("./lib/verify-canonical-permission-baseline");
 
 const ROOT = path.resolve(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(ROOT, file), "utf8");
@@ -36,7 +38,7 @@ function staticContract() {
   assertContains(employeePage, "المنع المباشر يتجاوز الدور والسماح المباشر", "Arabic denial precedence message is visible");
   assertContains(types, "EmployeePermissionCatalogItem", "frontend type has catalog item contract");
   assertNotContains(employeePage, "No current direct permission rows", "old false zero-options state is removed");
-  assert.equal(migrationFiles.length, 47, "BRANCH-1 adds the two authorized branch-isolation migrations");
+  assert.equal(migrationFiles.length, 48, "permission baseline reconciliation adds one forward-only migration");
   assert.ok(migrationFiles.includes("20260720010000-system-account-roles.js"), "RESET-1 authorized migration is present");
   assert.equal(new Set(migrationFiles.map((file) => file.slice(0, file.indexOf("-")))).size, migrationFiles.length, "migration numbering has no duplicates");
   assert.equal(verifierFiles.length, 66, `expected 66 verifier files after BRANCH-1, found ${verifierFiles.length}`);
@@ -44,19 +46,14 @@ function staticContract() {
 
 staticContract();
 
-if (process.env.NODE_ENV === "production" || process.env.RENDER || process.env.VERCEL) {
-  throw new Error("Refusing production/Render verification");
+require(path.join(ROOT, "backend", "node_modules", "dotenv")).config({ path: path.join(ROOT, "backend", ".env") });
+if (process.env.VERIFY_LIVE_DATABASE !== "true") {
+  console.log("STATIC ONLY — set VERIFY_LIVE_DATABASE=true for the guarded V3 run");
+  process.exit(0);
 }
-if (process.env.DATABASE_URL && !/localhost|127\.0\.0\.1|5433/.test(process.env.DATABASE_URL)) {
-  throw new Error("Refusing non-local DATABASE_URL");
-}
+assertAdoptedLocalDatabase({ riskClass: "V3_WRITE_CLEANUP" });
 
 process.chdir(ROOT);
-process.env.DB_HOST = process.env.DB_HOST || "localhost";
-process.env.DB_PORT = process.env.DB_PORT || "5433";
-process.env.DB_NAME = process.env.DB_NAME || "darfus_erp";
-process.env.DB_USER = process.env.DB_USER || "postgres";
-process.env.DB_PASS = process.env.DB_PASS || process.env.DB_PASSWORD || "postgres";
 
 const jwt = require(path.join(ROOT, "backend/node_modules/jsonwebtoken"));
 const bcrypt = require(path.join(ROOT, "backend/node_modules/bcryptjs"));
@@ -242,8 +239,8 @@ function assertZeroPollution(counts) {
 }
 
 async function runtimeContract() {
-  const permissionCount = await models.Permission.count();
-  assert.equal(permissionCount, 128, "permission count remains 128");
+  await assertCanonicalPermissionBaseline(models);
+  const permissionCount = baseline.PERMISSIONS.length;
   const { posSell, salesView, inventoryView } = await setup();
 
   const limitedRead = await request("GET", `/employees/${ids.employee}/permissions`, { user: ids.limited });
@@ -396,7 +393,7 @@ async function runtimeContract() {
 
   const auditLogs = await models.AuditLog.findAll({ where: { companyId: ids.company } });
   assert.ok(auditLogs.some((row) => row.action === "employee.authorization.updated" && !JSON.stringify(row.toJSON()).includes(pin)), "authorization audit exists without PIN");
-  assert.equal(await models.Permission.count(), 128, "permission count remains unchanged after verifier");
+  await assertCanonicalPermissionBaseline(models);
 }
 
 (async () => {

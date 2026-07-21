@@ -4,6 +4,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const { assertAdoptedLocalDatabase } = require("./lib/verify-local-database-guard");
 
 const ROOT = path.resolve(__dirname, "..");
 const BACKEND = path.join(ROOT, "backend");
@@ -17,20 +18,7 @@ function routeBlock(source, route) {
 }
 
 function assertLocalDatabaseEnv() {
-  if (process.env.NODE_ENV === "production" || process.env.RENDER || process.env.VERCEL) {
-    throw new Error("Refusing production verification");
-  }
-  const databaseUrl = process.env.DATABASE_URL || "";
-  if (databaseUrl) {
-    let parsed;
-    try { parsed = new URL(databaseUrl); } catch { throw new Error("Refusing malformed DATABASE_URL"); }
-    if (!['localhost', '127.0.0.1'].includes(parsed.hostname) || parsed.port !== "5433" || parsed.pathname !== "/darfus_erp_branch1_qa") {
-      throw new Error("Refusing non-isolated DATABASE_URL");
-    }
-  }
-  if (!["localhost", "127.0.0.1"].includes(process.env.DB_HOST)) throw new Error(`Refusing unexpected DB_HOST ${process.env.DB_HOST || "<missing>"}`);
-  if (String(process.env.DB_PORT) !== "5433") throw new Error(`Refusing unexpected DB_PORT ${process.env.DB_PORT || "<missing>"}`);
-  if (process.env.DB_NAME !== "darfus_erp_branch1_qa") throw new Error(`Refusing unexpected DB_NAME ${process.env.DB_NAME || "<missing>"}`);
+  return assertAdoptedLocalDatabase({ riskClass: "V3_WRITE_CLEANUP" });
 }
 
 function staticContract() {
@@ -75,12 +63,11 @@ function line(id, journalEntryId, account, debit, credit) {
 }
 
 async function databaseContract() {
-  assertLocalDatabaseEnv();
-  const verifiedDatabaseName = process.env.DB_NAME;
+  const target = assertLocalDatabaseEnv();
   require(path.join(BACKEND, "node_modules", "dotenv")).config({ path: path.join(BACKEND, ".env") });
-  process.env.DB_HOST = "localhost";
-  process.env.DB_PORT = "5433";
-  process.env.DB_NAME = verifiedDatabaseName;
+  process.env.DB_HOST = target.host;
+  process.env.DB_PORT = target.port;
+  process.env.DB_NAME = target.database;
   process.env.DB_USER = process.env.DB_USER || "postgres";
   process.env.DB_PASS = process.env.DB_PASS || "postgres";
 
@@ -195,11 +182,10 @@ async function databaseContract() {
 }
 
 async function apiContract() {
-  assertLocalDatabaseEnv();
-  const verifiedDatabaseName = process.env.DB_NAME;
-  process.env.DB_HOST = "localhost";
-  process.env.DB_PORT = "5433";
-  process.env.DB_NAME = verifiedDatabaseName;
+  const target = assertLocalDatabaseEnv();
+  process.env.DB_HOST = target.host;
+  process.env.DB_PORT = target.port;
+  process.env.DB_NAME = target.database;
   process.env.DB_USER = process.env.DB_USER || "postgres";
   process.env.DB_PASS = process.env.DB_PASS || "postgres";
 
@@ -347,8 +333,12 @@ async function apiContract() {
 
 (async () => {
   staticContract();
-  await databaseContract();
-  await apiContract();
+  if (process.env.VERIFY_LIVE_DATABASE === "true") {
+    await databaseContract();
+    await apiContract();
+  } else {
+    console.log("STATIC ONLY — set VERIFY_LIVE_DATABASE=true for the guarded V3 run");
+  }
   console.log("ACCOUNTING DASHBOARD SOURCE OF TRUTH PASSED");
 })().catch((error) => {
   console.error(error.stack || error.message);

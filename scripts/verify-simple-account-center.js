@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const http = require("node:http");
+const { assertAdoptedLocalDatabase } = require("./lib/verify-local-database-guard");
 
 const ROOT = path.resolve(__dirname, "..");
 const BACKEND = path.join(ROOT, "backend");
@@ -14,18 +15,7 @@ process.env.NODE_ENV = process.env.NODE_ENV === "production" ? process.env.NODE_
 require(path.join(BACKEND, "node_modules/dotenv")).config({ path: path.join(BACKEND, ".env") });
 
 function assertLocalEnvironment() {
-  if (process.env.NODE_ENV === "production" || process.env.RENDER || process.env.VERCEL) throw new Error("Refusing production verification");
-  const approvedName = "darfus_erp_branch1_qa";
-  if (process.env.DB_NAME !== approvedName) throw new Error(`Refusing DB ${process.env.DB_NAME || "<missing>"}`);
-  if (!["localhost", "127.0.0.1"].includes(process.env.DB_HOST)) throw new Error(`Refusing DB host ${process.env.DB_HOST || "<missing>"}`);
-  if (String(process.env.DB_PORT) !== "5433") throw new Error(`Refusing DB port ${process.env.DB_PORT || "<missing>"}`);
-  if (process.env.DATABASE_URL) {
-    let target;
-    try { target = new URL(process.env.DATABASE_URL); } catch { throw new Error("Refusing malformed DATABASE_URL"); }
-    if (!['postgres:', 'postgresql:'].includes(target.protocol) || !["localhost", "127.0.0.1"].includes(target.hostname) || target.port !== "5433" || target.pathname !== `/${approvedName}`) {
-      throw new Error("Refusing DATABASE_URL outside the exact isolated QA target");
-    }
-  }
+  return assertAdoptedLocalDatabase({ riskClass: "V3_WRITE_CLEANUP" });
 }
 
 function staticContract() {
@@ -48,13 +38,17 @@ function staticContract() {
   assert.ok(service.includes("branch_account_branch_changed") && service.includes("assertNoBranchAccountForBranch(nextBranchId"), "Branch Account branch edit validates uniqueness and invalidates sessions");
   assert.ok(service.includes("passwordSet: true") && !service.includes("generatePolicyCompliantPassword") && !service.includes("return { account: safeUser(user), temporaryPassword"), "technical password operations do not generate or return plaintext passwords");
   assert.ok(routes.includes("/:id/reset-password") && routes.includes("/:id/change-email") && routes.includes("/:id/revoke-sessions"), "technical account action routes remain mounted");
-  assert.equal(migrationFiles.length, 47, "BRANCH-1 adds the two authorized branch-isolation migrations");
+  assert.equal(migrationFiles.length, 48, "permission baseline reconciliation adds one forward-only migration");
   assert.equal(verifierFiles.length, 66, `expected 66 verifier files after BRANCH-1, found ${verifierFiles.length}`);
   assert.equal(pkg.scripts["verify:simple-account-center"], "node scripts/verify-simple-account-center.js", "package verifier registered");
 }
 
-assertLocalEnvironment();
 staticContract();
+if (process.env.VERIFY_LIVE_DATABASE !== "true") {
+  console.log("STATIC ONLY — set VERIFY_LIVE_DATABASE=true for the guarded V3 run");
+  process.exit(0);
+}
+assertLocalEnvironment();
 
 const bcrypt = require(path.join(BACKEND, "node_modules/bcryptjs"));
 const app = require(path.join(BACKEND, "src/app"));

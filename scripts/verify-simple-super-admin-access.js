@@ -6,6 +6,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const http = require("node:http");
 const { execFileSync } = require("node:child_process");
+const { assertAdoptedLocalDatabase } = require("./lib/verify-local-database-guard");
+const { assertCanonicalPermissionBaseline } = require("./lib/verify-canonical-permission-baseline");
 
 const ROOT = path.resolve(__dirname, "..");
 const BACKEND = path.join(ROOT, "backend");
@@ -15,11 +17,7 @@ process.env.NODE_ENV = process.env.NODE_ENV === "production" ? process.env.NODE_
 require(path.join(BACKEND, "node_modules/dotenv")).config({ path: path.join(BACKEND, ".env") });
 
 function assertLocalEnvironment() {
-  if (process.env.NODE_ENV === "production" || process.env.RENDER || process.env.VERCEL) throw new Error("Refusing production verification");
-  if (process.env.DATABASE_URL) throw new Error("Refusing DATABASE_URL verification");
-  if (process.env.DB_NAME !== "darfus_erp") throw new Error(`Refusing DB ${process.env.DB_NAME}`);
-  if (!["localhost", "127.0.0.1"].includes(process.env.DB_HOST)) throw new Error(`Refusing DB host ${process.env.DB_HOST}`);
-  if (String(process.env.DB_PORT) !== "5433") throw new Error(`Refusing DB port ${process.env.DB_PORT}`);
+  return assertAdoptedLocalDatabase({ riskClass: "V4_EXISTING_DATA_MUTATION" });
 }
 
 function staticContract() {
@@ -35,7 +33,7 @@ function staticContract() {
   const apiClient = read("lib/api/client.ts");
 
   assert.ok(bootstrap.includes("BOOTSTRAP_FIRST_SUPER_ADMIN"), "bootstrap requires exact confirmation flag");
-  assert.ok(bootstrap.includes("DATABASE_URL") && bootstrap.includes("Refusing production"), "bootstrap refuses remote/production config");
+  assert.ok(bootstrap.includes("resolveDatabaseEnv") && bootstrap.includes("BOOTSTRAP_LOCAL_DATABASE_REQUIRED"), "bootstrap uses the shared ENV contract and rejects non-adopted targets");
   assert.ok(bootstrap.includes("TARGET_ID = \"USR-ADMIN\"") && bootstrap.includes("TARGET_EMAIL = \"admin@admin.com\""), "bootstrap targets the owner account only");
   assert.ok(bootstrap.includes("lock: transaction.LOCK.UPDATE"), "bootstrap row-locks the target user");
   assert.ok(bootstrap.includes("passwordHashPreserved") && !bootstrap.includes("console.log(target.password"), "bootstrap preserves and does not print password hash");
@@ -61,7 +59,7 @@ function staticContract() {
 
   const migrationCount = fs.readdirSync(path.join(ROOT, "backend", "migrations")).filter((name) => name.endsWith(".js")).length;
   const verifierCount = fs.readdirSync(path.join(ROOT, "scripts")).filter((name) => /^verify-.*\.js$/.test(name)).length;
-  assert.equal(migrationCount, 47, "migration count is 47 after BRANCH-1");
+  assert.equal(migrationCount, 48, "permission baseline reconciliation adds one forward-only migration");
   assert.ok(verifierCount >= 59, "verifier count remains at or above the HF6A baseline");
   console.log("Simple Super Admin static contract: PASS");
 }
@@ -111,13 +109,13 @@ async function liveContract() {
   assert.equal(await bcrypt.compare(ownerPassword, owner.password), true, "offline bcrypt comparison matches existing password");
 
   assert.equal(await models.User.count({ where: { accountType: "super_admin", deletedAt: null } }), 1, "one active Super Admin exists");
-  assert.equal(await models.Permission.count(), 128, "permission count is 128 after Phase 35D");
+  await assertCanonicalPermissionBaseline(models);
   assert.equal(await models.TechnicalAccountSession.count({ where: { userId: "USR-ADMIN", revokedAt: null } }), 0, "old owner sessions revoked before new login");
   assert.equal(await models.AuditLog.count({ where: { action: "system_account.first_super_admin_bootstrapped", technicalUserId: "USR-ADMIN", employeeId: null, operatorSessionId: null } }), 1, "bootstrap audit row exists with null employee actor");
 
   const secondRun = execFileSync(process.execPath, ["scripts/bootstrap-first-super-admin.js", "--email", "admin@admin.com", "--confirm", "BOOTSTRAP_FIRST_SUPER_ADMIN"], {
     cwd: ROOT,
-    env: { ...process.env, NODE_ENV: "test", DB_HOST: "localhost", DB_PORT: "5433", DB_NAME: "darfus_erp" },
+    env: { ...process.env },
     encoding: "utf8"
   });
   assert.ok(secondRun.includes('"changed": false') && secondRun.includes("already bootstrapped"), "second bootstrap run safely refuses mutation");

@@ -5,6 +5,8 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const http = require("node:http");
+const { assertAdoptedLocalDatabase } = require("./lib/verify-local-database-guard");
+const { assertCanonicalPermissionBaseline } = require("./lib/verify-canonical-permission-baseline");
 
 const ROOT = path.resolve(__dirname, "..");
 const BACKEND = path.join(ROOT, "backend");
@@ -14,11 +16,7 @@ process.env.NODE_ENV = process.env.NODE_ENV === "production" ? process.env.NODE_
 require(path.join(BACKEND, "node_modules/dotenv")).config({ path: path.join(BACKEND, ".env") });
 
 function assertLocalEnvironment() {
-  if (process.env.NODE_ENV === "production" || process.env.RENDER || process.env.VERCEL) throw new Error("Refusing production verification");
-  if (process.env.DATABASE_URL) throw new Error("Refusing DATABASE_URL verification");
-  if (process.env.DB_NAME !== "darfus_erp") throw new Error(`Refusing DB ${process.env.DB_NAME}`);
-  if (!["localhost", "127.0.0.1"].includes(process.env.DB_HOST)) throw new Error(`Refusing DB host ${process.env.DB_HOST}`);
-  if (String(process.env.DB_PORT) !== "5433") throw new Error(`Refusing DB port ${process.env.DB_PORT}`);
+  return assertAdoptedLocalDatabase({ riskClass: "V3_WRITE_CLEANUP" });
 }
 
 function verifyStaticContract() {
@@ -99,7 +97,7 @@ function verifyStaticContract() {
 
   const migrationCount = fs.readdirSync(path.join(ROOT, "backend", "migrations")).filter((name) => name.endsWith(".js")).length;
   const verifierCount = fs.readdirSync(path.join(ROOT, "scripts")).filter((name) => /^verify-.*\.js$/.test(name)).length;
-  assert.equal(migrationCount, 47, "migration count is 47 after BRANCH-1");
+  assert.equal(migrationCount, 48, "permission baseline reconciliation adds one forward-only migration");
   assert.ok(verifierCount >= 59, "verifier count remains at or above the HF6A baseline");
   console.log("Simple Branch Account static contract: PASS");
 }
@@ -143,7 +141,7 @@ async function verifyLiveContract() {
   const changedPassword = "BranchPass!345";
   const owner = await models.User.findByPk("USR-ADMIN");
   assert.ok(owner && owner.accountType === "super_admin", "local owner Super Admin exists");
-  assert.equal(await models.Permission.count(), 128, "permission count is 128 after Phase 35D");
+  await assertCanonicalPermissionBaseline(models);
 
   const app = require(path.join(BACKEND, "src/app"));
   const server = await new Promise((resolve) => {

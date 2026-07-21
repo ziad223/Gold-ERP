@@ -4,6 +4,7 @@
 const assert = require("assert/strict");
 const fs = require("fs");
 const path = require("path");
+const { assertAdoptedLocalDatabase } = require("./lib/verify-local-database-guard");
 
 const ROOT = path.resolve(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(ROOT, file), "utf8");
@@ -31,12 +32,12 @@ if (process.env.VERIFY_GOLD_PURCHASE_DRAFT_LIVE !== "true") {
   process.exit(0);
 }
 
-if (process.env.NODE_ENV === "production" || process.env.RENDER || process.env.VERCEL || process.env.DATABASE_URL) throw new Error("Refusing remote/production live verification");
+if (process.env.NODE_ENV === "production" || process.env.RENDER || process.env.VERCEL) throw new Error("Refusing remote/production live verification");
 if (process.env.VERIFY_DATABASE_NAME !== "darfus_erp") throw new Error("VERIFY_DATABASE_NAME must equal darfus_erp");
 
 process.chdir(path.join(ROOT, "backend"));
 require(path.join(ROOT, "backend/node_modules/dotenv")).config({ path: path.join(ROOT, "backend", ".env") });
-if (process.env.DB_HOST !== "localhost" || String(process.env.DB_PORT) !== "5433" || process.env.DB_NAME !== "darfus_erp") throw new Error("Live verifier requires local darfus_erp@localhost:5433");
+assertAdoptedLocalDatabase({ riskClass: "V3_WRITE_CLEANUP" });
 
 const jwt = require(path.join(ROOT, "backend/node_modules/jsonwebtoken"));
 const bcrypt = require(path.join(ROOT, "backend/node_modules/bcryptjs"));

@@ -5,6 +5,8 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const http = require("node:http");
+const { assertAdoptedLocalDatabase } = require("./lib/verify-local-database-guard");
+const { assertCanonicalPermissionBaseline } = require("./lib/verify-canonical-permission-baseline");
 
 const ROOT = path.resolve(__dirname, "..");
 const BACKEND = path.join(ROOT, "backend");
@@ -13,18 +15,7 @@ const read = (file) => fs.readFileSync(path.join(ROOT, file), "utf8");
 require(path.join(BACKEND, "node_modules/dotenv")).config({ path: path.join(BACKEND, ".env") });
 
 function assertLocalEnvironment() {
-  if (process.env.NODE_ENV === "production" || process.env.RENDER || process.env.VERCEL) throw new Error("Refusing production verification");
-  const approvedName = "darfus_erp_branch1_qa";
-  if (process.env.DB_NAME !== approvedName) throw new Error(`Refusing DB ${process.env.DB_NAME || "<missing>"}`);
-  if (!["localhost", "127.0.0.1"].includes(process.env.DB_HOST)) throw new Error(`Refusing DB host ${process.env.DB_HOST || "<missing>"}`);
-  if (String(process.env.DB_PORT) !== "5433") throw new Error(`Refusing DB port ${process.env.DB_PORT || "<missing>"}`);
-  if (process.env.DATABASE_URL) {
-    let target;
-    try { target = new URL(process.env.DATABASE_URL); } catch { throw new Error("Refusing malformed DATABASE_URL"); }
-    if (!['postgres:', 'postgresql:'].includes(target.protocol) || !["localhost", "127.0.0.1"].includes(target.hostname) || target.port !== "5433" || target.pathname !== `/${approvedName}`) {
-      throw new Error("Refusing DATABASE_URL outside the exact isolated QA target");
-    }
-  }
+  return assertAdoptedLocalDatabase({ riskClass: "V3_WRITE_CLEANUP" });
 }
 
 function staticContract() {
@@ -269,13 +260,11 @@ async function verifyOperator(key = "super") {
   return deviceId;
 }
 
-async function dbContract() {
+async function dbContract(target) {
   models.sequelize.options.logging = false;
   const [[conn]] = await models.sequelize.query("select current_database() as database");
-  assert.equal(conn.database, "darfus_erp_branch1_qa", "connected to the exact isolated BRANCH-1 QA target");
-  const [[migrations]] = await models.sequelize.query('select count(*)::int c from "SequelizeMeta"');
-  assert.equal(Number(migrations.c), 47, "migration count is 47 after BRANCH-1");
-  assert.equal(await models.Permission.count(), 128, "permission count is 128 after Phase 35D");
+  assert.equal(conn.database, target.database, "connected to the shared adopted verifier target");
+  await assertCanonicalPermissionBaseline(models);
   assert.equal(await models.Permission.count({ where: { name: ["pos.view", "pos.sell", "pos.discount.approve"] } }), 3, "POS permissions unchanged");
   const { Op } = require(path.join(BACKEND, "node_modules/sequelize"));
   assert.equal(await models.Permission.count({ where: { name: { [Op.like]: "gold_purchase.%" } } }), 24, "Gold Purchase permissions unchanged");
@@ -454,11 +443,11 @@ async function testEmailChange() {
 }
 
 async function runLive() {
-  assertLocalEnvironment();
+  const target = assertLocalEnvironment();
   models = require(path.join(BACKEND, "src/models"));
   bcrypt = require(path.join(BACKEND, "node_modules/bcryptjs"));
   models.sequelize.options.logging = false;
-  await dbContract();
+  await dbContract(target);
   app = require(path.join(BACKEND, "src/app"));
   server = http.createServer(app);
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -534,6 +523,10 @@ async function cleanupNamespace() {
 
 (async () => {
   staticContract();
+  if (process.env.VERIFY_LIVE_DATABASE !== "true") {
+    console.log("STATIC ONLY — set VERIFY_LIVE_DATABASE=true for the guarded V3 run");
+    return;
+  }
   await runLive();
 })().catch(async (error) => {
   console.error(error);

@@ -4,6 +4,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const { assertAdoptedLocalDatabase } = require("./lib/verify-local-database-guard");
 
 const ROOT = path.resolve(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(ROOT, file), "utf8");
@@ -69,7 +70,7 @@ function staticContract() {
   const role = read("backend/src/models/systemAccountRole.model.js");
   const count = fs.readdirSync(path.join(ROOT, "backend/migrations")).filter((name) => name.endsWith(".js")).length;
   const verifierCount = fs.readdirSync(path.join(ROOT, "scripts")).filter((name) => /^verify-.*\.js$/.test(name)).length;
-  assert.equal(count, 47, "BRANCH-1 adds exactly two additive migrations");
+  assert.equal(count, 48, "permission baseline reconciliation adds one forward-only migration");
   assert.equal(verifierCount, 66, "BRANCH-1 adds the 66th verifier");
   assert.ok(migration.includes("system_account_roles_company_branch_role_uq") && migration.includes("accounts_company_branch_idx"), "role mapping is unique per company/branch/role and accounts have a branch dimension");
   assert.ok(customerMigration.includes("branch_customers") && customerMigration.includes("branch_customers_company_branch_customer_uq"), "selected BranchCustomer model is additive and unique");
@@ -97,8 +98,7 @@ function staticContract() {
 }
 
 async function runtimeContract() {
-  if (process.env.NODE_ENV === "production" || process.env.RENDER || process.env.VERCEL) throw new Error("Refusing production verification");
-  if (process.env.DB_NAME !== "darfus_erp_branch1_qa" || !["localhost", "127.0.0.1"].includes(process.env.DB_HOST) || String(process.env.DB_PORT) !== "5433") throw new Error("Verifier requires isolated localhost QA database");
+  assertAdoptedLocalDatabase({ riskClass: "V3_WRITE_CLEANUP" });
   const models = require(path.join(ROOT, "backend/src/models"));
   const bootstrap = require(path.join(ROOT, "backend/src/services/company-bootstrap.service"));
   const scope = require(path.join(ROOT, "backend/src/services/branch-isolation.service"));
@@ -246,4 +246,9 @@ async function runtimeContract() {
   console.log("Branch isolation runtime contract: PASS");
 }
 
-(async () => { staticContract(); await runtimeContract(); console.log("BRANCH OPERATIONAL ISOLATION PASSED"); })().catch((error) => { console.error(error.stack || error.message); process.exit(1); });
+(async () => {
+  staticContract();
+  if (process.env.VERIFY_LIVE_DATABASE === "true") await runtimeContract();
+  else console.log("STATIC ONLY — set VERIFY_LIVE_DATABASE=true for the guarded V3 run");
+  console.log("BRANCH OPERATIONAL ISOLATION PASSED");
+})().catch((error) => { console.error(error.stack || error.message); process.exit(1); });

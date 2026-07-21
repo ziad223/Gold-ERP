@@ -4,6 +4,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const { assertAdoptedLocalDatabase } = require("./lib/verify-local-database-guard");
 
 const ROOT = path.resolve(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(ROOT, file), "utf8");
@@ -85,23 +86,14 @@ function staticContract() {
   assert.equal(verifierFiles.length, 66, `expected 66 verifier files after BRANCH-1, found ${verifierFiles.length}`);
 }
 
-if (process.env.NODE_ENV === "production" || process.env.RENDER || process.env.VERCEL) {
-  throw new Error("Refusing production/Render verification");
-}
-if (process.env.DATABASE_URL) {
-  let parsed;
-  try { parsed = new URL(process.env.DATABASE_URL); } catch { throw new Error("Refusing malformed DATABASE_URL"); }
-  if (!['localhost', '127.0.0.1'].includes(parsed.hostname) || parsed.port !== "5433" || parsed.pathname !== "/darfus_erp_branch1_qa") {
-    throw new Error("Refusing non-isolated DATABASE_URL");
-  }
-}
-
 process.chdir(ROOT);
-process.env.NODE_ENV = process.env.NODE_ENV || "test";
 require(path.join(ROOT, "backend", "node_modules", "dotenv")).config({ path: path.join(ROOT, "backend", ".env") });
-if (process.env.DB_NAME !== "darfus_erp_branch1_qa" || !["localhost", "127.0.0.1"].includes(process.env.DB_HOST) || String(process.env.DB_PORT) !== "5433") {
-  throw new Error("Refusing non-isolated HF6D verification target");
+staticContract();
+if (process.env.VERIFY_LIVE_DATABASE !== "true") {
+  console.log("STATIC ONLY — set VERIFY_LIVE_DATABASE=true for the guarded V3 run");
+  process.exit(0);
 }
+assertAdoptedLocalDatabase({ riskClass: "V3_WRITE_CLEANUP" });
 
 const jwt = require(path.join(ROOT, "backend", "node_modules", "jsonwebtoken"));
 const bcrypt = require(path.join(ROOT, "backend", "node_modules", "bcryptjs"));

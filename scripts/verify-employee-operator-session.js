@@ -4,6 +4,7 @@
 const assert = require("assert/strict");
 const fs = require("fs");
 const path = require("path");
+const { assertAdoptedLocalDatabase } = require("./lib/verify-local-database-guard");
 
 const ROOT = path.resolve(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(ROOT, file), "utf8");
@@ -77,19 +78,14 @@ function staticContract() {
 
 staticContract();
 
-if (process.env.NODE_ENV === "production" || process.env.RENDER || process.env.VERCEL) {
-  throw new Error("Refusing production/Render verification");
+require(path.join(ROOT, "backend", "node_modules", "dotenv")).config({ path: path.join(ROOT, "backend", ".env") });
+if (process.env.VERIFY_LIVE_DATABASE !== "true") {
+  console.log("STATIC ONLY — set VERIFY_LIVE_DATABASE=true for the guarded V3 run");
+  process.exit(0);
 }
-if (process.env.DATABASE_URL && !/localhost|127\.0\.0\.1|5433/.test(process.env.DATABASE_URL)) {
-  throw new Error("Refusing non-local DATABASE_URL");
-}
+assertAdoptedLocalDatabase({ riskClass: "V3_WRITE_CLEANUP" });
 
 process.chdir(ROOT);
-process.env.DB_HOST = process.env.DB_HOST || "localhost";
-process.env.DB_PORT = process.env.DB_PORT || "5433";
-process.env.DB_NAME = process.env.DB_NAME || "darfus_erp";
-process.env.DB_USER = process.env.DB_USER || "postgres";
-process.env.DB_PASS = process.env.DB_PASS || process.env.DB_PASSWORD || "postgres";
 const jwt = require(path.join(ROOT, "backend/node_modules/jsonwebtoken"));
 const bcrypt = require(path.join(ROOT, "backend/node_modules/bcryptjs"));
 const app = require(path.join(ROOT, "backend/src/app"));

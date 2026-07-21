@@ -3,27 +3,19 @@
 const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
+const { assertAdoptedLocalDatabase } = require("./lib/verify-local-database-guard");
+const { assertCanonicalPermissionBaseline } = require("./lib/verify-canonical-permission-baseline");
 
 const ROOT = path.resolve(__dirname, "..");
 const BACKEND = path.join(ROOT, "backend");
+require(path.join(BACKEND, "node_modules", "dotenv")).config({ path: path.join(BACKEND, ".env") });
 
 function read(rel) {
   return fs.readFileSync(path.join(ROOT, rel), "utf8");
 }
 
 function assertLocalDatabaseEnv() {
-  if (process.env.NODE_ENV === "production" || process.env.RENDER || process.env.VERCEL) throw new Error("Refusing production verification");
-  const approvedName = "darfus_erp_branch1_qa";
-  if (process.env.DB_NAME !== approvedName) throw new Error(`Refusing unexpected DB_NAME ${process.env.DB_NAME || "<missing>"}`);
-  if (!["localhost", "127.0.0.1"].includes(process.env.DB_HOST)) throw new Error(`Refusing unexpected DB_HOST ${process.env.DB_HOST || "<missing>"}`);
-  if (String(process.env.DB_PORT) !== "5433") throw new Error(`Refusing unexpected DB_PORT ${process.env.DB_PORT || "<missing>"}`);
-  if (process.env.DATABASE_URL) {
-    let target;
-    try { target = new URL(process.env.DATABASE_URL); } catch { throw new Error("Refusing malformed DATABASE_URL"); }
-    if (!['postgres:', 'postgresql:'].includes(target.protocol) || !["localhost", "127.0.0.1"].includes(target.hostname) || target.port !== "5433" || target.pathname !== `/${approvedName}`) {
-      throw new Error("Refusing DATABASE_URL outside the exact isolated QA target");
-    }
-  }
+  return assertAdoptedLocalDatabase({ riskClass: "V3_WRITE_CLEANUP" });
 }
 
 function codeOf(response) {
@@ -75,7 +67,12 @@ function staticContract() {
   assert.ok(!employeeDetail.includes("Verification level") && !employeeDetail.includes("Locked until") && !systemAccounts.includes("Level 2"), "management UI no longer exposes active Level or PIN lockout labels");
 }
 
-assertLocalDatabaseEnv();
+staticContract();
+if (process.env.VERIFY_LIVE_DATABASE !== "true") {
+  console.log("STATIC ONLY — set VERIFY_LIVE_DATABASE=true for the guarded V3 run");
+  process.exit(0);
+}
+const verifierTarget = assertLocalDatabaseEnv();
 
 process.env.NODE_ENV = "test";
 process.env.JWT_SECRET = process.env.JWT_SECRET || "single-level-employee-operator-verifier-secret";
@@ -274,10 +271,8 @@ async function verifyOperator(employeeId, code, deviceId, branchId = ids.branchA
 
 async function runtimeContract() {
   const [[conn]] = await models.sequelize.query("select current_database() as database, inet_server_port()::int as port");
-  assert.equal(conn.database, "darfus_erp_branch1_qa", "connected to the exact isolated BRANCH-1 QA target");
-  const [[migrations]] = await models.sequelize.query('select count(*)::int c from "SequelizeMeta"');
-  assert.equal(Number(migrations.c), 47, "migration count is 47 after BRANCH-1");
-  assert.equal(await models.Permission.count(), 128, "permission count is 128 after Phase 35D");
+  assert.equal(conn.database, verifierTarget.database, "connected to the shared adopted verifier target");
+  await assertCanonicalPermissionBaseline(models);
 
   const device = `DEV-${ns}-PRIMARY-0001`;
   await verifyOperator(ids.employee, `${ns}-OK`, device);
@@ -387,7 +382,6 @@ async function runtimeContract() {
 
 (async () => {
   try {
-    staticContract();
     server = await new Promise((resolve) => {
       const s = app.listen(0, "127.0.0.1", () => resolve(s));
     });

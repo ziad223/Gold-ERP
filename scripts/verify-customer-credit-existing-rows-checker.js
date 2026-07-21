@@ -101,8 +101,14 @@ function verifyScope() {
   const changed = execFileSync("git", ["status", "--short", "--untracked-files=all"], {
     cwd: ROOT,
     encoding: "utf8",
-  }).split(/\r?\n/).filter(Boolean).map((line) => line.slice(3).trim())
-    .filter(f => !f.replace(/\\/g, "/").startsWith("backend/seeders/client-demo/transactional/") && !f.replace(/\\/g, "/").startsWith("scripts/verify-"));
+  }).split(/\r?\n/).filter(Boolean).map((line) => line.slice(3).trim().replace(/\\/g, "/"))
+    .filter((file) => {
+      if (file.startsWith("backend/seeders/client-demo/transactional/") || file.startsWith("scripts/verify-")) return false;
+      const diff = execFileSync("git", ["diff", "--no-ext-diff", "HEAD", "--", file], { cwd: ROOT, encoding: "utf8" });
+      const semanticLines = diff.replace(/\r\n/g, "\n").split("\n").filter((line) => /^[+-]/.test(line) && !/^(\+\+\+|---)/.test(line));
+      const approvedNextDevDrift = file === "next-env.d.ts" && semanticLines.length === 2 && semanticLines[0] === '-import "./.next/types/routes.d.ts";' && semanticLines[1] === '+import "./.next/dev/types/routes.d.ts";';
+      return !approvedNextDevDrift && diff.trim() !== "";
+    });
   const allowed = new Set([
     "backend/scripts/check-customer-credit-gl-bridge.js",
     "backend/scripts/reconcile-installment-balances.js",

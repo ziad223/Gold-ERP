@@ -4,6 +4,7 @@
 const assert = require("assert/strict");
 const fs = require("fs");
 const path = require("path");
+const { assertAdoptedLocalDatabase } = require("./lib/verify-local-database-guard");
 
 const ROOT = path.resolve(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(ROOT, file), "utf8");
@@ -20,8 +21,9 @@ function staticContract() {
   const approvals = read("app/[locale]/(dashboard)/approvals/page.tsx");
   const employeePermissionsUi = read("app/[locale]/(dashboard)/employees/[id]/page.tsx");
   const permissionCatalog = read("lib/permissions/catalog.ts");
-  for (const name of permissionNames.filter((name) => !name.endsWith(".self_approve"))) assert.ok(migration.includes(name.split(".").at(-1)) && read("backend/src/bootstrap/accessControl.js").includes(name), `permission ${name}`);
-  for (const name of permissionNames.filter((name) => name.endsWith(".self_approve"))) assert.ok(selfReviewMigration.includes(name) && read("backend/src/bootstrap/accessControl.js").includes(name), `permission ${name}`);
+  const access = read("backend/src/bootstrap/permission-baseline-v1.js");
+  for (const name of permissionNames.filter((name) => !name.endsWith(".self_approve"))) assert.ok(migration.includes(name.split(".").at(-1)) && access.includes(name), `permission ${name}`);
+  for (const name of permissionNames.filter((name) => name.endsWith(".self_approve"))) assert.ok(selfReviewMigration.includes(name) && access.includes(name), `permission ${name}`);
   for (const endpoint of ["/submit", "/approve", "/reject", "/revisions", 'router.get("/approvals"', 'router.get("/approvals/:id"']) assert.ok(routes.includes(endpoint), `endpoint ${endpoint}`);
   for (const state of ["submitted", "approved"]) assert.ok(migration.includes(`'${state}'`), `state ${state}`);
   assert.ok(governance.includes("SELF_APPROVAL_FORBIDDEN") && governance.includes("SNAPSHOT_MISMATCH") && governance.includes("isSelfReview"), "maker-checker and immutable snapshot contracts");
@@ -49,12 +51,12 @@ if (process.env.VERIFY_GOLD_PURCHASE_APPROVAL_LIVE !== "true") {
   process.exit(0);
 }
 
-if (process.env.NODE_ENV === "production" || process.env.RENDER || process.env.VERCEL || process.env.DATABASE_URL) throw new Error("Refusing remote/production live verification");
+if (process.env.NODE_ENV === "production" || process.env.RENDER || process.env.VERCEL) throw new Error("Refusing remote/production live verification");
 if (process.env.VERIFY_DATABASE_NAME !== "darfus_erp") throw new Error("VERIFY_DATABASE_NAME must equal darfus_erp");
 
 process.chdir(path.join(ROOT, "backend"));
 require(path.join(ROOT, "backend/node_modules/dotenv")).config({ path: path.join(ROOT, "backend", ".env") });
-if (process.env.DB_HOST !== "localhost" || String(process.env.DB_PORT) !== "5433" || process.env.DB_NAME !== "darfus_erp") throw new Error("Live verifier requires local darfus_erp@localhost:5433");
+assertAdoptedLocalDatabase({ riskClass: "V3_WRITE_CLEANUP" });
 
 const jwt = require(path.join(ROOT, "backend/node_modules/jsonwebtoken"));
 const bcrypt = require(path.join(ROOT, "backend/node_modules/bcryptjs"));

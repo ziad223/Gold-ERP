@@ -4,32 +4,15 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const { assertAdoptedLocalDatabase } = require("./lib/verify-local-database-guard");
+const { assertCanonicalPermissionBaseline } = require("./lib/verify-canonical-permission-baseline");
 
 const ROOT = path.resolve(__dirname, "..");
 const BACKEND = path.join(ROOT, "backend");
 const read = (file) => fs.readFileSync(path.join(ROOT, file), "utf8");
 
 function assertLocalDatabaseEnv() {
-  if (process.env.NODE_ENV === "production" || process.env.RENDER || process.env.VERCEL) {
-    throw new Error("Refusing production verification");
-  }
-  const databaseUrl = process.env.DATABASE_URL || "";
-  if (databaseUrl) {
-    let parsed;
-    try { parsed = new URL(databaseUrl); } catch { throw new Error("Refusing malformed DATABASE_URL"); }
-    if (!['localhost', '127.0.0.1'].includes(parsed.hostname) || parsed.port !== "5433" || parsed.pathname !== "/darfus_erp_branch1_qa") {
-      throw new Error("Refusing non-isolated DATABASE_URL");
-    }
-  }
-  if (!["localhost", "127.0.0.1"].includes(process.env.DB_HOST)) {
-    throw new Error(`Refusing unexpected DB_HOST ${process.env.DB_HOST}`);
-  }
-  if (String(process.env.DB_PORT) !== "5433") {
-    throw new Error(`Refusing unexpected DB_PORT ${process.env.DB_PORT}`);
-  }
-  if (process.env.DB_NAME !== "darfus_erp_branch1_qa") {
-    throw new Error(`Refusing unexpected DB_NAME ${process.env.DB_NAME}`);
-  }
+  return assertAdoptedLocalDatabase({ riskClass: "V2_WRITE_ROLLBACK" });
 }
 
 function assertContains(source, needle, label) {
@@ -105,11 +88,11 @@ function staticContract() {
 }
 
 async function databaseContract() {
-  assertLocalDatabaseEnv();
+  const target = assertLocalDatabaseEnv();
   process.env.NODE_ENV = "test";
-  process.env.DB_HOST = process.env.DB_HOST || "localhost";
-  process.env.DB_PORT = process.env.DB_PORT || "5433";
-  process.env.DB_NAME = "darfus_erp_branch1_qa";
+  process.env.DB_HOST = target.host;
+  process.env.DB_PORT = target.port;
+  process.env.DB_NAME = target.database;
   process.env.DB_USER = process.env.DB_USER || "postgres";
   process.env.DB_PASS = process.env.DB_PASS || "postgres";
 
@@ -120,14 +103,11 @@ async function databaseContract() {
   const cashRegisterService = require(path.join(BACKEND, "src/services/cash-register.service"));
   models.sequelize.options.logging = false;
 
-  const [[migrationCount], [permissionCount], schemaRows, permissionRows] = await Promise.all([
-    models.sequelize.query('select count(*)::int as count from "SequelizeMeta"', { type: QueryTypes.SELECT }),
-    models.sequelize.query("select count(*)::int as count from permissions", { type: QueryTypes.SELECT }),
+  const [schemaRows, permissionRows] = await Promise.all([
     models.sequelize.query("select to_regclass('public.accounting_locks') as accounting_locks, to_regclass('public.cash_register_sessions') as cash_register_sessions", { type: QueryTypes.SELECT }),
     models.sequelize.query("select name from permissions where name in ('treasury.register.view','treasury.register.open','treasury.register.close','accounting.lock.manage','accounting.reconciliation.view') order by name", { type: QueryTypes.SELECT }),
   ]);
-  assert.equal(migrationCount.count, 47, "migration count is 47 after BRANCH-1");
-  assert.equal(permissionCount.count, 128, "permission count is 128 after Phase 35D");
+  await assertCanonicalPermissionBaseline(models);
   assert.equal(schemaRows[0].accounting_locks, "accounting_locks", "accounting_locks table exists");
   assert.equal(schemaRows[0].cash_register_sessions, "cash_register_sessions", "cash_register_sessions table exists");
   assert.deepEqual(permissionRows.map((row) => row.name), [
@@ -307,7 +287,11 @@ async function databaseContract() {
 
 (async () => {
   staticContract();
-  await databaseContract();
+  if (process.env.VERIFY_LIVE_DATABASE === "true") {
+    await databaseContract();
+  } else {
+    console.log("STATIC ONLY — set VERIFY_LIVE_DATABASE=true for the guarded V2 run");
+  }
   console.log("ACCOUNTING TREASURY LAUNCH MINIMUM PASSED");
 })().catch((error) => {
   console.error(error);

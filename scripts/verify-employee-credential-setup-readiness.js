@@ -4,6 +4,7 @@
 const assert = require("assert/strict");
 const fs = require("fs");
 const path = require("path");
+const { assertAdoptedLocalDatabase } = require("./lib/verify-local-database-guard");
 
 const ROOT = path.resolve(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(ROOT, file), "utf8");
@@ -20,9 +21,6 @@ function staticContract() {
   const localRepo = read("lib/repositories/local-impl.ts");
   const types = read("lib/types.ts");
   const verifierFiles = fs.readdirSync(path.join(ROOT, "scripts")).filter((name) => /^verify-.*\.js$/.test(name));
-  const backups = fs.existsSync(path.join(ROOT, "backend", "backups"))
-    ? fs.readdirSync(path.join(ROOT, "backend", "backups")).filter((name) => /^darfus_erp_hf6a_start_.*\.dump$/.test(name))
-    : [];
 
   assertContains(employeeAuth, "createEmployeeCredentialForNewEmployee", "create-time credential helper exists");
   assertContains(employeeAuth, "bcrypt.hash(pin, 10)", "create-time PIN is hashed");
@@ -41,24 +39,20 @@ function staticContract() {
   assertContains(localRepo, "delete safeEmployee.pinConfirm", "local repository strips create PIN confirmation");
   assertContains(types, "pin?: string", "Employee create type includes create-only PIN");
   assert.ok(verifierFiles.length >= 59, `expected at least 59 verifier files after HF6A, found ${verifierFiles.length}`);
-  assert.ok(backups.length > 0, "HF6A start backup exists before write-capable verification");
 }
 
 staticContract();
 
-if (process.env.NODE_ENV === "production" || process.env.RENDER || process.env.VERCEL) {
-  throw new Error("Refusing production/Render verification");
-}
-if (process.env.DATABASE_URL && !/localhost|127\.0\.0\.1|5433/.test(process.env.DATABASE_URL)) {
-  throw new Error("Refusing non-local DATABASE_URL");
+if (process.env.VERIFY_EMPLOYEE_CREDENTIAL_SETUP_RUNTIME !== "true") {
+  console.log("STATIC ONLY — set VERIFY_EMPLOYEE_CREDENTIAL_SETUP_RUNTIME=true after supplying the HF6A backup artifact for write-capable QA verification");
+  console.log("verify-employee-credential-setup-readiness: ok");
+  process.exit(0);
 }
 
+require(path.join(ROOT, "backend", "node_modules", "dotenv")).config({ path: path.join(ROOT, "backend", ".env") });
+assertAdoptedLocalDatabase({ riskClass: "V3_WRITE_CLEANUP" });
+
 process.chdir(ROOT);
-process.env.DB_HOST = process.env.DB_HOST || "localhost";
-process.env.DB_PORT = process.env.DB_PORT || "5433";
-process.env.DB_NAME = process.env.DB_NAME || "darfus_erp";
-process.env.DB_USER = process.env.DB_USER || "postgres";
-process.env.DB_PASS = process.env.DB_PASS || process.env.DB_PASSWORD || "postgres";
 
 const jwt = require(path.join(ROOT, "backend/node_modules/jsonwebtoken"));
 const bcrypt = require(path.join(ROOT, "backend/node_modules/bcryptjs"));

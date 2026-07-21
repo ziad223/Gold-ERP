@@ -119,6 +119,8 @@ const ACTION_LABELS: Record<string, Record<PermissionLocale, string>> = {
   submit: { ar: "إرسال للمراجعة", en: "Submit" },
   self_approve: { ar: "اعتماد ذاتي مضبوط", en: "Controlled Self Approval" },
   void: { ar: "إبطال", en: "Void" },
+  deactivate: { ar: "تعطيل", en: "Deactivate" },
+  reactivate: { ar: "إعادة تفعيل", en: "Reactivate" },
 };
 
 export const KNOWN_PERMISSION_CODES = [
@@ -151,7 +153,9 @@ export const KNOWN_PERMISSION_CODES = [
   "employees.credentials.manage", "employees.permissions.manage", "employees.branches.manage", "employees.verification.view",
   "roles.view", "roles.manage", "permissions.manage",
   "notifications.view", "notifications.manage", "approvals.view", "approvals.manage",
-  "audit.view", "gold.view", "gold.update", "payroll.view", "payroll.manage"
+  "audit.view", "gold.view", "gold.update", "payroll.view", "payroll.manage",
+  "branches.create", "branches.update", "branches.deactivate", "branches.reactivate", "branches.delete",
+  "customers.deactivate", "customers.reactivate", "suppliers.deactivate", "suppliers.reactivate"
 ] as const;
 
 export function permissionMeta(code: string): PermissionMeta {
