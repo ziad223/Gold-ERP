@@ -202,6 +202,7 @@ export default function ReservationsPage() {
   const BackIcon = rtl ? ArrowRight : ArrowLeft;
 
   const canViewAudit = hasPermission("reservations.audit_view") || hasPermission("audit.view");
+  const canViewReceipts = hasPermission("reservations.view_receipts");
   const canViewReports = hasPermission("reservations.reports_view") || hasPermission("reports.view");
   const canRecordPayment = hasPermission("reservations.record_payment") || hasPermission("sales.create");
   const canCompleteSale = hasPermission("reservations.complete_sale") || hasPermission("sales.create");
@@ -333,10 +334,11 @@ export default function ReservationsPage() {
   });
 
   const refundRequestMutation = useMutation({
-    mutationFn: async ({ reservation, reason, refundMethod }: { reservation: Reservation; reason: string; refundMethod: string }) => apiClient(`/reservations/${encodeURIComponent(reservation.id)}/refunds`, {
+    mutationFn: async ({ reservation, amount, reason, refundMethod }: { reservation: Reservation; amount: string; reason: string; refundMethod: string }) => apiClient(`/reservations/${encodeURIComponent(reservation.id)}/refunds`, {
       method: "POST",
       locale,
-      body: JSON.stringify({ reason, refundMethod }),
+      idempotencyKey: generateUUID(),
+      body: JSON.stringify({ amount, reason, refundMethod }),
     }),
     ...mutationOptions,
   });
@@ -360,11 +362,11 @@ export default function ReservationsPage() {
   });
 
   const executeRefundMutation = useMutation({
-    mutationFn: async ({ refund, treasuryAccountCode }: { refund: ReservationRefund; treasuryAccountCode: string }) => apiClient(`/reservation-refunds/${encodeURIComponent(refund.id)}/execute`, {
+    mutationFn: async ({ refund }: { refund: ReservationRefund }) => apiClient(`/reservation-refunds/${encodeURIComponent(refund.id)}/execute`, {
       method: "POST",
       locale,
       idempotencyKey: generateUUID(),
-      body: JSON.stringify({ treasuryAccountCode }),
+      body: JSON.stringify({}),
     }),
     ...mutationOptions,
   });
@@ -416,12 +418,12 @@ export default function ReservationsPage() {
   });
 
   const executeRenewalRefundMutation = useMutation({
-    mutationFn: async ({ refund, treasuryAccountCode }: { refund: ReservationRefund; treasuryAccountCode: string }) =>
+    mutationFn: async ({ refund }: { refund: ReservationRefund }) =>
       apiClient(`/reservation-renewal-refunds/${encodeURIComponent(refund.id)}/execute`, {
         method: "POST",
         locale,
         idempotencyKey: generateUUID(),
-        body: JSON.stringify({ treasuryAccountCode }),
+        body: JSON.stringify({}),
       }),
     ...mutationOptions,
   });
@@ -510,10 +512,12 @@ export default function ReservationsPage() {
 
   const requestRefund = async (reservation: Reservation) => {
     setErrorMsg("");
+    const amount = window.prompt(rtl ? "مبلغ الاسترداد (ضمن الرصيد المتاح):" : "Refund amount (within available balance):");
+    if (!amount?.trim()) return;
     const reason = window.prompt(rtl ? "سبب طلب الاسترداد:" : "Refund request reason:");
     if (!reason?.trim()) return;
     const refundMethod = window.prompt(rtl ? "طريقة الاسترداد (cash أو bank):" : "Refund method (cash or bank):", "cash") || "cash";
-    await refundRequestMutation.mutateAsync({ reservation, reason: reason.trim(), refundMethod });
+    await refundRequestMutation.mutateAsync({ reservation, amount: amount.trim(), reason: reason.trim(), refundMethod });
     setSuccessMsg(rtl ? "تم تسجيل طلب الاسترداد." : "Refund request recorded.");
   };
 
@@ -537,12 +541,11 @@ export default function ReservationsPage() {
 
   const executeRefund = async (refund: ReservationRefund) => {
     setErrorMsg("");
-    const treasuryAccountCode = window.prompt(rtl ? "حساب الخزنة/البنك للاسترداد (1110/1120):" : "Refund treasury/bank account (1110/1120):", refund.treasuryAccountCode || "1110") || refund.treasuryAccountCode || "1110";
     const warning = rtl
-      ? `سيتم إنشاء قيد مالي وحركة صرف بقيمة ${money(refund.amount)}. هل تريد التنفيذ؟`
-      : `This will create a financial journal and cash/bank outflow for ${money(refund.amount)}. Execute?`;
+      ? `سيتم إنشاء قيد مالي وحركة صرف من إعدادات الفرع بقيمة ${money(refund.amount)}. هل تريد التنفيذ؟`
+      : `This will create a financial journal and branch-configured cash/bank outflow for ${money(refund.amount)}. Execute?`;
     if (!window.confirm(warning)) return;
-    await executeRefundMutation.mutateAsync({ refund, treasuryAccountCode });
+    await executeRefundMutation.mutateAsync({ refund });
     setSuccessMsg(rtl ? "تم تنفيذ الاسترداد." : "Refund executed.");
   };
 
@@ -615,9 +618,8 @@ export default function ReservationsPage() {
 
   const executeRenewalRefund = async (refund: ReservationRefund) => {
     setErrorMsg("");
-    const treasuryAccountCode = window.prompt(rtl ? "حساب الخزنة/البنك (1110/1120):" : "Treasury/bank account (1110/1120):", refund.treasuryAccountCode || "1110") || refund.treasuryAccountCode || "1110";
-    if (!window.confirm(rtl ? `سيتم صرف فائض التجديد ${money(refund.amount)} وتفعيل الحجز الجديد. متابعة؟` : `This refunds the renewal excess ${money(refund.amount)} and activates the successor. Continue?`)) return;
-    await executeRenewalRefundMutation.mutateAsync({ refund, treasuryAccountCode });
+    if (!window.confirm(rtl ? `سيتم صرف فائض التجديد ${money(refund.amount)} من إعدادات الفرع وتفعيل الحجز الجديد. متابعة؟` : `This refunds the branch-configured renewal excess ${money(refund.amount)} and activates the successor. Continue?`)) return;
+    await executeRenewalRefundMutation.mutateAsync({ refund });
     setSuccessMsg(rtl ? "تم تنفيذ استرداد الفائض وتفعيل الحجز." : "Renewal excess refund executed and successor activated.");
   };
 
@@ -651,7 +653,7 @@ export default function ReservationsPage() {
   const canShowCancel = (reservation: Reservation) =>
     canCancelReservation && !["completed", "refunded"].includes(reservation.status) && !reservation.isLegacy;
   const canShowRefundRequest = (reservation: Reservation) =>
-    canRequestRefund && reservation.status === "cancelled_refund_pending" && Number(reservation.paidTotal || 0) > 0 && !latestRefund;
+    canRequestRefund && ["active", "partially_paid", "fully_paid", "cancelled_refund_pending"].includes(reservation.status) && Number(reservation.paidTotal || 0) > 0 && !latestRefund;
   const canShowApproveReject = (refund?: ReservationRefund) =>
     Boolean(refund && refund.status === "requested" && (canApproveRefund || canRejectRefund));
   const canShowExecute = (refund?: ReservationRefund) =>
@@ -945,13 +947,18 @@ export default function ReservationsPage() {
             </Section>
 
             <Section title={rtl ? "دفعات الحجز" : "Payment history"}>
+              {canViewReceipts && selectedReservation.id && (
+                <Link href={`/sales/reservations/${selectedReservation.id}/receipt-history`} className="mb-2 inline-block text-xs font-bold text-brand-700 underline">
+                  {rtl ? "سجل إيصالات العربون" : "Deposit receipt history"}
+                </Link>
+              )}
               {(selectedReservation.payments ?? []).map((payment) => (
                 <div key={payment.id} className="rounded-2xl border border-border p-3 text-xs flex justify-between items-center">
                   <span>{payment.receiptNumber || payment.id} · {payment.status} · {payment.paymentMethod || "cash"} · {money(payment.amount)} · {payment.receivedAt || "—"}</span>
-                  {payment.status === "posted" && (
-                    <a href={`/api/print/receipt/${payment.id}`} target="_blank" rel="noreferrer" className="text-[10px] font-bold text-brand-700 underline ml-2">
-                      {rtl ? "طباعة الإيصال" : "Print Receipt"}
-                    </a>
+                  {payment.status === "posted" && canViewReceipts && (
+                    <Link href={`/sales/reservations/${selectedReservation.id}/receipt-history`} className="text-[10px] font-bold text-brand-700 underline ml-2">
+                      {rtl ? "عرض الإيصالات" : "View receipts"}
+                    </Link>
                   )}
                 </div>
               ))}

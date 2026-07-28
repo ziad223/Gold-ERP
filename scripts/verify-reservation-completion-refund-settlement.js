@@ -44,7 +44,7 @@ function filesAndSchema() {
   assert.ok(migration.includes("reservation_refunds"), "refund table exists");
   assert.ok(migration.includes("reservation_refund_allocations"), "refund allocation table exists");
   assert.ok(migration.includes("reservations_final_invoice_unique"), "one final invoice per reservation is protected");
-  assert.ok(migration.includes("reservation_payment_applications_payment_unique"), "one reservation payment can be applied once");
+  assert.ok(migration.includes("reservation_payment_applications_payment_unique"), "original application uniqueness migration exists");
   assert.ok(migration.includes("reservation_refunds_one_open_unique"), "only one open refund per reservation");
   assert.ok(migration.includes("reservation_refunds_one_executed_unique"), "only one executed refund per reservation");
   assert.ok(migration.includes("reservation_refunds_idempotency_unique"), "refund execution idempotency is indexed");
@@ -64,7 +64,7 @@ function modelRegistration() {
   assert.ok(index.includes("Reservation.hasMany(ReservationPaymentApplication"), "reservation applications association exists");
   assert.ok(index.includes("Reservation.hasMany(ReservationRefund"), "reservation refunds association exists");
   assert.ok(index.includes("ReservationRefund.hasMany(ReservationRefundAllocation"), "refund allocations association exists");
-  assert.ok(index.includes("ReservationPayment.hasOne(ReservationPaymentApplication"), "payment application uniqueness association exists");
+  assert.ok(index.includes("ReservationPayment.hasMany(ReservationPaymentApplication"), "payment applications remain an immutable subledger");
 }
 
 function postingContract() {
@@ -94,7 +94,9 @@ function serviceContract() {
   assert.ok(service.includes('scope = "reservation.refund.execute"'), "refund execution uses idempotency scope");
   assert.ok(service.includes("Legacy reservations cannot be completed through the new workflow"), "completion blocks legacy rows");
   assert.ok(service.includes("Legacy reservations cannot be refunded through the new workflow"), "refund blocks legacy rows");
-  assert.ok(service.includes("Reservation must be fully paid before final sale completion"), "completion requires full payment");
+  assert.ok(service.includes("sourcePaymentAvailability"), "completion calculates available net deposit from the immutable subledgers");
+  assert.ok(service.includes("applicableDepositUnits"), "completion applies only remaining available deposit");
+  assert.ok(service.includes("remainingCustomerDueUnits"), "completion leaves the customer due balance when deposits are partial");
   assert.ok(service.includes("postInvoiceEntry(invoiceForPosting"), "completion uses established invoice posting");
   assert.ok(service.includes('invoiceForPosting.status = "due"'), "invoice posting creates AR before settlement");
   assert.ok(service.includes("postReservationAdvanceSettlementEntry"), "completion settles advances to AR");
@@ -106,7 +108,9 @@ function serviceContract() {
   assert.ok(completionSection.includes('status: "sold"'), "completion marks reservation items sold");
   assert.ok(completionSection.includes('asset.update({ status: "sold" }'), "completion marks assets sold");
   assert.ok(service.includes('"cancelled_refund_pending"'), "cancellation can enter refund-pending status");
-  assert.ok(service.includes("Reservation refunds must be full; partial refunds are not allowed"), "partial refunds are rejected");
+  assert.ok(service.includes("Refund amount cannot exceed the refundable reservation deposit balance"), "refunds are bounded by remaining net deposit");
+  assert.ok(service.includes('refundStatus: "partial_executed"'), "partial executed refunds preserve the active reservation state");
+  assert.ok(service.includes("LEGACY_BRANCHLESS_RESERVATION_MANUAL_REVIEW"), "branchless legacy rows fail closed for manual review");
   assert.ok(service.includes("Different refund method requires approval before execution"), "method override approval is required");
   assert.ok(service.includes('status: "refunded"'), "executed refund marks reservation refunded");
 }
@@ -126,6 +130,8 @@ function routesAndPermissions() {
   assert.ok(routes.includes("reservationPerms.refundApprove") && routes.includes("approveRefund"), "refund approval uses reservation approval permission");
   assert.ok(routes.includes("reservationPerms.refundExecute") && routes.includes("executeRefund"), "refund execution uses reservation execution permission");
   assert.ok(routes.includes('headers["idempotency-key"]') && routes.includes("executeRefund"), "mutation routes read Idempotency-Key where required");
+  assert.ok(routes.includes('router.get("/branch-settings/reservation-deposit"'), "branch-scoped deposit settings read route exists");
+  assert.ok(routes.includes("resolveAuthorizedBranchId(req, req.headers[\"x-branch-id\"], { required: true })"), "deposit mutations derive the effective branch from authorized context");
 }
 
 function frontendContract() {
@@ -145,6 +151,9 @@ function frontendContract() {
   assert.ok(page.includes("isActionBusy") && page.includes("disabled={isActionBusy"), "frontend has duplicate-submit/loading protection");
   assert.ok(page.includes("finalInvoiceId"), "frontend displays final invoice link/reference");
   assert.ok(page.includes("refundStatus"), "frontend displays refund state");
+  assert.ok(page.includes("Refund amount (within available balance)"), "frontend submits a bounded refund amount");
+  const refundActionSection = page.slice(page.indexOf("const refundRequestMutation"), page.indexOf("const requestRefund"));
+  assert.ok(!refundActionSection.includes("treasuryAccountCode"), "frontend never submits a raw treasury account for refunds");
   assert.ok(!/updateAssetWithEvent\([^)]*\{ status: "(sold|available|reserved)"/s.test(page), "frontend does not patch asset state for Fix B transitions");
   assert.ok(!/apiClient\([^)]*method:\s*"PATCH"[^)]*reservation/s.test(page), "frontend does not use generic reservation PATCH for Fix B transitions");
   for (const forbidden of ["tax:", "vatAmount", "vatRate", "journalLines", "cogs", "paymentApplications", "assetStatus"]) {

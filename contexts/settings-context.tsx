@@ -1,12 +1,13 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiClient, DarfusApiError } from "@/lib/api/client";
 import { DATA_SOURCE } from "@/lib/data-source";
 import { invalidateAffectedQueries } from "@/lib/realtime/invalidate-affected-queries";
 import { useLocale } from "next-intl";
 import { useAuth } from "./auth-context";
+import { useCompanyContext } from "./company-context";
 
 export interface Branch {
   id: string;
@@ -198,11 +199,22 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const locale = useLocale();
   const { isAuthenticated, user } = useAuth();
+  const { isSuperAdmin, isReady: companyReady, companyId, generation: companyGeneration } = useCompanyContext();
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
+  const companyGenerationRef = useRef(companyGeneration);
+
+  useEffect(() => {
+    companyGenerationRef.current = companyGeneration;
+    if (isApi && isSuperAdmin && !companyReady) {
+      setBranches([]);
+      setLoaded(false);
+      setError(false);
+    }
+  }, [companyGeneration, companyReady, isApi, isSuperAdmin]);
 
   const refreshSettings = useCallback(async () => {
     if (!isApi) {
@@ -220,8 +232,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    if (isSuperAdmin && !companyReady) return;
     const token = getStoredToken();
     if (!token) return;
+    const requestGeneration = companyGenerationRef.current;
 
     try {
       const res = await apiClient<{
@@ -234,9 +248,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           lowStockThreshold: number;
           decimalPrecision: number;
         };
-      }>("/settings", { locale, skipBranch: true });
+      }>("/settings", { locale, skipBranch: true, ...(companyId ? { companyId } : {}) });
 
       if (res.success) {
+        if (requestGeneration !== companyGenerationRef.current) return;
         const raw = res.data.settings || {};
         const parsed: Partial<AppSettings> = {};
 
@@ -294,7 +309,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       setError(true);
       setLoaded(false);
     }
-  }, [isApi, locale, user?.accountType]);
+  }, [companyId, companyReady, isApi, isSuperAdmin, locale, user?.accountType]);
 
   const refreshBranches = useCallback(async () => {
     if (!isApi) {
@@ -319,12 +334,15 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    if (isSuperAdmin && !companyReady) return;
     const token = getStoredToken();
     if (!token) return;
+    const requestGeneration = companyGenerationRef.current;
 
     try {
-      const res = await apiClient<{ success: boolean; items: Branch[] }>("/branches", { locale, skipBranch: true });
+      const res = await apiClient<{ success: boolean; items: Branch[] }>("/branches", { locale, skipBranch: true, ...(companyId ? { companyId } : {}) });
       if (res.success) {
+        if (requestGeneration !== companyGenerationRef.current) return;
         const nextBranches = res.items || [];
         setBranches(nextBranches);
         clearActiveBranchIfRemoved(nextBranches);
@@ -333,12 +351,16 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       if (isExpectedBranchAccountAccessError(err, user?.accountType)) return;
       console.error("Failed to fetch branches from API", err);
     }
-  }, [isApi, locale, user?.accountType]);
+  }, [companyId, companyReady, isApi, isSuperAdmin, locale, user?.accountType]);
 
   // Initial load
   useEffect(() => {
     async function loadAll() {
       if (!isApi || isAuthenticated) {
+        if (isApi && isSuperAdmin && !companyReady) {
+          setLoading(false);
+          return;
+        }
         setLoading(true);
         await Promise.all([refreshSettings(), refreshBranches()]);
         setLoading(false);
@@ -347,7 +369,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       }
     }
     loadAll();
-  }, [refreshSettings, refreshBranches, isAuthenticated, isApi]);
+  }, [refreshSettings, refreshBranches, isAuthenticated, isApi, isSuperAdmin, companyReady]);
 
   const updateSettings = async (updates: Partial<AppSettings>): Promise<boolean> => {
     const next = { ...settings, ...updates };

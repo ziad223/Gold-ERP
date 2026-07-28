@@ -8,6 +8,7 @@ import { apiClient } from "@/lib/api/client";
 import { normalizeItems, toFiniteNumber } from "@/lib/api/normalize";
 import { DATA_SOURCE } from "@/lib/data-source";
 import { useAuth } from "@/contexts/auth-context";
+import { useCompanyContext } from "@/contexts/company-context";
 import { useOptionalOperator } from "@/contexts/operator-context";
 import type {
   ApprovalRequest,
@@ -23,6 +24,15 @@ import type {
   Product,
   StockMovement,
 } from "@/lib/types";
+
+// Keep unresolved API collections referentially stable for consumers that memoize
+// providers from these values. Valid API empty arrays remain distinct query data.
+const EMPTY_CUSTOMERS: Customer[] = [];
+const EMPTY_SUPPLIERS: Supplier[] = [];
+const EMPTY_TRANSFERS: Transfer[] = [];
+const EMPTY_RESERVATIONS: Reservation[] = [];
+const EMPTY_APPROVALS: ApprovalRequest[] = [];
+const EMPTY_PURCHASE_ORDERS: PurchaseOrder[] = [];
 
 function numberAsset(asset: Asset): Asset {
   return {
@@ -97,11 +107,12 @@ function useApiItems<T>(key: string, path: string, skipBranch = false) {
   const locale = useLocale();
   const { authReady, isAuthenticated, terminalAuthHandling, user } = useAuth();
   const operator = useOptionalOperator();
+  const { isSuperAdmin, isReady: companyReady, companyId, generation } = useCompanyContext();
   const branchEmployeeReady = user?.accountType !== "branch_shell" || Boolean(operator?.active);
   return useQuery<T[]>({
-    queryKey: [key],
-    queryFn: async () => normalizeItems<T>(await apiClient(path, { locale, skipBranch })),
-    enabled: DATA_SOURCE === "api" && authReady && isAuthenticated && !terminalAuthHandling && branchEmployeeReady,
+    queryKey: [key, isSuperAdmin ? companyId || "required" : "server-derived", generation],
+    queryFn: async () => normalizeItems<T>(await apiClient(path, { locale, skipBranch, ...(companyId ? { companyId } : {}) })),
+    enabled: DATA_SOURCE === "api" && authReady && isAuthenticated && !terminalAuthHandling && branchEmployeeReady && (!isSuperAdmin || companyReady),
   });
 }
 
@@ -152,13 +163,13 @@ export function useCoreErpData() {
 
   return {
     assets,
-    customers: isApi ? customersQuery.data ?? [] : local.customers,
+    customers: isApi ? customersQuery.data ?? EMPTY_CUSTOMERS : local.customers,
     invoices,
-    suppliers: isApi ? suppliersQuery.data ?? [] : local.suppliers,
-    transfers: isApi ? transfersQuery.data ?? [] : local.transfers,
-    reservations: isApi ? reservationsQuery.data ?? [] : local.reservations,
-    approvals: isApi ? approvalsQuery.data ?? [] : local.approvals,
-    purchaseOrders: isApi ? purchaseOrdersQuery.data ?? [] : local.purchaseOrders,
+    suppliers: isApi ? suppliersQuery.data ?? EMPTY_SUPPLIERS : local.suppliers,
+    transfers: isApi ? transfersQuery.data ?? EMPTY_TRANSFERS : local.transfers,
+    reservations: isApi ? reservationsQuery.data ?? EMPTY_RESERVATIONS : local.reservations,
+    approvals: isApi ? approvalsQuery.data ?? EMPTY_APPROVALS : local.approvals,
+    purchaseOrders: isApi ? purchaseOrdersQuery.data ?? EMPTY_PURCHASE_ORDERS : local.purchaseOrders,
     products,
     stockMovements,
     productsQuery,

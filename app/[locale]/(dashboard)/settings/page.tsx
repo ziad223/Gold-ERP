@@ -82,6 +82,19 @@ const currencyOptions = [
 
 const DEFAULT_POS_PRINT_TEMPLATE: InvoicePrintTemplateId = "thermal";
 
+type DepositAccountOption = { id: string; code: string; name?: string | null; nameAr?: string | null };
+type BranchDepositSettings = {
+  branchId: string;
+  reservationAdvanceLiability?: { accountId?: string } | null;
+  cashTreasury?: { accountId?: string } | null;
+  paymentChannels: Array<{ channel?: string | null; accountId?: string }>;
+  allowedReceiptMethods: string[];
+  allowedRefundMethods: string[];
+  eligibleLiabilityAccounts: DepositAccountOption[];
+  eligibleTreasuryAccounts: DepositAccountOption[];
+  health: { liabilityConfigured: boolean; cashConfigured: boolean; channelCount: number };
+};
+
 const POS_PRINT_TEMPLATE_OPTIONS: Array<{ value: InvoicePrintTemplateId; labelEn: string; labelAr: string }> = [
   { value: "thermal", labelEn: "Thermal", labelAr: "حراري" },
   { value: "luxuryGold", labelEn: "Luxury Gold", labelAr: "الذهبي الفاخر" },
@@ -191,6 +204,13 @@ export default function SettingsPage() {
   const [savingSystem, setSavingSystem] = useState(false);
   // BRANCH-1: server-resolved protected role; never a user-selected ledger account.
   const [branchDepositStatus, setBranchDepositStatus] = useState<"configured" | "missing" | "invalid" | "manual_review">("missing");
+  const [depositBranchId, setDepositBranchId] = useState("");
+  const [branchDepositSettings, setBranchDepositSettings] = useState<BranchDepositSettings | null>(null);
+  const [branchDepositLoading, setBranchDepositLoading] = useState(false);
+  const [branchDepositSaving, setBranchDepositSaving] = useState(false);
+  const [depositLiabilityAccountId, setDepositLiabilityAccountId] = useState("");
+  const [depositCashAccountId, setDepositCashAccountId] = useState("");
+  const [depositBankAccountId, setDepositBankAccountId] = useState("");
   const [reservationExpiryWarningHours, setReservationExpiryWarningHours] = useState("72");
 
   // --- Barcode Settings State ---
@@ -541,6 +561,56 @@ export default function SettingsPage() {
     })();
     return () => { cancelled = true; };
   }, [locale, canConfigureReservationAccount]);
+
+  useEffect(() => {
+    if (!depositBranchId) setDepositBranchId(branches.find((branch) => branch.isActive)?.id || "");
+  }, [branches, depositBranchId]);
+
+  useEffect(() => {
+    if (!isApiDataSource() || !canUpdateAllSettings || !depositBranchId) return;
+    let cancelled = false;
+    setBranchDepositLoading(true);
+    setBranchDepositSettings(null);
+    setDepositLiabilityAccountId("");
+    setDepositCashAccountId("");
+    setDepositBankAccountId("");
+    apiClient<{ success: boolean; data: BranchDepositSettings }>("/branch-settings/reservation-deposit", { locale, branchId: depositBranchId })
+      .then((result) => {
+        if (cancelled) return;
+        const data = result.data;
+        setBranchDepositSettings(data);
+        setBranchDepositStatus(data.health.liabilityConfigured && data.health.cashConfigured ? "configured" : "missing");
+        setDepositLiabilityAccountId(data.reservationAdvanceLiability?.accountId || "");
+        setDepositCashAccountId(data.cashTreasury?.accountId || "");
+        setDepositBankAccountId(data.paymentChannels.find((channel) => channel.channel === "bank")?.accountId || "");
+      })
+      .catch((error) => { if (!cancelled) toast.error(error?.message || (rtl ? "تعذر تحميل إعدادات الفرع." : "Unable to load branch settings.")); })
+      .finally(() => { if (!cancelled) setBranchDepositLoading(false); });
+    return () => { cancelled = true; };
+  }, [locale, rtl, canUpdateAllSettings, depositBranchId]);
+
+  const saveBranchDepositSettings = async () => {
+    if (!depositBranchId || !depositLiabilityAccountId || !depositCashAccountId) {
+      toast.error(rtl ? "يلزم اختيار التزام العربون وخزنة الفرع." : "Select both the deposit liability and branch cash treasury.");
+      return;
+    }
+    setBranchDepositSaving(true);
+    try {
+      const result = await apiClient<{ success: boolean; data: BranchDepositSettings }>("/branch-settings/reservation-deposit", {
+        method: "PUT", locale, branchId: depositBranchId,
+        body: JSON.stringify({
+          reservationAdvanceLiabilityAccountId: depositLiabilityAccountId,
+          cashTreasuryAccountId: depositCashAccountId,
+          paymentChannels: depositBankAccountId ? [{ channel: "bank", accountId: depositBankAccountId }] : []
+        })
+      });
+      setBranchDepositSettings(result.data);
+      setBranchDepositStatus(result.data.health.liabilityConfigured && result.data.health.cashConfigured ? "configured" : "missing");
+      toast.success(rtl ? "تم حفظ إعدادات إيداع الفرع." : "Branch deposit settings saved.");
+    } catch (error: any) {
+      toast.error(error?.message || (rtl ? "تعذر حفظ إعدادات الفرع." : "Unable to save branch settings."));
+    } finally { setBranchDepositSaving(false); }
+  };
 
   useEffect(() => {
     if (hasGranularReservationAccountOnly) setActiveTab("system");
@@ -2257,6 +2327,51 @@ export default function SettingsPage() {
               <p className="mt-1 text-muted">{branchDepositStatus === "configured" ? (rtl ? "مُهيأ تلقائياً ومحمي لهذا الفرع." : "Configured automatically and protected for this branch.") : branchDepositStatus === "manual_review" ? (rtl ? "يتطلب مراجعة يدوية قبل التشغيل." : "Manual review is required before operation.") : (rtl ? "غير مهيأ أو غير صالح؛ اطلب من المسؤول تشغيل إعداد الفرع." : "Missing or invalid; ask an administrator to run branch setup.")}</p>
               <p className="mt-1 text-xs text-muted">{rtl ? "لا يمكن اختيار أو تجاوز حساب دفتر الأستاذ من الإعدادات أو نقطة البيع." : "The ledger account cannot be selected or overridden from Settings or POS."}</p>
             </div>
+
+            {canUpdateAllSettings && <div className="mt-4 max-w-xl rounded-lg border border-border bg-card p-4">
+              <div className="mb-3">
+                <p className="font-bold text-sm">{rtl ? "ربط حسابات عربون الحجوزات" : "Reservation-deposit account mappings"}</p>
+                <p className="mt-1 text-xs text-muted">{rtl ? "تظهر فقط الحسابات النشطة المؤهلة للفرع المختار. يستخدم الخادم هذه الروابط المحمية عند الترحيل." : "Only eligible active accounts for the selected branch are shown. The server uses these protected mappings when posting."}</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="label-base">{rtl ? "الفرع" : "Branch"}</span>
+                  <select className="input-base mt-1" value={depositBranchId} onChange={(event) => setDepositBranchId(event.target.value)}>
+                    <option value="">{rtl ? "اختر فرعاً" : "Select a branch"}</option>
+                    {branches.filter((branch) => branch.isActive).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+                  </select>
+                </label>
+                <div className="text-xs text-muted self-end pb-2">{branchDepositLoading ? (rtl ? "جارٍ تحميل إعدادات الفرع…" : "Loading branch mappings…") : `${rtl ? "قنوات مهيأة" : "Configured channels"}: ${branchDepositSettings?.health.channelCount || 0}`}</div>
+                <label className="block">
+                  <span className="label-base">{rtl ? "التزام عربون الحجوزات" : "Reservation advance liability"}</span>
+                  <select className="input-base mt-1" value={depositLiabilityAccountId} disabled={branchDepositLoading} onChange={(event) => setDepositLiabilityAccountId(event.target.value)}>
+                    <option value="">{rtl ? "اختر حساب الالتزام" : "Select liability account"}</option>
+                    {(branchDepositSettings?.eligibleLiabilityAccounts || []).map((account) => <option key={account.id} value={account.id}>{account.code} — {rtl ? (account.nameAr || account.name || account.code) : (account.name || account.nameAr || account.code)}</option>)}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="label-base">{rtl ? "خزنة النقد للفرع" : "Branch cash treasury"}</span>
+                  <select className="input-base mt-1" value={depositCashAccountId} disabled={branchDepositLoading} onChange={(event) => setDepositCashAccountId(event.target.value)}>
+                    <option value="">{rtl ? "اختر حساب الخزنة" : "Select treasury account"}</option>
+                    {(branchDepositSettings?.eligibleTreasuryAccounts || []).map((account) => <option key={account.id} value={account.id}>{account.code} — {rtl ? (account.nameAr || account.name || account.code) : (account.name || account.nameAr || account.code)}</option>)}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="label-base">{rtl ? "قناة البنك (اختيارية)" : "Bank channel (optional)"}</span>
+                  <select className="input-base mt-1" value={depositBankAccountId} disabled={branchDepositLoading} onChange={(event) => setDepositBankAccountId(event.target.value)}>
+                    <option value="">{rtl ? "بدون قناة بنك" : "No bank channel"}</option>
+                    {(branchDepositSettings?.eligibleTreasuryAccounts || []).map((account) => <option key={account.id} value={account.id}>{account.code} — {rtl ? (account.nameAr || account.name || account.code) : (account.name || account.nameAr || account.code)}</option>)}
+                  </select>
+                </label>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <Button size="sm" onClick={saveBranchDepositSettings} disabled={branchDepositLoading || branchDepositSaving || !depositBranchId}>
+                  <Save className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
+                  {branchDepositSaving ? (rtl ? "جارٍ الحفظ…" : "Saving…") : (rtl ? "حفظ ربط الفرع" : "Save branch mappings")}
+                </Button>
+                <span className="text-xs text-muted">{rtl ? "الإيصالات والاستردادات تستخدم القنوات المهيأة فقط." : "Receipts and refunds use only configured channels."}</span>
+              </div>
+            </div>}
 
             {canUpdateAllSettings && <label className="block mt-4 max-w-xl">
               <span className="label-base">{rtl ? "عدد الساعات قبل انتهاء الحجز لإرسال التنبيه" : "Reservation expiry warning hours"}</span>

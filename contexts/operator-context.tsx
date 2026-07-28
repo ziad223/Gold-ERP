@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { EmployeeAuthorizationSummary, OperatorSessionState, OperatorVerifyInput } from "@/lib/types";
 import { useAuth } from "@/contexts/auth-context";
+import { useCompanyContext } from "@/contexts/company-context";
 import { useErp } from "@/contexts/erp-context";
 
 interface OperatorContextValue {
@@ -31,6 +32,7 @@ const inactiveState: OperatorSessionState = {
 
 export function OperatorProvider({ children }: { children: React.ReactNode }) {
   const { token, activeBranchId } = useAuth();
+  const { isSuperAdmin, isReady: companyReady } = useCompanyContext();
   const { operatorRepository } = useErp();
   const [state, setState] = useState<OperatorSessionState | null>(inactiveState);
   const [authorization, setAuthorization] = useState<EmployeeAuthorizationSummary | null>(null);
@@ -68,6 +70,16 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
       setReason("NOT_AUTHENTICATED");
       return;
     }
+    // Super Admin operator state is Company-scoped.  The provider is mounted
+    // outside the dashboard gate, so it must not make /operator/current a
+    // premature request that invalidates the authoritative Company bootstrap.
+    if (isSuperAdmin && !companyReady) {
+      setState(inactiveState);
+      setAuthorization(null);
+      setActive(false);
+      setReason("COMPANY_CONTEXT_PENDING");
+      return;
+    }
     setLoading(true);
     try {
       const result = await operatorRepository.current();
@@ -83,7 +95,7 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [operatorRepository, token]);
+  }, [companyReady, isSuperAdmin, operatorRepository, token]);
 
   useEffect(() => {
     void refresh();

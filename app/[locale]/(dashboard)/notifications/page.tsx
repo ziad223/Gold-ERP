@@ -6,12 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { useNotifications } from "@/hooks/use-notifications";
+import { useCompanyContext } from "@/contexts/company-context";
 import { toEnglishDigits } from "@/lib/formatters/numbers";
 
 export default function NotificationsPage() {
   const locale = useLocale();
   const rtl = locale === "ar";
-  const { notifications, unreadCount, markRead, markAllRead } = useNotifications();
+  const { companyId } = useCompanyContext();
+  const { notifications, unreadCount, markRead, markAllRead } = useNotifications({ explicitCompanyId: companyId });
 
   return (
     <div className="space-y-6">

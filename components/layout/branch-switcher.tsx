@@ -4,11 +4,13 @@ import { useState, useEffect, useRef, KeyboardEvent } from "react";
 import { ChevronDown, Check } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/auth-context";
+import { useCompanyContext } from "@/contexts/company-context";
 import { useAppSettings } from "@/contexts/settings-context";
 
 export function BranchSwitcher() {
   const t = useTranslations("Header");
-  const { activeBranch, activeBranchId, switchBranch, user } = useAuth();
+  const { activeBranch, activeBranchId, switchBranch, clearBranch, user } = useAuth();
+  const { isSuperAdmin, isReady: companyReady } = useCompanyContext();
   const { branches } = useAppSettings();
   const [isOpen, setIsOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
@@ -25,7 +27,11 @@ export function BranchSwitcher() {
   const isFixedBranchAccount = user?.accountType === "branch_shell";
 
   useEffect(() => {
-    if (!branches.length) return;
+    if (isSuperAdmin && !companyReady) return;
+    if (!branches.length) {
+      if (isSuperAdmin && activeBranchId) clearBranch();
+      return;
+    }
     const fixedBranchId = user?.accountScope?.branchId || null;
     const active = branches.find((branch) => branch.id === (isFixedBranchAccount ? fixedBranchId : activeBranchId));
     if (active) {
@@ -33,9 +39,15 @@ export function BranchSwitcher() {
       return;
     }
     if (isFixedBranchAccount) return;
-    const fallback = branches.find((branch) => branch.isActive) ?? branches[0];
+    const activeBranches = branches.filter((branch) => branch.isActive);
+    if (isSuperAdmin) {
+      if (activeBranches.length === 1) switchBranch(activeBranches[0].id, activeBranches[0].name);
+      else if (activeBranchId) clearBranch();
+      return;
+    }
+    const fallback = activeBranches[0] ?? branches[0];
     if (fallback) switchBranch(fallback.id, fallback.name);
-  }, [activeBranch, activeBranchId, branches, isFixedBranchAccount, switchBranch, user?.accountScope?.branchId]);
+  }, [activeBranch, activeBranchId, branches, clearBranch, companyReady, isFixedBranchAccount, isSuperAdmin, switchBranch, user?.accountScope?.branchId]);
 
   // Close when clicking outside
   useEffect(() => {

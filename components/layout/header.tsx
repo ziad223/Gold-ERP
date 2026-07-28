@@ -19,7 +19,9 @@ import {
 import { useTranslations } from "next-intl";
 import { LanguageSwitcher } from "@/components/auth/language-switcher";
 import { BranchSwitcher } from "@/components/layout/branch-switcher";
+import { CompanySwitcher } from "@/components/company/company-switcher";
 import { useAuth } from "@/contexts/auth-context";
+import { useCompanyContext } from "@/contexts/company-context";
 import { useTheme } from "@/contexts/theme-context";
 import { getPublicFileUrl } from "@/lib/api/files";
 import { useCoreErpData } from "@/hooks/use-core-erp-data";
@@ -33,14 +35,16 @@ export function Header({ onOpenSidebar, onOpenCommandPalette }: { onOpenSidebar:
   const t = useTranslations("Header");
   const { theme, toggleTheme } = useTheme();
   const { user, company, logout } = useAuth();
+  const { company: selectedCompany, companyId: selectedCompanyId, isSuperAdmin } = useCompanyContext();
   const { assets, customers, invoices } = useCoreErpData();
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [logoFailed, setLogoFailed] = useState(false);
-  const { notifications, unreadCount, markRead, markAllRead } = useNotifications();
-  const companyLogoUrl = getPublicFileUrl(company?.logo || "");
+  const { notifications, unreadCount, markRead, markAllRead } = useNotifications({ explicitCompanyId: selectedCompanyId });
+  const visibleCompany = isSuperAdmin ? selectedCompany : company;
+  const companyLogoUrl = getPublicFileUrl(visibleCompany?.logo || "");
 
   const results = useMemo(() => {
     if (query.trim().length < 2) return [];
@@ -52,7 +56,7 @@ export function Header({ onOpenSidebar, onOpenCommandPalette }: { onOpenSidebar:
 
   const userName = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Admin";
   const initials = `${user?.firstName?.[0] ?? "A"}${user?.lastName?.[0] ?? "D"}`.toUpperCase();
-  const companyInitials = (company?.businessName || userName || "DARFUS")
+  const companyInitials = (visibleCompany?.businessName || userName || "DARFUS")
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
@@ -62,7 +66,7 @@ export function Header({ onOpenSidebar, onOpenCommandPalette }: { onOpenSidebar:
 
   useEffect(() => {
     setLogoFailed(false);
-  }, [company?.logo]);
+  }, [visibleCompany?.logo]);
 
   const signOut = () => {
     logout();
@@ -115,6 +119,7 @@ export function Header({ onOpenSidebar, onOpenCommandPalette }: { onOpenSidebar:
       </div>
 
       <div className="ms-auto flex items-center gap-2">
+        <CompanySwitcher />
         <BranchSwitcher />
         <OperatorBar />
 
@@ -181,7 +186,7 @@ export function Header({ onOpenSidebar, onOpenCommandPalette }: { onOpenSidebar:
             {companyLogoUrl && !logoFailed ? (
               <img
                 src={companyLogoUrl}
-                alt={company?.businessName || "Company Logo"}
+                alt={visibleCompany?.businessName || "Company Logo"}
                 className="h-9 w-9 rounded-xl border border-border bg-white object-contain p-1"
                 onError={() => setLogoFailed(true)}
               />
@@ -190,7 +195,7 @@ export function Header({ onOpenSidebar, onOpenCommandPalette }: { onOpenSidebar:
             )}
             <div className="hidden max-w-36 text-start lg:block">
               <p className="truncate text-xs font-extrabold text-foreground">{toEnglishDigits(userName)}</p>
-              <p className="mt-0.5 truncate text-[9px] text-muted">{company?.businessName}</p>
+              <p className="mt-0.5 truncate text-[9px] text-muted">{visibleCompany?.businessName}</p>
             </div>
             <ChevronDown className="hidden h-4 w-4 text-muted lg:block" />
           </button>

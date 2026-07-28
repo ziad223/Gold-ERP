@@ -1,12 +1,19 @@
 import { getDataSourceMode, assertProductionDataSource } from "@/lib/data-source";
 
 export interface ApiErrorPayload {
-  success: boolean;
-  message: string;
+  success?: boolean;
+  message?: string;
   code?: string;
   errorCode?: string;
   errors?: Record<string, string[]>;
   correlationId?: string;
+  error?: {
+    code?: string;
+    message?: string;
+    fields?: Record<string, string[]>;
+    details?: Record<string, unknown> | null;
+    requestId?: string | null;
+  };
 }
 
 export class DarfusApiError extends Error {
@@ -14,22 +21,52 @@ export class DarfusApiError extends Error {
   errorCode?: string;
   errors?: Record<string, string[]>;
   correlationId?: string;
+  details?: Record<string, unknown> | null;
+  isNetworkError: boolean;
+  isAuthError: boolean;
+  isPermissionError: boolean;
+  isValidationError: boolean;
+  isConflictError: boolean;
+  isServerError: boolean;
 
-  constructor(status: number, message: string, errors?: Record<string, string[]>, correlationId?: string, errorCode?: string) {
+  constructor(status: number, message: string, errors?: Record<string, string[]>, correlationId?: string, errorCode?: string, details?: Record<string, unknown> | null, isNetworkError = false) {
     super(message);
     this.name = "DarfusApiError";
     this.status = status;
     this.errorCode = errorCode;
     this.errors = errors;
     this.correlationId = correlationId;
+    this.details = details;
+    this.isNetworkError = isNetworkError;
+    this.isAuthError = status === 401;
+    this.isPermissionError = status === 403;
+    this.isValidationError = status === 422;
+    this.isConflictError = status === 409;
+    this.isServerError = status >= 500 && status <= 599 && !isNetworkError;
   }
+}
+
+function parseApiErrorPayload(payload: ApiErrorPayload | null, status: number, locale: string, fallbackRequestId: string): DarfusApiError {
+  const error = payload?.error;
+  return new DarfusApiError(
+    status,
+    error?.message || payload?.message || getFallbackErrorMessage(status, locale),
+    error?.fields || payload?.errors,
+    error?.requestId || payload?.correlationId || fallbackRequestId,
+    error?.code || payload?.errorCode || payload?.code,
+    error?.details || null,
+  );
 }
 
 export const AUTH_REFRESHED_RETRY_REQUIRED = "AUTH_REFRESHED_RETRY_REQUIRED";
 
 type TerminalAuthFailureHandler = (error: DarfusApiError) => void;
+type CompanyContextFailureHandler = (error: DarfusApiError) => void;
+type CompanyContextAccessor = () => { companyId: string; generation: number } | null;
 
 let terminalAuthFailureHandler: TerminalAuthFailureHandler | null = null;
+let companyContextFailureHandler: CompanyContextFailureHandler | null = null;
+let companyContextAccessor: CompanyContextAccessor | null = null;
 
 export function registerTerminalAuthFailureHandler(handler: TerminalAuthFailureHandler): () => void {
   terminalAuthFailureHandler = handler;
@@ -40,6 +77,31 @@ export function registerTerminalAuthFailureHandler(handler: TerminalAuthFailureH
 
 export function reportTerminalTechnicalAuthFailure(error: DarfusApiError): void {
   if (isTerminalTechnicalAuthError(error)) terminalAuthFailureHandler?.(error);
+}
+
+export function registerCompanyContextAccessor(accessor: CompanyContextAccessor | null): () => void {
+  companyContextAccessor = accessor;
+  return () => {
+    if (companyContextAccessor === accessor) companyContextAccessor = null;
+  };
+}
+
+/** Synchronous transition boundary used before Company-scoped children render. */
+export function setCompanyContextAccessor(accessor: CompanyContextAccessor | null): void {
+  companyContextAccessor = accessor;
+}
+
+export function registerCompanyContextFailureHandler(handler: CompanyContextFailureHandler): () => void {
+  companyContextFailureHandler = handler;
+  return () => {
+    if (companyContextFailureHandler === handler) companyContextFailureHandler = null;
+  };
+}
+
+export function reportCompanyContextFailure(error: DarfusApiError): void {
+  if (error.errorCode === "COMPANY_SCOPE_INVALID" || error.errorCode === "SUPER_ADMIN_COMPANY_CONTEXT_REQUIRED") {
+    companyContextFailureHandler?.(error);
+  }
 }
 
 // Simple UUID generator for correlation IDs
@@ -55,13 +117,15 @@ export function generateUUID(): string {
   }
 }
 
-interface ApiClientOptions extends RequestInit {
+export interface ApiClientOptions extends RequestInit {
   branchId?: string;
   companyId?: string;
   token?: string;
   locale?: string;
   idempotencyKey?: string;
   skipBranch?: boolean;
+  /** Explicitly suppresses the selected Company for context-free endpoints. */
+  companyScope?: "auto" | "none";
 }
 
 // Token storage key — must match auth-context.tsx
@@ -170,6 +234,16 @@ function readStoredBranchId(): string | undefined {
   }
 }
 
+function isContextFreePath(path: string): boolean {
+  return path.startsWith("/auth/") || path.startsWith("/health") || path.startsWith("/setup/");
+}
+
+export function resolvedCompanyIdForRequest(path: string, options: Pick<ApiClientOptions, "companyId" | "companyScope"> = {}): string | undefined {
+  if (options.companyId) return options.companyId;
+  if (options.companyScope === "none" || isContextFreePath(path)) return undefined;
+  return companyContextAccessor?.()?.companyId;
+}
+
 export function getOrCreateDeviceSessionId(): string | undefined {
   if (typeof window === "undefined") return undefined;
   try {
@@ -244,8 +318,9 @@ export async function apiClient<T>(path: string, options: ApiClientOptions = {})
   if (!options.skipBranch && activeBranchId && activeBranchId.startsWith("BR-")) {
     headers["X-Branch-ID"] = activeBranchId;
   }
-  if (options.companyId) {
-    headers["X-Company-ID"] = options.companyId;
+  const selectedCompanyId = resolvedCompanyIdForRequest(path, options);
+  if (selectedCompanyId) {
+    headers["X-Company-ID"] = selectedCompanyId;
   }
   if (options.idempotencyKey) {
     headers["Idempotency-Key"] = options.idempotencyKey;
@@ -273,7 +348,7 @@ export async function apiClient<T>(path: string, options: ApiClientOptions = {})
     }
 
     const isAuthEndpoint = path.startsWith("/auth/login") || path.startsWith("/auth/refresh") || path.startsWith("/auth/forgot-password") || path.startsWith("/auth/reset-password") || path.startsWith("/auth/validate-reset-token");
-    const errorCode = payload?.errorCode || payload?.code;
+    const errorCode = payload?.error?.code || payload?.errorCode || payload?.code;
     const operatorRecoveryRequired = errorCode ? OPERATOR_RECOVERY_CODES.has(errorCode) : false;
     if (response.status === 401 && requestUsedAuth && !isAuthEndpoint && !operatorRecoveryRequired) {
       const refreshed = await refreshAccessToken(apiBaseUrl, options.locale || "ar");
@@ -300,22 +375,16 @@ export async function apiClient<T>(path: string, options: ApiClientOptions = {})
     }
 
     if (!response.ok) {
-      const message = payload?.message || getFallbackErrorMessage(response.status, options.locale || "ar");
-      const finalErrorCode = payload?.errorCode || payload?.code;
+      const finalErrorCode = payload?.error?.code || payload?.errorCode || payload?.code;
       const finalOperatorRecoveryRequired = finalErrorCode ? OPERATOR_RECOVERY_CODES.has(finalErrorCode) : false;
       // Employee recovery errors belong to the operator shell, not technical
       // authentication. They must not erase the Branch Account session.
       emitOperatorRecoverySignal(finalErrorCode);
-      const apiError = new DarfusApiError(
-        response.status,
-        message,
-        payload?.errors,
-        correlationId,
-        finalErrorCode,
-      );
+      const apiError = parseApiErrorPayload(payload, response.status, options.locale || "ar", correlationId);
       if (isTerminalTechnicalAuthError(apiError, requestUsedAuth, isAuthEndpoint, finalOperatorRecoveryRequired)) {
         reportTerminalTechnicalAuthFailure(apiError);
       }
+      reportCompanyContextFailure(apiError);
       throw apiError;
     }
 
@@ -327,7 +396,7 @@ export async function apiClient<T>(path: string, options: ApiClientOptions = {})
     const netErrorMessage = options.locale === "en" 
       ? "Network error. Please verify server connection." 
       : "خطأ في الاتصال بالشبكة. يرجى التحقق من اتصال الخادم.";
-    throw new DarfusApiError(503, netErrorMessage, undefined, correlationId);
+    throw new DarfusApiError(503, netErrorMessage, undefined, correlationId, "NETWORK_ERROR", null, true);
   }
 }
 

@@ -4,11 +4,17 @@ import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { DATA_SOURCE } from "@/lib/data-source";
-import { DarfusApiError, getStoredAccessToken, reportTerminalTechnicalAuthFailure } from "@/lib/api/client";
+import { DarfusApiError, getStoredAccessToken, reportCompanyContextFailure, reportTerminalTechnicalAuthFailure } from "@/lib/api/client";
 import { useAuth } from "@/contexts/auth-context";
 import { useOptionalOperator } from "@/contexts/operator-context";
 import { queryKeys } from "@/lib/query-keys";
 import { invalidateAffectedQueries, type EntityChangedEvent } from "@/lib/realtime/invalidate-affected-queries";
+import {
+  canStartCompanyScopedNotifications,
+  classifyNotificationSseFailure,
+  normalizeExplicitCompanyId,
+  notificationSseHeaders,
+} from "@/lib/notifications/company-scoped-lifecycle";
 
 type SseFrame = { event: string; data: string };
 
@@ -22,18 +28,27 @@ function parseFrames(chunk: string, buffer: string): { frames: SseFrame[]; buffe
   return { frames, buffer: rest };
 }
 
-export function RealtimeProvider({ children }: { children: React.ReactNode }) {
+export function RealtimeProvider({ children, explicitCompanyId: suppliedCompanyId }: { children: React.ReactNode; explicitCompanyId?: string | null }) {
   const queryClient = useQueryClient();
-  const { authReady, company, isAuthenticated, terminalAuthHandling, user } = useAuth();
+  const { authReady, isAuthenticated, terminalAuthHandling, user } = useAuth();
   const operator = useOptionalOperator();
-  const companyId = company?.id;
+  const explicitCompanyId = normalizeExplicitCompanyId(suppliedCompanyId);
+  const companyId = explicitCompanyId;
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef = useRef<EntityChangedEvent[]>([]);
   const branchEmployeeReady = user?.accountType !== "branch_shell" || Boolean(operator?.active);
+  const canStart = DATA_SOURCE === "api" && canStartCompanyScopedNotifications({
+    authResolved: authReady,
+    authenticated: isAuthenticated,
+    terminalAuthHandling,
+    accountType: user?.accountType,
+    branchEmployeeReady,
+    explicitCompanyId,
+  });
 
   useEffect(() => {
-    if (DATA_SOURCE !== "api" || !authReady || !isAuthenticated || terminalAuthHandling || !branchEmployeeReady) return;
+    if (!canStart) return;
     const controller = new AbortController();
     const base = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
     let closed = false;
@@ -69,12 +84,16 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       if (closed || !token) return;
       try {
         const response = await fetch(`${base}/events/stream`, {
-          headers: { Accept: "text/event-stream", Authorization: `Bearer ${token}` },
+          headers: notificationSseHeaders(token, explicitCompanyId),
           signal: controller.signal,
         });
         if (!response.ok || !response.body) {
           if (response.status === 401) reportTerminalTechnicalAuthFailure(new DarfusApiError(401, "Session expired."));
-          scheduleReconnect();
+          if (response.status === 403 || response.status === 422) {
+            const payload = await response.clone().json().catch(() => null) as { errorCode?: string; code?: string; message?: string; error?: { code?: string; message?: string; requestId?: string | null } } | null;
+            reportCompanyContextFailure(new DarfusApiError(response.status, payload?.error?.message || payload?.message || "Company context is unavailable.", undefined, payload?.error?.requestId || undefined, payload?.error?.code || payload?.errorCode || payload?.code));
+          }
+          if (classifyNotificationSseFailure(response.status) === "transient") scheduleReconnect();
           return;
         }
         attempts = 0;
@@ -98,14 +117,17 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       attempts += 1;
       reconnectRef.current = setTimeout(() => void connect(), Math.min(attempts * 1000, 8000));
     };
-    void connect();
+    // React Strict Mode immediately runs an effect cleanup/replay in development.
+    // Deferring the first fetch one microtask lets that cleanup mark the first
+    // instance closed, so only the surviving Company-ready effect opens SSE.
+    void Promise.resolve().then(connect);
     return () => {
       closed = true;
       controller.abort();
       if (debounceRef.current) clearTimeout(debounceRef.current);
       if (reconnectRef.current) clearTimeout(reconnectRef.current);
     };
-  }, [authReady, branchEmployeeReady, companyId, isAuthenticated, queryClient, terminalAuthHandling]);
+  }, [canStart, companyId, explicitCompanyId, queryClient]);
 
   return <>{children}</>;
 }

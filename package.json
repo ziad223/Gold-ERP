@@ -13,6 +13,7 @@
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,css,md}\"",
     "test:e2e": "playwright test",
     "test:print-export": "playwright test tests/export-print.spec.ts --project=\"Desktop Large\"",
+    "test:single-company-runtime": "node scripts/run-single-company-browser-acceptance.mjs",
     "verify:print-company-info": "node scripts/verify-print-company-info.js",
     "verify:invoice-crud-guards": "node scripts/verify-invoice-crud-guards.js",
     "verify:return-exchange-settlement": "node scripts/verify-return-exchange-settlement.js",

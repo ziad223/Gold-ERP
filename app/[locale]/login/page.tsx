@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { AlertCircle, Eye, EyeOff, Gem, LockKeyhole, Mail } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { AuthVisual } from "@/components/auth/auth-visual";
@@ -9,18 +9,27 @@ import { LanguageSwitcher } from "@/components/auth/language-switcher";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 import { Link, useRouter } from "@/i18n/navigation";
+import { apiClient } from "@/lib/api/client";
 
 export default function LoginPage() {
   const t = useTranslations("Auth");
   const common = useTranslations("Common");
   const { login } = useAuth();
   const router = useRouter();
-  const [email, setEmail] = useState("admin@admin.com");
-  const [password, setPassword] = useState("123456");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
   const [visible, setVisible] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let current = true;
+    void apiClient<{ data?: { state?: string } }>("/setup/status", { companyScope: "none", skipBranch: true })
+      .then((response) => { if (current && response.data?.state === "SETUP_REQUIRED") router.replace("/setup"); })
+      .catch(() => undefined);
+    return () => { current = false; };
+  }, [router]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -134,15 +143,6 @@ export default function LoginPage() {
                   {loading ? common("loading") : t("login")}
                 </Button>
               </form>
-
-              <div className="mt-6 rounded-2xl border border-brand-100 bg-brand-50/70 p-4 text-xs dark:border-brand-900/50 dark:bg-brand-500/10">
-                <p className="font-extrabold text-brand-800 dark:text-brand-200">{t("demoTitle")}</p>
-                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-brand-700 dark:text-brand-300">
-                  <span>admin@admin.com</span>
-                  <span>123456</span>
-                </div>
-              </div>
-
             </div>
           </div>
         </section>

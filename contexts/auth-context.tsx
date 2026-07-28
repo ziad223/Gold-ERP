@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { useQueryClient } from "@tanstack/react-query";
 import { apiClient, clearDeviceSessionId, DarfusApiError } from "@/lib/api/client";
 import { DATA_SOURCE } from "@/lib/data-source";
+import { clearPersistedCompanyContext } from "@/lib/company-context-state";
 
 export interface DarfusUser {
   id: string;
@@ -86,6 +87,7 @@ interface AuthContextValue {
   activeBranch: string;
   activeBranchId: string;
   switchBranch: (branchId: string, branchName?: string) => void;
+  clearBranch: () => void;
   login: (email: string, password: string, remember?: boolean) => Promise<{ ok: boolean; message?: string; forcePasswordChange?: boolean }>;
   register: (payload: RegistrationPayload) => Promise<{ ok: boolean; message?: RegisterError }>;
   logout: () => void;
@@ -291,10 +293,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         window.localStorage.setItem("darfus-active-branch-id-v1", id);
         window.localStorage.setItem("darfus-active-branch-name-v1", name);
       }
-      queryClient.clear();
+      // Branch changes must isolate branch-scoped work without evicting the
+      // server-authoritative Company bootstrap. Clearing the whole cache
+      // temporarily makes CompanyContext UNRESOLVED, then its identity guard
+      // correctly refuses to auto-adopt a second time.
+      const isBranchScopedQuery = (query: { queryKey: readonly unknown[] }) => query.queryKey[0] !== "accessible-companies";
+      void queryClient.cancelQueries({ predicate: isBranchScopedQuery });
+      queryClient.removeQueries({ predicate: isBranchScopedQuery });
     },
     [queryClient, user?.accountScope?.branchId, user?.accountType],
   );
+
+  const clearBranch = useCallback(() => {
+    setActiveBranch("");
+    setActiveBranchId("");
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem("darfus-active-branch-id-v1");
+      window.localStorage.removeItem("darfus-active-branch-name-v1");
+    }
+  }, []);
 
   // Hydrate on mount
   useEffect(() => {
@@ -468,6 +485,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     setCompany(null);
     setToken(null);
+    clearBranch();
+    clearPersistedCompanyContext();
     clearDeviceSessionId();
     if (isApiMode) {
       clearApiSession();
@@ -475,7 +494,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       window.localStorage.removeItem(SESSION_KEY);
       window.sessionStorage.removeItem(SESSION_BROWSER_KEY);
     }
-  }, [isApiMode, queryClient, token]);
+  }, [clearBranch, isApiMode, queryClient, token]);
 
   const beginTerminalAuthHandling = useCallback(() => {
     setTerminalAuthHandling(true);
@@ -535,6 +554,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       activeBranch,
       activeBranchId,
       switchBranch,
+      clearBranch,
       login,
       register,
       logout,
@@ -542,7 +562,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       updateCompany,
       updateUser,
     }),
-    [hydrated, terminalAuthHandling, user, company, token, activeBranch, activeBranchId, switchBranch, login, register, logout, beginTerminalAuthHandling, updateCompany, updateUser],
+    [hydrated, terminalAuthHandling, user, company, token, activeBranch, activeBranchId, switchBranch, clearBranch, login, register, logout, beginTerminalAuthHandling, updateCompany, updateUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

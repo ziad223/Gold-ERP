@@ -1,5 +1,262 @@
 # READ THIS FIRST — CURRENT PROJECT HANDOFF
 
+## COMPANY-CONTEXT-RUNTIME-FIX — 2026-07-28
+
+- Starting checkpoint: `cca5502`; implementation commits: `1eeb542` (gate global Operator work until Company READY), `e1bea2d` (Strict Mode-safe Company-ready SSE start), `d0e1ffe`/`eed7713` (sanitized phase and locale-independent logout harness evidence), and `ba9e1f9` (retain the bootstrap query across Branch isolation). No package, migration, `.env`, backend authorization, Company/Branch data, or pre-existing runtime process changed.
+- Exact root cause: the globally mounted Operator provider issued `/operator/current` before Company READY. The backend correctly returned missing-context `422`, and the shared handler invalidated Company state, causing the bootstrap loop. A separate Branch `queryClient.clear()` evicted `accessible-companies`, leaving the processed-identity guard unable to re-adopt after a Branch switch.
+- Accepted external-runtime evidence: N5 and N8 each had bootstrap/list/unread/SSE/Branch counts `1/1/1/1/1`; scoped traffic had Company context; 401/403/422, `SUPER_ADMIN_COMPANY_CONTEXT_REQUIRED`, SSE reconnects and notification error toasts were all `0`. The Company gate was absent and the display visible. Five existing Branches enabled an A→B run with retained Company context. Logout returned to login with post-logout list/unread/SSE and notification error-toast counts all `0`.
+- Safety: services at 3000/8000 were fingerprinted/reused and remained running; harness cleanup removed its own temporary run root and credentials were absent after each run. An earlier non-completing owned Playwright browser tree was terminated only after exact parent/child ownership verification; no pre-existing service was touched. Official DB migration/data were not changed.
+- Validation boundary: focused lifecycle/harness tests (32/32), typecheck and targeted lint pass. Production build is deliberately deferred because the shared manually started Next development workspace must not be restarted or have its lock disturbed; no build PASS is claimed.
+- Decision: `COMPANY-CONTEXT-RUNTIME-FIX = COMPLETE`; `N5 = PASS`; `N8 = PASS`; `COMPANY-CONTEXT-RUNTIME-F001 = RESOLVED`; `NOTIF_ACCEPT_AUTHORIZED = YES`. `RELEASE_READY = NO`, Staging and Production remain unauthorized. Exact next marker: `NOTIF-ACCEPT`.
+
+## RELEASE-GAP-FIX-1-CONT2 — 2026-07-28
+
+- Checkpoints: `6a16e18` adds explicit local external-runtime reuse; `3dcbf29` adds sanitized Company-readiness capture. Only the harness/test changed; no Product, package, migration, `.env` or database change was made. The inherited protected CRLF-only files remain semantic-no-diff.
+- Reuse mode is explicit (`DARFUS_E2E_REUSE_RUNTIME=1`) and accepts only loopback 3000/8000 origins. It fingerprints the pre-existing frontend/backend, starts no service child and stops no pre-existing process. Focused launcher/redaction tests (21), typecheck and targeted lint pass.
+- Authenticated browser evidence: login `200`; `/auth/accessible-companies` five times at `200` with no Company header; `/branches` once at `200` with Company context present. The Company display never appeared during the 30-second N5 wait. Notification list/unread/SSE, dashboard resources, Branch A→B, logout and N8 are `NOT_OBSERVED`; no tracked 401/403/422 or notification error toast was observed. Do not infer a successful READY state or a root cause from the missing records.
+- Decision: `RELEASE-GAP-FIX-1-CONT2 = COMPLETE`, `RELEASE-GAP-F001 = RESOLVED_BY_REUSE_MODE`, `COMPANY-CONTEXT-RUNTIME-F001 = OPEN — Company Context never reaches READY`, `N5 = FAIL`, `N8 = NOT_OBSERVED`, `NOTIF_ACCEPT_AUTHORIZED = NO`. Exact next marker: `COMPANY-CONTEXT-RUNTIME-FIX`, limited to the single-Company readiness/invalidation regression; do not add a selector, fallback or header bypass.
+
+## RELEASE-GAP-AUDIT — 2026-07-28
+
+- Starting checkpoint: `399badc` (`docs: record error contract implementation`), `main`, no staged paths; 11 stashes/no remotes; only inherited CRLF-only protected drift with semantic-zero diff; exact `next-env.d.ts` hash. Official `darfus_erp` was read-only at 50 applied / 1 pending source migration, with zero idle/waiting lock counts.
+- Audit evidence: selected cross-domain suite passed 56/56; typecheck, lint and production build passed. This does **not** establish release readiness. N5/N8 authenticated browser, REST-header/list/unread/SSE/toast/logout and Branch A→B observations are `NOT_OBSERVED`; the runner fails before backend/frontend/browser spawn because its output WriteStream has no opened file descriptor.
+- Current decision: `RELEASE-GAP-AUDIT = COMPLETE`; `RELEASE_READY = NO`; `RELEASE_BLOCKERS_FOUND = YES`; `NOTIF_ACCEPT_AUTHORIZED = NO`; no Staging/Production authorization. `DASHRES-F004` is superseded by completed Error Contract safe ORM/database-to-500 handling; historic evidence remains in the register.
+- Additional release gates: correct legacy automatic-admin deployment material to the guarded First Run contract; migrate only through a rehearsed Staging plan; run full regression; prove backup/restore, dependency review, storage controls and capacity/observability. See `docs/RELEASE_GAP_AUDIT.md`.
+- Exact next marker: `RELEASE-GAP-FIX-1`, only to repair the harness pre-spawn log-stream/opening and owned-temp cleanup defect. Do not modify Product behavior, deploy or begin notification acceptance in that fix.
+
+## RELEASE-GAP-FIX-1 / HARNESS-LOG-STREAM-FIX — 2026-07-28
+
+- Commits `96c7094`, `09013d9` and `1372c31` replace the unsafe unopened WriteStream handoff with an awaited owned stream, idempotent closure, child-before-handle cleanup, verified known-file deletion and safe failure categories. Focused harness tests include a real child-process stream and pass; typecheck/lint pass; no Product, package, DB, migration or `.env` change occurred.
+- The process-scoped authenticated harness run no longer produced the original null-fd error. It reached only the backend spawn attempt, then recorded `HARNESS_CHILD_SPAWN_EINVAL`; no listener, login, browser scenario, N5/N8, REST/SSE/header, notification, Branch or logout evidence occurred. Cleanup removed the owned temp root, credential presence ended `NO/NO`, and log secret occurrence count was zero.
+- Decision: `RELEASE-GAP-FIX-1 = BLOCKED`; `HARNESS-LOG-STREAM-FIX = COMPLETE` for the original defect, while `RELEASE-GAP-F001` stays OPEN for the newly classified child-spawn cause. `NOTIF_ACCEPT_AUTHORIZED = NO`. Exact next marker: `RELEASE-GAP-FIX-1-CONT1`, only for `HARNESS_CHILD_SPAWN_EINVAL`.
+
+## RELEASE-GAP-FIX-1-CONT1 — 2026-07-28
+
+- `dd568d5` resolves `HARNESS_CHILD_SPAWN_EINVAL`: sanitized diagnostics isolated synchronous Windows `npm.cmd`/`shell:false` failure, not the backend or log streams. The harness now uses direct installed Node entrypoints for Next and Playwright and validates cwd, stdio and string-only child environments. Real-child/failure-path coverage, focused regressions, typecheck and lint pass; backend readiness on 8001 and cleanup pass.
+- The unchanged process-scoped authenticated run reached frontend startup but returned `HARNESS_READINESS_FAILED_OWNED_FRONTEND`. The owned frontend exited because a pre-existing unknown Next dev process holds the workspace development lock. No unknown process was stopped; cleanup removed the owned temp root and credentials were absent afterward. Login/N5/N8/REST/SSE/header/list/unread/toast/Branch/logout evidence remains `NOT_OBSERVED`.
+- Decision: `RELEASE-GAP-FIX-1-CONT1 = PARTIAL`; `HARNESS_CHILD_SPAWN_EINVAL = RESOLVED`; `RELEASE-GAP-F001 = OPEN — FRONTEND_NEXT_DEV_LOCK_CONFLICT`; `NOTIF_ACCEPT_AUTHORIZED = NO`. Exact next marker: `RELEASE-GAP-FIX-1-CONT2`, restricted to the safe workspace-lock boundary.
+
+## ERROR-CONTRACT complete — 2026-07-28
+
+- `ERROR-CONTRACT = COMPLETE`. The backend now has request-ID middleware, a compatibility response adapter for legacy direct route errors and one central error serializer. The canonical response is `{ success:false, error:{ code, message, details, fields, requestId } }`; no top-level duplicate `message/errors/code` fields are emitted for JSON errors.
+- Stable error codes are preserved, including accepted First Run, Company context, branch/operator, notification, accounting, deposit and reservation codes. Missing Super Admin Company remains `422 SUPER_ADMIN_COMPANY_CONTEXT_REQUIRED`; invalid scope remains `403 COMPANY_SCOPE_INVALID`. Unexpected ORM/database faults are safe `500 INTERNAL_SERVER_ERROR`, not 422.
+- Shared frontend `DarfusApiError` now parses canonical and legacy bodies plus non-JSON/network failure safely; the First Run form renders `fields` inline and global Query/Mutation caches do not toast validation errors. Existing notification terminal-toast ownership remains unchanged.
+- Focused HTTP/contract/redaction and representative regression tests passed (56 targeted checks); typecheck, lint and production build passed. No official DB mutation/migration, browser N5/N8 runtime acceptance, notification acceptance, deployment or push occurred. Full contract: `docs/ERROR_CONTRACT.md`. Exact next marker: `RELEASE-GAP-AUDIT`.
+
+## FIRST-RUN-FIX-CONT1 / FIRST-RUN-ACCEPT complete — 2026-07-28
+
+- `FIRST-RUN-FIX-CONT1 = COMPLETE`; `FIRST-RUN-ACCEPT = COMPLETE`; `FIRST-RUN = COMPLETE`. The aggregate-lock defect is fixed by retaining the transaction-scoped PostgreSQL advisory lock while using plain aggregate state reads. Real clean PostgreSQL rollback/concurrency/idempotency/direct-bootstrap tests pass.
+- Development no longer emits rendered Sequelize SQL by default. Optional query logging is safe-shape only; centralized redaction protects message/metadata/stack auth and setup PII. Exact generated-value scans for email, password, setup/idempotency/access/refresh tokens were all zero.
+- HTTP acceptance on a clean migrated disposable database passed SETUP_REQUIRED/token negatives, registration `410` before/after, `201 READY`, Company/Branch context smoke, normal login/logout and post-logout protected rejection. All disposable DBs and temporary evidence were removed. Official `darfus_erp` remains 50 applied / 1 pending, unchanged.
+- Browser UI runtime, N5/N8 and `NOTIF-ACCEPT` remain deferred/unwaived; Staging and Production remain unauthorized. Exact next marker: `ERROR-CONTRACT`.
+
+## FIRST-RUN-ACCEPT — blocked by real PostgreSQL and log-redaction defects — 2026-07-28
+
+- A disposable local PostgreSQL database was created on 5432, migrated to 51 source migrations, checked clean, and dropped. The official `darfus_erp` database stayed at 50 applied / 1 pending with unchanged aggregate fingerprint.
+- `GET /api/v1/setup/status` returned `SETUP_REQUIRED`; missing/invalid token and weak payload were rejected; `/auth/register` remained `410`. The valid bootstrap failed before writes: `resolveSetupState(..., { lock: true })` passes `FOR UPDATE` to aggregate `Company.count` / `User.count`, yielding PostgreSQL `SQLSTATE 0A000` and API `422 VALIDATION_FAILED`.
+- The disposable DB remained zero users/Companies/Branches/financial mappings/audits/marker before cleanup. Focused tests remain 6/6 but use a fake transaction and missed the PostgreSQL rule. Development Sequelize query logging also wrote the generated acceptance email to the owned log; all temporary evidence was removed and nothing secret was committed.
+- `FIRST-RUN-ACCEPT = BLOCKED`; `FIRST-RUN-FIX-CONT1_AUTHORIZED = YES`; do not patch during acceptance. Exact next marker: `FIRST-RUN-FIX-CONT1` to repair only the aggregate-lock transaction strategy and owned-log PII redaction, then rerun isolated acceptance. Browser N5/N8 and `NOTIF-ACCEPT` remain deferred/unwaived; Staging and Production remain unauthorized.
+
+## FIRST-RUN-FIX — guarded bootstrap implementation — 2026-07-28
+
+- `FIRST-RUN-FIX = COMPLETE`; `FIRST-RUN-ACCEPT_AUTHORIZED = YES`; Product has `GET /api/v1/setup/status`, `POST /api/v1/setup/bootstrap`, `app/[locale]/setup/page.tsx`, a state resolver, direct Super Admin bootstrap service and forward-only `20260728010000-create-first-run-setup-state.js`.
+- Bootstrap is fail-closed on absent/invalid `FIRST_RUN_SETUP_TOKEN`, rate-limited, idempotency-keyed, PostgreSQL-advisory-lock serialized, secret-free audited, and atomic. It creates the active direct `super_admin` through existing password policy/bcrypt plus canonical `admin`/`UserRole`, one Company, one Branch, six final-sale System Account Role mappings and cash/deposit BranchFinancialMappings. No legacy promotion, fallback, selector, default account, public signup, secret persistence or auto-login exists.
+- Login redirects only authoritative `SETUP_REQUIRED` to `/setup`; the wizard holds token/password in component state and clears its fields after success before normal-login handoff. Existing public registration remains HTTP 410.
+- Focused tests now cover state/auth/direct creation/password/role/company/branch/financial rows/replay-conflict/rollback/UI closure; 21/21 focused checks, typecheck, lint and production build pass. `next-env.d.ts` remains exact. No runtime started, migration applied, DB data changed, browser N5/N8 evidence gathered, deployment or push occurred.
+- Official DB remains at 50 applied migrations; the new repository forward migration is intentionally pending for isolated `FIRST-RUN-ACCEPT`. Recovery is still a guarded handoff, not an automatic repair. Browser acceptance and `NOTIF-ACCEPT` stay deferred and mandatory before RC. Exact next marker: `FIRST-RUN-ACCEPT`.
+
+## FIRST-RUN-PRE1 — first Super Admin bootstrap design — 2026-07-28
+
+- `FIRST-RUN-PRE1 = COMPLETE`; `FIRST_RUN_GAP_CONFIRMED = YES`; `MANUAL_LEGACY_TO_SUPER_ADMIN_WORKAROUND = UNSUPPORTED`; `PUBLIC_REGISTRATION = DISABLED`; all first-Super-Admin/Company/Branch/financial-recovery design contracts are approved; `FIRST-RUN-FIX_AUTHORIZED = YES`.
+- Source evidence: `/auth/register` is 410; ordinary `server.js` startup skips `ensureAdmin`; System Accounts requires authenticated Super Admin scope. The local read-only metadata snapshot is 50/0 migrations, 128 permissions and a non-fresh single-Company state. Existing `ensureAdmin` is local opt-in legacy/demo-oriented behavior, not a production setup contract.
+- Design: authoritative `UNINITIALIZED/SETUP_REQUIRED/SETUP_IN_PROGRESS/READY/RECOVERY_REQUIRED/CONFIGURATION_CONFLICT`; deployment-token-gated one-time setup API/wizard; one atomic Company → canonical role/permission → active direct `super_admin` with canonical password/access → Branch → explicit financial mappings → audit/consumed marker transaction. Partial/multi-Company states are recovery/conflict; no fallback, signup or silent legacy promotion.
+- Recovery is separately guarded with canonical services, environment/database identity checks and audit; never SQL, public reset or automatic promotion.
+- `CURRENT_BROWSER_RUNTIME_ACCEPTANCE = DEFERRED`; `RELEASE_GATE_WAIVED = NO`; `NOTIF_ACCEPT_AUTHORIZED = NO`; `STAGING_AUTHORIZED = NO`; `PRODUCTION_AUTHORIZED = NO`. The browser-harness stream defect remains an independent release gate.
+- Full API/UI, transaction, financial, test and roadmap detail: `docs/FIRST_RUN_BOOTSTRAP_DESIGN.md`. No Product/test/migration/DB/.env/runtime/deployment change occurred. Exact next marker: `FIRST-RUN-FIX`.
+
+## DEPOSIT-1-FIX-CONT5-CONT10 complete — Super Admin scope repair — 2026-07-26
+
+Commit `40798363a4332c63b08857202abbb5f47c865d09`
+(`fix: require explicit Super Admin company context`) closes the P1 implicit
+company defect. Default operational/financial auth now rejects a Super Admin
+without `X-Company-ID` using HTTP `422`
+`SUPER_ADMIN_COMPANY_CONTEXT_REQUIRED`; valid company selection is validated
+before `req.companyId` is assigned and a nonexistent company returns HTTP `403`
+`COMPANY_SCOPE_INVALID`. Only `/auth` technical-session routes use the explicit
+context-free variant. Non-Super-Admin company derivation is unchanged.
+
+C10 harness
+`C:\Users\NEGM\AppData\Local\Temp\DARFUS\deposit-cont5-cont10-20260726.cjs`
+SHA-256 `A6A6C025C5A4BD4955E870410B958D19F932F55918B577DED2AED7D938D361FB`
+passed `node --check`, import-only, DB target, cleanup dry-run and owned real HTTP
+matrix. Validated external backup:
+`darfus_erp_cont5_cont10_20260726_212939.dump` (398,593 bytes; `pg_restore -l`
+exit 0). C10 denied cases left payment/receipt/refund/allocation/application/
+cash/journal/invoice/reservation/idempotency/audit counts zero; final C10 rows,
+locks and idle transactions are zero. Typecheck, lint (18 warnings, zero errors)
+and build (85 pages) passed. Migrations remain 50/50.
+
+`DEPOSIT-CONT5-F002` is PARTIAL: the Super Admin defect is closed; only the
+remaining CONT9 configuration fail-closed, detailed reconciliation,
+orphan/duplicate/cross-scope audit and rollback-seam acceptance cells remain.
+No migration, permission, receipt, Production, Staging, remote or deployment
+change occurred.
+
+NEXT TOOL START HERE
+
+`DEPOSIT-1-FIX-CONT5-CONT11` — Resume only the remaining CONT9 configuration
+fail-closed, detailed reconciliation, orphan/duplicate/cross-scope audit, and
+rollback evidence gaps on the repaired Super Admin contract. Do not start
+automatically.
+
+## DEPOSIT-1-FIX-CONT5-CONT9 stopped — P1 Super Admin context defect — 2026-07-26
+
+Starting checkpoint `85ad7a4ae337f5c7ba05577e0b1999aabbfea00b` on `main` was
+preserved: no staged files, 11 stashes, and only five expected CRLF-only backend
+artifacts. Required CONT5 static checks all exited 0. Local read-only DB proof:
+development `darfus_erp` / `public` / `::1:5432`, 50 migrations, receipt
+migration once, no C1–C9 owned company residue, no idle transaction or waiting
+lock.
+
+`DEPOSIT-CONT5-F002` is now P1 OPEN, not merely partial. In
+`backend/src/middleware/auth.middleware.js:43,56-63`, `req.companyId` first
+defaults to `user.companyId || "CMP-DEMO"`; a Super Admin without
+`X-Company-ID` is not rejected. `resolveAuthorizedBranchId` can subsequently
+resolve an active branch within that implicit company. This violates the owner
+contract that Super Admin is not a context-free financial operator. CONT9 made no
+harness, backup, fixture, financial/database, Product, test, migration,
+permission, configuration, Staging, Production, remote, or deployment change.
+
+NEXT TOOL START HERE
+
+`DEPOSIT-1-FIX-CONT5-CONT10` — Repair only the Super Admin explicit-company
+fail-closed guard and its focused absent/valid/foreign company-and-branch HTTP
+regressions. Then resume the remaining CONT9 configuration, reconciliation,
+orphan-audit and rollback evidence. Do not start automatically.
+
+## DEPOSIT-1-FIX-CONT5-CONT8 partial R2 checkpoint — 2026-07-26
+
+C8 reuses shared orchestration core
+`C:\Users\NEGM\AppData\Local\Temp\DARFUS\deposit-cont5-cont3-20260726.cjs`
+(SHA-256 `6A193535BD6F4F677E6A54620A3E9B918E848D918954FD31900DC4B2AB7BF4A5`)
+through C8-only launcher
+`C:\Users\NEGM\AppData\Local\Temp\DARFUS\deposit-cont5-cont8-20260726.cjs`
+(SHA-256 `FC530E00F3CD718AC6DBBD6856ED76C134F0094FED286B2ECEA385CCB2BB8AC7`).
+The actual second full-refund request used a distinct key and returned conflict
+under the locked active-refund invariant; no second refund/cash/journal/allocation
+was created. C8 cleanup was zero. Backup
+`darfus_erp_cont5_cont8_20260726_205336.dump` validates outside Git.
+
+`DEPOSIT-CONT5-F002` remains P1/PARTIAL for Super Admin context, full
+configuration matrix, reconciliation/orphan audit and rollback seams. No Product,
+migration, permission, configuration, Production, Staging or deployment change.
+
+NEXT TOOL START HERE
+
+`DEPOSIT-1-FIX-CONT5-CONT9` — Resolve only Super Admin context, configuration,
+reconciliation, orphan-audit and rollback evidence gaps. Do not start automatically.
+
+## DEPOSIT-1-FIX-CONT5-CONT7 partial race/context checkpoint — 2026-07-26
+
+C7 external harness `C:\Users\NEGM\AppData\Local\Temp\DARFUS\deposit-cont5-cont3-20260726.cjs`
+(SHA-256 `64ADEA29305678707E399AC377E4F0994BA405558BA800B8FB902B9E1B274B8F`)
+through its C7 launcher passed actual HTTP R1 refund execution concurrency: two
+different keys produced exactly one success and one non-success, then exact C7
+cleanup was zero. The supported inactive-Employee state produced a non-success
+operator verification/HTTP mutation denial. Backup
+`darfus_erp_cont5_cont7_20260726_204501.dump` validates outside Git.
+
+R2 cannot be constructed through the Product route: `requestRefund` locks and
+rejects another `requested` or `approved` full refund for the same reservation.
+Do not direct-insert a second approved refund. `DEPOSIT-CONT5-F002` remains P1
+PARTIAL for Super Admin context, configuration, detailed reconciliation and
+rollback evidence; no Product/migration/configuration/permission change occurred.
+
+NEXT TOOL START HERE
+
+`DEPOSIT-1-FIX-CONT5-CONT8` — Resolve only Super Admin context, configuration,
+reconciliation and rollback evidence gaps; retain the route-level R2 invariant.
+Do not start automatically.
+
+## DEPOSIT-1-FIX-CONT5-CONT6 partial checkpoint — 2026-07-26
+
+At `b126e1a`, external C6 harness
+`C:\Users\NEGM\AppData\Local\Temp\DARFUS\deposit-cont5-cont3-20260726.cjs`
+(SHA-256 `85096CBB83ACE96D76A27177F802D1A054BBA843BB26541A0C328F2D125C0829`)
+through its C6 launcher proved real HTTP refund request and execution same-key
+replay and changed-payload conflict, with exact C6 zero residue. The local
+backup `darfus_erp_cont5_cont6_20260726_203532.dump` validates. Typecheck
+(5.92s), lint (0 errors, 18 warnings; 27.79s), and production build (123.65s)
+all exited naturally with code 0.
+
+`DEPOSIT-CONT5-F002` remains P1/PARTIAL: refund race/over-refund, inactive
+Employee, Super Admin context, complete fail-closed configuration matrix,
+detailed reconciliation, and rollback seams are not yet evidenced. No Product,
+migration, permission, configuration, Production, Staging, remote or deployment
+change occurred.
+
+NEXT TOOL START HERE
+
+`DEPOSIT-1-FIX-CONT5-CONT7` — Resolve only the explicit remaining race,
+inactive/Super Admin, configuration, reconciliation and rollback evidence gaps.
+Do not start automatically.
+
+## DEPOSIT-1-FIX-CONT5-CONT5 partial refund-middleware checkpoint — 2026-07-26
+
+On `main` at `2a8eb73bba2211625126e4aafa9e3ea81864f641`, C5 used only local
+development `darfus_erp:5432` and external harness
+`C:\Users\NEGM\AppData\Local\Temp\DARFUS\deposit-cont5-cont3-20260726.cjs`
+(SHA-256 `080BD6AD2F93EE9B7CEBA43739727CA5ABEF7DC8F7BADC84FEBED10DEC728B56`)
+through its C5 launcher. Actual refund request/approve/reject/execute passed
+for verified Employee; all actions returned 401 without operational Employee
+and 403 for no-permission or direct-deny-over-grant. An initial 422 was a
+harness omission of the required `Idempotency-Key`, not Product behavior.
+
+Exact C5 cleanup is zero after correcting its external cleanup to remove owned
+idempotency rows. No Product, test, migration, permission, configuration,
+Production, Staging, remote or deployment change occurred. Preserve five
+expected CRLF-only backend artifacts and 11 stashes. `DEPOSIT-CONT5-F002`
+remains P1/PARTIAL: idempotency/race, inactive/Super Admin, configuration,
+reconciliation and rollback are unproved.
+
+NEXT TOOL START HERE
+
+`DEPOSIT-1-FIX-CONT5-CONT6` — Resolve only the explicit remaining idempotency/
+race, configuration, reconciliation, inactive/Super Admin and rollback gaps.
+Do not start automatically.
+
+> **DASHBOARD-RESERVATIONS-DIAG1 — partial (2026-07-21):** At `main`
+> `6c5cec87324a57fbd91f30d22eb4711ab70bdfee`, source proves a P1 dashboard
+> self-update loop: API-mode no-data/error fallbacks use newly allocated arrays;
+> those recreate `LocalDashboardProvider`, then `loadOverview`, then its effect,
+> which writes a fresh overview and renders again. `loadingRef` prevents overlap,
+> not sequential recurrence. React Query does **not** retry 422 responses, and
+> the provider does not call reservations directly. The observed 422 code/body
+> and its exact relationship to the request storm remain unproven: the available
+> browser session redirected to login before an authenticated capture, and no
+> credentials/storage/fixture/session writes were authorized. Existing uncommitted
+> DEPOSIT-1 receipt work, 11 stashes, protected paths, and `next-env.d.ts` were
+> preserved; no Product, test, migration, config, database, service, or deployment
+> action occurred. No documentation commit was created because the phase is partial.
+> **NEXT TOOL START HERE: DASHBOARD-RESERVATIONS-DIAG1-CONT1 — capture one
+> authorized authenticated `/reservations` 422 response and complete the
+> relationship classification. Do not implement a fix automatically.**
+
+> **DEPOSIT-APPLICATION-CONTRACT1-OPTION-A — owner policy completed:** v1.0.0
+> permits multiple partial reservation-deposit receipts and bounded partial
+> refunds before completion, but prohibits standalone pre-sale application,
+> existing AR/invoice allocation, and multi-invoice allocation. `complete-sale`
+> is the sole application path: it creates the final invoice and normal sale
+> postings once, then clears remaining Reservation Advance once and records
+> final-invoice-linked application rows. Deposit remains branch-scoped with no
+> company fallback; branchless legacy reservations remain manual review. Preserve
+> the uncommitted DEPOSIT-1 implementation; do not add a standalone application
+> endpoint. **NEXT TOOL START HERE: DEPOSIT-1-FIX-CONT3 — Finish the preserved
+> implementation with multiple partial receipts, bounded partial refunds, full
+> application only during complete-sale, renewal-excess reconciliation, branch
+> settings UI, migration, acceptance, reconciliation, regression, exact commits,
+> and documentation. Do not start automatically.**
+
 > **LOCAL-DB-VERIFIER-ADOPT1-CONT1 checkpoint:** `d6824eb` added the strict adopted-local database guard and negative tests; `7d13da6` converted the first verifier group to guarded static/live behavior. The sole allowed live target is `localhost/127.0.0.1/::1:5432/darfus_erp`, with explicit owner/live confirmation, exact DB identity, run ID, and validated local backup for V2/V3. V4 existing-data mutation and V5 destructive verifiers are blocked. Fresh backup `backend/backups/darfus_erp_local_db_verifier_adopt1_cont1_20260721121700.dump` is 368,763 bytes and passes `pg_restore -l`. Static approved subset: 44 PASS (29 original V0 plus 15 adapted static modes). Permission divergence is exact: source 119, DB 125, historical 128; DB lacks `sales.returns.execute`, `sales.exchanges.execute`, `sales.installments.collect` and retains nine retired activation-state permissions. No permission or Product data changed; no second DB, remote, or Production action occurred. **NEXT TOOL START HERE: BRANCH-1-VERIFIER-VALIDATE1 only after owner accepts the partial V4/V5 redesign backlog. Do not start automatically.**
 
 > **LOCAL-DB-VERIFIER-REDESIGN1 blocked by scope:** Source inspection found `backend/src/config/database.js` and `backend/src/config/config.js` retain DB host/port/name defaults. The phase forbids Product runtime/config edits, so Production missing-ENV fail-closed behavior cannot be proven or repaired here. Finding `MR1-F010` requires `ENV-CONTRACT-FIX1`, a separately authorized bounded Product configuration phase. No verifier, Product, `.env`, database, remote, or Production mutation was made by this redesign preflight. Do not start BRANCH-1 validation from this checkpoint.
@@ -5570,6 +5827,211 @@ BRANCH-1-FIX1 - Consolidated Verified Failure Resolution
 Do not start automatically. BRANCH-DEPLOY1, TRANSFER-PRE1, and NOTIF-PRE1
 remain paused.
 
+## DASHBOARD-RESERVATIONS-ACCEPT1-CONT3 — COMPLETE (2026-07-25)
+
+At `main` / `651e78f45de1ad22472beb27ef98298ed2895620` before this
+documentation record, local development remained `localhost/::1:5432/darfus_erp`
+with 49 migrations. `20260721020000` remains applied once; receipt migration
+`20260721030000` remains pending. A validated backup was created outside Git
+before exact owned acceptance fixtures.
+
+`DASHRES-F007` is CLOSED for authenticated API authorization/isolation. Real
+login and Employee verification proved Company Admin, Branch Account, verified
+Employee, missing Employee, direct-deny, cross-branch, cross-company, and
+selected-context Super Admin list/detail behavior. No unauthorized
+reservation/payment/cash/session/mapping data appeared. All owned data,
+sessions, attempts and audit events were removed with zero residue; no financial,
+inventory, real-account, Product, migration, permission, configuration,
+Staging, or Production change occurred. Dashboard loop test 2/2,
+ReservationPayment association test 2/2, typecheck, quiet lint, and production
+build passed. `next-env.d.ts` remains clean at
+`7B550DDA9686C16F36A17BF9051D5DBF31E98555B30D114AC49FC49A1E712651`.
+
+The Browser has no authorized multi-account session. Credentials were not
+injected or exposed, so the account-by-account UI matrix is
+`UNAVAILABLE_WITH_SAFE_EVIDENCE`, not a Product defect. `DASHRES-F004` remains
+open. Staging/Production remain blocked by the pending receipt subsystem/
+migration and Deposit financial acceptance. Preserve all uncommitted receipt
+work unstaged.
+
+NEXT TOOL START HERE
+
+`DEPOSIT-1-FIX-CONT4C` — Complete only the remaining receipt replay/read/history/
+print subsystem, apply and verify the receipt migration locally, and commit the
+coherent receipt source. Do not start automatically.
+
+## CURRENT AUTHORITATIVE HANDOFF — DEPOSIT-1-FIX-CONT4C (2026-07-25)
+
+Receipt source is committed in `2afa6d9 feat: add immutable reservation deposit
+receipts`. Local development target was re-proven as loopback port 5432,
+`darfus_erp`, public schema, development, SSL disabled. After validated backup
+`C:\Users\NEGM\AppData\Local\DARFUS-backups\darfus_erp-deposit-receipts-before-2026-07-25T21-18-16-830Z.dump`, exact Sequelize `--to
+20260721030000-reservation-deposit-receipt-documents.js` applied once. Migration
+count is now source/applied `50/50`; exact rerun is a no-op. Receipt tables,
+FKs, indexes, model load, focused verifier, typecheck, lint, and production
+build pass. Staging, Production, remote DBs, deployment, and protected paths
+remain untouched.
+
+`DEPOSIT-RDR-F001` remains PARTIAL: a bounded owned-fixture receipt runtime probe
+timed out; immediate prefix residue audit was zero. It is not evidence of a
+product failure or a full financial posting acceptance. `DASHRES-F004` remains
+open and separate. Preserve unstaged Branch Settings/refund/complete-sale work;
+do not mix it with receipt history.
+
+NEXT TOOL START HERE
+
+`DEPOSIT-1-FIX-CONT4D` — Resolve only the bounded receipt fixture/runtime
+acceptance timeout and prove cleanup; do not alter complete-sale, refunds,
+Branch Settings, or dashboard work. Do not start automatically.
+
+## DASHBOARD-RESERVATIONS-ACCEPT1 — PARTIAL (2026-07-25)
+
+Local schema/list/detail include repair is proven and dashboard is stable in
+authenticated Arabic and English Admin runtime checks. A rollback-only
+`ACC-DASHRES-*` graph proved null and non-null scalar FK behavior, FK
+company/branch integrity, list/detail includes, and zero fixture residue. It
+also proved the named gap: no `ReservationPayment` Sequelize association exists
+for `CashTransaction` or `CashRegisterSession`, so both requested include paths
+throw `SequelizeEagerLoadingError`. No Product code was changed.
+
+Release status is **APPLIED_LOCALLY_BUT_SOURCE_UNCOMMITTED**: modified
+`backend/src/models/reservationPayment.model.js`, untracked migration
+`20260721020000-branch-reservation-deposit-financial-settings.js`, untracked
+branch-financial mapping/resolver files, and required association wiring are not
+a coherent committed release source. Staging/Production are blocked. Owner
+phase: `DEPOSIT-1-FIX-CONT4C`; exit state: `APPLIED_LOCALLY_AND_SOURCE_COMMITTED`.
+`DASHRES-F004` remains open separately. Typecheck/build PASS; lint 18 warnings,
+zero errors; dashboard test 2/2 PASS. Preserved Deposit work remains unstaged.
+
+NEXT TOOL START HERE
+
+DASHBOARD-RESERVATIONS-ACCEPT1-CONT2 — Resolve only the missing
+ReservationPayment cash/session ORM-association and source-integration gap. Do
+not start automatically.
+
+## DASHBOARD-RESERVATIONS-ACCEPT1-CONT2 — PARTIAL (2026-07-25)
+
+Source integration is closed in `9d391c4 feat: add branch-scoped reservation
+deposit schema`. The committed migration `20260721020000` SHA-256 is
+`A95A8EC158412FFD436E4FF6A81A0C6E936CA12C46A1DB88E661A016B6FFE31E`, matching
+the locally applied source. Included only: first migration, payment/application
+schema fields, BranchFinancialMapping model/index/resolver support, two nullable
+ReservationPayment associations, and focused tests. Excluded and still
+preserved/uncommitted: receipt migration/model/services, receipt UI/read/history/
+print, complete-sale, refund, routes, and frontend work.
+
+Aliases are `cashTransaction` and `cashRegisterSession`. Rollback-only
+`ACC-DASHRES2-*` validation proved null/non-null nested hydration, scalar/FK ID
+agreement, no duplicate payments, same company/branch references, and zero
+residue. Existing reservation list/detail remain scalar-only; no financial
+object is newly exposed by default. Missing branch mapping fails closed and raw
+client financial authority is rejected by the committed resolver contract.
+
+Classification: `APPLIED_LOCALLY_AND_SOURCE_COMMITTED`; local migration history
+is 49 and receipt migration `20260721030000` is pending. `DASHRES-F002` and
+`DASHRES-F006` are closed. `DASHRES-F004` remains open. Typecheck/build PASS,
+targeted lint PASS, focused Node tests 4/4 PASS. Fresh dashboard browser
+acceptance was unavailable because the local browser session redirected to login;
+the remaining work is only the multi-account isolation matrix. Production,
+Staging, remotes, and deployment remain untouched.
+
+NEXT TOOL START HERE
+
+DASHBOARD-RESERVATIONS-ACCEPT1-CONT3 — Complete only the missing multi-account
+company/branch/Employee/direct-deny acceptance matrix. Do not start automatically.
+
+## DASHBOARD-RESERVATIONS-FIX1 — COMPLETED (2026-07-25)
+
+Local-only repair on `main`: development `::1:5432/darfus_erp/public` was
+re-proven, external backup validated, and only migration `20260721020000` was
+applied with Sequelize CLI `--to`. History is 49; the two optional
+`reservation_payments` cash-link fields/FKs exist; receipt migration `20260721030000`
+is still pending. Explicit read-only default/list/detail ORM queries succeed;
+authenticated Arabic Admin dashboard/reservations UI reload is stable with no
+console schema/update-depth errors. No visible reservation existed for genuine
+detail/link acceptance. Backup: `C:\Users\NEGM\AppData\Local\DARFUS-backups\darfus_erp-before-20260721020000-2026-07-25T18-57-46-532Z.dump`
+(371,594 bytes; `pg_restore -l` PASS). Typecheck/build PASS; lint 18 warnings,
+zero errors; dashboard static test 2/2 PASS. `DASHRES-F004` remains open;
+Production/Staging/remote untouched. Keep preserved Deposit work unstaged.
+
+NEXT TOOL START HERE
+
+DASHBOARD-RESERVATIONS-ACCEPT1 — Formally accept repaired reservation-payment
+schema and dashboard behavior through controlled regression and release-readiness
+checks. Do not start automatically.
+
+---
+
+## DASHBOARD-RESERVATIONS-DIAG1-CONT2 — COMPLETE (2026-07-25)
+
+The owner-captured authenticated `GET /api/v1/reservations` 422 is now exactly
+diagnosed. The active local backend target is development
+`::1:5432/darfus_erp`, schema `public`, no `DATABASE_URL` override, SSL false.
+An explicit read-only ORM reproduction returned PostgreSQL `42703`
+`errorMissingColumn`: `column payments.cash_transaction_id does not exist`.
+`payments` is not the standalone `public.payments` table here: it is the alias
+for `reservation_payments` created by `reservationService.list`'s
+`ReservationPayment` include. Sequelize selects the field because the preserved
+uncommitted `ReservationPayment` model maps `cashTransactionId` to
+`cash_transaction_id`; both the physical `reservation_payments` table and
+`payments` table lack such a column.
+
+Root cause classification is **PENDING MIGRATION CONFIRMED**. Source has 50
+migrations and local history has 48; the only missing source entries are the
+preserved untracked `20260721020000-branch-reservation-deposit-financial-settings.js`
+and `20260721030000-reservation-deposit-receipt-documents.js`. The first is a
+forward-only financial migration that adds the exact nullable FK column to
+`reservation_payments`; it must not be replaced with manual DDL or a model
+workaround. `DASHRES-F004` also records that generic error middleware reports
+this schema fault as 422 `VALIDATION_FAILED`; no semantics change is authorized
+in diagnosis.
+
+No migration, schema, Product, test, config, Deposit/receipt, database data, or
+deployment change was made. The local read-only transaction set
+`transaction_read_only=on`, selected no business data, and rolled back. Existing
+local runtime processes were not stopped or modified.
+
+NEXT TOOL START HERE
+
+`DASHBOARD-RESERVATIONS-FIX1` — Apply only the evidence-backed pending-migration
+correction with a validated local backup, exact forward-migration gate, focused
+read acceptance, and no manual column creation. Do not start automatically.
+
+---
+
+## DASHBOARD-LOOP-FIX1 — COMPLETE (2026-07-25)
+
+At `main`/`593b84c0ac8a70d7fd10ba4cf5c6919d597d5da4`
+(`fix: stabilize dashboard overview dependencies`), the source-proven dashboard
+Maximum-update-depth loop was corrected without changing any backend, API,
+authorization, branch, Employee, database, migration, Deposit/receipt, or
+dashboard-calculation behavior. `hooks/use-core-erp-data.ts` now supplies stable
+module-level typed empty arrays for the six unresolved API collections that feed
+the memoized `LocalDashboardProvider`; valid API empty arrays remain normal query
+data. Provider creation, `queryContext`, and the overview effect were reviewed
+and left unchanged because they were not independently proven unstable.
+
+The Product commit contains only `hooks/use-core-erp-data.ts` and
+`tests/dashboard-loop-stability.test.mjs`. The focused static regression test
+passed 2/2; `npm run typecheck`, targeted ESLint, `npm run build`, and
+`git diff --check` passed. `next-env.d.ts` was normalized from the prior
+generated development import back to exact HEAD bytes and remained clean after
+the build. The locally started 3000/8000 development processes were stopped;
+the adopted PostgreSQL listener was not touched. No authenticated dashboard
+runtime session was used in this Product phase.
+
+The reported authenticated `/api/v1/reservations` 422 is **not fixed or
+reclassified**. Its exact response, request context, backend producer, valid
+control, and relationship to the now-fixed loop remain required evidence.
+Preserved uncommitted Deposit/receipt implementation remains unstaged and must
+not be reset, restored, stashed, or mixed into dashboard work.
+
+NEXT TOOL START HERE
+
+`DASHBOARD-RESERVATIONS-DIAG1-CONT2` — With the dashboard loop stabilized,
+capture one owner-authorized authenticated `/api/v1/reservations` 422 response
+to identify its exact producer. Do not start automatically.
+
 ## PERMISSION-BASELINE-RECONCILE1 — COMPLETED 2026-07-21
 
 Official workspace `H:\WORK\jewellery-erp-master`, branch `main`, reconciled from `50d32c1` through implementation commits `fba8a3f`, `65e897b`, `d0a689b`, and `0398b8b`. Canonical v1.0.0 source is `backend/src/bootstrap/permission-baseline-v1.js`: 128 exact active slugs. The historical `128` was `116` shared rows plus three missing sales adjustment permissions and nine active lifecycle permissions. The lifecycle permissions remain canonical (not deprecated) because Customer, Supplier, and Branch routes enforce them; default grants are admin/owner only. Sales return/exchange/installment permissions are granted only to default admin, owner, and manager roles. Custom roles are never broadened automatically; direct denial remains authoritative; Super Admin protected access and Branch Account Employee-first separation are unchanged.
@@ -5583,6 +6045,72 @@ NEXT TOOL START HERE
 BRANCH-1-VERIFIER-VALIDATE1 — Run the finalized verifier matrix against the reconciled local test database and produce formal branch verification evidence without Product business changes.
 
 Do not start automatically. BRANCH-DEPLOY1, TRANSFER-PRE1, NOTIF-PRE1, and RESET-DEPLOY1 remain paused.
+
+## BRANCH-1-VERIFIER-VALIDATE1 — PARTIAL 2026-07-21
+
+Formal report: `docs/BRANCH-1-VERIFIER-VALIDATE1.md`. On `main` at `0b18cd3` before this documentation commit, local development target `::1:5432/darfus_erp` was proven at 48 migrations, exact canonical 128 permissions, zero orphan role grants, and role counts `128/128/114/30/27` for admin/owner/manager/accountant/sales. Fresh ignored backup `backend/backups/darfus_erp_branch1_verifier_validate1_20260721130243.dump` is 368,533 bytes and `pg_restore -l` PASS. Static/readiness is 66 PASS / 0 FAIL / 0 BLOCKED. Finalized guarded V3 is 6 PASS / 0 FAIL / 0 BLOCKED. V2 accounting rollback PASS. ENV safety-negative matrix is 13/13 PASS; V4 existing-data and V5 destructive modes remain fail-closed. Exact owned fixture residue is zero and journal balancing is clean. Typecheck/build PASS; lint remains 18 warnings / 0 errors.
+
+Open finding `B1VV-F001` blocks formal closure only: read-only `verify-client-demo-data.js` fails its historical `>=20` asset requirement because the adopted test/demo DB has 11 assets. Its live implementation is SELECT-only; no Product, financial, inventory, or DB write occurred. Do not weaken it or change Product in this phase.
+
+NEXT TOOL START HERE
+
+BRANCH-1-VERIFIER-VALIDATE1-CONT1 — Resolve only B1VV-F001, the read-only demo-data verifier/data-baseline discrepancy, without Product business changes.
+
+Do not start automatically. DEPOSIT-1-DIAG-CLOSE, BRANCH acceptance, staging, deployment, and release remain paused.
+
+## BRANCH-1-VERIFIER-VALIDATE1-CONT1 — COMPLETED 2026-07-21
+
+`B1VV-F001` is closed without a Product, verifier, seed, migration, or database change. Historical inspection proved that `02f870a` introduced `verify-client-demo-data.js`'s raw `>=20` Asset assertion as part of the one-time Phase 32.4 post-reset transactional demo snapshot (fixed 20 Assets, 12 invoices, 6 installments, 14 cash transactions, 26 journals, and 73 lines), not as an owner-approved v1.0.0 or Branch-1 requirement. The associated inventory seeder itself defines only eleven `AST-CD-*` variants. The adopted local development DB `::1:5432/darfus_erp` has 11 structurally valid operational Assets across four branches (5 available, 6 sold), no historical `AST-CD-*` records, valid ownership/barcodes, and no duplicate or orphan relationship; it is intentionally not the old full snapshot.
+
+The historical live mode was deliberately left unchanged and rerun read-only: it still fails honestly with `Expected at least 20 assets, found 11`. It is now explicitly optional historical-demo readiness evidence, not a mandatory verifier gate. Fresh ignored backup `backend/backups/darfus_erp_branch1_verifier_validate1_cont1_20260721132906.dump` (370,982 bytes; `pg_dump`/`pg_restore -l` PASS) preceded rerun of the six V3 and V2 verifiers. Results: static 66/66 PASS; V3 6/6 PASS; V2 PASS; V4/V5 refusal PASS; guard negatives 13/13 PASS; typecheck/build/diff PASS; lint 18 existing warnings/0 errors; exact owned-fixture, financial, inventory, permission, and role reconciliation clean. Formal Branch verifier validation is complete; this does not prove Browser acceptance, demo richness, deployment, or release readiness. The five CRLF-only protected backend files remain unstaged and semantic-diff clean. Production, Staging, remote targets, deployment, and obsolete contaminated/5433 copies were not used.
+
+NEXT TOOL START HERE
+
+DEPOSIT-1-DIAG-CLOSE — Reproduce and close reservation-deposit configuration, treasury-authority, state-machine, CashRegister, and GL diagnosis before authorizing the Product fix.
+
+Do not start automatically. BRANCH acceptance, staging, deployment, and release remain paused.
+
+---
+
+## DEPOSIT-1-DIAG-CLOSE — COMPLETED 2026-07-21
+
+Official repository `H:\WORK\jewellery-erp-master`, branch `main`, diagnosis
+checkpoint `bb664ed4ecf1b6037a6a337f4ab06286f4e23226`. This was a documentation
+and read-only local analysis only: no Product/verifier/migration/permission/
+configuration/DB/backup/service/remote/Production change. Protected CRLF-only
+backend paths remain unstaged and semantically clean; `next-env.d.ts` is clean;
+11 stashes remain untouched. The resolved local development DB is
+`::1:5432/darfus_erp`: 48 migrations, 128 permissions, built-in role grants
+128/128/114/30/27 (Admin/Owner/Manager/Accountant/Sales), five active branches,
+zero system-account role mappings, zero cash-register sessions, one branchless
+legacy reservation, and zero modern reservation financial rows.
+
+The diagnosis is **A. READY FOR TARGETED FIX**. Reservation payments and
+Customer Credit use different tables/source records, but are financially
+PARTIALLY_COUPLED through `CUSTOMER_DEPOSIT_LIABILITY`. P1 findings
+`DEPOSIT-F001..F007` cover client-selected refund treasury authority, hard-coded
+receipt treasury codes, CashRegister bypass/missing receipt movement, shared
+liability role, absent mapping/session configuration, non-employee-aware refund
+guards, and no partial application/refund. P2 `DEPOSIT-F008..F009` cover stale
+verifier coverage and missing refund-request replay semantics. Existing static
+66/66, typecheck and build passed; lint remains 18 known warnings/zero errors.
+These are not financial acceptance of the defective flow.
+
+Durable contract: server derives company/branch → verified Employee authority →
+active cash session or authorized bank mapping → distinct Reservation Advance
+liability → journal/cash movement; raw client GL/account/register authority is
+rejected. Receipt/application/refund must be atomic, idempotent and auditable;
+Customer Credit and invoice deposits remain distinct; legacy branchless rows
+remain manual review. See `docs/DEPOSIT-1-DIAG-CLOSE.md` and
+`DEPOSIT-F001..F009` for the exact fix and acceptance matrix. Do not use obsolete
+contaminated/5433 copies. Production is untouched.
+
+NEXT TOOL START HERE
+
+DEPOSIT-1-FIX — Implement the approved reservation-deposit treasury-authority, configuration, state-machine, CashRegister, idempotency, and GL corrections without expanding into unrelated Product work.
+
+Do not start automatically. BRANCH acceptance, staging, deployment, notifications
+and UX remain paused.
 
 ---
 
@@ -6087,3 +6615,457 @@ BRANCH-1-FIX1 - Consolidated Verified Failure Resolution
 
 Do not start automatically. BRANCH-DEPLOY1, TRANSFER-PRE1, and NOTIF-PRE1
 remain paused.
+
+## CURRENT AUTHORITATIVE HANDOFF — DASHBOARD-RESERVATIONS-ACCEPT1-CONT3 (2026-07-25)
+
+Supersedes the stale marker above for the current local acceptance thread.
+`DASHRES-F007` is closed by the real local authenticated Company/Branch/Employee/
+direct-deny API matrix. Owned fixtures were cleaned to zero residue; no Product,
+financial, inventory, permission, migration, Staging, or Production change was
+made. `DASHRES-F004` stays open. The receipt migration remains pending and all
+preserved receipt work remains unstaged.
+
+NEXT TOOL START HERE
+
+`DEPOSIT-1-FIX-CONT4C` — Complete only the remaining receipt replay/read/history/
+print subsystem, apply and verify the receipt migration locally, and commit the
+coherent receipt source. Do not start automatically.
+
+## CURRENT AUTHORITATIVE HANDOFF — DEPOSIT-1-FIX-CONT4D-CONT1 (2026-07-25)
+
+Supersedes the receipt-runtime partial marker above. On `main` at `31cefc1`,
+the disposable external harness (final SHA-256
+`0447A2970C59A79312A6E63120FE961177911761E5DB7ED9EB7C5676B59BE3AD`, then
+removed) completed a full exact-owned journey against development loopback
+`darfus_erp:5432`. Source/applied migrations remain 50/50 with no pending
+migration. It proved one payment/cash/journal/audit/idempotency/sequence/receipt,
+balanced branch treasury-to-advance posting, zero deposit tax, replay, typed
+conflict, secure reads/history, Arabic/English immutable snapshot, no
+invoice/stock/payment application, lock snapshots with no waiters, exact raw
+audit cleanup and zero residue. Focused receipt/association/dashboard tests,
+typecheck, lint (18 existing warnings; zero errors) and production build passed.
+`DEPOSIT-RDR-F001` is CLOSED; prior failures were external-harness defects only.
+No Product, migration, configuration, permission, Staging, Production, remote or
+deployment change occurred. Preserve the existing uncommitted CONT5 work
+unstaged.
+
+NEXT TOOL START HERE
+
+`DEPOSIT-1-FIX-CONT5` — Complete only the remaining Deposit scope: complete-sale
+alignment for unlimited receipts and prior refunds, Branch Settings UI,
+bounded-refund UI, reconciliation, controlled regression, and coherent commits.
+Do not start automatically. `DASHRES-F004` remains separate.
+
+## CURRENT AUTHORITATIVE HANDOFF — DEPOSIT-1-FIX-CONT5 (2026-07-26)
+
+The CONT5 implementation is committed-source ready, but not yet a financial
+runtime acceptance decision. Complete sale derives the authorized branch,
+rejects branchless legacy rows with `LEGACY_BRANCHLESS_RESERVATION_MANUAL_REVIEW`,
+rejects raw client financial authority, and applies only remaining immutable
+payment-subledger value. The final invoice records net applied deposit and
+customer due; the established invoice posting remains responsible for revenue,
+VAT, COGS and inventory, while only the applied deposit settles advance to AR.
+
+Pre-sale refunds are bounded by remaining net deposit and support requested →
+approved → executed partial flows. Execution resolves branch liability,
+treasury/channel and cash-session authority server-side; the UI no longer sends
+treasury values. A branch-scoped Settings editor/API exposes only active eligible
+branch accounts and validates mappings server-side.
+
+Focused CONT5 tests, reconciled completion/refund verifier, deposit/POS static
+checks, typecheck, lint (18 existing warnings; zero errors) and production build
+pass. No migration, local DB write, configuration, permission, Staging,
+Production, remote, or deployment action occurred. `DASHRES-F004` remains
+separate. The remaining CONT5 gate is exact-owned local financial runtime
+acceptance: prove multi-receipt final-sale application, partial refund then
+completion, GL/CashTransaction/receipt/reconciliation, rollback/idempotency and
+exact cleanup. Do not release until that controlled continuation is complete.
+
+NEXT TOOL START HERE
+
+`DEPOSIT-1-FIX-CONT5-CONT1` — Run only the controlled local financial runtime,
+reconciliation and cleanup matrix for the committed CONT5 workflow. Do not
+start automatically.
+
+## DEPOSIT-1-FIX-CONT5-CONT1 partial runtime checkpoint — 2026-07-26
+
+On `main` at `455807bf33e25a3f6787dbddccee6b03709f31c7`, an external
+exact-owned harness used only local development loopback `darfus_erp:5432`,
+`public`, and source/applied migrations 50/50 after a validated backup. It
+passed three deposits then final-sale application (`20.0000`), partial refund
+then final sale (`30.0000` received, `8.0000` refunded, `22.0000` applied),
+selected fail-closed/isolation checks and exact zero-residue cleanup. Typecheck,
+error-only lint and a supervised production build passed.
+
+Harness metadata: `C:\Users\NEGM\AppData\Local\Temp\DARFUS\deposit-cont5-cont1-20260726.cjs`
+SHA-256 `9CEB8CEC277226FD729A57BC331884448A32D5C7FB815D8D61840893D23BACD9`;
+validated local-only backup `C:\Users\NEGM\AppData\Local\DARFUS-backups\darfus_erp_cont5_cont1_20260726_014211.dump`
+(390,489 bytes, `pg_restore -l` exit 0). Retain the external harness only until
+the partial matrix is completed; it is not a tracked artifact.
+
+`DEPOSIT-CONT5-F002` remains P1/PARTIAL: employee/direct-deny, concurrent/race,
+high-count, full idempotency and transactional failure/rollback evidence was
+not exercised. No Product, migration, configuration, permission, Production,
+Staging, remote or deployment change occurred. Preserve the five pre-existing
+protected CRLF-only files and all 11 stashes.
+
+NEXT TOOL START HERE
+
+`DEPOSIT-1-FIX-CONT5-CONT2` — Run only the missing controlled exact-owned
+employee/direct-deny, race/idempotency, high-count and rollback/failure-seam
+financial runtime acceptance matrix. Do not start automatically.
+
+## DEPOSIT-1-FIX-CONT5-CONT2 partial runtime checkpoint — 2026-07-26
+
+External C2 launcher `C:\Users\NEGM\AppData\Local\Temp\DARFUS\deposit-cont5-cont2-20260726.cjs`
+(SHA-256 `B6039AB176A0FFF0E6118DB6276D3EB0C3AD4F2CE2040A53A95C6638C7A0FE9B`)
+ran through local development only after validated backup
+`darfus_erp_cont5_cont2_20260726_020649.dump` (396,713 bytes; `pg_restore -l`
+exit 0). It passed one-winner complete-sale concurrency (`201` / `STATE_CONFLICT`),
+payment replay/conflict and 25 payments/25 immutable receipts with exact
+completion application and zero C2 residue. Migrations remain 50/50.
+
+`DEPOSIT-CONT5-F002` remains P1/PARTIAL. The exact next gap is real Branch
+Account Employee/direct-deny middleware authorization; refund race/idempotency,
+remaining configuration, detailed reconciliation and rollback seams also remain.
+No Product, migration, configuration, permission, Production, Staging, remote
+or deployment change occurred.
+
+NEXT TOOL START HERE
+
+`DEPOSIT-1-FIX-CONT5-CONT3` — Resolve only the unproved real Employee/direct-deny
+middleware matrix and the explicitly remaining refund race/idempotency,
+configuration, detailed reconciliation and failure-seam acceptance gaps. Do not
+start automatically.
+
+## DEPOSIT-1-FIX-CONT5-CONT3 partial middleware checkpoint — 2026-07-26
+
+External harness `C:\Users\NEGM\AppData\Local\Temp\DARFUS\deposit-cont5-cont3-20260726.cjs`
+SHA-256 `73E6537F4C67F1C2B119D3766CF655617D8A443D7190C0B849C85C77ACCB2B02`
+used local port 8000 and exact-owned C3 Branch Accounts/Employees/sessions.
+Verified Employee Settings read returned 200; missing Employee returned
+`401 BRANCH_ACCOUNT_EMPLOYEE_REQUIRED`; no permission and direct-deny over a
+grant returned `403 EMPLOYEE_PERMISSION_DENIED`; cleanup was zero. Backup
+`darfus_erp_cont5_cont3_20260726_195118.dump` validates with `pg_restore -l`.
+
+`DEPOSIT-CONT5-F002` remains P1/PARTIAL: complete mutation-route Employee
+coverage, refund race/idempotency, configuration, reconciliation and failure
+seams remain unproved. No Product, migration, configuration, permission,
+Production, Staging, remote or deployment change occurred.
+
+NEXT TOOL START HERE
+
+`DEPOSIT-1-FIX-CONT5-CONT4` — Resolve only the unproved complete Employee action
+matrix and explicit remaining refund, configuration, reconciliation and
+failure-seam acceptance gaps. Do not start automatically.
+
+## DEPOSIT-1-FIX-CONT5-CONT4 partial mutation checkpoint — 2026-07-26
+
+C4 launcher `C:\Users\NEGM\AppData\Local\Temp\DARFUS\deposit-cont5-cont4-20260726.cjs`
+SHA-256 `F01BA20AA8474AF41637E8642BBAA7B2D1DB822AD6AD02324DC4D6492EF770EC`
+used only local port 8000 and an owned C4 graph. Actual `PUT`
+`/api/v1/branch-settings/reservation-deposit` returned 200 for a verified
+Branch Account Employee; missing Employee returned 401, no permission and
+direct-deny-over-grant returned 403. Exact cleanup passed. Backup
+`darfus_erp_cont5_cont4_20260726_200143.dump` validates with `pg_restore -l`.
+
+`DEPOSIT-CONT5-F002` remains P1/PARTIAL: refund action middleware/idempotency/
+race, configuration, detailed reconciliation and safe rollback seams remain
+unproved. No Product, migration, configuration, permission, Production,
+Staging, remote or deployment change occurred.
+
+NEXT TOOL START HERE
+
+`DEPOSIT-1-FIX-CONT5-CONT5` — Resolve only the remaining refund action,
+configuration, reconciliation and safe failure-seam acceptance gaps. Do not
+start automatically.
+## DEPOSIT-1-FIX-CONT5-CONT11 — 2026-07-26
+
+- Checkpoint: main@aca0ad7593d6f774a197b3ddecefbeda6fc09a7e before this documentation commit; local development DB only (darfus_erp, localhost/::1:5432, public), migrations 50/50 and none pending.
+- C11 owned runtime harness: C:\Users\NEGM\AppData\Local\Temp\DARFUS\deposit-cont5-cont11-20260726.cjs, SHA-256 47F46AA85EF36B0D88776BABCF6973E64038ECF23A7C9990171D6D6831C794F0. Backup validated: darfus_erp_cont5_cont11_20260726_220257.dump (398,593 bytes; pg_restore -l 733 objects).
+- Partial local evidence through real reservation service transactions: missing liability/treasury, unauthorized channel, closed session, raw foreign authority, ineligible liability, no branch fallback, cross-branch and cross-company attempts all failed closed with no additional financial rows. One owned scenario reconciled received 30.0000, refunded 8.0000, applied 22.0000, remaining liability 0; three payments/three immutable receipts, one refund allocation, one final invoice, one inventory movement; selected orphan/duplicate checks were zero. Exact C11 cleanup and zero-residue proof passed.
+- CashRegister has no independent current model; the applicable product contract is a company/branch/cash-account scoped CashRegisterSession.
+- Final regressions pass: required focused tests/verifiers, typecheck, lint (18 pre-existing warnings, zero errors), production build (85 pages), and diff checks. Static-only verifier output is not runtime financial evidence.
+- **Decision: PARTIAL — CONFIGURATION/RECONCILIATION/ORPHAN-AUDIT/ROLLBACK GAPS REMAIN.** DEPOSIT-CONT5-F002 remains open: CONT11 did not cover every named configuration cell, full GL/AR/cash/tax reconciliation or complete orphan/cross-scope audit, and did not run Deposit/Refund/Complete-sale failure seams as durable reviewed C11 rollback tests. No global monkey-patch, production hook, or unsafe non-owned fixture was introduced merely to manufacture that evidence. This is an acceptance-evidence gap, not a newly proven Product defect.
+- Production, Staging, remotes, schema/migrations, and non-owned business data were untouched. C11 owned residue is zero; unknown local port-8000 process was not touched.
+
+NEXT TOOL START HERE
+
+DEPOSIT-1-FIX-CONT5-CONT12 — Close only the explicitly untested configuration, GL/AR/cash/tax, orphan/cross-scope and permanent isolated rollback evidence cells; do not broaden Deposit behavior.
+
+## DEPOSIT-1-FIX-CONT5-CONT12 — partial checkpoint (2026-07-26)
+
+- Identity confirmed at main@4715f92765f16fa3ab298f02cc9a80af6bda6c79. Local DB remains 50/50, zero C12 rows, zero idle transactions and waiting locks.
+- Existing completion/refund live verifier was assessed as a potential permanent isolated rollback harness. Its guard correctly refused first without explicit local confirmation/backup; with the required guard it then failed before fixtures because the existing local branch has no active BranchCustomer. The temporary verifier edits were reverted; no Product or test-source change remains.
+- Creating a BranchCustomer against an existing customer, or relying on an existing company/branch fixture, is not authorized for C12. The required permanent test must instead create and clean its own Company/Branch/Customer/BranchCustomer graph under one C12 namespace.
+- CONT12 did not execute the remaining configuration cells, full GL/AR/cash/tax reconciliation, full orphan audit, or rollback matrix. DEPOSIT-CONT5-F002 remains P1 OPEN/PARTIAL.
+
+NEXT TOOL START HERE
+
+DEPOSIT-1-FIX-CONT5-CONT13 — Create only a permanent local guarded verifier/test with a fully C13-owned Company/Branch/Customer/BranchCustomer fixture graph, then cover the named remaining configuration, reconciliation, orphan and rollback cells.
+
+## CONT13 checkpoint — 2026-07-26
+
+- Permanent verifier committed: backend/scripts/verify-reservation-deposit-full-acceptance.js at 647417e. It requires explicit local-write guard, exact localhost/darfus_erp/5432 confirmation, validated ignored backup, and C13 namespace.
+- Two independent guarded runs created and exactly cleaned their own Company A/Branch A1-A2, Company B/Branch B1, Customer and active BranchCustomer, accounts/mappings/session, reservations, payments/receipts, refund, invoice/application, journals and inventory rows. Both ended with zero owned residue.
+- It proves selected fail-closed configuration, core subledger scenario and selected orphan checks. It does not yet cover the full required configuration/reconciliation/orphan matrix or permanent Deposit/Refund/Complete-sale rollback seams. DEPOSIT-CONT5-F002 remains OPEN/PARTIAL.
+
+NEXT TOOL START HERE
+
+DEPOSIT-1-FIX-CONT5-CONT14 — Extend only the committed fully owned verifier with the remaining named configuration, full reconciliation/orphan audit and transaction rollback seams.
+
+## CONT16-CONT1 completed — 2026-07-26
+
+- Verifier: `backend/scripts/verify-reservation-deposit-full-acceptance.js`; test: `tests/reservation-deposit-rollback-cell.test.cjs`.
+- New guarded C16-C1 namespace, mandatory-cell engine, and verifier-process scoped method replacement. It verifies the live Sequelize transaction and always restores the original method.
+- Runtime proof: `DEPOSIT_ROLLBACK_JOURNAL_PERSISTENCE` injected `ACC_C16_C1_DEPOSIT_JOURNAL_PERSISTENCE_FAILURE`; transaction state was `rollback`; failure deltas were zero for payment/receipt/cash/journal/journal-line/succeeded-idempotency/audit/receipt sequence; normal retry with a fresh key created exactly one committed set. Cleanup and zero residue passed.
+- Backup: `backend/backups/darfus_erp_cont16_c1_20260726_234613.dump`, validated with `pg_restore -l` (733 objects); ignored and not staged.
+- `DEPOSIT-CONT5-F002` remains P1 OPEN/PARTIAL. Next marker: `DEPOSIT-1-FIX-CONT5-CONT16-CONT2` — only Deposit receipt-persistence rollback, retry, cleanup and zero residue.
+
+## CONT16-CONT2 completed — 2026-07-26
+
+- Verifier/test updates: `backend/scripts/verify-reservation-deposit-full-acceptance.js` and `tests/reservation-deposit-rollback-cell.test.cjs`.
+- Receipt seam: `reservationService._createPaymentInTransaction` calls `depositReceiptService.createImmutableDocument` after payment creation, journal posting, cash persistence and audit, all with the same Sequelize transaction.
+- Runtime proof: injected `ACC_C16_C2_DEPOSIT_RECEIPT_PERSISTENCE_FAILURE`; transaction was present and finished `rollback`; payment/receipt/sequence/cash/journal/journal-line/succeeded-idempotency/audit/reservation snapshots had zero failure delta. Restored fresh-key retry added exactly one payment, immutable receipt, unique receipt number, cash transaction and balanced journal; receipt notices contained Arabic and English text.
+- Backup: `backend/backups/darfus_erp_cont16_c2_20260726_235555.dump`, `pg_restore -l` validated 733 objects; ignored and not staged. Exact cleanup and zero C16-C2 residue passed.
+- `DEPOSIT-CONT5-F002` remains P1 OPEN/PARTIAL. Next marker: `DEPOSIT-1-FIX-CONT5-CONT16-CONT3` — only Deposit idempotency-success persistence rollback, retry, cleanup and zero residue.
+
+## CONT16-CONT3 completed — 2026-07-27
+
+- Verifier/test updates: `backend/scripts/verify-reservation-deposit-full-acceptance.js` and `tests/reservation-deposit-rollback-cell.test.cjs`.
+- Seam: `reservationService.addPayment` claims the key, performs Deposit work, calls `idempotencyService.succeed({ transaction: t })`, then commits `t`.
+- Runtime proof: `ACC_C16_C3_DEPOSIT_IDEMPOTENCY_SUCCESS_PERSISTENCE_FAILURE` reached `succeed` with the real transaction and ended `rollback`. No payment/receipt/sequence/cash/journal/journal-line/audit/idempotency/reservation delta remained. The failed key had no row; retrying that same key committed one operation, and replay returned the identical payment with no count increase.
+- Backup: `backend/backups/darfus_erp_cont16_c3_20260727_000510.dump`, `pg_restore -l` validated 733 objects; ignored and not staged. Exact cleanup and zero C16-C3 residue passed.
+- Deposit rollback group complete: journal, receipt and idempotency success persistence all PASS. `DEPOSIT-CONT5-F002` remains P1 OPEN/PARTIAL. Next marker: `DEPOSIT-1-FIX-CONT5-CONT16-CONT4` — only Refund cash-out persistence rollback, retry, cleanup and zero residue.
+
+## CONT16-CONT4 completed — 2026-07-27
+
+- Verifier/test updates: `backend/scripts/verify-reservation-deposit-full-acceptance.js` and `tests/reservation-deposit-rollback-cell.test.cjs`.
+- Seam: `_executeRefundInTransaction` updates execution metadata, posts the Refund journal, then calls `models.CashTransaction.create(..., { transaction })` before allocations and final executed status.
+- Runtime proof: `ACC_C16_C4_REFUND_CASH_OUT_PERSISTENCE_FAILURE` reached that cash-out call with the real transaction and ended `rollback`. The refund remained approved; cash, journal, allocation, idempotency, audit, reservation and receipt-snapshot values had zero failure delta. Same-key retry executed exactly once; replay added no artifacts. CashRegisterSession has no persisted movement field, so cash transaction count/source linkage is the authoritative movement proof.
+- Backup: `backend/backups/darfus_erp_cont16_c4_20260727_001301.dump`, `pg_restore -l` validated 733 objects; ignored and not staged. Exact cleanup and zero C16-C4 residue passed.
+- `DEPOSIT-CONT5-F002` remains P1 OPEN/PARTIAL. Next marker: `DEPOSIT-1-FIX-CONT5-CONT16-CONT5` — only Refund journal-persistence rollback, retry, cleanup and zero residue.
+
+## CONT16-CONT5 completed — 2026-07-27
+
+- Verifier/test updates: `backend/scripts/verify-reservation-deposit-full-acceptance.js` and `tests/reservation-deposit-rollback-cell.test.cjs`.
+- Exact seam: `reservationService.executeRefund` → `_executeRefundInTransaction` → `postingService.postReservationRefundEntry` → `postingService.postEntry` → `JournalEntry.create({ sourceType: "reservation_refund", sourceId: refund.id }, { transaction })`. Actual order is metadata update, journal, cash-out, allocations, final status, idempotency success and commit.
+- Runtime proof: injected `ACC_C16_C5_REFUND_JOURNAL_PERSISTENCE_FAILURE` reached `JournalEntry.create` with the real Refund transaction and finished `rollback`. The Refund stayed approved; cash/journal/line/allocation/idempotency/audit/account-balance/receipt-snapshot deltas were zero. Restored same-key retry produced one 5.0000/5.0000 balanced journal (Dr 2300 Reservation Advance, Cr 1110 Treasury), one cash-out and one allocation; replay created no duplicates. No VAT/revenue/COGS/inventory/final-invoice mutation occurred. CashRegisterSession has no persisted Refund movement/link and its expected amount remained unchanged.
+- Backup: `backend/backups/darfus_erp_cont16_c5_20260727_055321.dump`, validated with `pg_restore -l` (696 objects); ignored and not staged. Exact cleanup and zero C16-C5 residue passed; migrations remain 50/50.
+- `DEPOSIT-CONT5-F002` remains P1 OPEN/PARTIAL. Next marker: `DEPOSIT-1-FIX-CONT5-CONT16-CONT6` — only Refund allocation-persistence rollback, retry, cleanup and zero residue.
+
+## CONT16-CONT6 completed — 2026-07-27
+
+- Verifier/test updates: `backend/scripts/verify-reservation-deposit-full-acceptance.js` and `tests/reservation-deposit-rollback-cell.test.cjs`.
+- Exact seam: `reservationService.executeRefund` → `_executeRefundInTransaction` → `ReservationRefundAllocation.create({ companyId, reservationRefundId, reservationPaymentId, allocatedAmount }, { transaction })` after Refund journal/header-lines and `CashTransaction.create`, before final Refund status and idempotency success.
+- Runtime proof: injected `ACC_C16_C6_REFUND_ALLOCATION_PERSISTENCE_FAILURE` received the real Refund transaction and finished `rollback`. Refund remained approved; allocation count/total, cash/journal/line/idempotency/audit/account-balance/receipt-snapshot values had zero failure delta. Same-key retry created one 5.00000000 allocation linked to the owned Refund and owned source payment in the same Company/Branch/Reservation; its journal and cash-out each occurred once. Replay added no artifacts or balance movement. CashRegisterSession has no persisted Refund execution movement/link and its stored expected amount remained unchanged.
+- Backup: `backend/backups/darfus_erp_cont16_c6_20260727_060935.dump`, validated with `pg_restore -l` (696 objects); ignored and not staged. Exact cleanup and zero C16-C6 residue passed; migrations remain 50/50.
+- `DEPOSIT-CONT5-F002` remains P1 OPEN/PARTIAL. Next marker: `DEPOSIT-1-FIX-CONT5-CONT16-CONT7` — only Refund idempotency-success persistence rollback, retry, cleanup and zero residue.
+
+## CONT16-CONT7 completed — 2026-07-27
+
+- Verifier/test updates: `backend/scripts/verify-reservation-deposit-full-acceptance.js` and `tests/reservation-deposit-rollback-cell.test.cjs`.
+- Exact seam: `reservationService.executeRefund` claims `reservation.refund.execute`, runs `_executeRefundInTransaction`, then invokes `idempotencyService.succeed({ request: claim.request, statusCode: 200, responseBody, transaction: t })` before its only `t.commit()`.
+- Runtime proof: injected `ACC_C16_C7_REFUND_IDEMPOTENCY_SUCCESS_PERSISTENCE_FAILURE` reached `succeed` with the real Refund transaction and finished `rollback`. The Refund stayed approved; claimed-key/idempotency response, cash/journal/line/allocation/status/audit/account-balance/receipt-snapshot deltas were zero. The key was absent after rollback, so same-key retry created one successful idempotency response pointing to one executed Refund; replay added no artifact or balance movement. CashRegisterSession has no persisted Refund execution movement/link and its stored expected amount remained unchanged.
+- Note: the first C7 write attempt ended before the cell because the verifier snapshot contained an unused PostgreSQL parameter; the `finally` cleanup and zero-residue check passed. The snapshot-only verifier defect was corrected, pre-write tests reran, and the final C7 runtime probe passed.
+- Backup: `backend/backups/darfus_erp_cont16_c7_20260727_080129.dump`, validated with `pg_restore -l` (696 objects); ignored and not staged. Exact cleanup and zero C16-C7 residue passed; migrations remain 50/50.
+- All Refund rollback cells are PASS. `DEPOSIT-CONT5-F002` remains P1 OPEN/PARTIAL for Complete-sale, configuration, reconciliation, audit and repeatability evidence. Next marker: `DEPOSIT-1-FIX-CONT5-CONT16-CONT8` — only Complete-sale final invoice/sale persistence rollback, retry, cleanup and zero residue.
+
+## CONT16-CONT8 completed — 2026-07-27
+
+- Verifier/test updates: `backend/scripts/verify-reservation-deposit-full-acceptance.js` and `tests/reservation-deposit-rollback-cell.test.cjs`.
+- Exact seam: `reservationService.completeSale` claims `reservation.complete`, calls `_completeSaleInTransaction`, calculates an invoice number, then invokes `models.Invoice.create(..., { transaction: t })`; Invoice items, asset/item sale state, stock movement, Invoice and Deposit-settlement journals, applications, Reservation completion, audit/notification and `idempotencyService.succeed` follow before the only `t.commit()`.
+- Runtime proof: injected `ACC_C16_C8_COMPLETE_SALE_INVOICE_PERSISTENCE_FAILURE` reached `Invoice.create` with the real Complete-sale transaction and finished `rollback`. The Reservation remained `partially_paid`; no Invoice/document/item, application, journal/line, inventory movement, asset/item status, idempotency/audit, account-balance or immutable-receipt delta committed. The key was absent after rollback; same-key retry created one `20.0000` Invoice with `0.9500` VAT, one item, one `10.0000` Deposit application, two balanced journals (`40.0000` total debits/credits), one stock movement and one completion. Replay added no artifact or balance movement.
+- Notes: the first C8 probe stopped before the cell because the valid partial Deposit fixture was `partially_paid`, and the next stopped before the cell due to an unused snapshot bind. Both `finally` cleanup/zero-residue checks passed; the verifier-only readiness/snapshot corrections preceded the final PASS probe. Invoice number calculation uses no separate sequence row, and no valid orphan Invoice/document was issued on failure.
+- Backup: `backend/backups/darfus_erp_cont16_c8_20260727_085829.dump`, validated with `pg_restore -l` (733 objects); ignored and not staged. Exact cleanup and zero C16-C8 residue passed; migrations remain 50/50.
+- `DEPOSIT-CONT5-F002` remains P1 OPEN/PARTIAL for Complete-sale accounting/application/idempotency, configuration, reconciliation, audit and repeatability. Next marker: `DEPOSIT-1-FIX-CONT5-CONT16-CONT9` — only Complete-sale accounting-persistence rollback, retry, cleanup and zero residue.
+
+## CONT16-CONT9 completed — 2026-07-27
+
+- Verifier/test updates: `backend/scripts/verify-reservation-deposit-full-acceptance.js` and `tests/reservation-deposit-rollback-cell.test.cjs`.
+- Exact seam: `_completeSaleInTransaction` stages Invoice/items/asset/item/stock writes, then `postingService.postInvoiceEntry` reaches `JournalEntry.create(..., { transaction })` for the Invoice-sale journal before Deposit settlement, applications, Reservation completion, audit/notification, idempotency success and commit.
+- Runtime proof: `ACC_C16_C9_COMPLETE_SALE_ACCOUNTING_PERSISTENCE_FAILURE` received the real transaction and finished `rollback`; Reservation, Invoice/document/items, application, journals/lines, AR/revenue/VAT/liability/COGS/inventory balances, stock, idempotency/audit and immutable receipt digest had zero failure delta. Same-key retry created one 20.0000 Invoice, one 10.0000 application, two balanced journals (40.0000 totals), one stock movement and one completion; replay added no artifact.
+- Backup: `backend/backups/darfus_erp_cont16_c9_20260727_163013.dump`, validated with `pg_restore -l` (733 objects); ignored and not staged. Exact cleanup and zero C16-C9 residue passed; migrations remain 50/50.
+- `DEPOSIT-CONT5-F002` remains P1 OPEN/PARTIAL for Complete-sale application/idempotency, configuration, reconciliation, audit and repeatability. Next marker: `DEPOSIT-1-FIX-CONT5-CONT16-CONT10` — only Complete-sale Deposit-application persistence rollback, retry, cleanup and zero residue.
+
+## CONT16-CONT10 completed — 2026-07-27
+
+- Verifier/test updates: `backend/scripts/verify-reservation-deposit-full-acceptance.js` and `tests/reservation-deposit-rollback-cell.test.cjs`.
+- Exact seam: `_completeSaleInTransaction` stages Invoice/items/asset/item/stock writes, `postInvoiceEntry` and `postReservationAdvanceSettlementEntry`, then calls `ReservationPaymentApplication.create({ companyId, reservationId, reservationPaymentId, finalInvoiceId, appliedAmount }, { transaction })` before Reservation completion, audit/notification, `idempotencyService.succeed` and its only commit.
+- Runtime proof: injected `ACC_C16_C10_COMPLETE_SALE_DEPOSIT_APPLICATION_PERSISTENCE_FAILURE` reached that create with the real Complete-sale transaction and finished `rollback`. Reservation, Invoice/document/items, application, journals/lines, AR/revenue/VAT/liability/COGS/inventory balances, stock, idempotency/audit and immutable receipt digest had zero failure delta. The failed key was absent; same-key retry created one `20.0000` Invoice, one `10.0000` application linked to the owned source payment and Invoice, two balanced journals (`40.0000` total debits/credits), one stock movement and one completion. Replay added no artifact.
+- Backup: `backend/backups/darfus_erp_cont16_c10_20260727_173223.dump`, validated with `pg_restore -l` (733 objects; 398871 bytes); ignored and not staged. Exact cleanup and zero C16-C10 residue passed; migrations remain 50/50.
+- `DEPOSIT-CONT5-F002` remains P1 OPEN/PARTIAL for Complete-sale idempotency, configuration, reconciliation, audit and repeatability. Next marker: `DEPOSIT-1-FIX-CONT5-CONT16-CONT11` — only Complete-sale idempotency-success persistence rollback, retry, cleanup and zero residue.
+
+## CONT16-CONT11 completed — 2026-07-27
+
+- Verifier/test updates: `backend/scripts/verify-reservation-deposit-full-acceptance.js` and `tests/reservation-deposit-rollback-cell.test.cjs`.
+- Exact seam: `reservationService.completeSale` claims `reservation.complete`, calls `_completeSaleInTransaction`, then invokes `idempotencyService.succeed({ request: claim.request, statusCode: 201, responseBody, transaction: t })` after Invoice/items/asset/item/stock, Invoice and Deposit-settlement journals, application, Reservation completion and audit/notification staging, before its only `t.commit()`.
+- Runtime proof: injected `ACC_C16_C11_COMPLETE_SALE_IDEMPOTENCY_SUCCESS_PERSISTENCE_FAILURE` reached `succeed` with the real Complete-sale transaction and finished `rollback`. Reservation, Invoice/document/items, application, journals/lines, AR/revenue/VAT/liability/COGS/inventory balances, stock, idempotency/audit and immutable receipt digest had zero failure delta. The key was absent after rollback; same-key retry created one `20.0000` Invoice, one `10.0000` correctly scoped application, two balanced journals (`40.0000` total debits/credits), one stock movement, one completion audit and one succeeded response. Replay added no artifact.
+- Backup: `backend/backups/darfus_erp_cont16_c11_20260727_175514.dump`, validated with `pg_restore -l` (733 objects; 398871 bytes); ignored and not staged. Exact cleanup and zero C16-C11 residue passed; migrations remain 50/50.
+- All Complete-sale rollback cells are PASS. `DEPOSIT-CONT5-F002` remains P1 OPEN/PARTIAL for configuration, reconciliation, audit and repeatability. Next marker: `DEPOSIT-1-FIX-CONT5-CONT16-CONT12` — configuration and no-fallback matrix only.
+
+## CONT16-CONT12 blocked — 2026-07-27
+
+- Verifier/test updates: `backend/scripts/verify-reservation-deposit-full-acceptance.js` and `tests/reservation-deposit-rollback-cell.test.cjs` add the owned C12 matrix runner and C12 namespace guard.
+- Runtime matrix passed six isolated Deposit/Refund cells: valid A1 Deposit; closed-session Deposit rejection; missing-A1-liability no-fallback rejection; A2-branch/raw-client-authority rejection; closed-session Refund rejection; valid A1 Refund. Negative snapshots showed zero payments/receipts/refunds/allocations/invoices/applications/cash/journal/stock/audit delta.
+- Finding `DEPOSIT-CONT16-C12-F001` (P1): with AR/revenue/VAT/COGS/inventory mappings deliberately absent, real `completeSale` still committed one owned Invoice, application, two journals, stock movement and completion because `postingService.ensureAccount(companyId, code, transaction)` auto-created 1300/4100/2200/5000/1200 by company/code. This is a fail-open company-code fallback and blocks the C12 matrix; do not treat subsequent unexecuted C12 cells as PASS.
+- Backup: `backend/backups/darfus_erp_cont16_c12_20260727_180834.dump`, validated with `pg_restore -l` (733 objects; 398871 bytes); ignored and not staged. Final cleanup/zero-residue passed; migrations remain 50/50.
+- No Product fix was made: a correct remedy requires an explicit final-sale branch account-role/mapping contract, beyond this evidence slice. Next marker: `DEPOSIT-1-FIX-CONT5-CONT16-CONT12-CONT1` — only resolve `DEPOSIT-CONT16-C12-F001` and then rerun the affected matrix cells.
+
+## CONT16-CONT12-CONT1 complete — 2026-07-27
+
+- Product paths: `company-bootstrap.service.js` now resolves explicit branch `system_account_roles` for AR, revenue, VAT, inventory, COGS and Reservation Advance Liability; `reservation.service.js` resolves them before Invoice creation; `posting.service.js` accepts the resolved IDs for final-sale Invoice and settlement lines, so `ensureAccount` is unreachable from Complete-sale.
+- Runtime: C12-CONT1 valid mapping succeeded with one Invoice/application/two balanced journals/stock movement and replay added no duplicate. Missing mapping (`BRANCH_FINANCIAL_MAPPING_REQUIRED`), Company candidate, sibling/cross-Company (`BRANCH_FINANCIAL_ACCOUNT_SCOPE_INVALID`), inactive (`BRANCH_FINANCIAL_ACCOUNT_INACTIVE`) and wrong role (`BRANCH_FINANCIAL_ACCOUNT_ROLE_INVALID`) all had zero account and financial write delta. The schema unique `(company, branch, role)` constraint makes the ambiguity cell not applicable.
+- `DEPOSIT-CONT16-C12-F001` is RESOLVED. Existing Super Admin explicit-company authorization and account management remain; a dedicated final-sale role-mapping management API is a later setup/UI gap, never a reason for transactional fallback.
+- Backup `backend/backups/darfus_erp_cont16_c12_cont1_20260727_185012.dump` was validated (733 objects; 398871 bytes), ignored and not restored. Exact cleanup/zero residue passed; migrations remain 50/50. Next marker: `DEPOSIT-1-FIX-CONT5-CONT16-CONT13`.
+
+## CONT16-CONT13 complete — 2026-07-27
+
+- Verifier/test updates: `backend/scripts/verify-reservation-deposit-full-acceptance.js` and `tests/reservation-deposit-rollback-cell.test.cjs` now register the C13-only `FINANCIAL_RECONCILIATION_MATRIX`, accept only the narrow C13 namespace, compare PostgreSQL `NUMERIC` in fixed eight-decimal units, verify every journal header/line balance, source-document mapping, persisted account delta and replay snapshot.
+- Runtime: `ACC-DEPOSIT-CONT5-C16-C13-20260727-1920-RUN3` passed Deposit, partial Refund, Complete-sale without Refund and Complete-sale after Refund. `D=10.0000`, `R=5.0000` where applicable; final Invoice `I=20.0000`, `N=19.0500`, `V=0.9500`, `C=10.0000`; applications were `10.0000` or `5.0000`, liability equation `L=D-R-A` held, and AR due was `I-A`. Deposit/Refund had zero Revenue/VAT/COGS/Inventory; final sale recognized each once. All replays were identity/balance stable and all receipt snapshots/notices remained immutable.
+- Backup: ignored `backend/backups/darfus_erp_cont16_c13_20260727_191903.dump`, validated by `pg_restore -l` (718 objects; 398871 bytes), never restored. The verifier finally cleaned all owned rows and final audit reported zero residue; migrations are 50/50, no idle transaction or waiting lock.
+- Focused regression passed: rollback-cell self-tests, CONT5 contract, payment associations and branch-role resolver tests. Lint/build were not required by the CJS verifier/test-only change; no Product defect was reproduced.
+- Classification: `DEPOSIT-1-FIX-CONT5-CONT16-CONT13 = COMPLETE`; `FINANCIAL_RECONCILIATION_MATRIX = PASS`; `DEPOSIT-CONT5-F002` remains P1 OPEN/PARTIAL. Next marker: `DEPOSIT-1-FIX-CONT5-CONT16-CONT14` — orphan, duplicate and cross-scope audit only.
+
+## CONT16-CONT14 complete — 2026-07-27
+
+- Verifier/test updates: `backend/scripts/verify-reservation-deposit-full-acceptance.js` and `tests/reservation-deposit-rollback-cell.test.cjs` register `ORPHAN_DUPLICATE_CROSS_SCOPE_AUDIT_MATRIX`, accept only the narrow C14 namespace, and fail closed when any checked anomaly count is nonzero.
+- Runtime: `ACC-DEPOSIT-CONT5-C16-C14-20260727-1941-RUN3` passed 14 mandatory cells. Its owned graph contained two Deposit payments/receipts/cash-ins, a partial Refund/allocation/cash-out, and a final Invoice with two valid Deposit applications, five lifecycle journals and one stock movement. All parent/reference/scope/duplicate counts were zero; Deposit, Refund and Complete-sale replays preserved identities and added no rows. A2/B1 calls returned `RESOURCE_NOT_FOUND` and exact snapshots stayed unchanged. Receipt payloads/notices stayed immutable.
+- Backup/cleanup: ignored `backend/backups/darfus_erp_cont16_c14_20260727_193617.dump` validated by `pg_restore -l` (733 objects; 398871 bytes), was never restored or staged. Final verifier cleanup and final residue audit reported zero rows in every owned table; no idle transaction or waiting lock remained and migrations were 50/50.
+- Regression: rollback-cell self-tests, CONT5 contract, payment associations and strict branch-role resolver tests passed; targeted lint and `git diff --check` passed. Typecheck/build were not applicable to the CJS verifier/test and Markdown-only change. No Product finding was reproduced.
+- Classification: `DEPOSIT-1-FIX-CONT5-CONT16-CONT14 = COMPLETE`; `ORPHAN_DUPLICATE_CROSS_SCOPE_AUDIT_MATRIX = PASS`; `DEPOSIT-CONT5-F002` remains P1 OPEN/PARTIAL. Next marker: `DEPOSIT-1-FIX-CONT5-CONT16-CONT15` — final repeatability/regression only.
+
+## CONT16-CONT15 complete — 2026-07-27
+
+- Verifier/test updates: the committed verifier adds narrow C15 RUN1/RUN2 namespace handling, `FINAL_REPEATABILITY_AND_REGRESSION`, external normalized-evidence read/write, and exact manifest cleanup/rebuild between every reused suite. Fixture tags that were safe independently are unique when composed.
+- RUN1: `ACC-DEPOSIT-CONT5-C16-C15-RUN1-20260727-2032` passed all 14 top-level suites: 11 rollback cells, configuration/no-fallback (14 subcells including one schema-backed NOT_APPLICABLE ambiguity guard), reconciliation (four cells), and integrity audit (14 cells). Each sub-suite cleaned to zero before the next.
+- RUN2: `ACC-DEPOSIT-CONT5-C16-C15-RUN2-20260727-2034` passed the identical inventory and compared normalized evidence to RUN1. Only identities, timestamps, namespaces, correlation/process IDs and monotonic document numbers are allowed to differ; mandatory status, semantic artifacts, account/journal shape and amounts, idempotency/audit shape, replay and negative zero-write behavior matched exactly.
+- Financial reference snapshot: reconciliation created five Deposit payments/receipts, two Refunds/allocations, two Invoices/applications/stock movements and balanced Journal source totals: payment 40, refund 10, invoice 60 and settlement 15 debit/credit. Integrity graph had two payments/receipts, one Refund/allocation, one Invoice, two applications, five journals and one stock movement; all referenced checks passed.
+- Safety/regression: ignored guard backup `backend/backups/darfus_erp_cont16_c15_20260727_202445.dump` and external backup were validated (733 objects; 398871 bytes), never restored/staged. Final import-only zero-residue audit, locks/activity and migrations 50/50 passed. Focused regression passed 35 tests; targeted lint, syntax and diff checks passed. Typecheck/build were not applicable to the CJS verifier/test and Markdown-only change.
+- Classification: `DEPOSIT-1-FIX-CONT5-CONT16-CONT15 = COMPLETE`; `FINAL_REPEATABILITY_AND_REGRESSION = PASS`; `DEPOSIT-CONT5-F002 = RESOLVED`. Next marker: `DEPOSIT-1-ACCEPT` — formal local acceptance decision only; do not deploy.
+
+## DEPOSIT-1-ACCEPT complete — 2026-07-27
+
+- Decision: `DEPOSIT-1-ACCEPT = COMPLETE`; `DEPOSIT_REFUND_COMPLETE_SALE_LOCAL_TECHNICAL_ACCEPTANCE = ACCEPTED`; `DEPOSIT-CONT5-F002 = RESOLVED`.
+- Evidence chain verified from committed C1–C15 history and tracked records: eleven rollback cells, C12 fail-closed configuration/no-fallback with `DEPOSIT-CONT16-C12-F001` resolved, C13 financial reconciliation, C14 owned integrity audit, and C15 RUN1/RUN2 normalized equivalence. Final local checks found 50 applied migrations, zero pending, zero C15-owned rows, zero idle transactions, zero waiting locks and zero verifier-owned connections. The 35-test focused regression evidence remains PASS.
+- Accepted scope: local backend Deposit receipt/accounting, Refund approval/execution/accounting/allocation, Complete-sale Invoice/application/final accounting/inventory, idempotency, retry/replay, rollback atomicity, branch scoping, reconciliation, integrity and exact cleanup. Deposit receipts are immutable and Deposit/Refund do not recognize VAT/Revenue/COGS/Inventory; Complete-sale is the sole final-recognition path.
+- Limitations: no deployment, Staging, Production, Product-wide production-readiness, production migration/restore drill, full Product regression, performance/security review, monitoring, notification remediation, Super Admin company-selection UX, dedicated Branch financial-role management UI/API or onboarding acceptance is implied. `DEPLOYMENT_AUTHORIZED = NO`; `STAGING_AUTHORIZED = NO`; `PRODUCTION_AUTHORIZED = NO`; `PRODUCT_WIDE_PRODUCTION_READY = NO`.
+- Exact next marker: `NOTIF-PRE1` — diagnose only the notification 401/422 storm, duplicate frontend notification queries/toasts, auth/company-context gating and exact request loop; do not implement a fix automatically.
+
+## NOTIF-PRE1 partial diagnosis — 2026-07-27
+
+- Static request map: `Header` always consumes `useNotifications`; the Notifications page is a second consumer of the same React Query keys. The hook starts `/notifications?limit=20` and `/notifications/unread-count` once its auth/operator gate passes, but it neither requires Super Admin Company context nor passes `companyId` to `apiClient`. The API client only emits `X-Company-ID` when explicitly supplied.
+- Backend map: both notification reads and writes are operational Company-scoped routes under `authMiddleware` plus `notifications.view`; a Super Admin with no header correctly receives `422 SUPER_ADMIN_COMPANY_CONTEXT_REQUIRED`, while a stale header correctly receives `403 COMPANY_SCOPE_INVALID`. `/events/stream` uses the same middleware.
+- Exact static loop: authenticated Super Admin without explicit Company → Header list/count requests without Company header → two controlled `422` errors → global QueryCache toast once per failed query; concurrently RealtimeProvider stream lacks Company header → non-OK `422` → reconnect schedule (one-second to eight-second backoff, maximum eight attempts). No backend fallback defect and no query retry loop were found: React Query retries only 5xx once, focus refetch is disabled, polling is absent, and duplicate consumers share stable keys. Strict Mode is enabled but is not the proven persistent contributor.
+- Live boundary: local port 8000 returned expected unauthenticated `401` for all three protected endpoints, and the existing three-case Super Admin contract test passed. No frontend listener or authenticated browser session was available, so authenticated request/timing/toast counts still need one controlled capture. No Product code, test behavior, DB row, runtime configuration, backup, restore, deployment or process was changed.
+- Findings: `NOTIF-PRE1-F002`, `F004` and `F005` are P2 static findings. Minimum future scope, after the capture, is frontend-only: gate notifications/SSE on auth plus authoritative explicit Company context; send its header; treat 401/403/422 as non-retryable; pause reconnect/polling while blocked; cancel on logout; refetch once on valid selection; retain one toast owner. Preserve backend fail-closed enforcement. Next marker: `NOTIF-PRE1-CONT1` only.
+
+## NOTIF-PRE1-CONT1 runtime-capture attempt — 2026-07-27
+
+- Identity/safety gate remained valid at `9be2eb6`; only the inherited protected CRLF-only backend artifacts were dirty, semantic protected diff was empty, `next-env.d.ts` retained the required hash, 11 stashes and zero remotes remained.
+- Runtime boundary: 5432 and the existing backend listener on 8000 were present; ports 3000/3001 were not listening. The in-app browser reported zero tabs and it was the only available browser surface. No stored credentials, cookies, local storage, identity or Company row was inspected or created.
+- Result: N4–N10 cannot be captured without an existing safe authenticated Super Admin session. The unauthenticated probes returned the expected 401 for list, unread-count and SSE only; this neither confirms nor refutes the 422/SSE/toast static chain. Preserve `NOTIF-PRE1-F002`, `F004` and `F005` as P2 static findings; do not mark them runtime-confirmed.
+- No Product code, tests, DB/configuration, process, backup, restore, remote, Staging, Production or deployment action occurred. `NOTIF-FIX` is not authorized. Exact next marker: `NOTIF-PRE1-CONT1-CONT1` — obtain an existing safe authenticated Super Admin browser session and capture N4/N5/N7/N8 request, header, toast and SSE chronology only.
+
+## NOTIF-PRE1-CONT1-CONT1 local frontend-start attempt — 2026-07-27
+
+- Identity/safety gate remained valid at `e38c97f`; inherited protected CRLF-only backend artifacts remained semantically unchanged and `next-env.d.ts` retained the required hash.
+- The documented command was `npm run dev -- --port 3000`. It reached Next but failed before startup with local `listen EACCES`. The permitted one expected-port retry, `npm run dev -- --port 3001`, failed identically. Neither command left a frontend listener or process; no nonstandard port or configuration workaround was attempted.
+- The existing backend listener on 8000 remained untouched. Without a frontend surface, an authenticated Super Admin session, Company selection, and N4/N5/N7/N8 request/header/toast/SSE evidence cannot be observed. Do not finalize `NOTIF-PRE1-F002`, `F004` or `F005` from this attempt and do not authorize `NOTIF-FIX`.
+- Classification: `NOTIF-PRE1-CONT1-CONT1 = BLOCKED — LOCAL_FRONTEND_START_FAILURE`. Exact next marker: `NOTIF-PRE1-CONT1-CONT1-CONT1` — resolve only the sanctioned frontend binding/availability gap, then resume authenticated runtime capture. No Product code, tests, DB/configuration, identity, process-stop, backup, restore, remote, Staging, Production or deployment change occurred.
+
+## NOTIF-PRE1-CONT1-CONT1-CONT1 Windows bind and local-origin result — 2026-07-27
+
+- Exact bind cause: Windows IPv4 and IPv6 TCP exclusion ranges include 2933–3032, which covers 3000 and 3001. Listener audit, URLACL and HTTP service-state searches found no competing local reservation. No system mutation was attempted.
+- Safe alternative: `127.0.0.1:3300` was unoccupied/outside exclusions and a temporary socket server bound then closed successfully. `npm run dev -- --hostname 127.0.0.1 --port 3300 --webpack` started a loopback-only Next 16.2.9 frontend; its owned parent/child PIDs were recorded during the run and stopped exactly afterward. Turbopack bound but failed the bounded HTTP-readiness probe; webpack was the one supported retry and returned the login surface. Next regenerated `next-env.d.ts`; the exact route-types diff was recorded and the file was normalized to exact HEAD bytes with the required hash.
+- Remaining exact blocker: the alternate browser origin `http://127.0.0.1:3300` is not in the existing backend CORS allow-list. Browser login therefore reported a sanitized connection error; an unauthenticated preflight had no allow-origin response, while the configured `http://localhost:3000` control did. Port 3000 cannot be used because of the exclusion. Do not mutate CORS, Windows network policy, `.env`, Product source or identity data to bypass this.
+- Result: `LOCAL_FRONTEND_AVAILABILITY = PASS`, but authenticated N4/N5/N7/N8 runtime capture remains **NOT_EXECUTED** and `NOTIF_FIX_AUTHORIZED = NO`. Preserve F002/F004/F005 as static. Exact next marker: `NOTIF-PRE1-CONT1-CONT1-CONT1-CONT1` — resolve only this sanctioned local frontend-origin availability gap, then capture the authenticated chronology.
+
+## NOTIF-PRE1-CONT1-CONT1-CONT1-CONT1 owned-origin runtime result — 2026-07-27
+
+- Local topology: `backend/src/app.js` reads `CORS_ALLOWED_ORIGINS`/`FRONTEND_URL`; `server.js` reads `PORT`; the frontend reads `NEXT_PUBLIC_DATA_SOURCE`/`NEXT_PUBLIC_API_URL` at dev start. An owned process-scoped development backend on 8001 accepted only the loopback 3300 origin, with runtime admin bootstrap disabled and the expiry scheduler disabled. The backend source has no supported host variable, so it used its normal listener while CORS remained exact-origin; existing 8000 and 5432 were untouched. Preflight allowed the selected origin with credentials and rejected an unrelated origin. The owned webpack frontend at `127.0.0.1:3300` completed normal login as `SUPER_ADMIN_A`; no `.env` or source was changed.
+- N4 runtime chronology: after Super Admin auth with no explicit Company, `/notifications` and `/notifications/unread-count` each occurred once and returned `422 SUPER_ADMIN_COMPANY_CONTEXT_REQUIRED` with the Company header absent (proven by the fail-closed result). The global QueryCache rendered one distinct toast for each notification failure; twelve context-error toasts appeared overall because unrelated dashboard Company-scoped queries were also premature. `/events/stream` returned the same 422 initially and reconnected eight times at 1–8 second backoff (nine total stream attempts). No React Query retry or duplicate handler for one notification request was observed.
+- N7 runtime chronology: normal logout returned the UI to login; in the following nine-second observation window the owned backend recorded zero notification list, unread-count, stream, or notification-401 requests. This is no persistent query/SSE leak, not a notification-fix implementation.
+- Finalization: `NOTIF-PRE1-F002 = CONFIRMED`; `NOTIF-PRE1-F004 = CONFIRMED`; `NOTIF-PRE1-F005 = CONFIRMED_WITH_REFINED_SCOPE`. New `NOTIF-PRE1-CONT1-CONT1-CONT1-CONT1-F001` is P2: no authoritative Super Admin Company-selection/propagation control was present in source or the authenticated profile surface (Settings and Logout only). Therefore N5 valid-selection and N8 valid-Company refresh/hydration are **NOT_EXECUTED**; no header injection or fallback was used. `NOTIF_FIX_AUTHORIZED = NO`.
+- Process/safety: owned frontend/backend process trees were stopped; ports 3300 and 8001 were left without listeners, 8000/5432 remained available, and `next-env.d.ts` was normalized to its exact required hash after Next’s generated route-types change. No Product code, test, migration, DB row, CORS source, Windows policy, remote, Staging, Production or deployment change occurred.
+- Exact next marker: `NOTIF-PRE1-CONT1-CONT1-CONT1-CONT1-CONT1` — resolve only the authoritative Super Admin Company-selection/propagation observation gap and capture N5 plus valid-context N8; do not implement `NOTIF-FIX` automatically.
+
+## NOTIF-PRE1-CONT1-CONT1-CONT1-CONT1-CONT1 Company-context closure — 2026-07-28
+
+- Identity/runtime: started from `b66a27c` with the protected CRLF-only backend drift preserved. Recreated the owned CORS topology (temporary backend 8001, webpack frontend `127.0.0.1:3300`) using only existing process-scoped ENV; normal local `SUPER_ADMIN_A` login worked. Existing backend 8000 and PostgreSQL 5432 were untouched. The owned processes were gone at shutdown. Next regenerated `next-env.d.ts` to its dev route-types path; the exact one-line diff was recorded and normalized to the required HEAD hash.
+- Frontend architecture: `AuthProvider` persists the Company returned by login and has profile-only `updateCompany`; it has no selected/active Company state, setter or Company-switch persistence. `apiClient` only sends `X-Company-ID` when a caller explicitly passes `companyId`. `useNotifications` sends none. `RealtimeProvider` derives `company?.id` only for local event filtering and opens SSE with Authorization but no Company header. Branch state is separate and its switcher cannot establish Company context.
+- Inventory/runtime: source has no frontend `/companies` request, Company selector/switcher, or Super Admin Company action; backend has no Company-list/switch route. The authenticated menu contains Settings and Logout; Settings contains Company profile editing and Branch management, not selection. Thus `SUPER_ADMIN_COMPANY_SELECTION_PATH = ABSENT`. `NOTIF-PRE1-CONT1-CONT1-CONT1-CONT1-F001` is **CONFIRMED_WITH_REFINED_SCOPE P2**. N5 and valid-context N8 are **NOT_EXECUTED** without manual header/storage/API bypass.
+- Contract/decision: backend is stateless header authority: missing Super Admin context returns `422 SUPER_ADMIN_COMPANY_CONTEXT_REQUIRED`; invalid context returns `403 COMPANY_SCOPE_INVALID`; auth-only routes opt out. Existing N4/N7 evidence remains valid. `NOTIF-PRE1 = COMPLETE`; `NOTIFICATION_401_422_STORM_DIAGNOSIS = COMPLETE_WITH_UX_DEPENDENCY`; `NOTIF_FIX_AUTHORIZED = YES`; `NOTIF_FIX_FULL_N5_N8_ACCEPTANCE_DEPENDENCY = COMPANY_SELECTION_UX`.
+- Roadmap: Option A is selected — `NOTIF-FIX` first (no-context REST/SSE gate, permanent 401/403/422 handling, logout cancellation, one controlled toast owner), then `UX-PRE1` for the missing selection path, then integrated N5/N8 acceptance. Do not build the selector in `NOTIF-FIX`.
+- Exact next marker: `NOTIF-FIX` only. No Product fix, selector, test, migration, deployment or push occurred in this phase.
+
+## NOTIF-FIX completed — 2026-07-28
+
+- Product/test files: `lib/notifications/company-scoped-lifecycle.ts`, `hooks/use-notifications.ts`, `components/realtime-provider.tsx`, `app/providers.tsx`, and `tests/notification-lifecycle-contract.test.mjs`.
+- Lifecycle: one pure shared predicate requires resolved/authenticated non-terminal state, Branch-Employee readiness and explicit Super Admin Company authority. The login/profile Company display value is not authority and never becomes a fallback. List/unread and SSE use the predicate; no Company means no notification request or SSE attempt.
+- Runtime evidence: with the previously proven owned 8001/3300 topology and authenticated no-Company Super Admin dashboard, sanitized owned backend counts were list `0`, unread `0`, stream `0`; no notification-specific error toast or reconnect occurred. Unrelated dashboard missing-context errors were visible and deliberately outside this fix. Normal logout returned `200`; over nine seconds, list/unread/stream and notification-401 counts remained `0`.
+- Error/cache contract: all SSE 4xx are terminal until state changes; network/5xx keep bounded retry. Notification query metadata gives exactly one deduplicated global toast owner (five-second code/scope key); unrelated query handling is unchanged. A future explicit Company ID is the single REST/SSE/cache discriminator, so Company A data cannot satisfy Company B.
+- Deferred dependency: `NOTIF-PRE1-CONT1-CONT1-CONT1-CONT1-F001` remains OPEN P2; no authoritative Super Admin Company selection exists, so valid-context N5/N8 remain `DEFERRED_TO_UX-PRE1`. No selector, backend fallback or CORS change was added.
+- Validation: lifecycle 7/7; Super Admin Company-context contract 3/3; typecheck, target lint, production build and diff check passed. Owned 3300/8001 processes ended; `next-env.d.ts` hash is exact. The pre-existing 8000 process was not targeted and was already absent from the post-run listener audit before owned teardown; it was not restarted.
+- Decision: `NOTIF-FIX = COMPLETE`; no-context gating, SSE terminal handling, controlled toast ownership, logout safety and future Company-context contract are PASS. No deployment, push, Staging or Production action is authorized. Exact next marker: `UX-PRE1`.
+
+## UX-PRE1 authoritative Super Admin Company-context design — 2026-07-28
+
+- Decision: `UX-PRE1 = COMPLETE`; `SUPER_ADMIN_COMPANY_CONTEXT_DESIGN = APPROVED`; `SUPER_ADMIN_COMPANY_SELECTION_IMPLEMENTED = NO`. `NOTIF-PRE1-CONT1-CONT1-CONT1-CONT1-F001` remains **CONFIRMED — DESIGN READY, P2**. This is a design only; no Product, test, migration, `.env`, package, DB, Windows, deployment or push change was made.
+- Current architecture: `contexts/auth-context.tsx` is the authenticated session/display-Company authority only. Its API session persists `{ user, company }`; `updateCompany` is profile editing, not selection. `lib/api/client.ts` sends `X-Company-ID` only when a caller passes `companyId`; `components/realtime-provider.tsx` and `hooks/use-notifications.ts` already accept the future explicit input but receive none today. `components/layout/header.tsx` has only Branch switching plus Settings/Logout. `contexts/settings-context.tsx` loads `/settings` and `/branches` after authentication and is therefore a Company-scoped consumer that must move behind the future Company gate.
+- Backend evidence: `backend/src/middleware/auth.middleware.js` is `HEADER_ONLY_STATELESS`. Super Admin operational requests without the header return `422 SUPER_ADMIN_COMPANY_CONTEXT_REQUIRED`; an unknown Company returns `403 COMPANY_SCOPE_INVALID`. `/auth/me` and logout explicitly opt out. There is no Company-list/switch endpoint, and `Company` currently has no lifecycle/status column; current Super Admin validation is global existence validation. `/branches` is Company-scoped and cannot bootstrap Company choice.
+- Bootstrap decision for UX-FIX: add one minimal context-free authenticated endpoint, proposed `GET /auth/accessible-companies`, protected by `authMiddlewareWithoutCompanyContext`. It returns only the Companies selectable under the existing Super Admin policy, paginated/searchable if the list is large, with minimal `{ id, businessName, workspace, currency, logo? }` records. No Company header is accepted or required; it is not business data and creates no server selection state. With the current global Super Admin authorization, selectable means an extant Company that the same server-side selector policy permits. Do not invent active/inactive filtering until a Company lifecycle model exists. Normal users do not call it.
+- Selector and route design: use a mandatory dashboard-root selection gate for Super Admin state `REQUIRED`, `INVALID`, `ERROR`, or `UNRESOLVED`; retain a persistent accessible header switcher once state is `READY`. The gate prevents all Company-scoped content/queries but leaves auth/logout and bootstrap UI usable. Existing BranchSwitcher styling/keyboard behavior is reusable, but its first-active fallback is explicitly **not** reusable for Companies. Every current dashboard business/system page (Dashboard, Notifications, Reservations, Sales, Inventory, Accounting, Reports, Customers, Settings, Users, Audit, approvals and branch management) is `COMPANY_REQUIRED`; auth routes and the new bootstrap are context-free. No blank screen or hidden implicit selection is allowed.
+- Authoritative state: add a single `CompanyContextProvider` below authenticated layout/query ownership with `{ status: UNRESOLVED|REQUIRED|VALIDATING|READY|INVALID|ERROR, companyId, company, source: USER_SELECTION|PERSISTED_SELECTION|NONE, hydrated, generation }` and actions `hydrate`, `select`, `validate`, `invalidate`, `clear`, `retryBootstrap`, `logout`. Login/profile display Company is never input authority. Each successful select or switch increments `generation`, clears Branch, cancels/removes Company-bound cache, then establishes one validated context.
+- Persistence/hydration: choose tab-local `sessionStorage` record `darfus-selected-company-v1` containing only version, authenticated-user owner and opaque Company ID. It survives refresh but not cross-tab/account sharing; mismatched owner, malformed data, logout and account change clear it. Startup order is auth hydration → Super Admin bootstrap list → persisted-candidate membership validation → `READY` or `REQUIRED` → Branch validation → Company-scoped routes/queries/SSE. No Company traffic is allowed in `UNRESOLVED`, `REQUIRED`, `VALIDATING`, `INVALID` or `ERROR`; Strict Mode must make hydration idempotent.
+- REST/SSE/cache design: UX-FIX must register one in-memory Company-context accessor with `apiClient`, applying the header only to Company-scoped requests while auth/bootstrap remain explicit context-free routes. It must not use request display data or a broad unconditional global header. Promote current Company-bound React Query keys to `['company', companyId, resource, ...parameters]`; cancel/remove prior Company queries before `READY` changes, use generation-aware request results, and preserve context-free cache. Pass the same READY Company ID to `RealtimeProvider`; it opens once, closes before a switch/logout/invalidation, and restarts once after new READY. Existing NOTIF-FIX 4xx terminal policy remains unchanged.
+- Branch design: Company READY loads Branches only for that Company. On switch/invalidation: clear persisted/in-memory Branch, cancel Branch work, fetch the new list, validate any candidate, then set Branch `READY` or `REQUIRED`. A fixed Branch Account keeps its server-fixed branch. A Company actor may auto-select exactly one active Branch only after server validation; never auto-select a Company. Zero Branches is a controlled Branch-required/setup state.
+- Recovery and safety: 403/422, inaccessible/deleted Company, absent bootstrap membership, or terminal stream context errors clear Company and Branch, cancel/remove protected cache, issue one controlled message, and return to the selection gate with no retry loop. Logout/account switch cancels Company work, closes SSE, clears Company/Branch storage and state, removes protected cache, then preserves the completed notification logout guarantee. Multi-tab policy is intentionally tab-local; no storage-event synchronization is added in UX-FIX.
+- First run: there is no safe Company creation/onboarding flow today (public register is disabled; existing Company profile only edits an already selected Company). An empty bootstrap list therefore shows an accessible no-Companies state with no scoped traffic and a handoff to `FIRST-RUN-PRE1`; it must not auto-create or pick a Company.
+- UX states/accessibility: provide loading, selection-required, validating/switching, ready, stale/invalid, bootstrap-error, no-Companies and logout-reset states with keyboard listbox/search, focus moved into the gate then back to the switcher, visible Company/Branch labels, mobile header affordance, non-colour state indicators, disabled switch during critical mutation, and Arabic/English message keys. Use inline gate status for expected context state; reserve one toast for recoverable invalidation/network action.
+- Role matrix: Super Admin gets bootstrap + mandatory selector/switcher and never fallback. Legacy/normal users retain server-derived fixed Company and no selector. Branch-shell users retain fixed Company/Branch rules and no selector. The backend remains the final authorization source for every header.
+- UX-FIX anticipated file map (not created): `contexts/company-context.tsx` (state machine/persistence), `hooks/use-accessible-companies.ts` (bootstrap), `components/company/company-selection-gate.tsx` and `company-switcher.tsx` (UI), dashboard/layout and header integration, `lib/api/client.ts` (narrow context accessor), `lib/query-keys.ts` plus affected Company-scoped hooks/repositories (discriminators), `contexts/settings-context.tsx`/BranchSwitcher integration, `components/realtime-provider.tsx` prop wiring, auth logout cleanup, backend auth route/controller/service for the context-free list, and focused frontend/backend tests. Risks: bootstrap deadlock, stale persistence, cross-Company cache/in-flight response, duplicate SSE, Branch mismatch, switch during mutation, account leakage, tab divergence, zero-Company dead end and normal-user regression; mitigations are the state machine, generation/cancellation, server revalidation, tab-local storage and the test cases below.
+- UX-FIX order: (1) bootstrap endpoint contract/tests, (2) Company state machine and persistence, (3) REST accessor/query-key migration and cancellation, (4) gate/switcher, (5) Branch lifecycle, (6) SSE/notification wiring, (7) recovery/logout, (8) focused state/cache/role/accessibility tests, (9) local N0/N5/N8/A→B acceptance, (10) docs. It excludes onboarding implementation, navigation redesign, financial logic and notification lifecycle redesign.
+- Acceptance contracts: UX-ACCEPT N0 has gate/no scoped requests; N5 yields one validated Company logical notification list/unread/SSE success with zero 422/toast duplication; N8 validates persisted context before scoped traffic with zero transient 422; A→B closes A stream, hides/cancels A cache, resets Branch, validates B and starts B once; invalid context returns to the gate once; logout clears Company/Branch/cache/stream; zero Companies hands off. NOTIF-ACCEPT then repeats real N5/N8/A→B, REST/SSE identity, cache isolation, invalid recovery, logout and non-Super regression. Mandatory tests cover all state transitions, bootstrap eligibility/error/empty paths, selector accessibility, header/no-header routing, generation cancellation, SSE once-per-generation, Branch reset, Strict Mode and cache/mutation isolation.
+- Exact next marker: `UX-FIX` only. After it, execute `NOTIF-ACCEPT`; then `FIRST-RUN-PRE1`. Do not reopen NOTIF-FIX unless integrated acceptance proves regression.
+
+## UX-FIX Super Admin Company-context implementation — 2026-07-28
+
+- Commits: `ba31f33 feat: add accessible company bootstrap`, `8db5113 feat: add Super Admin company context`, `89ff22c test: prove Super Admin company context lifecycle`, followed by `ce8721f fix: synchronize Super Admin company context` and `922a7b4 test: cover Company context request synchronization`.
+- Backend: `GET /api/v1/auth/accessible-companies` is authenticated but context-free through the existing auth-only middleware. It returns a deterministic minimal Company list and has no selected-Company write/fallback. The new focused backend tests cover auth route exposure, minimum response, deterministic order, normal-user restriction and fail-closed missing Company behavior.
+- Frontend: `CompanyContextProvider` is the sole authority for `UNRESOLVED`, `REQUIRED`, `VALIDATING`, `READY`, `INVALID` and `ERROR`; it owns user-bound tab-local opaque-ID persistence, bootstrap validation, Company generation, scoped-query cancellation/removal, Branch clearing and invalid-context recovery. The global API accessor is set synchronously before READY children render, while logout clears the persisted key explicitly. Dashboard content is guarded by `CompanySelectionGate`; `CompanySwitcher` appears only after READY. Company-scoped callers use explicit Company authority; bootstrap/auth requests remain header-free.
+- Local evidence: owned 8001/3300 topology ran normally, then was stopped exactly. N0 displayed the mandatory selection gate. N5 selected the one accessible Company through the Product gate, opened the dashboard and showed one header switcher without browser console errors; browser tooling did not expose the REST/SSE/header counts, so full N5 acceptance is not claimed. Normal logout returned to login. N8 remains **FAIL / NOT ACCEPTED**: hard reload after valid selection returned to the gate rather than a validated READY Company state. No storage/token inspection, storage mutation, header injection or direct API workaround was used. A→B was not runtime-executed because only one accessible Company was available; no data was created.
+- Validation: focused suites 18/18 passed; typecheck, lint (existing warnings only), production build and `git diff --check` passed. `next-env.d.ts` has the required SHA-256. Owned PIDs were stopped; 3300/8001 have no listeners; 5432 remains available. No `.env`, migration, deployment, push or unknown process action occurred.
+- Decision: `UX-FIX = PARTIAL`; `N5_SELECTION_UI = PASS` but N5 REST/SSE/header telemetry is unproven; `N8_PRODUCT_UI_ACCEPTANCE = FAIL — observed persisted-context/hydration gap`; `NOTIF-PRE1-CONT1-CONT1-CONT1-CONT1-F001` remains **OPEN — P2**. `NOTIF-ACCEPT` is not authorized. Exact next marker: `UX-FIX-CONT1`, resolving only N8 Company persistence/hydration and the required N5/N8 acceptance evidence.
+
+## UX-FIX-CONT1 single-Company/multi-Branch revision — 2026-07-28
+
+- Product decision implemented: exactly one server-authorized Company is automatically adopted at bootstrap; Company is display-only and BranchSwitcher is the operational selector. Zero Companies gives `SETUP_REQUIRED`; multiple gives `CONFIGURATION_CONFLICT`; neither starts scoped requests or selects a fallback. The previous user-selected Company `sessionStorage` value is legacy cleanup only and cannot affect READY.
+- N8 cause and repair: the former provider waited for a persisted user choice, so READY could disappear after a refresh. `resolveSingleCompanyContext` now derives READY exclusively from the authenticated `/auth/accessible-companies` result each startup and synchronously installs the request accessor before scoped children render. Context-free auth/bootstrap behavior and terminal notification 4xx handling are preserved.
+- Files/validation: `lib/company-context-state.ts`, `contexts/company-context.tsx`, the context gate/display, notification page propagation, and focused lifecycle tests changed. `e12bd99` adds the named hard-refresh bootstrap regression. Focused suites 18/18, typecheck, lint (existing warnings only), production build and diff check passed. `next-env.d.ts` was normalized after the owned dev startup and has the required hash.
+- Runtime boundary: owned backend 8001 and webpack frontend 3300 reached readiness under process-scoped ENV and were stopped exactly. Browser control then reported unavailable, so authenticated N5-single-Company and N8 REST/header/list/unread/SSE/toast chronology are **NOT_OBSERVED**, not PASS. No credentials, storage, header, DB or direct API bypass was used. Branch A→B runtime remains unavailable until the same safe browser evidence can be captured.
+- Decision: `UX-FIX-CONT1 = PARTIAL`; `UX-FIX = PARTIAL`; `NOTIF-PRE1-CONT1-CONT1-CONT1-CONT1-F001 = OPEN — P2` (refined to single-Company bootstrap/hydration and operational readiness). `NOTIF-ACCEPT` is not authorized. Exact next marker: `UX-FIX-CONT1-CONT1`, only to obtain the authenticated runtime evidence.
+
+## UX-FIX-CONT1-CONT1 runtime acceptance attempt — 2026-07-28
+
+- Started at `5b49a25`; identity, protected hash, no-staged state, 11-stash baseline and focused runtime-contract tests (14/14) passed. Existing inherited CRLF-only backend drift remained semantically unchanged.
+- Browser gate: browser control returned `No browser is available` before a tab, owned frontend/backend process, normal login or request capture could begin. Thus N5 bootstrap/list/unread/SSE, N8 refresh chronology, header presence, toast counts, logout observation and Branch A→B are **NOT_OBSERVED**. No values were inferred from static tests.
+- Safety/decision: no Product/test/configuration/DB/Windows change, no owned process, no deployment and no push occurred. `UX-FIX-CONT1-CONT1 = PARTIAL`; `RUNTIME_ACCEPTANCE = BLOCKED_BY_BROWSER_OR_SESSION`; `NOTIF_ACCEPT_AUTHORIZED = NO`; the open P2 finding remains runtime-evidence incomplete. Exact next marker: `UX-FIX-CONT1-CONT1-CONT1`, resolving only safe browser/session availability and the already-defined N5/N8 capture.
+
+## UX-FIX-CONT1-CONT1-CONT1 browser-service resolution — 2026-07-28
+
+- Identity started at `47ab339`; `main`, no staged files, the inherited five CRLF-only backend paths, protected semantic-zero diff, 11 stashes, no remotes and the required `next-env.d.ts` hash remain intact. Focused Company-context, notification-lifecycle and Super Admin-context baseline passed 14/14.
+- Browser diagnosis: the supported browser-control runtime completed setup but enumerated zero browser bindings. Read-only executable discovery found installed Chrome and Edge, but neither can be safely controlled or attached through the approved browser surface. No personal profile, cookie, token, remote debugger, alternative controller, browser installation or system change was used.
+- Result: no owned backend/frontend, normal login, or authenticated chronology was started. N5/N8 REST/header/list/unread/SSE/toast counts, logout and Branch A→B are **NOT_OBSERVED**. `UX-FIX-CONT1-CONT1-CONT1 = PARTIAL`, `RUNTIME_ACCEPTANCE = BLOCKED_BY_BROWSER_OR_SESSION`, `NOTIF_ACCEPT_AUTHORIZED = NO`; `NOTIF-PRE1-CONT1-CONT1-CONT1-CONT1-F001` remains **OPEN — BROWSER SERVICE UNAVAILABLE / P2**. No Product/test/DB/configuration/Windows/deployment/push action occurred. Exact next marker: `UX-FIX-CONT1-CONT1-CONT1-CONT1` to restore only a supported safe browser/session path and capture the established N5/N8 evidence.
+
+## UX-FIX-CONT1-CONT1-CONT1-CONT1 repository-local browser harness — 2026-07-28
+
+- Infrastructure: `21d98db` adds `playwright.single-company-runtime.config.ts`, a process-owning `test:single-company-runtime` launcher, a sanitized request-evidence helper and focused N5/N8/Branch/logout Playwright acceptance scenario. It reuses committed `@playwright/test` 1.51.1 and the installed Chrome/Edge executable through `executablePath`; no dependency, browser binary, Product behavior, migration, `.env` or Windows policy changed.
+- Security/cleanup: the harness uses one headless configurable local Chromium context with extensions disabled, no persistent `storageState`, no credentials in output, no raw headers/payloads, no HAR/trace/screenshots and an external temporary evidence/log directory. It starts 8001/3300 only after `DARFUS_E2E_EMAIL` and `DARFUS_E2E_PASSWORD` are both available, disables runtime admin bootstrap and reservation-expiry scheduling, and tears down only its own recorded process trees.
+- Validation/boundary: evidence-helper tests passed 3/3; focused Company/notification/auth tests passed 14/14; typecheck, targeted lint, Playwright config discovery and no-credential Playwright skip passed. The launcher then exited 2 before opening any listener because neither safe credential variable is set. Consequently N5/N8 REST/header/list/unread/SSE/toast counts, Branch A→B and logout remain **NOT_OBSERVED**. `UX-FIX-CONT1-CONT1-CONT1-CONT1 = PARTIAL`, `LOCAL_BROWSER_ACCEPTANCE_HARNESS = PASS`, `BLOCKER = AUTHENTICATED_SESSION_UNAVAILABLE`, `NOTIF_ACCEPT_AUTHORIZED = NO`, and `NOTIF-PRE1-CONT1-CONT1-CONT1-CONT1-F001` remains **OPEN — AUTHENTICATED SESSION UNAVAILABLE / P2**. Exact next marker: `UX-FIX-CONT1-CONT1-CONT1-CONT1-CONT1`, limited to running this existing harness with safe credentials.
+
+## UX-FIX-CONT1-CONT1-CONT1-CONT1-CONT1-CONT1 authenticated harness execution — 2026-07-28
+
+- Starting checkpoint: `6c0f741`; identity, no-stage state, protected semantic-zero diff, 11 stashes, no remotes, required `next-env.d.ts` hash, migrations 50/0 and idle/waiting locks 0/0 passed. The local Chrome executable was selected read-only. Approved local credentials were supplied only as process-scoped variables and are not recorded here.
+- Execution: `npm run test:single-company-runtime` exited `1` at launcher startup. Node raised `ERR_INVALID_ARG_VALUE` because the new `runtime-logs/backend.log` WriteStream had `fd: null` when supplied to `spawn` stdio. The error occurred before any owned backend/frontend/browser child, normal login, request observation, temporary browser context or N5/N8 scenario began.
+- Safety/decision: credentials were removed in `finally`; their final presence is `NO/NO`. Ports 3300/8001 remained absent, 8000 was not targeted and 5432 remained present. The runner's empty owned temporary log root could not be removed because the environment denied its cleanup command; no credential, session, HAR, screenshot, trace or raw evidence was written. `UX-FIX-CONT1-CONT1-CONT1-CONT1-CONT1-CONT1 = BLOCKED`, `HARNESS_FAILURE = PRE_SPAWN_RUNTIME_LOG_STREAM`, `NOTIF_ACCEPT_AUTHORIZED = NO`, and `NOTIF-PRE1-CONT1-CONT1-CONT1-CONT1-F001` remains **OPEN — HARNESS EXECUTION FAILURE / P2**. Exact next marker: `UX-FIX-CONT1-CONT1-CONT1-CONT1-CONT1-CONT1-CONT1`, to fix only the opener/cleanup behavior of this harness.
