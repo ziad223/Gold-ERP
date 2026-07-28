@@ -46,6 +46,9 @@ export function createEvidenceCollector(now = () => Date.now()) {
     const entry = {
       sequence: ++sequence,
       relativeMs: now() - startedAt,
+      // Retained in-memory only for transition-order assertions. Snapshots
+      // deliberately omit it so evidence contains no absolute timestamps.
+      observedAt: now(),
       scenario,
       method,
       path: normalizePath(url),

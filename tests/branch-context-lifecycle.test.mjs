@@ -42,6 +42,32 @@ test("zero Branches fails closed while one validated Branch can be adopted", asy
   assert.equal(single.branchId, branchA.id);
 });
 
+test("Branch switching enters a non-ready transition before retiring Branch authority", async () => {
+  const state = await stateModule();
+  const ready = state.resolveBranchContext([branchA, branchB], branchA.id, 4);
+  const transitioning = state.beginBranchTransition(ready, ready.generation);
+
+  assert.equal(ready.status, "READY");
+  assert.equal(transitioning.status, "TRANSITIONING");
+  assert.equal(transitioning.branchId, null);
+  assert.equal(transitioning.branch, null);
+  assert.equal(state.isBranchContextReady(transitioning), false);
+  assert.ok(transitioning.generation > ready.generation);
+});
+
+test("Branch switch isolation targets only Branch-aware query identities", async () => {
+  const state = await stateModule();
+
+  assert.equal(state.isBranchScopedQueryKey(["customer-invoices", "CUSTOMER_A", "branch", branchA.id]), true);
+  assert.equal(state.isBranchScopedQueryKey(["customer-statement-v2", "CUSTOMER_A", "branch", branchA.id]), true);
+  assert.equal(state.isBranchScopedQueryKey(["customer-credit", "CUSTOMER_A", "branch", branchA.id]), true);
+  assert.equal(state.isBranchScopedQueryKey(["assets", "COMPANY_A", "branch", branchA.id]), true);
+  assert.equal(state.isBranchScopedQueryKey(["customers", "COMPANY_A", "branch", "none"]), false);
+  assert.equal(state.isBranchScopedQueryKey(["notifications", "COMPANY_A"]), false);
+  assert.equal(state.isBranchScopedQueryKey(["accessible-companies"]), false);
+  assert.equal(state.isBranchScopedQueryKey(["branches"]), false);
+});
+
 test("the shared client, customer financial queries, and dashboard gate require validated Branch readiness", async () => {
   const [client, provider, customer, shell, auth, switcher, settings, company] = await Promise.all([
     readFile(path.join(root, "lib", "api", "client.ts"), "utf8"),
@@ -59,12 +85,21 @@ test("the shared client, customer financial queries, and dashboard gate require 
   assert.doesNotMatch(client, /readStoredBranchId/);
   assert.match(provider, /resolveBranchContext/);
   assert.match(provider, /branchesLoaded/);
+  assert.match(provider, /beginBranchTransition/);
+  assert.match(provider, /setBranchContextTransitioning\(true\)[\s\S]*clearOperationalWork\(\)/);
+  assert.match(provider, /setBranchContextAccessor\(\(\) => \(\{ branchId[\s\S]*setState\(next\)[\s\S]*setBranchContextTransitioning\(false\)/);
+  assert.match(provider, /isBranchScopedQueryKey/);
   assert.match(provider, /setBranchContextAccessor\(\(\) => \(\{ branchId/);
   assert.match(client, /BRANCH_CONTEXT_REQUIRED/);
+  assert.match(client, /setBranchContextTransitioning/);
+  assert.match(client, /createBranchTransitionAbort/);
+  assert.match(client, /isAbortError/);
+  assert.match(client, /if \(isAbortError\(error\)\) return false/);
   assert.match(shell, /BranchContextGate/);
   assert.match(customer, /useBranchContext/);
   assert.match(customer, /enabled: !!id && DATA_SOURCE === "api" && branchReady/);
   assert.match(customer, /enabled: isApi && !!customerId && branchReady && !dateError/);
+  assert.match(customer, /queryFn: \(\{ signal \}\)/);
   assert.match(customer, /customer-invoices", customerId, "branch", branchId \|\| "none"/);
   assert.doesNotMatch(customer.slice(customer.indexOf("const invoicesQuery"), customer.indexOf("const displayInvoices")), /skipBranch: true/);
   assert.match(settings, /branchesLoaded/);
@@ -72,7 +107,9 @@ test("the shared client, customer financial queries, and dashboard gate require 
   const coreData = await readFile(path.join(root, "hooks", "use-core-erp-data.ts"), "utf8");
   assert.match(coreData, /useBranchContext/);
   assert.match(coreData, /skipBranch \|\| branchReady/);
+  assert.match(coreData, /queryFn: async \(\{ signal \}\)/);
   assert.doesNotMatch(switcher, /const fallback = activeBranches/);
+  assert.match(switcher, /status === "TRANSITIONING"/);
   assert.doesNotMatch(auth, /activeBranchId\] = useState<string>\("BR-DXB"\)/);
   assert.match(company, /clearScopedWork\(\{ clearBranch: false \}\)/);
 });

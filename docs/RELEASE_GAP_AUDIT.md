@@ -1,5 +1,107 @@
 # Release Gap Audit
 
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT3 — authenticated customer evidence boundary — 2026-07-29
+
+Starting at `fa0d04a`, `013b388` improves the repository-local acceptance
+harness only: it waits for the existing customer-list response and a visible
+profile route before declaring discovery, records only the list count category,
+and adds sanitized A→B/refresh ordering assertions. The prior immediate check
+after `domcontentloaded` is therefore a credible H7 harness deficiency, but
+the customer discrepancy is not yet runtime-proven.
+
+This execution environment rejected every process-scoped credential injection
+attempt before `npm run test:single-company-runtime` could start. The browser
+surface was not used as a bypass because the phase requires process-scoped
+credentials. No login, customer discovery, customer-financial request,
+refresh, logout, browser profile, or API request occurred. Static Branch,
+Company, notification, error, harness/redaction tests and typecheck pass.
+`BRANCH-CONTEXT-RUNTIME-FIX-CONT3 = BLOCKED` only by
+`AUTHENTICATED_HARNESS_CREDENTIAL_INJECTION_UNAVAILABLE`; the existing 3000/
+8000 runtime was preserved and no DB data or migration changed. Keep
+`BRANCH-CONTEXT-RUNTIME-F001` open and `NOTIF_ACCEPT_AUTHORIZED = NO`. Exact
+next marker: `BRANCH-CONTEXT-RUNTIME-FIX-CONT3-CONT1`.
+
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT2 — atomic Branch transition repair — 2026-07-29
+
+Starting from `e559d1f`, the frontend race was repaired without changing the
+fail-closed backend contract. `TRANSITIONING` is now a non-ready Branch state;
+the provider enters it before retiring the canonical accessor, the shared API
+client blocks a stale Branch-scoped request in the render/effect interval, and
+only query keys with a concrete Branch discriminator are cancelled/removed.
+Customer invoices, statement-v2/v3, credit and core Branch reads now forward
+React Query abort signals, so cancelled Branch-A work cannot overwrite
+Branch-B results. The selector remains usable in `SELECTION_REQUIRED` and is
+locked only while actually transitioning.
+
+The reused localhost 3000/8000 browser harness passed N5 and N8 (one Company
+bootstrap, Branch bootstrap, notification list, unread and SSE each; zero
+401/403/422, reconnects and notification error toasts). Its isolated A→B
+window recorded Branch-aware core reads with headers, zero
+`BRANCH_CONTEXT_REQUIRED`, and zero new list/unread/SSE/error-toast lifecycle.
+No safe existing customer profile was visible to this authorized identity, so
+customer invoice/statement/credit A→B and refresh evidence is
+`NOT_OBSERVED`; no data was created. Thus `BRANCH-CONTEXT-RUNTIME-FIX-CONT2 =
+PARTIAL`, `BRANCH-CONTEXT-RUNTIME-F001` remains open only for that evidence,
+and `NOTIF_ACCEPT_AUTHORIZED = NO`. The official DB remains 51 applied / 0
+pending with zero phase mutation. Exact next marker:
+`BRANCH-CONTEXT-RUNTIME-FIX-CONT3`.
+
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT2-CONT1 — user-applied migration reconciliation — 2026-07-28
+
+The user explicitly ran the local migration command before this reconciliation.
+The historical official baseline was 50 applied / 1 pending; it is preserved as
+historical evidence. The newly verified official local baseline is **51 applied
+/ 0 pending**. Reconciliation performed no migration, rollback, schema change,
+data change, or runtime restart.
+
+Migration 51 is `20260728010000-create-first-run-setup-state.js`
+(`SHA-256 D9D576E89625A78402C0DD06570104905A1E7D6CDB192D89E42692237101A024`).
+It is schema-only: it creates `first_run_setup_states` with its nine declared
+columns and `id` primary key. Read-only registry comparison found 51 source
+names = 51 applied names, no missing/unknown/duplicate rows, and migration 51
+exactly once. PostgreSQL catalog inspection confirmed the table, types,
+nullability, primary key and zero invalid indexes. No partial application or
+migration-owned state row was observed.
+
+The active runtime is the same repository: Next parent/child serve localhost
+3000 and Nodemon/server serve localhost 8000 from this workspace. The newer
+backend PID is an accepted same-project process replacement; it has an
+established local PostgreSQL 5432 connection and `/health/db` reports UP.
+The official database is `darfus_erp`, schema `public`, PostgreSQL 18.4, with
+zero idle-in-transaction and waiting-lock counts. Local migration application
+does not complete Staging rehearsal or authorize Production.
+
+`BRANCH-CONTEXT-RUNTIME-FIX-CONT2-CONT1 = COMPLETE`;
+`OFFICIAL_LOCAL_DATABASE_BASELINE = 51 APPLIED / 0 PENDING`; and
+`BRANCH-CONTEXT-RUNTIME-FIX-CONT2 = AUTHORIZED_TO_RESUME`. The Branch fix has
+not run and `NOTIF_ACCEPT_AUTHORIZED = NO`. Exact next marker:
+`BRANCH-CONTEXT-RUNTIME-FIX-CONT2`.
+
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT1 — customer-financial evidence, Branch switch not accepted — 2026-07-28
+
+The existing localhost 3000/8000 runtime was reused with its original PIDs;
+the harness owned only a temporary browser context and sanitized evidence.
+The authenticated customer list yielded a safe read-only `CUSTOMER_A`. Its
+profile retained Company and Branch `READY`; invoice, statement-v2 and credit
+each completed one `200` with both context headers, and none started before
+Branch readiness. Empty data would have been accepted, but no contents were
+retained.
+
+The bounded normal A→B switch from that profile exposed a new release-blocking
+transition race. `selectBranch` clears old client context/work while the
+provider's published state remains ready for a render. Statement-v2 and credit
+therefore begin without Branch context; three total
+`BRANCH_CONTEXT_REQUIRED` responses invoke the invalidation path and leave the
+Branch `INVALID`. One ordinary new-Branch profile `404` was also observed.
+No Product repair, data mutation, migration, process restart, or notification
+acceptance occurred. Refresh-on-profile and final profile-route logout were not
+run after the failure. Official aggregate fingerprints, migration boundary
+(50 applied / 1 pending), and lock counts remained unchanged.
+
+`BRANCH-CONTEXT-RUNTIME-FIX-CONT1 = PARTIAL`; `NOTIF_ACCEPT_AUTHORIZED = NO`.
+Next only: `BRANCH-CONTEXT-RUNTIME-FIX-CONT2`, to correct the exact Branch
+state/accessor ordering and repeat the customer financial evidence.
+
 ## BRANCH-CONTEXT-RUNTIME-FIX — implementation accepted; customer-financial runtime evidence bounded — 2026-07-28
 
 Starting checkpoint `62e140b9934375eef54b1d5165c6126417811542` exposed the

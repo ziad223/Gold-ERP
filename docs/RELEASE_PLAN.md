@@ -1,5 +1,45 @@
 # v1.0.0 Release Plan
 
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT3 — release boundary — 2026-07-29
+
+Do not progress to `NOTIF-ACCEPT`, RC, Staging or Production. The customer
+evidence harness is now deterministic, but the required process-scoped
+authenticated run was blocked before login by environment credential-injection
+policy. This is not authorization to enter credentials through another surface,
+create records, weaken Branch middleware, or infer financial evidence. Continue
+only with `BRANCH-CONTEXT-RUNTIME-FIX-CONT3-CONT1`.
+
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT2 — release boundary — 2026-07-29
+
+Do not progress to `NOTIF-ACCEPT`, RC, Staging or Production. The frontend
+Branch transition race is repaired and core A→B browser evidence now has zero
+missing-Branch failures and zero new Company-only notification lifecycle.
+However, the current safe identity exposes no existing customer profile for
+the required read-only invoice, statement-v2 and credit A→B/refresh capture.
+This is an evidence gap, not authority to create data, use a fallback, or
+weaken backend `BRANCH_CONTEXT_REQUIRED`. Continue only with
+`BRANCH-CONTEXT-RUNTIME-FIX-CONT3`; `NOTIF_ACCEPT_AUTHORIZED = NO`.
+
+## Local migration baseline reconciliation — 2026-07-28
+
+The user-authorized migration is accepted locally after read-only verification:
+the 51st migration is present once in `SequelizeMeta`, its declared schema is
+complete, and `darfus_erp` now has 51 applied / 0 pending migrations. This
+does not constitute a Staging rehearsal or Production authorization. Future
+local Branch-fix preflight must use 51/0 and reuse localhost 3000/8000; the
+next permitted phase is `BRANCH-CONTEXT-RUNTIME-FIX-CONT2` only.
+
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT1 — release boundary — 2026-07-28
+
+Read-only browser evidence now covers a safe customer profile: invoice,
+statement-v2 and credit each completed `200` with Company and Branch headers
+after readiness. The normal Branch A→B action on that profile remains a P2
+release blocker: three `BRANCH_CONTEXT_REQUIRED` responses occur during the
+transition and the Branch becomes `INVALID`. `NOTIF_ACCEPT_AUTHORIZED = NO`;
+Staging and Production remain unauthorized. Resolve only the Branch provider
+transition race in `BRANCH-CONTEXT-RUNTIME-FIX-CONT2`, then re-run the bounded
+customer-financial refresh/switch/logout evidence.
+
 ## Branch context runtime gate — 2026-07-28
 
 The Branch implementation is in place but the release gate is not waived.

@@ -1,10 +1,39 @@
 # Market Release Findings Register
 
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT3 — authenticated customer evidence boundary — 2026-07-29
+
+| ID | Severity | Status | Evidence / required next action |
+| --- | --- | --- | --- |
+| BRANCH-CONTEXT-RUNTIME-F001 | P2, release-blocking runtime evidence gap | OPEN — authenticated customer-financial evidence unavailable | `013b388` replaces the prior immediate post-navigation profile-link probe with deterministic, read-only customer-list completion and visible-profile discovery. It records only count categories and header/status booleans, plus Branch transition/refresh ordering. The execution environment rejected the process-scoped credential injection before the harness could run; this is not evidence of zero customers, an API failure, or a Product regression. Do not create data or use browser credential entry as a bypass. Target only `BRANCH-CONTEXT-RUNTIME-FIX-CONT3-CONT1` to run the unchanged improved harness through a compliant process-scoped credential path. |
+
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT2 — atomic transition repair / remaining evidence — 2026-07-29
+
+| ID | Severity | Status | Evidence / required next action |
+| --- | --- | --- | --- |
+| BRANCH-CONTEXT-RUNTIME-F001 | P2, release-blocking runtime evidence gap | OPEN — customer-financial A→B evidence unavailable | The proven pre-ready accessor race is repaired: Branch transitions synchronously enter `TRANSITIONING`, block stale Branch-scoped transport, cancel only concrete Branch-keyed reads, set Branch B accessor before `READY`, and forward cancellation to invoice/statement/credit reads. Focused Branch/Company/notification/error tests, typecheck and targeted lint pass. Reused runtime confirms Branch A→B core reads carry a Branch header, has zero `BRANCH_CONTEXT_REQUIRED`, and creates zero new notification list/unread/SSE/toast lifecycle. The current authorized identity has no UI-visible safe existing customer profile, so customer invoice/statement-v2/credit A→B and refresh evidence remains `NOT_OBSERVED`. Do not create data or weaken middleware. Target only `BRANCH-CONTEXT-RUNTIME-FIX-CONT3` to capture those read-only observations. |
+| NOTIF-PRE1-CONT1-CONT1-CONT1-CONT1-F001 | P2 | OPEN — final notification acceptance remains gated | N5/N8 and Branch-switch notification non-regression are observed, but `NOTIF-ACCEPT` remains unauthorized until the customer-financial Branch A→B boundary closes. |
+
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT2-CONT1 — local migration baseline adopted — 2026-07-28
+
+The user-authorized local application of migration 51 is verified, not
+replayed: source/registry set equality is 51/51, migration 51 occurs once, its
+declared schema is present, and PostgreSQL is healthy. This replaces only the
+future local preflight baseline with **51 applied / 0 pending**; historical
+50/1 records remain historical. The open Branch transition finding is
+unchanged and `NOTIF_ACCEPT_AUTHORIZED = NO`.
+
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT1 — customer-financial browser evidence and Branch-switch regression — 2026-07-28
+
+| ID | Severity | Status | Evidence / required next action |
+| --- | --- | --- | --- |
+| BRANCH-CONTEXT-RUNTIME-F001 | P2, release-blocking operational runtime regression | OPEN — Branch-switch pre-ready financial race | A safe UI-discovered `CUSTOMER_A` proves invoices, statement-v2 and credit initially return `200` with both Company and Branch context after Branch READY. During the normal A→B switch from that profile, `selectBranch` clears the canonical client accessor/cache while the provider still exposes `READY`; the customer queries run in that gap. Three fail-closed `422 BRANCH_CONTEXT_REQUIRED` responses then invoke the global failure handler and leave the Branch state `INVALID`. One ordinary profile-scoped `404` also occurs for the new Branch. Do not weaken backend enforcement, create data, or infer a fallback. Target only `BRANCH-CONTEXT-RUNTIME-FIX-CONT2`: make the provider non-ready before removing old Branch context/work, then prove financial A→B, refresh-on-profile, logout and notification non-regression. |
+| NOTIF-PRE1-CONT1-CONT1-CONT1-CONT1-F001 | P2 | OPEN — final notification acceptance remains gated | N5/N8 notification evidence remains non-regressed, but `NOTIF-ACCEPT` is not authorized while the Branch A→B customer-financial race can issue `BRANCH_CONTEXT_REQUIRED`. |
+
 ## BRANCH-CONTEXT-RUNTIME-FIX — 2026-07-28
 
 | ID | Severity | Status | Evidence / required next action |
 | --- | --- | --- | --- |
-| BRANCH-CONTEXT-RUNTIME-F001 | P2, release-blocking operational runtime regression | IMPLEMENTED — pending customer-financial runtime evidence | Root causes were split Branch authority (storage/display versus request client), customer invoice `skipBranch`, ungated statement/credit queries, and fixed-Company refresh clearing the Branch candidate. The canonical Branch provider, client accessor, server validation, Branch-aware keys and customer-financial gates are implemented and focused tests pass. Reused runtime proves N5/N8 Branch readiness, A→B header propagation and logout; `CUSTOMER_A` is unavailable for safe read-only invoice/statement/credit navigation. Do not create data; capture that exact evidence next. |
+| BRANCH-CONTEXT-RUNTIME-F001 | P2, release-blocking operational runtime regression | SUPERSEDED BY CONT1 RUNTIME RESULT | Historical implementation evidence; the current disposition is the Cont1 Branch-switch pre-ready financial race above. |
 | NOTIF-PRE1-CONT1-CONT1-CONT1-CONT1-F001 | P2 | OPEN — final notification acceptance remains gated | Company lifecycle evidence remains valid, but `NOTIF-ACCEPT` is paused until the Branch customer-financial runtime boundary is closed. Notification Company-only list/unread/SSE behavior itself remained non-regressed in this phase. |
 
 ## COMPANY-CONTEXT-RUNTIME-FIX — accepted runtime repair — 2026-07-28

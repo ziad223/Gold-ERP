@@ -1,6 +1,7 @@
 export type BranchContextStatus =
   | "UNRESOLVED"
   | "VALIDATING"
+  | "TRANSITIONING"
   | "READY"
   | "SETUP_REQUIRED"
   | "SELECTION_REQUIRED"
@@ -26,6 +27,34 @@ export const initialBranchContextState: BranchContextState = {
   branch: null,
   generation: 0,
 };
+
+/**
+ * A Branch selection is an explicit non-ready boundary. Consumers must stop
+ * issuing Branch-scoped work before the old client accessor is retired.
+ */
+export function beginBranchTransition(
+  current: BranchContextState,
+  generation: number,
+): BranchContextState {
+  return {
+    status: "TRANSITIONING",
+    branchId: null,
+    branch: null,
+    generation: Math.max(current.generation, generation) + 1,
+  };
+}
+
+export function isBranchContextReady(state: Pick<BranchContextState, "status" | "branchId">): boolean {
+  return state.status === "READY" && Boolean(state.branchId);
+}
+
+/** Branch-scoped queries carry a concrete Branch discriminator, never "none". */
+export function isBranchScopedQueryKey(queryKey: readonly unknown[]): boolean {
+  const branchMarker = queryKey.indexOf("branch");
+  if (branchMarker < 0) return false;
+  const branchId = queryKey[branchMarker + 1];
+  return typeof branchId === "string" && branchId.length > 0 && branchId !== "none" && branchId !== "required";
+}
 
 /**
  * A stored Branch is only a candidate. A branch becomes operational after it

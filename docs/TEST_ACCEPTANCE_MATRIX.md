@@ -1,5 +1,71 @@
 # v1.0.0 Test and Acceptance Matrix
 
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT3 — 2026-07-29
+
+| Contract | Evidence | Result |
+| --- | --- | --- |
+| Deterministic safe-customer discovery | Harness waits for the existing customer-list response and visible profile route; retains only `ZERO` / `ONE` / `MANY` category | PASS — harness/static validation |
+| Customer-financial A→B / refresh | Authenticated harness could not be launched with the mandatory process-scoped credential boundary | NOT_OBSERVED |
+| Atomic Branch transition contract | Branch/Company/notification/error/harness suites: 37 pass; typecheck and targeted lint pass | PASS — static |
+| Runtime preservation | Existing localhost 3000/8000 processes were not started, stopped, restarted, or targeted by the failed pre-launch attempt | PASS |
+
+`PRODUCTION_BUILD = DEFERRED_DUE_TO_EXISTING_DEV_RUNTIME` and
+`NOTIF_ACCEPT_AUTHORIZED = NO` pending a compliant authenticated harness run.
+
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT2 — 2026-07-29
+
+| Contract | Evidence | Result |
+| --- | --- | --- |
+| Atomic transition start | `TRANSITIONING` publishes before accessor retirement; stale transport receives a local abort, not a backend request | PASS — focused tests |
+| Branch-only cancellation / stale protection | Concrete `branch` query identities cancel/remove; invoice, statement and credit propagate abort signals | PASS — focused tests/typecheck |
+| Branch B authority ordering | Validated accessor/header is installed before provider `READY`; selector locks only during transition | PASS — focused tests |
+| N5 / N8 retained lifecycle | Bootstrap, Branch bootstrap, list, unread and SSE each one; 401/403/422/reconnect/error-toast counts zero | PASS — reused browser runtime |
+| A→B core transition | Branch-scoped core reads have Branch context; `BRANCH_CONTEXT_REQUIRED = 0`; list/unread/SSE/error-toast counts are all zero in isolated switch window | PASS — reused browser runtime |
+| Customer financial A→B / refresh | No UI-visible safe existing customer profile for this authorized identity | NOT_OBSERVED — no data created |
+| Logout | Post-logout list/unread/SSE and error counts zero | PASS — reused browser runtime |
+| Product static validation | Branch/Company/notification/error suites and typecheck pass; targeted lint has zero errors and two inherited image warnings | PASS |
+
+`PRODUCTION_BUILD = DEFERRED_DUE_TO_EXISTING_DEV_RUNTIME`. The runtime
+customer-financial gap keeps `NOTIF_ACCEPT_AUTHORIZED = NO`.
+
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT2-CONT1 — migration/runtime reconciliation — 2026-07-28
+
+| Contract | Read-only evidence | Result |
+| --- | --- | --- |
+| Migration inventory and registry | 51 source names = 51 registry names; no missing, unknown or duplicate entries | PASS |
+| Migration 51 identity | expected filename and SHA-256; registry occurrence = 1 | PASS |
+| Migration 51 schema | `first_run_setup_states`: nine declared columns, expected nullability/types, `id` primary key, no invalid index | PASS |
+| Partial-state health | marker rows = 0; idle transaction = 0; waiting lock = 0 | PASS |
+| Backend identity | Nodemon/server process tree is workspace-owned; local PostgreSQL 5432 connection; DB health UP | PASS |
+| Frontend identity | workspace Next development process serves localhost 3000 | PASS |
+| Future local migration baseline | 51 applied / 0 pending | PASS |
+
+No Product, test, package, migration, `.env`, database, or runtime-process
+change occurred in reconciliation. Staging/Production and notification
+acceptance remain unauthorized; Branch fix resumption is the only next scope.
+
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT1 — 2026-07-28
+
+| Contract | Evidence | Result |
+| --- | --- | --- |
+| Safe customer discovery | Existing authenticated customer list; profile selected by UI, no identifier retained | PASS |
+| Customer profile readiness | Company/Branch `READY`; active Branch remains present while opening `CUSTOMER_A` | PASS |
+| Customer financial pre-ready gate | No invoice/statement-v2/credit request observed before Branch READY | PASS |
+| Invoice runtime | 1 read-only `200`; Company + Branch context present; no Branch-context error | PASS |
+| Statement-v2 runtime | 1 read-only `200`; Company + Branch context present; no Branch-context error | PASS |
+| Credit runtime | 1 read-only `200`; Company + Branch context present; no Branch-context error | PASS |
+| Branch A→B on customer profile | Accessor/cache cleared while provider still reports READY; three `422 BRANCH_CONTEXT_REQUIRED`, final Branch `INVALID` | FAIL — Product regression |
+| Refresh on customer-financial route | Not run after Branch-switch failure | NOT_OBSERVED |
+| Profile-route logout | Not run after Branch-switch failure; previous dashboard logout evidence retained separately | NOT_OBSERVED |
+| N5/N8 notification compatibility | Existing reused-runtime run: one list/unread/SSE; 0 reconnect/error-toast/401/403/422 | PASS — non-regression only |
+| Official DB/runtime preservation | Aggregate fingerprint unchanged; 3000/8000 original PIDs retained; harness-owned context/temp removed | PASS |
+
+Focused regression: 26 checks passed; typecheck passed; targeted lint had zero
+errors and two inherited customer-page image warnings. The bounded read-only
+capture waited for the real customer-list render and financial response status
+before summarizing, without retaining payloads or identifiers. The exact next
+scope is `BRANCH-CONTEXT-RUNTIME-FIX-CONT2`; `NOTIF_ACCEPT_AUTHORIZED = NO`.
+
 ## BRANCH-CONTEXT-RUNTIME-FIX — 2026-07-28
 
 | Contract | Evidence | Result |

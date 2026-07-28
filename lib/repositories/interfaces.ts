@@ -331,6 +331,8 @@ export interface CustomerStatementQuery {
   to?: string;
   page?: number;
   pageSize?: number;
+  /** React Query cancellation is forwarded to the shared API client. */
+  signal?: AbortSignal;
 }
 
 export interface CustomerCreditReconciliationDocument {

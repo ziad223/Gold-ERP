@@ -71,6 +71,7 @@ let companyContextFailureHandler: CompanyContextFailureHandler | null = null;
 let companyContextAccessor: CompanyContextAccessor | null = null;
 let branchContextFailureHandler: BranchContextFailureHandler | null = null;
 let branchContextAccessor: BranchContextAccessor | null = null;
+let branchContextTransitioning = false;
 
 export function registerTerminalAuthFailureHandler(handler: TerminalAuthFailureHandler): () => void {
   terminalAuthFailureHandler = handler;
@@ -98,6 +99,25 @@ export function setCompanyContextAccessor(accessor: CompanyContextAccessor | nul
 /** Synchronous transition boundary used before Branch-scoped children render. */
 export function setBranchContextAccessor(accessor: BranchContextAccessor | null): void {
   branchContextAccessor = accessor;
+}
+
+/**
+ * Imperative request guard for the small interval before React consumers
+ * observe a Branch transition. This prevents a stale READY render from
+ * emitting a headerless Branch-scoped request.
+ */
+export function setBranchContextTransitioning(transitioning: boolean): void {
+  branchContextTransitioning = transitioning;
+}
+
+function createBranchTransitionAbort(): Error {
+  const error = new Error("Branch context transition in progress");
+  error.name = "AbortError";
+  return error;
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
 }
 
 export function registerBranchContextFailureHandler(handler: BranchContextFailureHandler): () => void {
@@ -302,6 +322,9 @@ export async function apiClient<T>(path: string, options: ApiClientOptions = {})
   // throws here before any business request, so production never silently uses
   // mock/localStorage. No-op in development.
   assertProductionDataSource();
+  if (branchContextTransitioning && !options.skipBranch && !isContextFreePath(path)) {
+    throw createBranchTransitionAbort();
+  }
   const dataSource = getDataSourceMode();
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
 
@@ -410,6 +433,7 @@ export async function apiClient<T>(path: string, options: ApiClientOptions = {})
 
     return payload as T;
   } catch (error) {
+    if (isAbortError(error)) throw error;
     if (error instanceof DarfusApiError) {
       throw error;
     }
@@ -450,6 +474,7 @@ export function isTerminalTechnicalAuthError(
 
 export function shouldRetryApiQuery(failureCount: number, error: unknown): boolean {
   if (failureCount >= 1) return false;
+  if (isAbortError(error)) return false;
   if (!(error instanceof DarfusApiError)) return true;
   return error.status >= 500 && error.status <= 599;
 }

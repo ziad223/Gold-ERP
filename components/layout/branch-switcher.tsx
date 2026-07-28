@@ -25,6 +25,9 @@ export function BranchSwitcher() {
     disabled: !b.isActive
   }));
   const isFixedBranchAccount = user?.accountType === "branch_shell";
+  // A selection-required Branch is intentionally interactive. Only an
+  // in-progress switch must lock the control against a second transition.
+  const interactionDisabled = isFixedBranchAccount || status === "TRANSITIONING";
 
   // Close when clicking outside
   useEffect(() => {
@@ -70,6 +73,7 @@ export function BranchSwitcher() {
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLButtonElement | HTMLDivElement>) => {
+    if (interactionDisabled) return;
     if (e.key === "Escape") {
       setIsOpen(false);
       triggerRef.current?.focus();
@@ -127,12 +131,13 @@ export function BranchSwitcher() {
       <button
         ref={triggerRef}
         onClick={() => {
-          if (!isFixedBranchAccount) setIsOpen((prev) => !prev);
+          if (!interactionDisabled) setIsOpen((prev) => !prev);
         }}
         onKeyDown={handleKeyDown}
         aria-haspopup="listbox"
-        aria-expanded={isFixedBranchAccount ? false : isOpen}
-        aria-disabled={isFixedBranchAccount}
+        aria-expanded={interactionDisabled ? false : isOpen}
+        aria-disabled={interactionDisabled}
+        disabled={interactionDisabled}
         aria-label={`${t("currentBranch")}: ${activeBranch}`}
         className="flex items-center gap-2 rounded-2xl border border-border bg-panel px-3 py-2 text-start transition focus:outline-none focus:ring-2 focus:ring-brand-500 hover:border-brand-500/50"
       >

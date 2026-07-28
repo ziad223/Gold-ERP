@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { useQueryClient } from "@tanstack/react-query";
 import { apiClient, clearDeviceSessionId, DarfusApiError } from "@/lib/api/client";
 import { DATA_SOURCE } from "@/lib/data-source";
+import { isBranchScopedQueryKey } from "@/lib/branch-context-state";
 import { clearPersistedCompanyContext } from "@/lib/company-context-state";
 
 export interface DarfusUser {
@@ -289,7 +290,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // temporarily makes CompanyContext UNRESOLVED, then its identity guard
       // correctly refuses to auto-adopt a second time.
       if (!options?.bootstrap) {
-        const isBranchScopedQuery = (query: { queryKey: readonly unknown[] }) => query.queryKey[0] !== "accessible-companies" && query.queryKey[0] !== "branches";
+        const isBranchScopedQuery = (query: { queryKey: readonly unknown[] }) => isBranchScopedQueryKey(query.queryKey);
         void queryClient.cancelQueries({ predicate: isBranchScopedQuery });
         queryClient.removeQueries({ predicate: isBranchScopedQuery });
       }

@@ -113,7 +113,7 @@ function useApiItems<T>(key: string, path: string, skipBranch = false) {
   const branchEmployeeReady = user?.accountType !== "branch_shell" || Boolean(operator?.active);
   return useQuery<T[]>({
     queryKey: [key, isSuperAdmin ? companyId || "required" : "server-derived", "branch", skipBranch ? "none" : branchId || "required", generation, branchGeneration],
-    queryFn: async () => normalizeItems<T>(await apiClient(path, { locale, skipBranch, ...(companyId ? { companyId } : {}) })),
+    queryFn: async ({ signal }) => normalizeItems<T>(await apiClient(path, { signal, locale, skipBranch, ...(companyId ? { companyId } : {}) })),
     enabled: DATA_SOURCE === "api" && authReady && isAuthenticated && !terminalAuthHandling && branchEmployeeReady && (!isSuperAdmin || companyReady) && (skipBranch || branchReady),
   });
 }

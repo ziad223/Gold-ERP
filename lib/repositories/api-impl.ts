@@ -501,7 +501,7 @@ export class ApiAccountingRepository implements AccountingRepository {
     const qs = params.toString();
     const res = await apiClient<any>(
       `/customers/${encodeURIComponent(customerId)}/statement-v2${qs ? `?${qs}` : ""}`,
-      auth(),
+      { ...auth(), signal: query.signal },
     );
     return (res?.data ?? res) as CustomerStatement;
   }
@@ -513,7 +513,7 @@ export class ApiAccountingRepository implements AccountingRepository {
     const qs = params.toString();
     const res = await apiClient<any>(
       `/customers/${encodeURIComponent(customerId)}/statement-v3${qs ? `?${qs}` : ""}`,
-      auth(),
+      { ...auth(), signal: query.signal },
     );
     return (res?.data ?? res) as CustomerStatementV3Report;
   }

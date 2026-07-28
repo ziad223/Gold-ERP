@@ -118,9 +118,10 @@ export default function CustomerProfilePage({ params }: PageProps) {
 
   const invoicesQuery = useQuery<any[]>({
     queryKey: queryKeys.customerInvoices(id, branchId),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const res = await apiClient<any>(`/customers/${id}/invoices`, {
         locale,
+        signal,
       });
       return normalizeItems<any>(res);
     },
@@ -993,35 +994,37 @@ function CustomerStatementPanel({ customerId, money }: { customerId: string; mon
 
   const { data, isLoading, error } = useQuery<CustomerStatement>({
     queryKey: ["customer-statement-v2", customerId, "branch", branchId || "none", from, to, page, pageSize],
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       accountingRepository.getCustomerStatementV2(customerId, {
         from: from || undefined,
         to: to || undefined,
         page,
         pageSize,
+        signal,
       }),
     enabled: isApi && !!customerId && branchReady && !dateError,
   });
 
   const statementV3Query = useQuery<CustomerStatementV3Report>({
     queryKey: ["customer-statement-v3", customerId, "branch", branchId || "none", from, to],
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       accountingRepository.getCustomerStatementV3(customerId, {
         from: from || undefined,
         to: to || undefined,
+        signal,
       }),
     enabled: isApi && !!customerId && branchReady && activeStatementView === "v3" && !dateError,
   });
 
   const creditQuery = useQuery<{ data: { availableCredit: number; currency: string } }>({
     queryKey: ["customer-credit", customerId, "branch", branchId || "none"],
-    queryFn: () => apiClient(`/customers/${encodeURIComponent(customerId)}/credit`, { locale }),
+    queryFn: ({ signal }) => apiClient(`/customers/${encodeURIComponent(customerId)}/credit`, { locale, signal }),
     enabled: isApi && !!customerId && branchReady,
   });
   const availableCredit = creditQuery.data?.data?.availableCredit ?? 0;
   const invoicesQuery = useQuery<any[]>({
     queryKey: ["customer-invoices", customerId, "branch", branchId || "none"],
-    queryFn: async () => normalizeItems(await apiClient(`/customers/${encodeURIComponent(customerId)}/invoices`, { locale })),
+    queryFn: async ({ signal }) => normalizeItems(await apiClient(`/customers/${encodeURIComponent(customerId)}/invoices`, { locale, signal })),
     enabled: isApi && !!customerId && branchReady,
   });
   const openInvoices = useMemo(

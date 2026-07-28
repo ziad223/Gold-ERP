@@ -1,5 +1,46 @@
 # Deployment Runbook — Parameterized and Tag-Gated
 
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT3 — deployment prohibition — 2026-07-29
+
+The pre-existing 3000/8000 local runtime remains untouched. A deterministic
+customer-discovery enhancement is static-test proven, but no authenticated
+customer-financial browser evidence was collected because process-scoped
+credential injection was denied before harness launch. Do not substitute a
+browser-form login, create data, deploy, or authorize `NOTIF-ACCEPT`. Resume
+only via `BRANCH-CONTEXT-RUNTIME-FIX-CONT3-CONT1` with a compliant credential
+transport boundary.
+
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT2 — deployment prohibition — 2026-07-29
+
+The local 51/0 runtime was reused without restart. The Branch transition fix
+is source/test proven and its isolated core A→B browser window has zero
+`BRANCH_CONTEXT_REQUIRED`, transient 401/403/422, duplicate notification
+list/unread/SSE, or notification error-toast observations. Do not treat that
+as release acceptance: customer invoice/statement/credit A→B and refresh were
+not observable because no safe existing profile was available. No data
+creation, fallback, migration, deployment, Staging or Production action is
+authorized. Keep `NOTIF_ACCEPT_AUTHORIZED = NO` pending
+`BRANCH-CONTEXT-RUNTIME-FIX-CONT3`.
+
+## Local migration reconciliation — 2026-07-28
+
+The official local development database now has 51 applied / 0 pending source
+migrations following the user's authorized local migration. Registry and
+schema verification passed. Treat this only as the local baseline for the
+next Branch repair; it is not a Staging migration rehearsal, RC approval, or
+Production deployment authorization. Do not replay or roll back migration 51
+in the local runtime.
+
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT1 — release boundary — 2026-07-28
+
+Do not progress to `NOTIF-ACCEPT`, Staging, RC, or Production while
+`BRANCH-CONTEXT-RUNTIME-FIX-CONT1` is partial. Read-only customer profile
+evidence passed for invoice, statement-v2 and credit with both context
+headers, but a normal Branch A→B transition emitted three fail-closed
+`BRANCH_CONTEXT_REQUIRED` responses and invalidated the Branch context. The
+required repair is only the pre-ready Branch transition race; do not replace
+the fail-closed backend contract or introduce a fallback.
+
 ## Branch context release boundary — 2026-07-28
 
 Do not deploy this Branch-context change from static coverage alone. The

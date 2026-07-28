@@ -6,10 +6,14 @@ import {
   DarfusApiError,
   registerBranchContextFailureHandler,
   setBranchContextAccessor,
+  setBranchContextTransitioning,
 } from "@/lib/api/client";
 import { DATA_SOURCE } from "@/lib/data-source";
 import {
+  beginBranchTransition,
   initialBranchContextState,
+  isBranchContextReady,
+  isBranchScopedQueryKey,
   resolveBranchContext,
   type BranchContextState,
   type BranchContextStatus,
@@ -39,24 +43,27 @@ export function BranchContextProvider({ children }: { children: React.ReactNode 
 
   const clearOperationalWork = useCallback(() => {
     setBranchContextAccessor(null);
-    void queryClient.cancelQueries({ predicate: (query) => query.queryKey[0] !== "accessible-companies" && query.queryKey[0] !== "branches" });
-    queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== "accessible-companies" && query.queryKey[0] !== "branches" });
+    void queryClient.cancelQueries({ predicate: (query) => isBranchScopedQueryKey(query.queryKey) });
+    queryClient.removeQueries({ predicate: (query) => isBranchScopedQueryKey(query.queryKey) });
   }, [queryClient]);
 
   useEffect(() => {
     if (!authReady || !isAuthenticated) {
       generationRef.current += 1;
+      setBranchContextTransitioning(true);
       setBranchContextAccessor(null);
       setState({ ...initialBranchContextState, generation: generationRef.current });
       return;
     }
     if (DATA_SOURCE === "api" && isSuperAdmin && !companyReady) {
       generationRef.current += 1;
+      setBranchContextTransitioning(true);
       setBranchContextAccessor(null);
       setState({ status: "UNRESOLVED", branchId: null, branch: null, generation: generationRef.current });
       return;
     }
     if (!branchesLoaded) {
+      setBranchContextTransitioning(true);
       setBranchContextAccessor(null);
       setState((previous) => previous.status === "VALIDATING" || previous.status === "UNRESOLVED"
         ? previous
@@ -64,6 +71,7 @@ export function BranchContextProvider({ children }: { children: React.ReactNode 
       return;
     }
     if (branchesError) {
+      setBranchContextTransitioning(true);
       setBranchContextAccessor(null);
       setState((previous) => ({ status: "ERROR", branchId: null, branch: null, generation: previous.generation + 1 }));
       return;
@@ -79,14 +87,18 @@ export function BranchContextProvider({ children }: { children: React.ReactNode 
     if (next.status === "READY" && next.branchId && next.branch) {
       setBranchContextAccessor(() => ({ branchId: next.branchId as string, generation: next.generation }));
       if (activeBranchId !== next.branchId) switchBranch(next.branchId, next.branch.name, { bootstrap: true });
+      setState(next);
+      setBranchContextTransitioning(false);
     } else {
+      setBranchContextTransitioning(true);
       setBranchContextAccessor(null);
       if (next.status === "INVALID" && activeBranchId) clearBranch();
+      setState(next);
     }
-    setState(next);
   }, [activeBranchId, authReady, branches, branchesError, branchesLoaded, clearBranch, companyReady, isAuthenticated, isSuperAdmin, switchBranch, user?.accountScope?.branchId, user?.accountType]);
 
   useEffect(() => registerBranchContextFailureHandler((error: DarfusApiError) => {
+    setBranchContextTransitioning(true);
     clearOperationalWork();
     clearBranch();
     generationRef.current += 1;
@@ -95,17 +107,23 @@ export function BranchContextProvider({ children }: { children: React.ReactNode 
 
   const selectBranch = useCallback((branchId: string) => {
     const branch = branches.find((item) => item.id === branchId && item.isActive);
-    if (!branch) return;
+    if (!branch || state.status === "TRANSITIONING" || branch.id === state.branchId) return;
+    const transition = beginBranchTransition(state, generationRef.current);
+    generationRef.current = transition.generation;
+    // This state update deliberately precedes accessor retirement. The
+    // imperative API guard closes the render-to-effect interval as well.
+    setState(transition);
+    setBranchContextTransitioning(true);
     clearOperationalWork();
     switchBranch(branch.id, branch.name);
-  }, [branches, clearOperationalWork, switchBranch]);
+  }, [branches, clearOperationalWork, state, switchBranch]);
 
   const value = useMemo<BranchContextValue>(() => ({
     status: state.status,
     branchId: state.branchId,
     branchName: state.branch?.name ?? null,
     generation: state.generation,
-    isReady: DATA_SOURCE !== "api" || state.status === "READY",
+    isReady: DATA_SOURCE !== "api" || isBranchContextReady(state),
     selectBranch,
   }), [selectBranch, state]);
 

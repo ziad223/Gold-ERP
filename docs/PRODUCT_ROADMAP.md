@@ -1,5 +1,77 @@
 # DARFUS Jewellery ERP — v1.0.0 Product Roadmap
 
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT3 — blocked before authenticated capture — 2026-07-29
+
+`013b388` makes the customer-runtime harness deterministic without changing
+Product behavior: it waits for the read-only list lifecycle, uses a visible
+existing profile route, and emits sanitized A→B/refresh order evidence. The
+previous immediate DOM probe is addressed but not yet confirmed as the actual
+CONT1/CONT2 discrepancy. The environment prevented compliant process-scoped
+credential injection before browser execution, so customer discovery,
+financial A→B, refresh and logout remain `NOT_OBSERVED`.
+
+`BRANCH-CONTEXT-RUNTIME-FIX-CONT3 = BLOCKED`;
+`BRANCH-CONTEXT-RUNTIME-FIX = PARTIAL`; `NOTIF_ACCEPT_AUTHORIZED = NO`.
+Continue only with `BRANCH-CONTEXT-RUNTIME-FIX-CONT3-CONT1`, not
+`NOTIF-ACCEPT`; do not create customer or financial data.
+
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT2 — partial after atomic transition repair — 2026-07-29
+
+`e79ac33` makes Branch selection atomic: provider state leaves `READY` before
+the old accessor is retired, an imperative transport guard prevents a stale
+render from sending a headerless Branch request, concrete Branch keys are
+cancelled/removed, and Branch-B accessor/header precedes `READY`. `29faffc`
+adds transition-order tests; `962bf44` preserves selection-required UX; and
+`ba03581` isolates runtime notification evidence. Static checks pass.
+
+The unchanged localhost runtime passes N5/N8 and core A→B with zero
+`BRANCH_CONTEXT_REQUIRED`, zero transient 401/403/422 and no new Company-only
+notification lifecycle. The safe customer profile is currently unavailable,
+so customer-financial A→B/refreshed Branch-B observations are not claimed.
+`BRANCH-CONTEXT-RUNTIME-FIX-CONT2 = PARTIAL`,
+`BRANCH-CONTEXT-RUNTIME-FIX = PARTIAL`, and `NOTIF_ACCEPT_AUTHORIZED = NO`.
+Exact next marker: `BRANCH-CONTEXT-RUNTIME-FIX-CONT3`; do not create data or
+start `NOTIF-ACCEPT`.
+
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT2-CONT1 — official local migration baseline reconciled — 2026-07-28
+
+`MIGRATION_51_APPLIED_BY_USER = YES`; `DATABASE_CHANGE_AUTHORIZED_BY_USER =
+YES`; `MIGRATION_51_REGISTRY_VERIFICATION = PASS`; and
+`MIGRATION_51_SCHEMA_VERIFICATION = PASS`. Future local preflight expects
+`SOURCE_MIGRATIONS = 51`, `OFFICIAL_LOCAL_DATABASE_BASELINE = 51 APPLIED / 0
+PENDING`. The prior 50/1 baseline belongs only to its historical acceptance
+records. No rollback is required, no reconciliation-phase database mutation
+occurred, and the current localhost 3000/8000 runtime identity is verified.
+
+This does not waive release gates, complete Staging migration rehearsal, or
+authorize Production. `BRANCH-CONTEXT-RUNTIME-FIX-CONT2 =
+AUTHORIZED_TO_RESUME`; it must repair only the proven Branch transition race.
+`NOTIF_ACCEPT_AUTHORIZED = NO`. Exact next marker:
+`BRANCH-CONTEXT-RUNTIME-FIX-CONT2`.
+
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT1 — customer profile evidence captured; Branch switch remains release-blocking — 2026-07-28
+
+The localhost-only reused runtime found `CUSTOMER_A` through the authenticated
+customer list without recording identifying data. With Company and Branch
+contexts `READY`, the customer profile, invoices, statement-v2 and credit each
+completed one read-only `200` request with both required context headers. No
+customer-financial request was observed before Branch readiness.
+
+The normal Branch A→B operation from that same profile is not accepted. The
+initial transition cleared the Branch accessor/cache while the provider still
+reported `READY`, allowing statement-v2 and credit requests without a Branch
+header. The fail-closed backend returned three total
+`BRANCH_CONTEXT_REQUIRED` responses; the context then reached `INVALID`.
+No Product repair was made. Refresh-on-customer-financial-route and this
+phase's final profile-route logout remain unobserved after the regression.
+
+`BRANCH-CONTEXT-RUNTIME-FIX-CONT1 = PARTIAL`;
+`BRANCH-CONTEXT-RUNTIME-FIX = PARTIAL`; `NOTIF_ACCEPT_AUTHORIZED = NO`; and
+release gates remain unwaived. Exact next marker:
+`BRANCH-CONTEXT-RUNTIME-FIX-CONT2`, limited to the provider transition race.
+Do not create customer or financial data, add a fallback, or start
+`NOTIF-ACCEPT`.
+
 ## BRANCH-CONTEXT-RUNTIME-FIX — partial, evidence-only continuation required — 2026-07-28
 
 `2b000ff` and `2e687ab` repair the authoritative active-Branch lifecycle:

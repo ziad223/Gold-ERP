@@ -65,6 +65,23 @@ async function accessibleCompanyCount(response) {
   }
 }
 
+function countCategory(items) {
+  if (!Array.isArray(items)) return "UNKNOWN";
+  if (items.length === 0) return "ZERO";
+  if (items.length === 1) return "ONE";
+  return "MANY";
+}
+
+async function customerListCountCategory(response) {
+  try {
+    const body = await response.json();
+    const items = body?.data?.items ?? body?.items ?? body?.data;
+    return countCategory(items);
+  } catch {
+    return "UNKNOWN";
+  }
+}
+
 async function companyReadinessSnapshot(page, accessibleCompanyCounts) {
   const gate = page.locator('[data-company-context-gate="true"]');
   const gateVisible = await gate.isVisible().catch(() => false);
@@ -140,11 +157,74 @@ function customerFinancialSummary(records) {
     return {
       requests: scoped.length,
       successes: scoped.filter((record) => record.status >= 200 && record.status < 300).length,
+      statuses: [...new Set(scoped.map((record) => record.status).filter((status) => status !== null))],
+      companyHeaderPresent: scoped.length > 0 && scoped.every((record) => record.companyContextPresent),
       branchHeaderPresent: scoped.length > 0 && scoped.every((record) => record.branchContextPresent),
       branchContextRequired: scoped.filter((record) => record.stableErrorCode === "BRANCH_CONTEXT_REQUIRED").length,
     };
   };
   return Object.fromEntries(Object.entries(paths).map(([name, path]) => [name, summarizePath(path)]));
+}
+
+async function waitForCustomerProfileLink(page, evidence, customerListCategories) {
+  await expect.poll(
+    () => evidence.records("/customers").some((record) => record.status !== null),
+    { timeout: 30_000 },
+  ).toBe(true);
+  const profileLink = page.locator('a[href^="/en/customers/"]:not([href="/en/customers/loyalty"])').first();
+  const profileAvailable = await profileLink.isVisible({ timeout: 30_000 }).catch(() => false);
+  return {
+    customerListStatus: evidence.records("/customers").find((record) => record.status !== null)?.status ?? null,
+    customerListCountCategory: customerListCategories.at(-1) ?? "UNKNOWN",
+    profileAvailable,
+    profileLink,
+  };
+}
+
+async function openCustomerFinancialViews(page, evidence) {
+  await expect(page.getByRole("button", { name: "Sales & Invoices" })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Sales & Invoices" }).click();
+  await page.getByRole("button", { name: "Customer Statement" }).click();
+  await expect.poll(() => evidence.records("/customers/:id/invoices").length, { timeout: 30_000 }).toBeGreaterThan(0);
+  await expect.poll(() => evidence.records("/customers/:id/statement-v2").length, { timeout: 30_000 }).toBeGreaterThan(0);
+  await expect.poll(() => evidence.records("/customers/:id/credit").length, { timeout: 30_000 }).toBeGreaterThan(0);
+}
+
+async function observeBranchTransition(page, activateBranchB) {
+  await page.evaluate(() => {
+    const target = document.querySelector('[data-branch-context-status]');
+    const events = [];
+    const capture = () => events.push({
+      at: Date.now(),
+      status: target?.getAttribute('data-branch-context-status') ?? null,
+      ready: target?.getAttribute('data-branch-context-ready') ?? null,
+    });
+    capture();
+    const observer = new MutationObserver(capture);
+    if (target) observer.observe(target, {
+      attributes: true,
+      attributeFilter: ['data-branch-context-status', 'data-branch-context-ready'],
+    });
+    window.__darfusBranchTransitionObservation = { events, observer };
+  });
+  const switchClickedAt = Date.now();
+  await activateBranchB();
+  const branchState = page.locator('[data-branch-context-status]').first();
+  await expect.poll(() => branchState.getAttribute('data-branch-context-ready'), { timeout: 30_000 }).toBe('true');
+  return page.evaluate((startedAt) => {
+    const observation = window.__darfusBranchTransitionObservation;
+    observation?.observer?.disconnect();
+    const events = (observation?.events ?? []).filter((event) => event.at >= startedAt);
+    const readyFalse = events.find((event) => event.ready === 'false' || event.status === 'TRANSITIONING') ?? null;
+    const readyTrue = [...events].reverse().find((event) => event.ready === 'true') ?? null;
+    delete window.__darfusBranchTransitionObservation;
+    return {
+      readyFalseObserved: Boolean(readyFalse),
+      branchBReadyObserved: Boolean(readyTrue),
+      readyFalseAt: readyFalse?.at ?? null,
+      branchBReadyAt: readyTrue?.at ?? null,
+    };
+  }, switchClickedAt);
 }
 
 async function waitForLifecycle(page, evidence) {
@@ -192,9 +272,12 @@ test("captures sanitized N5/N8 single-Company browser acceptance evidence", asyn
   let n5;
   let n8;
   let customerFinancial = { outcome: "NOT_OBSERVED" };
+  let customerDiscovery = { outcome: "NOT_OBSERVED" };
+  let customerRefresh = { outcome: "NOT_OBSERVED" };
   let branchSwitch = { outcome: "NOT_APPLICABLE_FOR_AVAILABLE_IDENTITY" };
   let logout;
   const accessibleCompanyCounts = [];
+  const customerListCategories = [];
   page.on("request", (request) => {
     const url = new URL(request.url());
     const normalized = url.pathname.replace(/^\/api\/v1/, "") || "/";
@@ -208,6 +291,7 @@ test("captures sanitized N5/N8 single-Company browser acceptance evidence", asyn
         const count = await accessibleCompanyCount(response);
         if (count !== null) accessibleCompanyCounts.push(count);
       }
+      if (normalized === "/customers") customerListCategories.push(await customerListCountCategory(response));
       evidence.response({ method: request.method(), url: response.url(), status: response.status(), stableErrorCode: await stableErrorCode(response) });
     }
   });
@@ -273,20 +357,35 @@ test("captures sanitized N5/N8 single-Company browser acceptance evidence", asyn
     phase = "N8_BRANCH_READY";
     await expect.poll(() => page.locator('[data-branch-context-status]').first().getAttribute('data-branch-context-ready'), { timeout: 30_000 }).toBe('true');
 
-    evidence.begin("CUSTOMER_FINANCIAL");
-    phase = "CUSTOMER_FINANCIAL_NAVIGATION";
+    // Establish a deterministic Branch A without retaining its identifier.
+    if (branchOptionCount >= 2 && branchTriggerVisible) {
+      evidence.begin("BRANCH_A_ESTABLISH");
+      await branchTrigger.click();
+      await page.getByRole("option").first().click();
+      await expect.poll(() => page.locator('[data-branch-context-status]').first().getAttribute('data-branch-context-ready'), { timeout: 30_000 }).toBe('true');
+      await waitForTrackedNetworkQuiescence(page, evidence);
+    }
+
+    evidence.begin("CUSTOMER_DISCOVERY");
+    phase = "CUSTOMER_DISCOVERY";
     await page.goto("/en/customers", { waitUntil: "domcontentloaded" });
-    const profileLink = page.locator('a[href^="/en/customers/"]:not([href="/en/customers/loyalty"])').first();
-    if (await profileLink.isVisible().catch(() => false)) {
-      await profileLink.click();
-      await expect(page.getByRole("button", { name: "Sales & Invoices" })).toBeVisible({ timeout: 30_000 });
-      await page.getByRole("button", { name: "Sales & Invoices" }).click();
-      await page.getByRole("button", { name: "Customer Statement" }).click();
-      await expect.poll(() => evidence.records("/customers/:id/statement-v2").length, { timeout: 30_000 }).toBeGreaterThan(0);
+    const discovery = await waitForCustomerProfileLink(page, evidence, customerListCategories);
+    customerDiscovery = {
+      outcome: discovery.profileAvailable ? "SAFE_CUSTOMER_FOUND" : "NO_SAFE_EXISTING_CUSTOMER",
+      customerListStatus: discovery.customerListStatus,
+      customerListCountCategory: discovery.customerListCountCategory,
+      safeProfileRouteAvailable: discovery.profileAvailable,
+    };
+    if (discovery.profileAvailable) {
+      evidence.begin("BRANCH_A_FINANCIAL");
+      phase = "BRANCH_A_FINANCIAL";
+      await discovery.profileLink.click();
+      await openCustomerFinancialViews(page, evidence);
       const financialRecords = evidence.snapshot();
-      customerFinancial = { outcome: "EXECUTED", ...customerFinancialSummary(financialRecords) };
+      customerFinancial = { outcome: "BRANCH_A_EXECUTED", ...customerFinancialSummary(financialRecords) };
       for (const result of Object.values(customerFinancial)) {
         if (typeof result === "object") {
+          expect(result.companyHeaderPresent).toBe(true);
           expect(result.branchHeaderPresent).toBe(true);
           expect(result.branchContextRequired).toBe(0);
           expect(result.successes).toBeGreaterThan(0);
@@ -297,21 +396,82 @@ test("captures sanitized N5/N8 single-Company browser acceptance evidence", asyn
     }
 
     if (branchOptionCount >= 2 && branchTriggerVisible) {
+      // Navigation to a safe customer can mount Company-only resources. Let
+      // those settle before attributing any request to the Branch transition.
+      await waitForTrackedNetworkQuiescence(page, evidence);
       evidence.begin("BRANCH_A_TO_B");
       phase = "BRANCH_A_TO_B";
-      await branchTrigger.click();
-      await page.getByRole("option").nth(1).click();
+      const transition = await observeBranchTransition(page, async () => {
+        await branchTrigger.click();
+        await page.getByRole("option").nth(1).click();
+      });
       await waitForTrackedNetworkQuiescence(page, evidence);
       const branchRecords = evidence.snapshot();
       const branchScopedRecords = branchRecords.filter((record) => ["/assets", "/invoices", "/transfers", "/reservations", "/products", "/stock-movements"].includes(record.path));
       expect(branchScopedRecords.some((record) => record.branchContextPresent)).toBe(true);
       expect(branchRecords.filter((record) => record.stableErrorCode === "BRANCH_CONTEXT_REQUIRED")).toHaveLength(0);
+      const branchNotifications = summarize(branchRecords, await notificationErrorToastCount(page), false, true, branchOptionCount);
+      expect(branchNotifications.notificationListRequests).toBe(0);
+      expect(branchNotifications.unreadRequests).toBe(0);
+      expect(branchNotifications.sseConnections).toBe(0);
+      expect(branchNotifications.notificationErrorToasts).toBe(0);
+      const branchFinancial = customerFinancial.outcome === "BRANCH_A_EXECUTED"
+        ? customerFinancialSummary(branchRecords)
+        : null;
+      if (branchFinancial) {
+        for (const result of Object.values(branchFinancial)) {
+          expect(result.requests).toBe(1);
+          expect(result.companyHeaderPresent).toBe(true);
+          expect(result.branchHeaderPresent).toBe(true);
+          expect(result.branchContextRequired).toBe(0);
+        }
+      }
+      const preReadyFinancialRequests = transition.branchBReadyAt === null
+        ? null
+        : evidence.records("/customers/:id/invoices").filter((record) => record.observedAt < transition.branchBReadyAt).length
+          + evidence.records("/customers/:id/statement-v2").filter((record) => record.observedAt < transition.branchBReadyAt).length
+          + evidence.records("/customers/:id/credit").filter((record) => record.observedAt < transition.branchBReadyAt).length;
+      expect(transition.readyFalseObserved).toBe(true);
+      expect(transition.branchBReadyObserved).toBe(true);
+      expect(preReadyFinancialRequests).toBe(0);
       branchSwitch = {
         outcome: "EXECUTED",
         branchOptions: branchOptionCount,
         branchScopedContextPresent: true,
         branchContextRequired: 0,
+        notificationListRequests: branchNotifications.notificationListRequests,
+        unreadRequests: branchNotifications.unreadRequests,
+        sseConnections: branchNotifications.sseConnections,
+        notificationErrorToasts: branchNotifications.notificationErrorToasts,
+        transition,
+        preReadyFinancialRequests,
+        financial: branchFinancial || "NOT_OBSERVED_NO_SAFE_CUSTOMER",
       };
+
+      if (customerFinancial.outcome === "BRANCH_A_EXECUTED") {
+        evidence.begin("CUSTOMER_FINANCIAL_REFRESH");
+        phase = "CUSTOMER_FINANCIAL_REFRESH";
+        const session = await page.context().newCDPSession(page);
+        await session.send("Network.clearBrowserCache");
+        await page.reload({ waitUntil: "domcontentloaded" });
+        await expect(page.locator('[data-company-display="true"]')).toBeVisible({ timeout: 30_000 });
+        await expect.poll(() => page.locator('[data-branch-context-status]').first().getAttribute('data-branch-context-ready'), { timeout: 30_000 }).toBe('true');
+        await openCustomerFinancialViews(page, evidence);
+        const refreshRecords = evidence.snapshot();
+        const refreshFinancial = customerFinancialSummary(refreshRecords);
+        for (const result of Object.values(refreshFinancial)) {
+          expect(result.companyHeaderPresent).toBe(true);
+          expect(result.branchHeaderPresent).toBe(true);
+          expect(result.branchContextRequired).toBe(0);
+        }
+        customerRefresh = {
+          outcome: "EXECUTED",
+          companyDisplayVisible: await page.locator('[data-company-display="true"]').isVisible(),
+          branchReady: await page.locator('[data-branch-context-status]').first().getAttribute('data-branch-context-ready'),
+          ...refreshFinancial,
+          lifecycle: summarize(refreshRecords, await notificationErrorToastCount(page), false, true, branchOptionCount),
+        };
+      }
     }
 
     await waitForTrackedNetworkQuiescence(page, evidence);
@@ -343,6 +503,8 @@ test("captures sanitized N5/N8 single-Company browser acceptance evidence", asyn
         n8: n8 || null,
         branchSwitch,
         customerFinancial,
+        customerDiscovery,
+        customerRefresh,
         logout: logout || null,
         phase,
         runtimeState,
@@ -351,6 +513,9 @@ test("captures sanitized N5/N8 single-Company browser acceptance evidence", asyn
           n8: evidence.snapshot("N8_HARD_REFRESH"),
           branch: evidence.snapshot("BRANCH_A_TO_B"),
           customerFinancial: evidence.snapshot("CUSTOMER_FINANCIAL"),
+          customerDiscovery: evidence.snapshot("CUSTOMER_DISCOVERY"),
+          branchAFinancial: evidence.snapshot("BRANCH_A_FINANCIAL"),
+          customerRefresh: evidence.snapshot("CUSTOMER_FINANCIAL_REFRESH"),
           logout: evidence.snapshot("LOGOUT"),
         },
       }, null, 2));

@@ -86,7 +86,8 @@ test("Company context integration bootstraps context-free, auto-adopts one Compa
   assert.match(operator, /if \(isSuperAdmin && !companyReady\)[\s\S]*return;[\s\S]*operatorRepository\.current/);
   const switchBranchSource = auth.slice(auth.indexOf("const switchBranch"), auth.indexOf("const clearBranch"));
   assert.doesNotMatch(switchBranchSource, /queryClient\.clear\(\)/);
-  assert.match(switchBranchSource, /query\.queryKey\[0\] !== "accessible-companies"/);
+  assert.match(auth, /isBranchScopedQueryKey/);
+  assert.match(switchBranchSource, /isBranchScopedQueryKey\(query\.queryKey\)/);
   assert.match(switchBranchSource, /cancelQueries\(\{ predicate: isBranchScopedQuery \}\)/);
   assert.match(switchBranchSource, /removeQueries\(\{ predicate: isBranchScopedQuery \}\)/);
 });
