@@ -81,6 +81,10 @@ export interface AppSettings {
 interface SettingsContextValue {
   settings: AppSettings;
   branches: Branch[];
+  /** Branch list was resolved for the current Company generation. */
+  branchesLoaded: boolean;
+  /** Branch bootstrap failed; consumers must not infer an active Branch. */
+  branchesError: boolean;
   loading: boolean;
   /** True once settings have been confirmed loaded (from API in api mode, or local in mock mode). */
   loaded: boolean;
@@ -202,6 +206,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const { isSuperAdmin, isReady: companyReady, companyId, generation: companyGeneration } = useCompanyContext();
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [branchesLoaded, setBranchesLoaded] = useState(false);
+  const [branchesError, setBranchesError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
@@ -211,6 +217,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     companyGenerationRef.current = companyGeneration;
     if (isApi && isSuperAdmin && !companyReady) {
       setBranches([]);
+      setBranchesLoaded(false);
+      setBranchesError(false);
       setLoaded(false);
       setError(false);
     }
@@ -331,6 +339,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       } catch (e) {
         console.error("Failed to load local branches", e);
       }
+      setBranchesLoaded(true);
+      setBranchesError(false);
       return;
     }
 
@@ -346,10 +356,17 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         const nextBranches = res.items || [];
         setBranches(nextBranches);
         clearActiveBranchIfRemoved(nextBranches);
+        setBranchesLoaded(true);
+        setBranchesError(false);
+      } else {
+        setBranchesLoaded(false);
+        setBranchesError(true);
       }
     } catch (err) {
       if (isExpectedBranchAccountAccessError(err, user?.accountType)) return;
       console.error("Failed to fetch branches from API", err);
+      setBranchesLoaded(false);
+      setBranchesError(true);
     }
   }, [companyId, companyReady, isApi, isSuperAdmin, locale, user?.accountType]);
 
@@ -583,6 +600,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       value={{
         settings,
         branches,
+        branchesLoaded,
+        branchesError,
         loading,
         loaded,
         error,

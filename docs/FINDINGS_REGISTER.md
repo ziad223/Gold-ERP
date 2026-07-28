@@ -1,5 +1,12 @@
 # Market Release Findings Register
 
+## BRANCH-CONTEXT-RUNTIME-FIX — 2026-07-28
+
+| ID | Severity | Status | Evidence / required next action |
+| --- | --- | --- | --- |
+| BRANCH-CONTEXT-RUNTIME-F001 | P2, release-blocking operational runtime regression | IMPLEMENTED — pending customer-financial runtime evidence | Root causes were split Branch authority (storage/display versus request client), customer invoice `skipBranch`, ungated statement/credit queries, and fixed-Company refresh clearing the Branch candidate. The canonical Branch provider, client accessor, server validation, Branch-aware keys and customer-financial gates are implemented and focused tests pass. Reused runtime proves N5/N8 Branch readiness, A→B header propagation and logout; `CUSTOMER_A` is unavailable for safe read-only invoice/statement/credit navigation. Do not create data; capture that exact evidence next. |
+| NOTIF-PRE1-CONT1-CONT1-CONT1-CONT1-F001 | P2 | OPEN — final notification acceptance remains gated | Company lifecycle evidence remains valid, but `NOTIF-ACCEPT` is paused until the Branch customer-financial runtime boundary is closed. Notification Company-only list/unread/SSE behavior itself remained non-regressed in this phase. |
+
 ## COMPANY-CONTEXT-RUNTIME-FIX — accepted runtime repair — 2026-07-28
 
 | ID | Severity | Status | Evidence / required next action |

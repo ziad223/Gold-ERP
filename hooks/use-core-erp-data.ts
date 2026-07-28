@@ -9,6 +9,7 @@ import { normalizeItems, toFiniteNumber } from "@/lib/api/normalize";
 import { DATA_SOURCE } from "@/lib/data-source";
 import { useAuth } from "@/contexts/auth-context";
 import { useCompanyContext } from "@/contexts/company-context";
+import { useBranchContext } from "@/contexts/branch-context";
 import { useOptionalOperator } from "@/contexts/operator-context";
 import type {
   ApprovalRequest,
@@ -108,11 +109,12 @@ function useApiItems<T>(key: string, path: string, skipBranch = false) {
   const { authReady, isAuthenticated, terminalAuthHandling, user } = useAuth();
   const operator = useOptionalOperator();
   const { isSuperAdmin, isReady: companyReady, companyId, generation } = useCompanyContext();
+  const { isReady: branchReady, branchId, generation: branchGeneration } = useBranchContext();
   const branchEmployeeReady = user?.accountType !== "branch_shell" || Boolean(operator?.active);
   return useQuery<T[]>({
-    queryKey: [key, isSuperAdmin ? companyId || "required" : "server-derived", generation],
+    queryKey: [key, isSuperAdmin ? companyId || "required" : "server-derived", "branch", skipBranch ? "none" : branchId || "required", generation, branchGeneration],
     queryFn: async () => normalizeItems<T>(await apiClient(path, { locale, skipBranch, ...(companyId ? { companyId } : {}) })),
-    enabled: DATA_SOURCE === "api" && authReady && isAuthenticated && !terminalAuthHandling && branchEmployeeReady && (!isSuperAdmin || companyReady),
+    enabled: DATA_SOURCE === "api" && authReady && isAuthenticated && !terminalAuthHandling && branchEmployeeReady && (!isSuperAdmin || companyReady) && (skipBranch || branchReady),
   });
 }
 

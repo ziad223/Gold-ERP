@@ -77,8 +77,8 @@ test("Company context integration bootstraps context-free, auto-adopts one Compa
   assert.doesNotMatch(gate, /role="listbox"/);
   assert.match(switcher, /data-company-display/);
   assert.doesNotMatch(switcher, /onClick/);
-  assert.match(branchSwitcher, /switchBranch/);
-  assert.match(branchSwitcher, /isSuperAdmin && !companyReady/);
+  assert.match(branchSwitcher, /useBranchContext/);
+  assert.match(branchSwitcher, /selectBranch/);
   assert.match(settings, /isSuperAdmin && !companyReady/);
   assert.match(operator, /useCompanyContext/);
   assert.match(operator, /isSuperAdmin && !companyReady/);

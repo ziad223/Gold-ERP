@@ -1,5 +1,17 @@
 # Deployment Runbook — Parameterized and Tag-Gated
 
+## Branch context release boundary — 2026-07-28
+
+Do not deploy this Branch-context change from static coverage alone. The
+frontend now validates a persisted Branch candidate against server-authorized
+Branches before adding `X-Branch-ID`, and customer financial queries wait for
+that READY state. The existing local runtime passed N5/N8, A→B and logout
+checks, but invoice/statement/credit navigation remains unobserved because no
+safe customer exists for the approved identity. Release/RC authorization is
+therefore still prohibited pending `BRANCH-CONTEXT-RUNTIME-FIX-CONT1` and then
+`NOTIF-ACCEPT`. No database migration, data repair, fallback or manual header
+injection is an approved substitute.
+
 ## COMPANY-CONTEXT-RUNTIME-FIX runtime gate — 2026-07-28
 
 The local single-Company runtime gate is accepted: N5/N8 automatic bootstrap,

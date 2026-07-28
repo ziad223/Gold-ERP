@@ -86,7 +86,7 @@ interface AuthContextValue {
   token: string | null;
   activeBranch: string;
   activeBranchId: string;
-  switchBranch: (branchId: string, branchName?: string) => void;
+  switchBranch: (branchId: string, branchName?: string, options?: { bootstrap?: boolean }) => void;
   clearBranch: () => void;
   login: (email: string, password: string, remember?: boolean) => Promise<{ ok: boolean; message?: string; forcePasswordChange?: boolean }>;
   register: (payload: RegistrationPayload) => Promise<{ ok: boolean; message?: RegisterError }>;
@@ -239,8 +239,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<DarfusUser | null>(null);
   const [company, setCompany] = useState<DarfusCompany | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [activeBranch, setActiveBranch] = useState<string>("فرع دبي مول");
-  const [activeBranchId, setActiveBranchId] = useState<string>("BR-DXB");
+  const [activeBranch, setActiveBranch] = useState<string>("");
+  const [activeBranchId, setActiveBranchId] = useState<string>("");
 
   // Mock-only state
   const [accounts, setAccounts] = useState<StoredAccount[]>([defaultAccount]);
@@ -249,27 +249,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== "undefined") {
       const savedId = window.localStorage.getItem("darfus-active-branch-id-v1");
       const savedName = window.localStorage.getItem("darfus-active-branch-name-v1");
-      if (savedId && !savedId.startsWith("BR-")) {
-        window.localStorage.removeItem("darfus-active-branch-id-v1");
-        window.localStorage.removeItem("darfus-active-branch-name-v1");
-      } else {
-        if (savedId) setActiveBranchId(savedId);
-        if (savedName) setActiveBranch(savedName);
-      }
+      // Persisted Branch identity is only a selection hint. BranchContext
+      // validates it against the current accessible-branches response before
+      // the shared API client can use it.
+      if (savedId) setActiveBranchId(savedId);
+      if (savedName) setActiveBranch(savedName);
     }
   }, []);
 
   useEffect(() => {
-    if (company?.branchName) {
+    if (!isApiMode && company?.branchName) {
       // Don't overwrite if user has already chosen a branch
       let savedId = typeof window !== "undefined" ? window.localStorage.getItem("darfus-active-branch-id-v1") : null;
-      if (savedId && !savedId.startsWith("BR-")) {
-        if (typeof window !== "undefined") {
-          window.localStorage.removeItem("darfus-active-branch-id-v1");
-          window.localStorage.removeItem("darfus-active-branch-name-v1");
-        }
-        savedId = null;
-      }
       if (!savedId) {
         setActiveBranch(company.branchName);
         if (typeof window !== "undefined") {
@@ -277,10 +268,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
     }
-  }, [company]);
+  }, [company, isApiMode]);
 
   const switchBranch = useCallback(
-    (branchId: string, branchName?: string) => {
+    (branchId: string, branchName?: string, options?: { bootstrap?: boolean }) => {
       if (user?.accountType === "branch_shell") {
         const fixedId = user.accountScope?.branchId;
         if (fixedId && branchId !== fixedId) return;
@@ -297,9 +288,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // server-authoritative Company bootstrap. Clearing the whole cache
       // temporarily makes CompanyContext UNRESOLVED, then its identity guard
       // correctly refuses to auto-adopt a second time.
-      const isBranchScopedQuery = (query: { queryKey: readonly unknown[] }) => query.queryKey[0] !== "accessible-companies";
-      void queryClient.cancelQueries({ predicate: isBranchScopedQuery });
-      queryClient.removeQueries({ predicate: isBranchScopedQuery });
+      if (!options?.bootstrap) {
+        const isBranchScopedQuery = (query: { queryKey: readonly unknown[] }) => query.queryKey[0] !== "accessible-companies" && query.queryKey[0] !== "branches";
+        void queryClient.cancelQueries({ predicate: isBranchScopedQuery });
+        queryClient.removeQueries({ predicate: isBranchScopedQuery });
+      }
     },
     [queryClient, user?.accountScope?.branchId, user?.accountType],
   );

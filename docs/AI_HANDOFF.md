@@ -1,5 +1,15 @@
 # READ THIS FIRST — CURRENT PROJECT HANDOFF
 
+## BRANCH-CONTEXT-RUNTIME-FIX — 2026-07-28
+
+- Starting checkpoint: `62e140b` (`docs: record Company runtime validation boundary`). Commits: `2b000ff` (`fix: stabilize active Branch context`) and `2e687ab` (`test: cover Branch context financial runtime`).
+- Root cause: the UI/storage Branch value and shared API client were separate authorities; customer invoices used `skipBranch`; statement/credit started without Branch readiness; and every fixed-Company bootstrap cleared the Branch selection before refresh validation.
+- Implementation: one `BranchContextProvider` validates server branches and owns the shared client accessor. Persisted storage is a hint only. Customer financial queries are Branch-gated and Branch-keyed; the dashboard blocks operational content until READY. Invalid context clears scoped work and returns to controlled state. Notifications intentionally remain Company-scoped and use their accepted `skipBranch` path.
+- Runtime: existing localhost 3000/8000 services and their PIDs were preserved. N5/N8 each recorded one Company bootstrap, Branch bootstrap, notification list, unread and SSE lifecycle; zero 401/403/422, reconnects and notification error toasts. Five Branches enabled A→B with observed Branch context. Logout had zero protected notification traffic. The harness cleanup removed its own browser/evidence only; credentials were process-scoped and absent after use.
+- Boundary: no safe existing customer profile was available, so invoices/statement-v2/credit live evidence is `NOT_OBSERVED`; do not claim it passed and do not create customer data. `BRANCH-CONTEXT-RUNTIME-FIX = PARTIAL`, `BRANCH-CONTEXT-RUNTIME-F001 = IMPLEMENTED — PENDING CUSTOMER-FINANCIAL RUNTIME EVIDENCE`, `NOTIF_ACCEPT_AUTHORIZED = NO`.
+- Validation: focused Branch/Company/notification/error/auth suites passed, typecheck passed, targeted lint had zero errors (two existing image warnings). Production build is deferred because the existing Next dev runtime must not be disturbed. Official DB remains 50 applied / 1 source migration pending, no data mutation, 0 idle/waiting locks, no remotes/push/deployment.
+- Exact next marker: `BRANCH-CONTEXT-RUNTIME-FIX-CONT1`, scoped only to safe existing-customer invoice/statement/credit runtime capture and resulting gate decision.
+
 ## COMPANY-CONTEXT-RUNTIME-FIX — 2026-07-28
 
 - Starting checkpoint: `cca5502`; implementation commits: `1eeb542` (gate global Operator work until Company READY), `e1bea2d` (Strict Mode-safe Company-ready SSE start), `d0e1ffe`/`eed7713` (sanitized phase and locale-independent logout harness evidence), and `ba9e1f9` (retain the bootstrap query across Branch isolation). No package, migration, `.env`, backend authorization, Company/Branch data, or pre-existing runtime process changed.

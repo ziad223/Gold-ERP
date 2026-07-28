@@ -4,8 +4,8 @@ export const queryKeys = {
 
   customers: ["customers"] as const,
   customer: (id: string) => ["customer", id] as const,
-  customerInvoices: (id: string) => ["customer-invoices", id] as const,
-  customerStatement: (id: string) => ["customer-statement", id] as const,
+  customerInvoices: (id: string, branchId?: string | null) => ["customer-invoices", id, "branch", branchId || "none"] as const,
+  customerStatement: (id: string, branchId?: string | null) => ["customer-statement", id, "branch", branchId || "none"] as const,
   customerAttachments: (id: string) => ["customer-attachments", id] as const,
 
   suppliers: ["suppliers"] as const,

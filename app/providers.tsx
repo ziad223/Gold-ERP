@@ -16,6 +16,7 @@ import { OperatorProvider } from "@/contexts/operator-context";
 import { ThemeProvider } from "@/contexts/theme-context";
 
 import { SettingsProvider } from "@/contexts/settings-context";
+import { BranchContextProvider } from "@/contexts/branch-context";
 import { AuthSessionCoordinator } from "@/components/auth/auth-session-coordinator";
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -72,13 +73,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <AuthProvider>
           <CompanyContextProvider>
             <SettingsProvider>
-              <ErpProvider>
-                <OperatorProvider>
-                  <AuthSessionCoordinator />
-                  {children}
-                </OperatorProvider>
-                <Toaster position="top-right" richColors />
-              </ErpProvider>
+              <BranchContextProvider>
+                <ErpProvider>
+                  <OperatorProvider>
+                    <AuthSessionCoordinator />
+                    {children}
+                  </OperatorProvider>
+                  <Toaster position="top-right" richColors />
+                </ErpProvider>
+              </BranchContextProvider>
             </SettingsProvider>
           </CompanyContextProvider>
         </AuthProvider>

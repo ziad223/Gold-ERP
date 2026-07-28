@@ -60,17 +60,21 @@ export function CompanyContextProvider({ children }: { children: React.ReactNode
     refetchOnWindowFocus: false,
   });
 
-  const clearScopedWork = useCallback(() => {
+  const clearScopedWork = useCallback((options?: { clearBranch?: boolean }) => {
     setCompanyContextAccessor(null);
     void queryClient.cancelQueries({ predicate: (query) => query.queryKey[0] !== BOOTSTRAP_KEY });
     queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== BOOTSTRAP_KEY });
-    clearBranch();
+    if (options?.clearBranch !== false) clearBranch();
   }, [clearBranch, queryClient]);
 
   const adoptBootstrapCompany = useCallback((companies: AccessibleCompany[]) => {
     const before = stateRef.current;
     setCompanyContextAccessor(null);
-    clearScopedWork();
+    // A normal refresh revalidates the fixed Company. It must not erase the
+    // separately persisted Branch selection before BranchContext can validate
+    // it against the fresh authorized Branch list. Invalid/account-change
+    // paths still use the default and clear Branch immediately.
+    clearScopedWork({ clearBranch: false });
     setState({ ...before, status: "VALIDATING", hydrated: true, messageKey: null });
     const next = resolveSingleCompanyContext(companies, before.generation);
     if (next.status === "READY" && next.companyId) {

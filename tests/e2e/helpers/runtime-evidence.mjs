@@ -8,7 +8,8 @@ const SENSITIVE_HEADER_NAMES = new Set([
 
 export function normalizePath(rawUrl) {
   const parsed = new URL(rawUrl);
-  return parsed.pathname.replace(/^\/api\/v1/, "") || "/";
+  const normalized = parsed.pathname.replace(/^\/api\/v1/, "") || "/";
+  return normalized.replace(/^(\/customers)\/[^/]+(?=\/|$)/, "$1/:id");
 }
 
 export function contextPresence(headers = {}) {

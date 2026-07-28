@@ -1,5 +1,52 @@
 # Release Gap Audit
 
+## BRANCH-CONTEXT-RUNTIME-FIX — implementation accepted; customer-financial runtime evidence bounded — 2026-07-28
+
+Starting checkpoint `62e140b9934375eef54b1d5165c6126417811542` exposed the
+manual `BRANCH_CONTEXT_REQUIRED` finding as a frontend authority and query
+gating defect. The former display/storage Branch value was not the API-client
+authority; customer invoice history explicitly suppressed the Branch header;
+statement and credit queries were ungated; and each fixed-Company bootstrap
+cleared the persisted Branch candidate before refresh validation.
+
+`2b000ff` introduces one validated Branch state machine
+(`UNRESOLVED`, `READY`, `SETUP_REQUIRED`, `SELECTION_REQUIRED`, `INVALID`,
+`ERROR`), a canonical API-client Branch accessor, Branch-aware cache keys and
+customer-financial readiness gates. Persisted Branch storage is now only a
+candidate validated against the current accessible Branch list; no arbitrary
+multi-Branch fallback exists. `2e687ab` adds lifecycle and sanitized browser
+coverage. Notifications intentionally retain their completed Company-only
+`skipBranch` contract; the observed list/unread/SSE lifecycle did not regress.
+
+The externally reused 3000/8000 harness passed: N5 and N8 each observed one
+context-free Company bootstrap, one Branch bootstrap, one notification list,
+one unread request and one SSE connection; all observed status counts for
+401/403/422, reconnects and notification error toasts were zero. N8 restored
+the server-validated Branch to READY after hard refresh. Five existing
+Branches allowed an A→B run with Branch context on observed Branch-scoped
+resources and zero `BRANCH_CONTEXT_REQUIRED`. Logout then had zero protected
+list/unread/SSE traffic. The safe identity had no existing customer profile,
+so invoices, statement-v2 and credit navigation was not executed and is not
+claimed as accepted runtime evidence.
+
+| Scenario | Resource | Requests | Status | Company context | Branch context | Outcome |
+| --- | --- | ---: | --- | --- | --- | --- |
+| N5 | accessible Companies | 1 | 200 | absent as required | absent | PASS |
+| N5 | Branch bootstrap / list / unread / SSE | 1 / 1 / 1 / 1 | 200 | present / present / present / present | Branch bootstrap absent; notifications intentionally absent | PASS |
+| N8 | accessible Companies | 1 | 200 | absent as required | absent | PASS |
+| N8 | Branch bootstrap / list / unread / SSE | 1 / 1 / 1 / 1 | 200 | present / present / present / present | Branch bootstrap absent; notifications intentionally absent | PASS |
+| Branch A→B | observed Branch-scoped core reads | observed | 200 where completed | present | present after READY | PASS |
+| Customer financial | invoices / statement-v2 / credit | 0 | NOT_OBSERVED | — | — | no safe existing customer |
+| Logout | notification list / unread / SSE | 0 / 0 / 0 | — | — | — | PASS |
+
+`BRANCH-CONTEXT-RUNTIME-FIX = PARTIAL` only for the missing existing-customer
+read-only runtime observation. `BRANCH-CONTEXT-RUNTIME-F001 = IMPLEMENTED —
+PENDING CUSTOMER-FINANCIAL RUNTIME EVIDENCE`; `NOTIF_ACCEPT_AUTHORIZED = NO`.
+No backend, migration, package, `.env`, data or pre-existing runtime process
+changed. The official database remains `darfus_erp`, 50 applied / 1 pending
+source migration, with zero idle transactions and waiting locks. Exact next
+marker: `BRANCH-CONTEXT-RUNTIME-FIX-CONT1`.
+
 ## COMPANY-CONTEXT-RUNTIME-FIX — accepted external-runtime repair — 2026-07-28
 
 Starting at `cca5502`, the root cause was a pre-READY `/operator/current`

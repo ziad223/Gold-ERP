@@ -62,11 +62,15 @@ export const AUTH_REFRESHED_RETRY_REQUIRED = "AUTH_REFRESHED_RETRY_REQUIRED";
 
 type TerminalAuthFailureHandler = (error: DarfusApiError) => void;
 type CompanyContextFailureHandler = (error: DarfusApiError) => void;
+type BranchContextFailureHandler = (error: DarfusApiError) => void;
 type CompanyContextAccessor = () => { companyId: string; generation: number } | null;
+type BranchContextAccessor = () => { branchId: string; generation: number } | null;
 
 let terminalAuthFailureHandler: TerminalAuthFailureHandler | null = null;
 let companyContextFailureHandler: CompanyContextFailureHandler | null = null;
 let companyContextAccessor: CompanyContextAccessor | null = null;
+let branchContextFailureHandler: BranchContextFailureHandler | null = null;
+let branchContextAccessor: BranchContextAccessor | null = null;
 
 export function registerTerminalAuthFailureHandler(handler: TerminalAuthFailureHandler): () => void {
   terminalAuthFailureHandler = handler;
@@ -91,6 +95,18 @@ export function setCompanyContextAccessor(accessor: CompanyContextAccessor | nul
   companyContextAccessor = accessor;
 }
 
+/** Synchronous transition boundary used before Branch-scoped children render. */
+export function setBranchContextAccessor(accessor: BranchContextAccessor | null): void {
+  branchContextAccessor = accessor;
+}
+
+export function registerBranchContextFailureHandler(handler: BranchContextFailureHandler): () => void {
+  branchContextFailureHandler = handler;
+  return () => {
+    if (branchContextFailureHandler === handler) branchContextFailureHandler = null;
+  };
+}
+
 export function registerCompanyContextFailureHandler(handler: CompanyContextFailureHandler): () => void {
   companyContextFailureHandler = handler;
   return () => {
@@ -101,6 +117,12 @@ export function registerCompanyContextFailureHandler(handler: CompanyContextFail
 export function reportCompanyContextFailure(error: DarfusApiError): void {
   if (error.errorCode === "COMPANY_SCOPE_INVALID" || error.errorCode === "SUPER_ADMIN_COMPANY_CONTEXT_REQUIRED") {
     companyContextFailureHandler?.(error);
+  }
+}
+
+export function reportBranchContextFailure(error: DarfusApiError): void {
+  if (error.errorCode === "BRANCH_CONTEXT_REQUIRED" || error.errorCode === "BRANCH_SCOPE_INVALID") {
+    branchContextFailureHandler?.(error);
   }
 }
 
@@ -225,15 +247,6 @@ function isSafeReadMethod(method?: string): boolean {
   return normalized === "GET" || normalized === "HEAD" || normalized === "OPTIONS";
 }
 
-function readStoredBranchId(): string | undefined {
-  if (typeof window === "undefined") return undefined;
-  try {
-    return window.localStorage.getItem("darfus-active-branch-id-v1") ?? undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 function isContextFreePath(path: string): boolean {
   return path.startsWith("/auth/") || path.startsWith("/health") || path.startsWith("/setup/");
 }
@@ -242,6 +255,12 @@ export function resolvedCompanyIdForRequest(path: string, options: Pick<ApiClien
   if (options.companyId) return options.companyId;
   if (options.companyScope === "none" || isContextFreePath(path)) return undefined;
   return companyContextAccessor?.()?.companyId;
+}
+
+export function resolvedBranchIdForRequest(options: Pick<ApiClientOptions, "branchId" | "skipBranch"> = {}): string | undefined {
+  if (options.skipBranch) return undefined;
+  if (options.branchId) return options.branchId;
+  return branchContextAccessor?.()?.branchId;
 }
 
 export function getOrCreateDeviceSessionId(): string | undefined {
@@ -314,8 +333,8 @@ export async function apiClient<T>(path: string, options: ApiClientOptions = {})
       headers["X-Device-Session-ID"] = deviceSessionId;
     }
   }
-  const activeBranchId = options.branchId ?? readStoredBranchId();
-  if (!options.skipBranch && activeBranchId && activeBranchId.startsWith("BR-")) {
+  const activeBranchId = resolvedBranchIdForRequest(options);
+  if (activeBranchId) {
     headers["X-Branch-ID"] = activeBranchId;
   }
   const selectedCompanyId = resolvedCompanyIdForRequest(path, options);
@@ -385,6 +404,7 @@ export async function apiClient<T>(path: string, options: ApiClientOptions = {})
         reportTerminalTechnicalAuthFailure(apiError);
       }
       reportCompanyContextFailure(apiError);
+      reportBranchContextFailure(apiError);
       throw apiError;
     }
 

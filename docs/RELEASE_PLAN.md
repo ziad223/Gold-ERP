@@ -1,5 +1,16 @@
 # v1.0.0 Release Plan
 
+## Branch context runtime gate — 2026-07-28
+
+The Branch implementation is in place but the release gate is not waived.
+Reused localhost runtime confirms Company and Branch readiness, canonical
+Branch propagation after READY, A→B isolation behavior, notification
+compatibility and logout safety. It did not find an existing safe customer for
+the required read-only invoices/statement/credit observation. Keep
+`NOTIF_ACCEPT_AUTHORIZED = NO`, `RELEASE_READY = NO`, `STAGING_AUTHORIZED = NO`
+and `PRODUCTION_AUTHORIZED = NO`. Do not create customer data to satisfy this
+gate; capture an existing-record observation in `BRANCH-CONTEXT-RUNTIME-FIX-CONT1`.
+
 ## COMPANY-CONTEXT-RUNTIME-FIX decision — 2026-07-28
 
 The reused local runtime now passes the single-Company readiness gate. The fix

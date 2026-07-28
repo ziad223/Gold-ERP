@@ -4,13 +4,13 @@ import { useState, useEffect, useRef, KeyboardEvent } from "react";
 import { ChevronDown, Check } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/auth-context";
-import { useCompanyContext } from "@/contexts/company-context";
 import { useAppSettings } from "@/contexts/settings-context";
+import { useBranchContext } from "@/contexts/branch-context";
 
 export function BranchSwitcher() {
   const t = useTranslations("Header");
-  const { activeBranch, activeBranchId, switchBranch, clearBranch, user } = useAuth();
-  const { isSuperAdmin, isReady: companyReady } = useCompanyContext();
+  const { activeBranch, activeBranchId, user } = useAuth();
+  const { selectBranch, status, isReady } = useBranchContext();
   const { branches } = useAppSettings();
   const [isOpen, setIsOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
@@ -25,29 +25,6 @@ export function BranchSwitcher() {
     disabled: !b.isActive
   }));
   const isFixedBranchAccount = user?.accountType === "branch_shell";
-
-  useEffect(() => {
-    if (isSuperAdmin && !companyReady) return;
-    if (!branches.length) {
-      if (isSuperAdmin && activeBranchId) clearBranch();
-      return;
-    }
-    const fixedBranchId = user?.accountScope?.branchId || null;
-    const active = branches.find((branch) => branch.id === (isFixedBranchAccount ? fixedBranchId : activeBranchId));
-    if (active) {
-      if (active.name !== activeBranch) switchBranch(active.id, active.name);
-      return;
-    }
-    if (isFixedBranchAccount) return;
-    const activeBranches = branches.filter((branch) => branch.isActive);
-    if (isSuperAdmin) {
-      if (activeBranches.length === 1) switchBranch(activeBranches[0].id, activeBranches[0].name);
-      else if (activeBranchId) clearBranch();
-      return;
-    }
-    const fallback = activeBranches[0] ?? branches[0];
-    if (fallback) switchBranch(fallback.id, fallback.name);
-  }, [activeBranch, activeBranchId, branches, clearBranch, companyReady, isFixedBranchAccount, isSuperAdmin, switchBranch, user?.accountScope?.branchId]);
 
   // Close when clicking outside
   useEffect(() => {
@@ -128,7 +105,7 @@ export function BranchSwitcher() {
         if (focusedIndex >= 0 && focusedIndex < branchOptions.length) {
           const opt = branchOptions[focusedIndex];
           if (!opt.disabled) {
-            switchBranch(opt.value, opt.label);
+            selectBranch(opt.value);
             setIsOpen(false);
             triggerRef.current?.focus();
           }
@@ -145,7 +122,7 @@ export function BranchSwitcher() {
   const currentInitials = activeBranch?.slice(0, 2).toUpperCase() || "BR";
 
   return (
-    <div ref={containerRef} className="relative hidden xl:block">
+    <div ref={containerRef} className="relative hidden xl:block" data-branch-context-status={status} data-branch-context-ready={String(isReady)}>
       {/* Trigger Button */}
       <button
         ref={triggerRef}
@@ -193,7 +170,7 @@ export function BranchSwitcher() {
                 aria-disabled={opt.disabled}
                 onClick={() => {
                   if (!opt.disabled) {
-                    switchBranch(opt.value, opt.label);
+                    selectBranch(opt.value);
                     setIsOpen(false);
                     triggerRef.current?.focus();
                   }

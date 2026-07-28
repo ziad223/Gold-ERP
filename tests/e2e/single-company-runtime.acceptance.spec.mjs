@@ -19,6 +19,12 @@ const trackedPaths = new Set([
   "/auth/logout",
 ]);
 
+const customerFinancialPaths = new Set([
+  "/customers/:id/invoices",
+  "/customers/:id/statement-v2",
+  "/customers/:id/credit",
+]);
+
 const dashboardPathPrefixes = [
   "/current",
   "/customers",
@@ -34,7 +40,8 @@ const dashboardPathPrefixes = [
 ];
 
 function isTracked(pathname) {
-  return trackedPaths.has(pathname) || dashboardPathPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  const normalized = pathname.replace(/^(\/customers)\/[^/]+(?=\/|$)/, "$1/:id");
+  return trackedPaths.has(normalized) || customerFinancialPaths.has(normalized) || dashboardPathPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
 async function stableErrorCode(response) {
@@ -67,8 +74,31 @@ async function companyReadinessSnapshot(page, accessibleCompanyCounts) {
     companyGateStatus: gateVisible ? await gate.getAttribute("data-company-status") : null,
     companyMessageKey: gateVisible ? await gate.locator('[data-company-message-key]').getAttribute("data-company-message-key").catch(() => null) : null,
     companyDisplayVisible: await page.locator('[data-company-display="true"]').isVisible().catch(() => false),
+    branchContextStatus: await page.locator('[data-branch-context-status]').getAttribute('data-branch-context-status').catch(() => null),
+    branchContextReady: await page.locator('[data-branch-context-status]').getAttribute('data-branch-context-ready').catch(() => null),
     notificationErrorToasts: await notificationErrorToastCount(page),
   };
+}
+
+async function boundedCompanyReadinessSnapshot(page, accessibleCompanyCounts) {
+  const unavailable = {
+    pageAvailable: false,
+    companyGateVisible: null,
+    companyGateStatus: null,
+    companyMessageKey: null,
+    companyDisplayVisible: null,
+    notificationErrorToasts: null,
+    accessibleActiveCompanyCounts: accessibleCompanyCounts,
+  };
+  let timeoutId;
+  try {
+    return await Promise.race([
+      companyReadinessSnapshot(page, accessibleCompanyCounts).catch(() => unavailable),
+      new Promise((resolve) => { timeoutId = setTimeout(() => resolve(unavailable), 1_000); }),
+    ]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 function notificationErrorToastCount(page) {
@@ -99,12 +129,51 @@ function summarize(records, toastCount, companyGateVisible, companyDisplayVisibl
   };
 }
 
+function customerFinancialSummary(records) {
+  const paths = {
+    invoices: "/customers/:id/invoices",
+    statement: "/customers/:id/statement-v2",
+    credit: "/customers/:id/credit",
+  };
+  const summarizePath = (path) => {
+    const scoped = records.filter((record) => record.path === path);
+    return {
+      requests: scoped.length,
+      successes: scoped.filter((record) => record.status >= 200 && record.status < 300).length,
+      branchHeaderPresent: scoped.length > 0 && scoped.every((record) => record.branchContextPresent),
+      branchContextRequired: scoped.filter((record) => record.stableErrorCode === "BRANCH_CONTEXT_REQUIRED").length,
+    };
+  };
+  return Object.fromEntries(Object.entries(paths).map(([name, path]) => [name, summarizePath(path)]));
+}
+
 async function waitForLifecycle(page, evidence) {
   await expect(page.locator('[data-company-display="true"]')).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => evidence.records("/auth/accessible-companies").length, { timeout: 30_000 }).toBeGreaterThan(0);
   await expect.poll(() => evidence.records("/notifications").length, { timeout: 30_000 }).toBeGreaterThan(0);
   await expect.poll(() => evidence.records("/notifications/unread-count").length, { timeout: 30_000 }).toBeGreaterThan(0);
   await expect.poll(() => evidence.records("/events/stream").length, { timeout: 30_000 }).toBeGreaterThan(0);
+}
+
+async function establishActiveBranch(page, branchTrigger, branchOptionCount) {
+  const branchState = page.locator('[data-branch-context-status]').first();
+  const ready = await branchState.getAttribute('data-branch-context-ready').catch(() => null);
+  if (ready === 'true' || branchOptionCount === 0) return ready === 'true';
+  await branchTrigger.click();
+  await page.getByRole('option').first().click();
+  await expect.poll(() => branchState.getAttribute('data-branch-context-ready'), { timeout: 10_000 }).toBe('true');
+  return true;
+}
+
+async function waitForTrackedNetworkQuiescence(page, evidence) {
+  let previousCount = evidence.snapshot().length;
+  let stableSamples = 0;
+  for (let sample = 0; sample < 10 && stableSamples < 2; sample += 1) {
+    await page.waitForTimeout(250);
+    const currentCount = evidence.snapshot().length;
+    stableSamples = currentCount === previousCount ? stableSamples + 1 : 0;
+    previousCount = currentCount;
+  }
 }
 
 async function normalLogin(page) {
@@ -122,6 +191,7 @@ test("captures sanitized N5/N8 single-Company browser acceptance evidence", asyn
   let phase = "N5_LOGIN";
   let n5;
   let n8;
+  let customerFinancial = { outcome: "NOT_OBSERVED" };
   let branchSwitch = { outcome: "NOT_APPLICABLE_FOR_AVAILABLE_IDENTITY" };
   let logout;
   const accessibleCompanyCounts = [];
@@ -174,6 +244,10 @@ test("captures sanitized N5/N8 single-Company browser acceptance evidence", asyn
   expect(n5.http401 + n5.http403 + n5.http422).toBe(0);
   expect(n5.notificationErrorToasts).toBe(0);
 
+  phase = "BRANCH_SELECTION";
+  const activeBranchEstablished = await establishActiveBranch(page, branchTrigger, branchOptionCount);
+  expect(activeBranchEstablished).toBe(true);
+
   evidence.begin("N8_HARD_REFRESH");
   phase = "N8_HARD_REFRESH";
   const session = await page.context().newCDPSession(page);
@@ -196,15 +270,51 @@ test("captures sanitized N5/N8 single-Company browser acceptance evidence", asyn
   expect(n8.http401 + n8.http403 + n8.http422).toBe(0);
   expect(n8.notificationErrorToasts).toBe(0);
 
+    phase = "N8_BRANCH_READY";
+    await expect.poll(() => page.locator('[data-branch-context-status]').first().getAttribute('data-branch-context-ready'), { timeout: 30_000 }).toBe('true');
+
+    evidence.begin("CUSTOMER_FINANCIAL");
+    phase = "CUSTOMER_FINANCIAL_NAVIGATION";
+    await page.goto("/en/customers", { waitUntil: "domcontentloaded" });
+    const profileLink = page.locator('a[href^="/en/customers/"]:not([href="/en/customers/loyalty"])').first();
+    if (await profileLink.isVisible().catch(() => false)) {
+      await profileLink.click();
+      await expect(page.getByRole("button", { name: "Sales & Invoices" })).toBeVisible({ timeout: 30_000 });
+      await page.getByRole("button", { name: "Sales & Invoices" }).click();
+      await page.getByRole("button", { name: "Customer Statement" }).click();
+      await expect.poll(() => evidence.records("/customers/:id/statement-v2").length, { timeout: 30_000 }).toBeGreaterThan(0);
+      const financialRecords = evidence.snapshot();
+      customerFinancial = { outcome: "EXECUTED", ...customerFinancialSummary(financialRecords) };
+      for (const result of Object.values(customerFinancial)) {
+        if (typeof result === "object") {
+          expect(result.branchHeaderPresent).toBe(true);
+          expect(result.branchContextRequired).toBe(0);
+          expect(result.successes).toBeGreaterThan(0);
+        }
+      }
+    } else {
+      customerFinancial = { outcome: "NOT_APPLICABLE_NO_EXISTING_CUSTOMER" };
+    }
+
     if (branchOptionCount >= 2 && branchTriggerVisible) {
       evidence.begin("BRANCH_A_TO_B");
       phase = "BRANCH_A_TO_B";
       await branchTrigger.click();
       await page.getByRole("option").nth(1).click();
-      await page.waitForTimeout(500);
-      branchSwitch = { outcome: "EXECUTED", branchOptions: branchOptionCount, records: evidence.snapshot() };
+      await waitForTrackedNetworkQuiescence(page, evidence);
+      const branchRecords = evidence.snapshot();
+      const branchScopedRecords = branchRecords.filter((record) => ["/assets", "/invoices", "/transfers", "/reservations", "/products", "/stock-movements"].includes(record.path));
+      expect(branchScopedRecords.some((record) => record.branchContextPresent)).toBe(true);
+      expect(branchRecords.filter((record) => record.stableErrorCode === "BRANCH_CONTEXT_REQUIRED")).toHaveLength(0);
+      branchSwitch = {
+        outcome: "EXECUTED",
+        branchOptions: branchOptionCount,
+        branchScopedContextPresent: true,
+        branchContextRequired: 0,
+      };
     }
 
+    await waitForTrackedNetworkQuiescence(page, evidence);
     evidence.begin("LOGOUT");
     phase = "LOGOUT_PROFILE_MENU";
     const profileMenu = page.locator("#header-profile-menu");
@@ -213,7 +323,7 @@ test("captures sanitized N5/N8 single-Company browser acceptance evidence", asyn
     await profileMenu.click();
     const logoutAction = page.locator("#header-profile-menu + div button");
     await expect(logoutAction).toBeVisible({ timeout: 5_000 });
-    await logoutAction.click();
+    await logoutAction.click({ noWaitAfter: true });
     await expect(page.locator('input[type="email"]')).toBeVisible({ timeout: 30_000 });
     await page.waitForTimeout(1_000);
     logout = summarize(evidence.snapshot(), await notificationErrorToastCount(page), false, false, branchOptionCount);
@@ -222,22 +332,17 @@ test("captures sanitized N5/N8 single-Company browser acceptance evidence", asyn
     expect(logout.sseConnections).toBe(0);
     expect(logout.http401 + logout.http403 + logout.http422).toBe(0);
     expect(logout.notificationErrorToasts).toBe(0);
+    phase = "LOGOUT_COMPLETE";
   } finally {
-    const runtimeState = await companyReadinessSnapshot(page, accessibleCompanyCounts).catch(() => ({
-      pageAvailable: false,
-      companyGateVisible: null,
-      companyGateStatus: null,
-      companyMessageKey: null,
-      companyDisplayVisible: null,
-      notificationErrorToasts: null,
-      accessibleActiveCompanyCounts: accessibleCompanyCounts,
-    }));
+    phase = `${phase}_FINAL_SNAPSHOT`;
+    const runtimeState = await boundedCompanyReadinessSnapshot(page, accessibleCompanyCounts);
     if (evidenceDirectory) {
       fs.mkdirSync(evidenceDirectory, { recursive: true });
       fs.writeFileSync(path.join(evidenceDirectory, "single-company-runtime-summary.json"), JSON.stringify({
         n5: n5 || null,
         n8: n8 || null,
         branchSwitch,
+        customerFinancial,
         logout: logout || null,
         phase,
         runtimeState,
@@ -245,9 +350,11 @@ test("captures sanitized N5/N8 single-Company browser acceptance evidence", asyn
           n5: evidence.snapshot("N5_SINGLE_COMPANY"),
           n8: evidence.snapshot("N8_HARD_REFRESH"),
           branch: evidence.snapshot("BRANCH_A_TO_B"),
+          customerFinancial: evidence.snapshot("CUSTOMER_FINANCIAL"),
           logout: evidence.snapshot("LOGOUT"),
         },
       }, null, 2));
     }
+    phase = `${phase}_EVIDENCE_WRITTEN`;
   }
 });

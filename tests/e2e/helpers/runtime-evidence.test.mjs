@@ -4,6 +4,7 @@ import { contextPresence, createEvidenceCollector, normalizePath, redactHeaders 
 
 test("runtime evidence removes API prefixes and query strings", () => {
   assert.equal(normalizePath("http://127.0.0.1:8001/api/v1/notifications?cursor=secret"), "/notifications");
+  assert.equal(normalizePath("http://127.0.0.1:8001/api/v1/customers/private-customer/invoices"), "/customers/:id/invoices");
 });
 
 test("runtime evidence records only Company and Branch header presence", () => {

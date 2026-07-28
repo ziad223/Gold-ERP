@@ -1,5 +1,22 @@
 # DARFUS Jewellery ERP — v1.0.0 Product Roadmap
 
+## BRANCH-CONTEXT-RUNTIME-FIX — partial, evidence-only continuation required — 2026-07-28
+
+`2b000ff` and `2e687ab` repair the authoritative active-Branch lifecycle:
+validated server Branch bootstrap, fixed Company refresh preservation,
+canonical `X-Branch-ID` propagation, controlled Branch gate and
+Branch-discriminated customer-financial queries. N5/N8 reused-runtime evidence
+passes (one Company bootstrap, Branch bootstrap, list, unread and SSE each;
+zero 401/403/422, reconnects and notification error toasts). Branch A→B and
+logout also pass without touching the existing 3000/8000 runtime.
+
+The identity has no safe existing customer, therefore invoice, statement and
+credit live navigation is `NOT_OBSERVED`, not PASS. `BRANCH-CONTEXT-RUNTIME-FIX
+= PARTIAL`; `NOTIF_ACCEPT_AUTHORIZED = NO`; `RELEASE_READY = NO`; Staging and
+Production remain unauthorized. Next only: `BRANCH-CONTEXT-RUNTIME-FIX-CONT1`
+to capture that read-only evidence without creating data. Afterwards:
+`NOTIF-ACCEPT → FULL-REGRESSION → STAGING/RC`.
+
 ## COMPANY-CONTEXT-RUNTIME-FIX complete — 2026-07-28
 
 `COMPANY-CONTEXT-RUNTIME-FIX = COMPLETE`. The single-Company provider now

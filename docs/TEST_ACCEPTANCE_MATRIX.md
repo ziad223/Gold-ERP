@@ -1,5 +1,24 @@
 # v1.0.0 Test and Acceptance Matrix
 
+## BRANCH-CONTEXT-RUNTIME-FIX — 2026-07-28
+
+| Contract | Evidence | Result |
+| --- | --- | --- |
+| Branch state resolver | focused lifecycle suite: zero/single/multiple/stale candidates | PASS |
+| Canonical Branch header | shared client consumes only validated Branch accessor; focused source contract | PASS |
+| Customer financial pre-READY gating | invoice, statement and credit `enabled` conditions require Branch READY; Branch-aware keys | PASS (focused) |
+| N5 / N8 Branch lifecycle | reused local browser run, one Company/Branch/list/unread/SSE lifecycle, no 401/403/422 | PASS |
+| Refresh Branch hydration | persisted hint validated after Company bootstrap; READY observed | PASS |
+| Branch A→B | five existing Branches; observed Branch-scoped context, zero `BRANCH_CONTEXT_REQUIRED` | PASS |
+| Notification compatibility | list/unread/SSE one logical lifecycle; zero reconnect/error toast | PASS (Company-only notification contract) |
+| Logout | post-logout list/unread/SSE all zero | PASS |
+| Customer invoice/statement/credit runtime | no existing safe customer profile for read-only navigation | NOT_OBSERVED — required before notification acceptance |
+
+Focused lifecycle/error/auth/Company/Branch suites passed 33 checks; typecheck
+passed; targeted lint had zero errors and two pre-existing customer-page image
+warnings. Production build is deferred to avoid disturbing the pre-existing
+Next development runtime.
+
 ## COMPANY-CONTEXT-RUNTIME-FIX external-runtime evidence — 2026-07-28
 
 | Acceptance area | Status | Observed evidence |
