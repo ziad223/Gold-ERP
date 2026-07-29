@@ -38,7 +38,8 @@ function staticContract() {
   assertContains(employeePage, "المنع المباشر يتجاوز الدور والسماح المباشر", "Arabic denial precedence message is visible");
   assertContains(types, "EmployeePermissionCatalogItem", "frontend type has catalog item contract");
   assertNotContains(employeePage, "No current direct permission rows", "old false zero-options state is removed");
-  assert.equal(migrationFiles.length, 51, "current source migration inventory remains the accepted 51-file baseline");
+  assert.equal(migrationFiles.length, 52, "source migration inventory includes the authorized financial-bootstrap integrity migration");
+  assert.ok(migrationFiles.includes("20260730010000-financial-account-bootstrap-integrity.js"), "financial bootstrap integrity migration is present");
   assert.ok(migrationFiles.includes("20260720010000-system-account-roles.js"), "RESET-1 authorized migration is present");
   assert.equal(new Set(migrationFiles.map((file) => file.slice(0, file.indexOf("-")))).size, migrationFiles.length, "migration numbering has no duplicates");
   assert.ok(verifierFiles.length >= 66, `verifier suite must retain the BRANCH-1 minimum coverage, found ${verifierFiles.length}`);

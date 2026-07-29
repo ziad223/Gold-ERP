@@ -1,5 +1,79 @@
 # v1.0.0 Release Plan
 
+## FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT1 — repair gate closed — 2026-07-30
+
+The eight financial-bootstrap findings are resolved by implementation commit
+`6fa27b5a01e36ae4425a0f320c6943fb7ecbcb57`. A fresh migrated database now
+reaches financial READY through supported Product flows, existing partial
+installations have an explicit idempotent reconciliation workflow, posting
+fails closed on missing authority, and GL financial statements and integrity
+guards are present.
+
+The migration remains intentionally unapplied to official `darfus_erp`.
+Official state is `52` source, `51` applied, `1` pending with unchanged
+financial fingerprints. Do not deploy or begin Staging. The next controlled
+phase is `FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT1`, which must exercise the
+new account/readiness/mapping/report surfaces without bypassing migration
+policy.
+
+## FINANCIAL-ACCOUNT-BOOTSTRAP-AUDIT-CONT1 — repair gate — 2026-07-30
+
+The audit is complete but financial bootstrap is not release-ready. Before any
+runtime acceptance or migration-staging rehearsal, the release must close the
+eight financial findings covering complete account creation, complete Branch
+mapping authority, supported account administration, Product-wide fail-closed
+posting, GL financial statements, uniform financial scope enforcement,
+fresh-install portability, and hierarchy/reference integrity.
+
+Repair must preserve the working First Run transaction/idempotency contract,
+strict reservation posting, existing ledger/account statements, the
+single-Company/multi-Branch model, and the accepted authorization runtime.
+Schema changes, if required, must be tested first on a unique disposable
+PostgreSQL database and must not be applied to official local data in the fix
+phase unless separately authorized.
+
+`RELEASE_READY = NO`; `STAGING_AUTHORIZED = NO`;
+`PRODUCTION_AUTHORIZED = NO`. Next only:
+`FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT1`. Do not begin the fix automatically.
+
+## AUTHORIZATION-RUNTIME-ACCEPT-CONT3 — authorization workstream complete — 2026-07-29
+
+Final independent runtime acceptance passed Branch-shell login, Employee PIN,
+backend permission bootstrap, explicit fixed/default Branch, allowed and
+denied read access, neutral hard-refresh restoration with zero verification
+fallback mounts, zero unauthorized automatic ownership, request-terminal
+observability, and exact-owned Product logout to sessions `0/0`.
+
+F004–F010 and OBSERVABILITY-F001 are resolved. This closes the authorization
+runtime workstream but does not authorize release, Staging, Production,
+deployment, or migration rehearsal. Next only:
+`FINANCIAL-ACCOUNT-BOOTSTRAP-AUDIT-CONT1`. Do not start it automatically.
+
+## AUTHORIZATION-RUNTIME-FIX-CONT4 — release gate remains controlled — 2026-07-29
+
+`0c48bd2` resolves the final F008 fallback flash without broadening the
+authorization model: an unresolved operator restore no longer mounts employee
+verification. Fresh secure replay recorded zero transient verification/PIN/
+selector mounts, restored the allowed route after one successful operator
+restore, and normal logout left owned sessions `0/0`. F009, F010, and terminal
+observability remained non-regressed.
+
+Do not deploy, rehearse migrations, authorize Staging/Production, or begin the
+financial audit. Next only: `AUTHORIZATION-RUNTIME-ACCEPT-CONT3`.
+
+## AUTHORIZATION-RUNTIME-ACCEPT-CONT2 — release blocked by fallback flash — 2026-07-29
+
+The independent real-employee replay passed login/PIN, fixed explicit
+Branch/default validation, backend-resolved permissions, allowed and denied
+read access, zero unauthorized automatic module/notification ownership, and
+exact-owned Product logout (`1/1 → 0/0`). Hard refresh performed one successful
+post-authority operator restore and retained the allowed route, but mounted the
+employee-verification fallback once during hydration.
+
+Reopen `FULL-REGRESSION-F008`; retain F009, F010, and OBSERVABILITY-F001 as
+resolved. Do not deploy, rehearse migrations, authorize Staging/Production, or
+start the financial audit. Next only: `AUTHORIZATION-RUNTIME-FIX-CONT4`.
+
 ## AUTHORIZATION-RUNTIME-FIX-CONT3 — release gate remains controlled — 2026-07-29
 
 The operator hard-refresh, logout orphaning, unauthorized employee prefetch,

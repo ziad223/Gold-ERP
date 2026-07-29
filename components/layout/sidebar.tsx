@@ -59,6 +59,8 @@ const groups = [
     label: "finance",
     items: [
       { href: "/accounting", label: "accounting", icon: CircleDollarSign, permission: "accounting.view", branchBusiness: true },
+      { href: "/accounting/chart", label: "chartOfAccounts", icon: BookOpenCheck, permission: "accounting.view", branchBusiness: true },
+      { href: "/accounting/reports", label: "financialStatements", icon: BarChart3, permission: "accounting.view", branchBusiness: true },
       { href: "/accounting/treasury", label: "treasury", icon: Landmark, permission: "treasury.view", branchBusiness: true },
       { href: "/reports", label: "reports", icon: BarChart3, permission: "reports.view", branchBusiness: true },
     ],

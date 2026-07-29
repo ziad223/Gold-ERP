@@ -17,7 +17,8 @@ test("operator restoration waits for validated Branch readiness and guards the f
   assert.match(provider, /branchGeneration/);
   assert.match(provider, /lastRestoreKeyRef/);
   assert.match(provider, /OPERATOR_RESTORE_PENDING/);
-  assert.match(guard, /branchAccountBusinessRoute && operator\.loading/);
+  assert.match(guard, /const showProtectedLoading/);
+  assert.match(guard, /operator\.restoreStatus === "deferred"/);
 });
 
 test("fixed Branch shells bootstrap from the authenticated fixed Branch without settings prefetch", () => {

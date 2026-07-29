@@ -1,5 +1,98 @@
 # DARFUS Jewellery ERP — v1.0.0 Product Roadmap
 
+## FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT1 complete — 2026-07-30
+
+Fresh-database financial bootstrap is now deterministic and Product-owned:
+First Run creates the complete 12-role Company chart, binds 11 mandatory
+Branch mappings, evaluates readiness, and reaches READY only when the contract
+is valid. Existing installations use an explicit reconciliation workflow.
+
+Chart administration, Branch mapping administration, centralized fail-closed
+posting, authorized statements, GL Income Statement, GL Balance Sheet, and
+account/mapping/journal integrity are implemented in
+`6fa27b5a01e36ae4425a0f320c6943fb7ecbcb57`. Disposable fresh, legacy,
+missing-mapping, rollback, idempotency, and report proofs passed. The official
+database remains untouched at `52/51/1`; the source-only migration is reserved
+for migration rehearsal.
+
+All eight financial findings are resolved. Release readiness remains NO.
+Next controlled marker: `FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT1`.
+
+## FINANCIAL-ACCOUNT-BOOTSTRAP-AUDIT-CONT1 complete — repair required — 2026-07-30
+
+The fresh-install financial audit is complete. Real disposable PostgreSQL
+proved 51 migrations, atomic rollback, concurrent First Run serialization,
+idempotent replay, and cleanup. The accepted bootstrap nevertheless creates
+only a narrow seven-account/six-role/two-mapping Branch baseline and marks
+setup READY before a complete financial configuration exists.
+
+The Product currently combines strict mapped posting for reservation
+completion with legacy code-based account auto-creation during other business
+postings. Chart-of-Accounts administration is not exposed as a complete
+supported UI/API workflow, structural account integrity is incomplete, one
+account-statement Branch filter bypasses the shared authorization resolver,
+and GL-backed balance-sheet/income-statement acceptance is absent.
+
+Eight financial findings are open: F001, F002, F003, F005, F007, F008, F009,
+and F010. F004 idempotency passed and F006 is not duplicated. Authorization
+acceptance remains closed and non-regressed. `RELEASE_READY = NO`; Staging and
+Production remain unauthorized. Exact next marker:
+`FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT1`; do not start it automatically.
+
+## AUTHORIZATION-RUNTIME-ACCEPT-CONT3 complete — authorization workstream accepted — 2026-07-29
+
+Independent final replay accepted the complete local Employee lifecycle:
+secure Branch-shell login, PIN verification, backend-resolved permissions,
+fixed explicit/default Branch, allowed route/API, canonical denied route/API,
+hard-refresh restoration through neutral protected loading, zero verification
+fallback mounts, zero unauthorized automatic module/notification ownership,
+and normal exact-owned logout from `1/1` to `0/0`.
+
+Static closure remains `3/3` CONT4, `5/5` CONT3, `59/59` complete focused Node
+tests, `128/128` permission baseline, typecheck PASS, lint errors `0`, and diff
+check PASS. The encrypted package, local fixture, owner-managed runtime, and
+official `51/51/0` database remain preserved. F004–F010 and
+OBSERVABILITY-F001 are resolved; the authorization runtime workstream is
+complete.
+
+`RELEASE_READY = NO`; Staging and Production remain unauthorized. The next
+roadmap phase is `FINANCIAL-ACCOUNT-BOOTSTRAP-AUDIT-CONT1`; do not start it
+automatically.
+
+## AUTHORIZATION-RUNTIME-FIX-CONT4 complete — neutral operator restoration — 2026-07-29
+
+F008 is resolved by `0c48bd2`: valid hard-refresh restoration remains in a
+neutral protected loading state until the backend operator result is
+authoritative. Verification now appears only for authoritative absent/invalid
+outcomes, never for unresolved, deferred, or restoring state. The secure
+runtime replay recorded zero verification/PIN/selector mounts, one successful
+restore, allowed-route restoration, and normal logout cleanup to owned `0/0`.
+
+F009, F010, and observability remain resolved; no backend/session/logout,
+notification, logging, fixture, schema, package, or migration change occurred.
+The full focused Node inventory passed `59/59`, permission baseline `128/128`,
+typecheck, lint errors `0`, and diff check. `RELEASE_READY = NO`; Staging and
+Production remain unauthorized. Exact next marker: `AUTHORIZATION-RUNTIME-ACCEPT-CONT3`.
+
+## AUTHORIZATION-RUNTIME-ACCEPT-CONT2 partial — hard-refresh fallback flash — 2026-07-29
+
+Independent fixture replay accepted Branch-shell login, employee PIN,
+backend-resolved permission bootstrap, fixed assigned/default Branch, allowed
+dashboard access, canonical frontend/backend denial, zero unauthorized automatic
+module or notification ownership, exact-owned logout revocation, and runtime
+cleanup. Hard refresh also waited for validated Branch authority, issued one
+successful operator restore, retained the allowed route, and ended with no
+pending work.
+
+The phase is partial because the employee-verification shell mounted once
+during the hard-refresh hydration interval before the valid operator state
+settled. `FULL-REGRESSION-F008` is reopened; F009, F010, and
+`OBSERVABILITY-F001` remain resolved. Static validation passed `5/5`, `56/56`,
+permission baseline `128/128`, typecheck, and lint with zero errors. Services,
+the encrypted package, fixture authorization, and official `51/51/0` database
+were preserved. `RELEASE_READY = NO`; Staging and Production remain
+unauthorized. Exact next marker: `AUTHORIZATION-RUNTIME-FIX-CONT4`.
+
 ## AUTHORIZATION-RUNTIME-FIX-CONT3 complete — runtime authorization repairs — 2026-07-29
 
 F008 and F009 are resolved: operator restoration now waits for validated Branch

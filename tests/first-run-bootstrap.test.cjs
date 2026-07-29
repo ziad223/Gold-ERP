@@ -6,6 +6,7 @@ const bcrypt = require(path.join(__dirname, "..", "backend", "node_modules", "bc
 const root = path.join(__dirname, "..");
 const setupState = require(path.join(root, "backend", "src", "services", "first-run-setup-state.service.js"));
 const bootstrap = require(path.join(root, "backend", "src", "services", "first-run-bootstrap.service.js"));
+const financialCatalog = require(path.join(root, "backend", "src", "services", "financial-account-catalog.service.js"));
 
 function record(values) {
   return Object.assign(values, { update: async (next) => Object.assign(values, next) });
@@ -53,12 +54,19 @@ function fakeModels() {
       findOne: async ({ where = {} } = {}) => store.branches.find((row) => matches(row, where)) || null,
       create: async (values) => { const row = record(values); store.branches.push(row); return row; }
     },
-    Account: { create: async (values) => { const row = record(values); store.accounts.push(row); return row; } },
+    Account: {
+      findOne: async ({ where = {} } = {}) => store.accounts.find((row) => matches(row, where)) || null,
+      create: async (values) => { const row = record(values); store.accounts.push(row); return row; },
+      count: async ({ where = {} } = {}) => store.accounts.filter((row) => matches(row, where)).length
+    },
     SystemAccountRole: {
+      findAll: async ({ where = {} } = {}) => store.roles.filter((row) => matches(row, where)),
       create: async (values) => { const row = record(values); store.roles.push(row); return row; },
       count: async () => store.roles.length
     },
     BranchFinancialMapping: {
+      findAll: async ({ where = {} } = {}) => store.mappings.filter((row) => matches(row, where)),
+      create: async (values) => { const row = record(values); store.mappings.push(row); return row; },
       bulkCreate: async (rows) => { store.mappings.push(...rows.map(record)); return rows; },
       count: async () => store.mappings.length
     },
@@ -98,8 +106,13 @@ test("partial, inactive, and multi-Company states remain fail-closed", async () 
   assert.equal((await setupState.resolveSetupState(models)).state, setupState.STATES.RECOVERY_REQUIRED);
   store.branches.push(record({ id: "BR-A", companyId: "COMP-A", isActive: true }));
   assert.equal((await setupState.resolveSetupState(models)).state, setupState.STATES.RECOVERY_REQUIRED);
-  store.roles.push(...Array.from({ length: 6 }, (_, index) => record({ id: `ROLE-${index}` })));
-  store.mappings.push(record({ id: "MAP-A" }), record({ id: "MAP-B" }));
+  for (const [roleCode, definition] of Object.entries(financialCatalog.ACCOUNT_ROLE_CATALOG)) {
+    const accountId = `ACC-${roleCode}`;
+    store.accounts.push(record({ id: accountId, companyId: "COMP-A", branchId: null, isActive: true, type: definition.type, nature: definition.nature, isPosting: true }));
+    store.roles.push(record({ id: `ROLE-${roleCode}`, companyId: "COMP-A", branchId: "BR-A", roleCode, accountId }));
+  }
+  store.mappings.push(...Object.entries(financialCatalog.BRANCH_MAPPING_CATALOG).map(([mappingType, definition], index) =>
+    record({ id: `MAP-${index}`, companyId: "COMP-A", branchId: "BR-A", mappingType, channel: null, isActive: true, accountId: `ACC-${definition.accountRoleCode}` })));
   store.marker = record({ state: setupState.STATES.READY });
   assert.equal((await setupState.resolveSetupState(models)).state, setupState.STATES.READY);
   store.companies.push(record({ id: "COMP-B" }));
@@ -129,8 +142,8 @@ test("atomic bootstrap creates the direct Super Admin, one Company, one Branch, 
   assert.equal(store.users[0].accountType, "super_admin");
   assert.equal(store.users[0].role, "admin");
   assert.equal(await bcrypt.compare(payload.password, store.users[0].password), true);
-  assert.equal(store.roles.length, 6);
-  assert.equal(store.mappings.length, 2);
+  assert.equal(store.roles.length, Object.keys(financialCatalog.ACCOUNT_ROLE_CATALOG).length);
+  assert.equal(store.mappings.length, Object.keys(financialCatalog.BRANCH_MAPPING_CATALOG).length);
   assert.equal(store.marker.state, "READY");
   const advisoryIndex = store.calls.findIndex((call) => call.type === "query" && call.sql.includes("pg_advisory_xact_lock"));
   const stateReadIndex = store.calls.findIndex((call) => call.type === "company.count");
@@ -145,7 +158,7 @@ test("atomic bootstrap creates the direct Super Admin, one Company, one Branch, 
 
 test("a financial-mapping failure rolls back the first-run marker and every created row", async () => {
   const { models, store } = fakeModels();
-  models.BranchFinancialMapping.bulkCreate = async () => { throw Object.assign(new Error("injected"), { errorCode: "FIRST_RUN_FINANCIAL_MAPPING_INCOMPLETE" }); };
+  models.BranchFinancialMapping.create = async () => { throw Object.assign(new Error("injected"), { errorCode: "FIRST_RUN_FINANCIAL_MAPPING_INCOMPLETE" }); };
   const dependencies = { accessControl: { ensureRolesForCompany: async () => undefined, assignUserRole: async () => ({ id: "ROLE-ADMIN" }) }, audit: { record: async () => undefined } };
   await assert.rejects(() => bootstrap.bootstrapFirstRun({ models, body: payload, token: "approved", idempotencyKey: "rollback-key-12345", environment: { FIRST_RUN_SETUP_TOKEN: "approved" }, dependencies }));
   assert.equal(store.marker, null);

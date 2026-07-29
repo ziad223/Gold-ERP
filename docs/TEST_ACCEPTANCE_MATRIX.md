@@ -1,5 +1,124 @@
 # v1.0.0 Test and Acceptance Matrix
 
+## FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT1 — acceptance matrix — 2026-07-30
+
+| Contract | Evidence | Result |
+| --- | --- | --- |
+| Versioned financial catalogs | Static/domain contract | PASS — 12 required account roles, 11 required Branch mappings |
+| Fresh First Run | Disposable PostgreSQL, all 52 migrations | PASS — READY, complete roles/mappings, duplicates 0 |
+| First Run retry/concurrency/rollback | Unit and real disposable PostgreSQL | PASS — idempotent, serialized, atomic |
+| Existing-install reconciliation | Legacy-shaped disposable DB | PASS — valid rows preserved, missing baseline added, second apply no-op |
+| Missing-mapping failure | Disposable transaction proof | PASS — canonical failure; business/journal/account write delta 0 |
+| Account API/UI | Domain contracts and frontend static coverage | PASS — create/edit/hierarchy/lifecycle/readiness/mappings |
+| Statement authorization | Route contract | PASS — shared authorized-Branch resolver |
+| GL Income Statement / Balance Sheet | Synthetic posted journals | PASS — classifications reconcile; accounting equation balanced |
+| Integrity migration | Disposable up/down/up | PASS — reference, uniqueness, posting, and source safeguards |
+| Focused financial/First Run tests | Node test runner | PASS — 23/23 |
+| Cross-domain `.mjs` suite | Node test runner | PASS — 59/59 |
+| Cross-domain `.cjs` suite | Node test runner | PASS — 58 pass, 1 intentional disposable-DB skip, 0 fail |
+| Permission baseline | Canonical verifier | PASS — 128/128 |
+| Static quality | TypeScript, targeted ESLint, diff check | PASS — typecheck; lint errors 0; diff check clean |
+| Ledger/bootstrap verifiers | Accepted repository commands | PASS — ledger/reporting and post-reset bootstrap |
+| Official DB safety | Read-only pre/post fingerprints | PASS — unchanged; source/applied/pending 52/51/1 |
+| Runtime preservation | Listener/health checks | PASS — existing runtime reused; no service control |
+
+Implementation commit: `6fa27b5a01e36ae4425a0f320c6943fb7ecbcb57`.
+Next marker: `FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT1`.
+
+## FINANCIAL-ACCOUNT-BOOTSTRAP-AUDIT-CONT1 — financial readiness matrix — 2026-07-30
+
+| Contract | Evidence | Result |
+| --- | --- | --- |
+| Repository/runtime/DB preflight | Git, listener fingerprints, health, migration and lock reads | PASS — exact checkpoint; staged 0; stashes 11; remotes 0; 3000/8000/5432 healthy; 51/51/0 |
+| First Run unit/UI/strict mapping contracts | Focused Node suite | PASS — 19/19 |
+| Real fresh PostgreSQL lifecycle | Unique DB, 51 migrations, concurrency/rollback/idempotency test, drop | PASS — test passed; residue 0 |
+| Fresh default account categories | Fresh-row aggregate | PARTIAL — seven Branch accounts; required categories omitted |
+| Fresh system roles/mappings | Fresh-row aggregate | PARTIAL — six roles/two mappings only |
+| First Run idempotency | Unit plus real PostgreSQL | PASS — replay safe; duplicate account-code groups 0 |
+| Account management API | Source/route/controller/schema trace | PARTIAL — generic CRUD without complete accounting-domain protections |
+| Account management UI | Frontend route/component inventory | MISSING |
+| Strict missing-mapping denial | Complete-sale resolver contracts | PASS for strict reservation flow; PARTIAL Product-wide |
+| Legacy missing-account behavior | Posting-service trace | FAIL — transaction-time lazy account creation |
+| Deposit posting | Deposit and resolver contracts | PASS |
+| Cash/bank/expense/other-income posting | Posting map | PARTIAL — implemented but dependent on incomplete bootstrap/lazy accounts |
+| Ledger/trial balance | Source plus ledger verifier | PASS |
+| Account statement | Source plus ledger verifier | PASS functionally; scope finding F008 OPEN |
+| Balance sheet/income statement | API/UI/report inventory | MISSING |
+| Company/Branch financial scope | Middleware/route trace | PARTIAL — shared resolver not uniformly applied |
+| Permission baseline | Canonical contract | PASS — 128/128 |
+| Typecheck / lint / diff check | Repository commands | PASS / errors 0 / PASS |
+| Official database safety | Read-only aggregate fingerprints, locks, migrations | PASS — no official write; idle/waiting 0/0 |
+
+Decision: `FINANCIAL-ACCOUNT-BOOTSTRAP-AUDIT-CONT1 = COMPLETE`;
+classification `PARTIAL_OR_MISSING`; eight release-blocking findings are open.
+Exact next marker: `FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT1`.
+
+## AUTHORIZATION-RUNTIME-ACCEPT-CONT3 — final independent Employee acceptance — 2026-07-29
+
+| Contract | Evidence mode | Result |
+| --- | --- | --- |
+| Secure package / fixture | Hash, ACL, presence-only child, read-only relationships | PASS — package unchanged; active non-admin fixture; one explicit/default Branch; effective/denied pair intact |
+| Browser isolation | Fresh owned headless process, one non-persistent context | PASS — no persistent profile, storage state, HAR, trace, or screenshot |
+| Branch-shell login / Employee PIN | Runtime request ownership | PASS — exactly one lifecycle each, both `200` |
+| Operator bootstrap | Safe current-operator read plus fixture proof | PASS — active, backend-resolved permissions, authorization version present, Company/Branch valid |
+| Assigned/default Branch | Runtime control plus read-only relationship proof | PASS — one active/default assignment, default contained, fixed selector disabled, switch NOT_APPLICABLE |
+| Frontend permission rendering | Allowed and denied navigation observation | PASS — allowed visible, privileged denied navigation absent, unauthorized flash `0` |
+| Allowed route/API | Dashboard and safe read | PASS — route rendered, API `200`, contexts valid, lifecycle `1`, pending `0` |
+| Denied route/API | One deliberate safe read-only probe | PASS — protected data `0`, canonical correlated `403`, side effect `0` |
+| Pre-refresh F010 audit | Normalized automatic owners | PASS — all listed unauthorized categories `0` |
+| F008 hard refresh | Mount/request timeline | PASS — protected loading `1`; pre-ready operator current `0`; post-ready current `1/200`; verification/PIN/selector `0/0/0`; restored route |
+| Authoritative absence control | CONT4 focused state contract | PASS — absent/invalid reach verification; unresolved states do not; error has safe retry |
+| Post-refresh F010 audit | Normalized automatic owners | PASS — unauthorized requests `0`; deliberate probes `0` |
+| Notification/SSE | Owned runtime lifecycle | PASS — list/unread/SSE/reconnect/error-toast `0/0/0/0/0` |
+| Observability | Runtime correlation plus static terminal classifier | PASS — numeric durations/request IDs, undefined `0`, duplicate terminal `0` |
+| F009 logout | Pre/post database counts plus normal UI logout | PASS — fingerprint-linked `1/1 → 0/0`, logout `200`, no manual cleanup |
+| Post-logout traffic | Bounded request observation | PASS — protected/notification/SSE traffic and `401` storm `0` |
+| Final static validation | Repository commands | PASS — CONT4 `3/3`, CONT3 `5/5`, complete Node `59/59`, permission `128/128`, typecheck, lint errors `0`, diff check |
+| Runtime/database safety | Final postcheck | PASS — 3000/8000/5432 preserved; official DB `51/51/0`; owned sessions `0/0`; package/fixture unchanged |
+
+Decision: `AUTHORIZATION-RUNTIME-ACCEPT-CONT3 = COMPLETE`; F004–F010 and
+OBSERVABILITY-F001 are resolved; exact next marker
+`FINANCIAL-ACCOUNT-BOOTSTRAP-AUDIT-CONT1`.
+
+## AUTHORIZATION-RUNTIME-FIX-CONT4 — operator restore fallback repair — 2026-07-29
+
+| Contract | Evidence mode | Result |
+| --- | --- | --- |
+| F008 failing-before proof | New focused source contract before repair | PASS — failed against the ambiguous provider/guard state, then passed after the explicit contract |
+| Restore state contract | Provider/guard focused tests | PASS — unresolved/deferred/restoring use protected loading; active uses app; absent/invalid use verification; error uses safe retry |
+| CONT3 non-regression | `node --test tests/authorization-runtime-fix-cont3.test.mjs` | PASS — `5/5` |
+| Complete Node inventory | `node --test tests/*.test.mjs` | PASS — `59/59` |
+| Permission/type/lint | Baseline, typecheck, targeted lint | PASS — `128/128`, typecheck PASS, lint errors `0` |
+| Valid hard refresh | Secure fresh owned browser replay | PASS — one `200` operator restore, allowed route restored, verification/PIN/selector mounts `0/0/0` |
+| Authoritative absence | Focused state contract | PASS — verification remains reachable only after authoritative absent/invalid result |
+| F009/F010/observability | Existing focused/runtime contracts | PASS — normal logout `200` with owned `0/0`; permission/notification gating and terminal logging unchanged |
+| Runtime/database safety | Final postcheck | PASS — 3000/8000/5432 healthy; official DB `51/51/0`; package unchanged; no fixture/config/business mutation |
+
+Decision: `AUTHORIZATION-RUNTIME-FIX-CONT4 = COMPLETE`; `FULL-REGRESSION-F008 = RESOLVED_BY_CODE_AND_RUNTIME_REPLAY`; exact next marker `AUTHORIZATION-RUNTIME-ACCEPT-CONT3`.
+
+## AUTHORIZATION-RUNTIME-ACCEPT-CONT2 — independent real-employee replay — 2026-07-29
+
+| Contract | Evidence mode | Result |
+| --- | --- | --- |
+| Secure package and fixture | Hash/ACL/presence-only loader plus read-only relationship proof | PASS — package unchanged; active non-admin fixture; one assigned/default Branch; minimal permission pair |
+| Browser isolation | Fresh headless process and non-persistent single context | PASS — no persisted profile, storage state, HAR, or screenshot |
+| Branch-shell login / employee PIN | Owned runtime lifecycle | PASS — one request each, both `200` |
+| Operator authorization | Verification plus safe current-operator GET | PASS — active; authorization version present; one effective permission |
+| Fixed Branch/default | Runtime control plus database relationship proof | PASS — one active/default assignment; fixed control disabled; switch NOT_APPLICABLE |
+| Allowed route/API | Dashboard plus safe GET | PASS — route retained; GET `200` |
+| Denied route/API | Deliberate read-only probe | PASS — protected data absent; canonical correlated `403` |
+| F010 automatic ownership | Pre/post-refresh normalized request audit | PASS — unauthorized requests `0/0`; notification list/unread/SSE `0/0/0` |
+| F008 request ordering | Hard-refresh timeline | PASS — explicit-transition current requests `0`; post-authority current `1`; pending `0` |
+| F008 fallback guard | Mutation lifecycle on hard refresh | FAIL — employee-verification shell mounted once before the valid operator settled |
+| F009 logout | UI logout plus pre/post database counts | PASS — fingerprint-linked `1/1 → 0/0`; logout `200`; post-logout protected traffic `0` |
+| Request observability | Owned lifecycle correlation plus static logger contract | PASS — 13 completed; numeric duration/request ID present; undefined duration `0`; controlled abort not generated |
+| Final static validation | Focused and complete suites | PASS — `5/5`, `56/56`, permission baseline `128/128`, typecheck, lint errors `0` / inherited warnings `18` |
+| Runtime/database safety | Final postcheck | PASS — services healthy; fixture unchanged; official DB `51/51/0`; owned sessions `0/0` |
+
+Decision: `AUTHORIZATION-RUNTIME-ACCEPT-CONT2 = PARTIAL`;
+`FULL-REGRESSION-F008 = OPEN`; exact next marker
+`AUTHORIZATION-RUNTIME-FIX-CONT4`.
+
 ## AUTHORIZATION-RUNTIME-FIX-CONT3 — employee runtime lifecycle repair — 2026-07-29
 
 | Contract | Evidence mode | Result |

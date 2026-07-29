@@ -1,5 +1,88 @@
 # Market Release Findings Register
 
+## FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT1 — findings resolved — 2026-07-30
+
+| ID | Final status | Acceptance evidence |
+| --- | --- | --- |
+| `FINANCIAL-BOOTSTRAP-F001` | RESOLVED | Fresh disposable First Run creates the complete 12-role Company catalog without copied rows or manual SQL; retry creates no duplicates. |
+| `FINANCIAL-BOOTSTRAP-F002` | RESOLVED | The first Branch receives all 11 mandatory mappings and setup READY is gated by account and mapping readiness. |
+| `FINANCIAL-BOOTSTRAP-F003` | RESOLVED | Permissioned account domain API, Chart-of-Accounts UI, readiness UI, and Branch mapping UI enforce safe lifecycle rules. |
+| `FINANCIAL-BOOTSTRAP-F005` | RESOLVED | Central resolver validates every posting account and never creates one; a missing mapping fails canonically before business, journal, or account writes. |
+| `FINANCIAL-BOOTSTRAP-F007` | RESOLVED | Posted-ledger Income Statement and Balance Sheet reconcile on synthetic disposable data; ledger/trial-balance verifiers remain green. |
+| `FINANCIAL-BOOTSTRAP-F008` | RESOLVED | Account statements and new reports use validated Company context and the shared authorized-Branch resolver. |
+| `FINANCIAL-BOOTSTRAP-F009` | RESOLVED | Fresh installation and legacy reconciliation are supported Product flows; second reconciliation is a no-op and valid configuration is preserved. |
+| `FINANCIAL-BOOTSTRAP-F010` | RESOLVED | Account hierarchy, mapping eligibility, reference deletion, posting status, and journal source integrity are enforced by services plus the pending migration. |
+
+Implementation: `6fa27b5a01e36ae4425a0f320c6943fb7ecbcb57`.
+Official DB mutation: 0; official migration state: `52/51/1`; disposable DB
+residue: 0. Open release-blocking financial findings: 0. Next:
+`FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT1`.
+
+## FINANCIAL-ACCOUNT-BOOTSTRAP-AUDIT-CONT1 — financial bootstrap findings — 2026-07-30
+
+| ID | Severity / status | Proven evidence and fresh-install impact | Minimum repair and acceptance boundary |
+| --- | --- | --- | --- |
+| `FINANCIAL-BOOTSTRAP-F001` | P1, OPEN, release-blocking | Fresh First Run creates only seven Branch accounts and omits required bank, supplier-payable, opening-equity, operating-expense, and other-income categories while setup is READY. | Extend the supported bootstrap/template and readiness contract; prove complete categories on a clean migrated database without duplicates. |
+| `FINANCIAL-BOOTSTRAP-F002` | P1, OPEN, release-blocking | First Run creates six final-sale roles and two reservation/cash mappings only; no complete required Branch financial mapping set is created or required. | Define the canonical required mapping catalog and create/validate it explicitly per Branch; test missing/cross-scope/inactive/duplicate cases fail closed. |
+| `FINANCIAL-BOOTSTRAP-F003` | P1, OPEN, release-blocking | Generic account CRUD exists, but the Product has no supported Chart-of-Accounts management UI and the API lacks domain-safe create/update/deactivate/delete rules. | Add permissioned account administration with safe types, hierarchy, scope, reference handling, audit, and non-destructive lifecycle tests. |
+| `FINANCIAL-BOOTSTRAP-F005` | P1, OPEN, release-blocking | Strict reservation completion fails closed, but legacy posting uses a self-healing account resolver that creates missing Company-scoped accounts during business posting. | Replace runtime account creation with explicit validated financial authority for every posting family; prove zero writes before a canonical missing-mapping error. |
+| `FINANCIAL-BOOTSTRAP-F007` | P1, OPEN, release-blocking | Ledger, trial balance, and account statements exist, but no accepted GL-backed balance sheet or income statement surface was found. | Add canonical GL financial statements with scope/date/posted-only contracts and reconcile them to trial balance on a disposable database. |
+| `FINANCIAL-BOOTSTRAP-F008` | P1, OPEN, release-blocking | `/accounts/:id/statement` accepts a Branch query value without the shared authorized-Branch resolver; generic account mutations also lack the operational Branch/domain guard. | Route all financial reads/writes through uniform Company/Branch authorization and add cross-Branch/cross-Company negative tests. |
+| `FINANCIAL-BOOTSTRAP-F009` | P1, OPEN, release-blocking | A fresh install is marked READY before complete account/mapping setup and becomes usable only through undocumented transaction-triggered account creation or manual data work. | Provide a documented supported Product onboarding path from empty migrated DB to financially ready, with no transaction or manual database patch required. |
+| `FINANCIAL-BOOTSTRAP-F010` | P1, OPEN, release-blocking | Account code uniqueness, parent FK/cycle safety, posting-account semantics, and safe referenced-account deletion are not enforced; journal-line account deletion cascades. | Enforce hierarchy/mapping/reference integrity and safe deactivate/replacement behavior with migration and destructive-negative acceptance on a disposable DB. |
+
+`FINANCIAL-BOOTSTRAP-F004` is not opened: First Run rollback,
+concurrency/idempotency, and duplicate-account checks passed on real disposable
+PostgreSQL. `FINANCIAL-BOOTSTRAP-F006` is not opened: representative posting
+families are implemented; their fail-open authority and portability gaps are
+already F005/F009.
+
+`OPEN_RELEASE_BLOCKING_FINANCIAL_FINDINGS = 8`. No authorization finding was
+reopened. `RELEASE_READY = NO`; exact next marker:
+`FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT1`.
+
+## AUTHORIZATION-RUNTIME-ACCEPT-CONT3 — final authorization disposition — 2026-07-29
+
+| ID | Severity | Final status | Independent acceptance evidence |
+| --- | --- | --- | --- |
+| FULL-REGRESSION-F004 | P1 historical | RESOLVED | Identity creation remains separate from explicit Branch assignment; the fixture retains no implicit administrator, Company-label, or first-Branch inheritance. |
+| FULL-REGRESSION-F005 | P1 historical | RESOLVED | One explicit active assignment remains authoritative and the sole default belongs to that active assignment. |
+| FULL-REGRESSION-F006 | P1 historical | RESOLVED | Real Branch-shell/PIN bootstrap returned an active non-admin operator with backend-resolved effective permissions. |
+| FULL-REGRESSION-F007 | P1 historical | RESOLVED | Branch readiness remains authoritative; the hard-refresh operator request began only with validated Branch authority. |
+| FULL-REGRESSION-F008 | P1 historical | RESOLVED | Independent valid hard refresh recorded verification/PIN/selector mounts `0/0/0`, protected loading `1`, one successful operator restore, and restored allowed access. |
+| FULL-REGRESSION-F009 | P1 historical | RESOLVED | Exact-owned fingerprint-linked sessions changed `1/1 → 0/0` through normal Product logout `200`, with no manual cleanup or unrelated revocation. |
+| FULL-REGRESSION-F010 | P1 historical | RESOLVED | Automatic unauthorized module/settings/Branch/notification requests were zero before and after refresh; the isolated deliberate denied GET remained canonical `403`. |
+| OBSERVABILITY-F001 | P2 historical | RESOLVED | Completed owned requests had numeric durations and request IDs; undefined duration and duplicate terminal summary counts were zero, with aborted/disconnected behavior covered statically. |
+
+No new Product, observer, package, fixture, session, or authorization finding
+was proven. `OPEN_RELEASE_BLOCKING_AUTHORIZATION_FINDINGS = 0`;
+`OPEN_RELEASE_BLOCKING_PRODUCT_REGRESSIONS = 0`. Exact next marker:
+`FINANCIAL-ACCOUNT-BOOTSTRAP-AUDIT-CONT1`.
+
+## AUTHORIZATION-RUNTIME-FIX-CONT4 — resolution disposition — 2026-07-29
+
+| ID | Severity | Status | Evidence / closure |
+| --- | --- | --- | --- |
+| FULL-REGRESSION-F008 | P1, release-blocking Product regression | RESOLVED_BY_CODE_AND_RUNTIME_REPLAY | `0c48bd2` separates unresolved operator restoration from authoritative absence. Valid hard refresh recorded one successful restore and zero verification-shell, PIN-form, and employee-selector mounts; the allowed route restored and normal logout ended with owned sessions `0/0`. |
+
+F004–F007 remain resolved; F009, F010, and OBSERVABILITY-F001 remain resolved
+and non-regressed. `OPEN_RELEASE_BLOCKING_AUTHORIZATION_FINDINGS = 0` and
+`OPEN_RELEASE_BLOCKING_PRODUCT_REGRESSIONS = 0`. `RELEASE_READY = NO`; exact
+next marker: `AUTHORIZATION-RUNTIME-ACCEPT-CONT3`.
+
+## AUTHORIZATION-RUNTIME-ACCEPT-CONT2 — independent acceptance disposition — 2026-07-29
+
+| ID | Severity | Status | Independent runtime evidence / required scope |
+| --- | --- | --- | --- |
+| FULL-REGRESSION-F008 | P1, release-blocking Product regression | OPEN — `OPERATOR_VERIFICATION_FALLBACK_FLASH_DURING_READY_RESTORE` | Hard refresh emitted zero operator-current work during explicit transition and one successful Branch-scoped restore after validated authority; final operator/route state was correct and pending was zero. The employee-verification shell nevertheless mounted once during hydration. Keep the guard in a non-fallback loading state from technical-auth hydration through the one authoritative READY-generation restore. |
+| FULL-REGRESSION-F009 | P1 | RESOLVED — independently accepted | Exact-owned active counts were `1/1` before Product logout and `0/0` afterward; the stable technical-session fingerprint linked the pair, logout returned `200`, and no manual cleanup was needed. |
+| FULL-REGRESSION-F010 | P1 | RESOLVED — independently accepted | Automatic unauthorized requests were zero before and after refresh. Notification REST/SSE owners were zero; the one deliberate denied GET remained canonical `403`. |
+| OBSERVABILITY-F001 | P2 | RESOLVED — independently non-regressed | Owned completed requests retained numeric durations and request IDs with zero undefined duration; focused terminal-logging coverage passed completed/aborted/client-disconnected classification. |
+
+`FULL-REGRESSION-F004` through `F007` remain resolved. One release-blocking
+authorization regression is open. Exact next marker:
+`AUTHORIZATION-RUNTIME-FIX-CONT4`.
+
 ## AUTHORIZATION-RUNTIME-FIX-CONT3 — runtime authorization closures — 2026-07-29
 
 | ID | Severity | Status | Evidence / closure |

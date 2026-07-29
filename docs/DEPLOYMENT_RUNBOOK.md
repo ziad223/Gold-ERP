@@ -1,5 +1,76 @@
 # Deployment Runbook — Parameterized and Tag-Gated
 
+## FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT1 — source migration pending — 2026-07-30
+
+Do not deploy. Financial bootstrap repair is committed at
+`6fa27b5a01e36ae4425a0f320c6943fb7ecbcb57`, but the new integrity migration
+is intentionally pending on official `darfus_erp` (`52/51/1`).
+
+The migration was proven on disposable PostgreSQL through fresh up, down/up,
+legacy reconciliation, First Run, and cleanup. It adds account
+posting/classification/bootstrap metadata, Company account-code uniqueness,
+restrictive account references, and journal source idempotency. It must be
+rehearsed through the controlled migration path before any official apply.
+Never replace the supported readiness/reconciliation flow with manual SQL,
+copied account rows, transaction-time account creation, or silent mapping
+replacement.
+
+Pre/post official financial fingerprints matched exactly, temporary database
+residue was zero, and the existing runtime was not controlled. Next marker:
+`FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT1`.
+
+## FINANCIAL-ACCOUNT-BOOTSTRAP-AUDIT-CONT1 — deployment prohibition — 2026-07-30
+
+Do not deploy, begin Staging, or represent a fresh installation as financially
+ready. First Run currently reaches READY with a narrow account/mapping subset;
+several posting paths can then create accounts during business transactions.
+The supported Product flow does not yet provide complete Chart-of-Accounts and
+Branch mapping administration, structural integrity, or accepted GL financial
+statements.
+
+The audit-only disposable database was proven local, migrated to 51, exercised,
+dropped, and verified absent. Official `darfus_erp/public` remained read-only
+at `51/51/0`; existing frontend/backend/PostgreSQL processes remained owned and
+untouched. Do not patch financial records manually and do not use transaction
+posting as a bootstrap mechanism.
+
+Deployment remains blocked by financial findings F001, F002, F003, F005, F007,
+F008, F009, and F010. Exact next marker:
+`FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT1`; do not start it automatically.
+
+## AUTHORIZATION-RUNTIME-ACCEPT-CONT3 — post-acceptance deployment boundary — 2026-07-29
+
+The Employee authorization runtime workstream is independently accepted:
+F004–F010 and OBSERVABILITY-F001 are resolved, normal logout leaves the exact
+owned technical/operator session counts `0/0`, and no unauthorized automatic
+module or notification traffic remains. The encrypted package, fixture
+authorization, owner-managed 3000/8000 services, PostgreSQL listener, and
+official `51/51/0` database are unchanged.
+
+Do not deploy, migrate, rehearse Staging, or authorize Production from this
+result. Preserve the current runtime and protected baseline. Next only:
+`FINANCIAL-ACCOUNT-BOOTSTRAP-AUDIT-CONT1`; do not start it automatically.
+
+## AUTHORIZATION-RUNTIME-FIX-CONT4 — deployment prohibition — 2026-07-29
+
+F008 is resolved locally by the narrow frontend restore-state repair in
+`0c48bd2`; F009, F010, and request-terminal observability remain accepted.
+This does not authorize deployment, migration rehearsal, Staging, Production,
+or the financial audit. Preserve the existing owner-managed services, encrypted
+fixture package, and official `51/51/0` database. Next only:
+`AUTHORIZATION-RUNTIME-ACCEPT-CONT3`; do not start it automatically.
+
+## AUTHORIZATION-RUNTIME-ACCEPT-CONT2 — deployment prohibition — 2026-07-29
+
+Do not deploy, migrate, rehearse Staging, or begin the financial audit.
+Independent runtime acceptance passed F009 exact logout, F010 unauthorized
+query suppression, and the terminal logging contract, but reopened
+`FULL-REGRESSION-F008`: the valid Branch-ready operator is restored and the
+allowed route survives, yet the employee-verification fallback mounts once
+during hard-refresh hydration. Preserve the unchanged encrypted fixture
+package, owner-managed services, and official `51/51/0` database. Next only:
+`AUTHORIZATION-RUNTIME-FIX-CONT4`.
+
 ## AUTHORIZATION-RUNTIME-FIX-CONT3 — pre-deployment acceptance boundary — 2026-07-29
 
 F008–F010 and OBSERVABILITY-F001 are resolved and the existing local runtime

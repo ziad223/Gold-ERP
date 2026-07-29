@@ -1,5 +1,103 @@
 # READ THIS FIRST — CURRENT PROJECT HANDOFF
 
+## FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT1 — COMPLETE — 2026-07-30
+
+- Start: `387c5f8dfd1e4e15e6d949dafc68504b2a39de8f`, `main`.
+- Implementation: `6fa27b5a01e36ae4425a0f320c6943fb7ecbcb57`
+  (`feat: complete financial account bootstrap`).
+- Catalog: 12 required Company account roles; 11 required Branch mappings;
+  stable semantic codes and bootstrap version 2.
+- First Run: complete financial reconcile plus readiness gate before READY;
+  rollback, concurrency, and retry semantics preserved.
+- Existing environments: explicit permissioned reconciliation API/UI;
+  advisory-locked, transactional, idempotent; valid configuration preserved.
+- Administration: dedicated account domain service and Chart UI with safe
+  hierarchy, posting, lifecycle, mapping, and readiness controls.
+- Posting: central resolver; missing or invalid mapping fails closed; no
+  transaction-time account creation.
+- Reporting/scope: statements use the shared Branch authorization resolver;
+  GL-backed Income Statement and Balance Sheet use posted lines and semantic
+  classifications.
+- Migration: one new source migration, proven disposable up/down/up; do not
+  apply to official DB in this phase.
+- Validation: pre-fix contract 0/8; post-fix 8/8; focused 23/23; mjs 59/59;
+  cjs 58 pass plus one intentional skip; permissions 128/128; typecheck,
+  targeted lint, diff check, ledger/reporting, and bootstrap verifiers PASS.
+- Safety: official DB fingerprints unchanged; state `52/51/1`; idle/waiting
+  locks 0/0; disposable DB residue 0; package/lock hashes unchanged;
+  `next-env.d.ts` exact; existing runtime preserved.
+- Findings `F001/F002/F003/F005/F007/F008/F009/F010`: RESOLVED.
+- Release/Staging/Production: NOT AUTHORIZED.
+- Exact next marker: `FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT1`. Do not start it
+  automatically.
+
+## FINANCIAL-ACCOUNT-BOOTSTRAP-AUDIT-CONT1 — 2026-07-30
+
+- Checkpoint/safety: started at exact
+  `1a490b4ecb937bb3ed17a6238fae15c65489bc01` on `main`; zero staged files,
+  11 stashes, no remotes, protected semantic zero, required declaration hash,
+  reused 3000/8000/5432, and official `darfus_erp/public` `51/51/0`.
+- Source ownership: First Run creates seven Branch accounts, six final-sale
+  system roles, and two reservation/cash mappings, then marks setup READY.
+  The broader posting chart exists in `posting.service.js`, where legacy flows
+  lazily create missing Company-scoped accounts. Strict reservation completion
+  remains fail-closed and passed its focused tests.
+- Fresh DB: one unique disposable database was target-proven, migrated through
+  51 migrations, passed the real rollback/concurrency/idempotency First Run
+  test, produced the expected 7/6/2 baseline with zero duplicate account-code
+  groups, and was dropped with residue zero.
+- Product gaps: no complete Chart-of-Accounts UI/domain-safe API; incomplete
+  account and Branch mapping bootstrap; legacy transaction-time account
+  creation; missing GL balance sheet/income statement; one account-statement
+  path lacks the shared Branch authorization resolver; and schema-level
+  hierarchy/reference/posting-account invariants are incomplete.
+- Official DB: anonymized read-only inspection found 19 active Company-scoped
+  accounts, zero system-role/mapping rows, five active Branches missing the
+  accepted role/mapping minimum, balanced observed journals, and zero
+  idle/waiting locks. No identifiers, names, balances, or payloads were
+  retained.
+- Validation: focused tests 19/19, real PostgreSQL First Run PASS, ledger
+  verifier PASS, post-reset bootstrap verifier PASS, permission baseline
+  128/128, typecheck PASS, lint errors 0, and diff check PASS.
+- Findings/decision: open F001, F002, F003, F005, F007, F008, F009, and F010
+  (eight release blockers). F004 idempotency passed; F006 is not duplicated.
+  `FINANCIAL-ACCOUNT-BOOTSTRAP-AUDIT-CONT1 = COMPLETE`,
+  `FINANCIAL_BOOTSTRAP_CLASSIFICATION = PARTIAL_OR_MISSING`,
+  `RELEASE_READY = NO`. Exact next marker:
+  `FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT1`. Do not start it automatically.
+
+## AUTHORIZATION-RUNTIME-ACCEPT-CONT3 — 2026-07-29
+
+- Checkpoint/safety: started at exact `215db1b3bc319ce4e996f5c6d5d56c3158994f7e` on `main`; required repairs through `0c48bd2` were present. Zero staged files, 11 stashes, no remotes, protected semantic zero, required declaration hash, unchanged restricted encrypted package, reused 3000/8000/5432, and official `darfus_erp/public` `51/51/0` passed.
+- Package/fixture: the unchanged loader passed a presence-only child check and parent cleanup. The dedicated Employee remains active/non-admin and distinct from the shell, with one active explicit/default Branch, an effective read case, a denied administration case, current authorization version, and fixed-shell alignment.
+- Browser isolation: one fresh owned Chromium process and one non-persistent context were used; no persistent profile, storage state, HAR, trace, screenshot, credential value, token, raw identifier, or payload was retained.
+- Login/bootstrap: exactly one Branch-shell login and one Employee PIN verification completed `200`. A safe current-operator read returned active backend-resolved authorization with valid Company/Branch context and one accessible/default Branch; fixed Branch switching is `NOT_APPLICABLE`.
+- Permission evidence: allowed navigation and read access passed. Privileged navigation was absent; one deliberate read-only denied route rendered no protected data and its API returned canonical correlated `403` without side effect or leakage.
+- F008: hard refresh mounted neutral protected loading once before the Branch-authorized operator read. Operator-current without validated Branch authority was `0`; after authority it was exactly `1/200`. Verification-shell, PIN-form, and Employee-selector mounts were `0/0/0`; protected data exposure, duplicate restore, loop, pending work, and unauthorized UI flash were zero; the allowed route restored.
+- F010/notifications: automatic unauthorized request counts were zero before and after refresh for settings, Branch, notifications, and every enumerated business module. Notification list/unread/SSE/reconnect/error-toast counts were `0/0/0/0/0`. The deliberate denial was isolated from these counts.
+- Observability/F009: all completed owned requests had numeric observed durations and request IDs; undefined durations and duplicate terminal summaries were zero, with aborted/disconnected paths covered by accepted static tests. Exact-owned sessions were fingerprint-linked `1/1` before normal logout and `0/0` after logout `200`; no manual cleanup, unrelated revocation, post-logout protected traffic, notification traffic, or `401` storm occurred.
+- Static/postcheck: CONT4 `3/3`, CONT3 `5/5`, complete focused Node `59/59`, permission baseline `128/128`, typecheck, targeted lint errors `0`, and diff check passed. Temporary evidence was removed, parent credentials are absent, the encrypted package is byte-identical, services retain their owner PIDs, fixture configuration is unchanged, idle/waiting DB counts are `0/0`, and owned sessions remain `0/0`.
+- Decision: `AUTHORIZATION-RUNTIME-ACCEPT-CONT3 = COMPLETE`; F004–F010 and OBSERVABILITY-F001 are resolved; `AUTHORIZATION_RUNTIME_WORKSTREAM = COMPLETE`; open release-blocking authorization/Product regressions are zero. `RELEASE_READY = NO`; Staging/Production remain unauthorized. Exact next marker: `FINANCIAL-ACCOUNT-BOOTSTRAP-AUDIT-CONT1`. Do not start it automatically.
+
+## AUTHORIZATION-RUNTIME-FIX-CONT4 — 2026-07-29
+
+- Checkpoint/safety: started at exact `6e054bb3872bd73fc73829e56c59aed51efdd741` on `main`; zero staged files, 11 stashes, no remotes, required protected hash, unchanged encrypted package/ACL, reused 3000/8000/5432, and official `darfus_erp/public` `51/51/0`.
+- Root cause: `OperatorProvider` exposed only independent `loading`/`active` values, and `AuthGuard` treated `!active` as absence while valid hard-refresh restoration was still unresolved. This mounted the verification shell and PIN form once despite a valid later restore.
+- Repair: `0c48bd2` adds explicit internal operator restore status and changes the guard to show neutral protected loading through uninitialized/deferred/restoring states; verification is limited to authoritative absent/invalid, and restore errors have a safe retry boundary. Backend/session/logout/notification/logging and fixture paths are unchanged.
+- Validation: new failing-before contract passed after repair; CONT3 `5/5`, all Node tests `59/59`, permission baseline `128/128`, typecheck, targeted lint errors `0`, and diff check passed. Secure fresh replay recorded one successful operator restore, allowed-route restoration, zero verification/PIN/selector mounts, normal logout `200`, and final owned sessions `0/0`.
+- Decision: `AUTHORIZATION-RUNTIME-FIX-CONT4 = COMPLETE`; `FULL-REGRESSION-F008 = RESOLVED_BY_CODE_AND_RUNTIME_REPLAY`; F009, F010, and OBSERVABILITY-F001 remain resolved. `RELEASE_READY = NO`; Staging/Production remain unauthorized. Exact next marker: `AUTHORIZATION-RUNTIME-ACCEPT-CONT3`. Do not start it automatically. Financial-account bootstrap audit remains after final authorization acceptance.
+
+## AUTHORIZATION-RUNTIME-ACCEPT-CONT2 — 2026-07-29
+
+- Checkpoint/safety: started at exact `fbac02c6dd4b58da4e9d17d787c756ba2fd72083` on `main`; zero staged files, 11 stashes, no remotes, protected semantic zero, required declaration hash, unchanged restricted encrypted package, reused 3000/8000/5432, and official `darfus_erp/public` `51/51/0`.
+- Fixture/package: hashes and ACLs remained accepted; presence-only child loading and parent cleanup passed. The employee is active/non-admin and distinct from the fixed shell, with one active/default Branch, one effective read capability, one denied administration capability, and a valid authorization version.
+- Runtime accepted: fresh non-persistent browser; login/PIN one lifecycle each at `200`; active backend-resolved operator; fixed Branch; allowed dashboard and safe GET `200`; denied route without protected data and canonical correlated GET `403`; assigned Branch switch NOT_APPLICABLE.
+- F010/notifications: automatic unauthorized requests were zero before and after refresh. Notification list, unread, SSE, and reconnect ownership were zero. F010 remains resolved.
+- F008: hard refresh observed a non-ready interval, zero operator-current requests during explicit transition, exactly one Branch-scoped `200` restore after validated authority, retained operator/allowed route, denied privileged navigation, and pending `0`. The employee-verification shell nevertheless mounted once during hydration. Reopen F008 as `OPERATOR_VERIFICATION_FALLBACK_FLASH_DURING_READY_RESTORE`.
+- F009: exact-owned active technical/operator counts were fingerprint-linked `1/1` before normal Product logout and `0/0` afterward. Logout was one `200`; post-logout protected traffic was zero; no manual cleanup was required. F009 remains resolved.
+- Observability/static: 13 completed owned requests had numeric durations and request IDs; undefined duration was zero. Focused terminal logger coverage passed. CONT3 tests `5/5`, all Node tests `56/56`, permission baseline `128/128`, typecheck and diff check passed; lint remained zero errors/18 inherited warnings.
+- Cleanup/decision: owned browser and loader exited, parent credentials are absent, temporary evidence files are removed, secure package retained unchanged, services are healthy, fixture authorization unchanged, owned sessions `0/0`, and official DB `51/51/0` with zero idle transactions/waiting locks. `AUTHORIZATION-RUNTIME-ACCEPT-CONT2 = PARTIAL`; `RELEASE_READY = NO`; exact next marker `AUTHORIZATION-RUNTIME-FIX-CONT4`. Do not start it automatically.
+
 ## AUTHORIZATION-RUNTIME-FIX-CONT3 — 2026-07-29
 
 - Checkpoint/safety: started at `da2e07f` on `main` with zero staged files, 11 stashes, no remotes, protected hashes intact, the encrypted package unchanged, reused 3000/8000/5432, and official `darfus_erp` at `51/51/0`.

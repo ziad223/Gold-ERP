@@ -12,6 +12,7 @@ if (!database) {
   const state = require(path.join(root, "backend", "src", "services", "first-run-setup-state.service.js"));
   const bootstrap = require(path.join(root, "backend", "src", "services", "first-run-bootstrap.service.js"));
   const accessControl = require(path.join(root, "backend", "src", "bootstrap", "accessControl.js"));
+  const financialCatalog = require(path.join(root, "backend", "src", "services", "financial-account-catalog.service.js"));
   const token = crypto.randomBytes(32).toString("base64url");
   const environment = { FIRST_RUN_SETUP_TOKEN: token };
   const makePayload = (suffix) => {
@@ -60,8 +61,8 @@ if (!database) {
     assert.equal(await count(models.User, { accountType: "super_admin", isActive: true }), 1);
     assert.equal(await count(models.Company), 1);
     assert.equal(await count(models.Branch, { isActive: true }), 1);
-    assert.equal(await count(models.SystemAccountRole), 6);
-    assert.equal(await count(models.BranchFinancialMapping, { isActive: true }), 2);
+    assert.equal(await count(models.SystemAccountRole), Object.keys(financialCatalog.ACCOUNT_ROLE_CATALOG).length);
+    assert.equal(await count(models.BranchFinancialMapping, { isActive: true }), Object.keys(financialCatalog.BRANCH_MAPPING_CATALOG).length);
     const [locks] = await models.sequelize.query("SELECT COUNT(*)::int AS count FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'");
     assert.equal(Number(locks[0].count), 0);
   });

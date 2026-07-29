@@ -1,5 +1,312 @@
 # Release Gap Audit
 
+## FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT1 — complete — 2026-07-30
+
+The repair started at exact checkpoint
+`387c5f8dfd1e4e15e6d949dafc68504b2a39de8f` on `main` and produced
+implementation commit `6fa27b5a01e36ae4425a0f320c6943fb7ecbcb57`
+(`feat: complete financial account bootstrap`). Preflight preserved 11
+stashes, zero remotes, the protected semantic baseline, the required
+`next-env.d.ts` hash, and the owner-managed 3000/8000/5432 runtime.
+
+The implementation establishes versioned catalogs of 12 required Company
+account roles and 11 required Branch mapping roles. First Run now reconciles
+that complete baseline and evaluates financial readiness before setup can
+become READY. Existing environments have an explicit, permissioned,
+transactional, idempotent reconciliation API and UI; valid existing mappings
+are preserved.
+
+Account administration now uses a dedicated domain service and Chart of
+Accounts UI. It enforces Company ownership, unique codes, compatible
+hierarchies, cycle prevention, posting status, mapped-account lifecycle
+guards, and non-destructive deletion. All posting account resolution is
+centralized and fail-closed; business posting no longer creates accounts.
+Statement Branch scope uses the shared authorization resolver. GL-backed
+Income Statement and Balance Sheet endpoints and UI use posted journal lines
+and semantic classifications.
+
+The authorized source migration adds posting/classification/bootstrap
+metadata and reference/idempotency safeguards. It was applied, rolled back,
+and reapplied only on disposable PostgreSQL databases. Fresh First Run
+produced 12 roles, 11 mappings, READY status, and an idempotent no-op replay.
+A legacy-shaped disposable installation reconciled without replacing valid
+configuration. Missing required mapping caused a canonical failure with zero
+business/journal/account writes. Synthetic GL reports reconciled and the
+balance-sheet equation held. All disposable databases were dropped.
+
+Validation: the new contract failed 0/8 before repair and passes 8/8 after
+repair; the focused financial/First Run suite passes 23/23; all `.mjs` tests
+pass 59/59; `.cjs` tests pass 58 with one intentional disposable-DB skip;
+permission baseline remains 128/128; typecheck, targeted lint,
+`git diff --check`, ledger/reporting verifier, and post-reset bootstrap
+verifier pass.
+
+The official database was not migrated or mutated. Its final state is source /
+applied / pending `52/51/1`, with exact preflight account, mapping, journal,
+and journal-line fingerprints unchanged, zero waiting locks, and no disposable
+database residue. The existing runtime remained owner-managed; backend hot
+reload was observed without service control.
+
+Disposition: `FINANCIAL-BOOTSTRAP-F001`, `F002`, `F003`, `F005`, `F007`,
+`F008`, `F009`, and `F010` are RESOLVED. Open release-blocking financial
+findings: 0. Release, Staging, and Production remain unauthorized. Exact next
+marker: `FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT1`; it was not started.
+
+## FINANCIAL-ACCOUNT-BOOTSTRAP-AUDIT-CONT1 — fresh-install financial readiness audit — 2026-07-30
+
+The audit started at exact checkpoint
+`1a490b4ecb937bb3ed17a6238fae15c65489bc01` on `main`
+(`docs: accept final employee authorization runtime`). Preflight confirmed zero
+staged files, 11 stashes, no remotes, the protected semantic baseline, the
+required `next-env.d.ts` hash, owner-managed listeners on 3000/8000/5432, and
+official `darfus_erp/public` at source/applied/pending `51/51/0`. The three
+inherited backend CRLF-only artifacts remained unstaged.
+
+### Ownership and supported-flow map
+
+- `backend/src/services/first-run-bootstrap.service.js` owns the atomic initial
+  Company/Branch/account creation. Its current template creates seven
+  Branch-owned accounts, six final-sale system roles, and two reservation/cash
+  mappings.
+- `backend/src/services/first-run-setup-state.service.js` marks setup READY
+  against that same narrow minimum. It does not require bank, supplier payable,
+  opening equity, operating expense, or other-income readiness.
+- `backend/src/services/company-bootstrap.service.js` validates the strict
+  final-sale roles and can bootstrap only the reservation-liability role for a
+  Branch; it is not a complete financial onboarding flow.
+- `backend/src/services/posting.service.js` contains a broader canonical chart
+  but lazily creates missing Company-scoped accounts while a transaction is
+  posting. Most legacy posting flows therefore self-heal instead of failing
+  closed on missing explicit Branch financial authority.
+- `backend/src/models/account.model.js`,
+  `systemAccountRole.model.js`, and `branchFinancialMapping.model.js` own the
+  account and mapping records. Account code uniqueness, parent-account foreign
+  keys, circular-hierarchy protection, and a posting/non-posting contract are
+  not enforced by the schema.
+- `backend/src/routes/erp.routes.js` exposes generic account CRUD, strict
+  reservation mapping settings, account statements, trial balance, and ledger
+  reports. `app/[locale]/dashboard/accounting/page.tsx` consumes accounts for
+  journals/statements/reports but provides no supported Chart-of-Accounts
+  create/edit/deactivate/hierarchy workflow.
+
+### Read-only official baseline
+
+The official database contains 19 active Company-scoped accounts and no
+Branch-scoped accounts, system-role rows, or Branch financial mapping rows.
+All five active Branches fail the accepted six-role/two-mapping readiness
+minimum. Existing journal headers and lines are balanced by the observed
+aggregate checks, with no cross-Company line or duplicate source group found.
+These are anonymized counts only; no account names, identifiers, balances, or
+business payloads were retained.
+
+### Disposable PostgreSQL proof
+
+A uniquely named local disposable database was target-proven on PostgreSQL
+5432, migrated through all 51 source migrations, and exercised with
+`tests/first-run-postgres.integration.test.cjs`. Rollback, advisory-lock
+concurrency, replay idempotency, and setup-state acceptance passed. The fresh
+result contained one Company, one active Branch, seven Branch-scoped accounts,
+six system roles, two active Branch mappings, one setup-state row, and zero
+duplicate account-code groups. The database was dropped and prefix residue was
+verified as zero. No migration or write-capable test targeted official
+`darfus_erp`.
+
+### Capability decision
+
+| Area | Classification | Evidence |
+| --- | --- | --- |
+| Chart of Accounts schema | PARTIAL | Core account fields exist; structural and posting-account invariants are absent. |
+| Default account bootstrap | PARTIAL | Seven Branch accounts are created; required bank/AP/equity/expense/other-income categories are absent. |
+| First Run integration | PARTIAL | Atomic/idempotent and real-PostgreSQL PASS, but READY uses an incomplete financial minimum. |
+| Manual account management API | PARTIAL | Generic CRUD exists but lacks accounting-specific scope, reference, hierarchy, and destructive-change guards. |
+| Manual account management UI | MISSING | No supported Chart-of-Accounts administration flow was found. |
+| Branch mapping model | PARTIAL | Six system roles and two mapping types exist; coverage is not complete for required posting families. |
+| Branch mapping API/UI | PARTIAL | Reservation deposit/cash settings exist; no complete financial mapping workflow exists. |
+| Fail-closed posting | PARTIAL | Strict reservation completion fails closed; legacy posting can lazily create missing accounts. |
+| Deposit posting | COMPLETE | Focused deposit and strict resolver contracts passed. |
+| Cash posting | PARTIAL | Posting exists but can depend on code-based lazy account creation. |
+| Bank posting | PARTIAL | Posting exists but the fresh bootstrap does not create/map the required bank account. |
+| Expense posting | PARTIAL | Posting exists but missing accounts can be created at transaction time. |
+| Other-income posting | PARTIAL | Posting exists but missing accounts can be created at transaction time. |
+| Ledger visibility | COMPLETE | Posted journal ledger and trial-balance routes/UI are present and verifier passed. |
+| Account statement visibility | COMPLETE | Opening/running/closing balance statement exists, subject to the scope defect below. |
+| Financial statements | MISSING | No GL-backed balance sheet and income statement acceptance surface was found. |
+| Idempotency | PARTIAL | First Run and mapping uniqueness pass; general journal source uniqueness is not a DB invariant. |
+| Security/scope | PARTIAL | Accounting permissions exist, but one statement path and generic account mutations bypass uniform Branch/domain guards. |
+| Fresh-environment portability | MISSING | A fresh setup becomes READY before complete financial setup and relies on later transaction-triggered creation. |
+
+### Findings
+
+Eight release-blocking findings are proven:
+`FINANCIAL-BOOTSTRAP-F001`, `F002`, `F003`, `F005`, `F007`, `F008`, `F009`,
+and `F010`. `F004` is not opened because disposable PostgreSQL proved atomic
+idempotency without duplicates. `F006` is not opened because representative
+posting implementations exist; their missing-account authority defect is
+classified under F005/F009 rather than duplicated.
+
+Focused contracts passed 19/19, real PostgreSQL First Run passed, the ledger
+foundation and post-reset operational bootstrap verifiers passed, permission
+baseline remained 128/128, typecheck passed, lint errors were zero, and
+`git diff --check` passed. No Product, schema, migration, configuration,
+runtime, or official database change was made.
+
+`FINANCIAL-ACCOUNT-BOOTSTRAP-AUDIT-CONT1 = COMPLETE`.
+`FINANCIAL_BOOTSTRAP_CLASSIFICATION = PARTIAL_OR_MISSING`.
+`NEW_FINANCIAL_FINDINGS = F001,F002,F003,F005,F007,F008,F009,F010`;
+`OPEN_RELEASE_BLOCKING_FINANCIAL_FINDINGS = 8`. `RELEASE_READY = NO`;
+Staging and Production remain unauthorized. Exact next marker:
+`FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT1`. Do not start it automatically.
+
+## AUTHORIZATION-RUNTIME-ACCEPT-CONT3 — final independent employee runtime acceptance — 2026-07-29
+
+The phase started at exact Product checkpoint
+`215db1b3bc319ce4e996f5c6d5d56c3158994f7e` on `main` (`docs: resolve
+operator restore verification flash`). Required authorization repair history
+through `0c48bd2ff29b7f10c161ecabe91e86d143a4b066` was present. Preflight retained
+zero staged files, 11 stashes, no remotes, the protected semantic baseline,
+the exact `next-env.d.ts` hash, the same restricted encrypted-package hashes
+and ACL, the existing 3000/8000/5432 listeners, and official
+`darfus_erp/public` at source/applied/pending `51/51/0`. The three inherited
+backend CRLF-only artifacts remained unstaged.
+
+The encrypted loader passed a presence-only child check and left all parent
+credential variables absent. A fresh owned Chromium process with one
+non-persistent context then completed one Branch-shell login and one Employee
+PIN verification, both `200`. The active non-admin Employee remained distinct
+from the technical shell, the backend returned an active authorization with a
+current authorization version and effective permissions, the server-validated
+single Company was correct, and the fixed Branch/default matched the sole
+active explicit assignment. The allowed navigation and read API passed; the
+privileged navigation was absent, and the single deliberate read-only denied
+probe returned a canonical correlated `403` with no protected data or side
+effect.
+
+Automatic unauthorized request counts before refresh were zero for settings,
+Branches, notifications, customers, assets, invoices, suppliers, products,
+stock movements, purchase orders, approvals, and reservations. On hard
+refresh, neutral protected loading mounted once before the Branch-scoped
+operator request; no operator-current request lacked validated Branch
+authority, exactly one Branch-authorized operator-current request completed
+`200`, and the allowed route restored. Verification-shell, PIN-form, and
+Employee-selector mount counts were `0/0/0`; protected data exposure during
+the unresolved interval, duplicate restore, restore loop, pending work, and
+unauthorized UI flash were all zero. Post-refresh automatic unauthorized
+requests and notification list/unread/SSE ownership remained zero.
+
+The owned completed request set retained numeric client-observed durations,
+request IDs, and one terminal response outcome per request; undefined
+durations and duplicate terminal summaries were zero. Static terminal-logging
+coverage preserves completed, aborted, and client-disconnected classification.
+Before Product logout, the exact-owned technical/operator sessions were
+fingerprint-linked `1/1`; normal logout returned `200` and changed them to
+`0/0` without manual cleanup or unrelated-session revocation. Post-logout
+protected traffic, notification traffic, reconnects, and `401` storms were
+zero.
+
+Final validation passed CONT4 `3/3`, CONT3 `5/5`, the complete focused Node
+inventory `59/59`, canonical permission baseline `128/128`, typecheck,
+targeted lint with zero errors, and diff check. Cleanup removed the owned
+browser context/process and all temporary evidence, retained the encrypted
+package byte-identical outside Git, and left parent credentials absent. The
+owner-managed listeners retained PIDs 15532/21644, official migrations stayed
+`51/51/0`, fixture authorization stayed unchanged, idle transactions and
+waiting locks were zero, and owned sessions remained `0/0`.
+
+`AUTHORIZATION-RUNTIME-ACCEPT-CONT3 = COMPLETE`; F004–F010 and
+`OBSERVABILITY-F001` are resolved; the authorization runtime workstream is
+complete. `OPEN_RELEASE_BLOCKING_AUTHORIZATION_FINDINGS = 0` and
+`OPEN_RELEASE_BLOCKING_PRODUCT_REGRESSIONS = 0`. `RELEASE_READY = NO`;
+Staging and Production remain unauthorized. Exact next marker:
+`FINANCIAL-ACCOUNT-BOOTSTRAP-AUDIT-CONT1`. Do not start it automatically.
+
+## AUTHORIZATION-RUNTIME-FIX-CONT4 — operator verification fallback flash resolved — 2026-07-29
+
+Starting from `6e054bb3872bd73fc73829e56c59aed51efdd741` on `main`, preflight retained
+zero staged files, 11 stashes, no remotes, the protected semantic baseline,
+the exact `next-env.d.ts` hash, unchanged encrypted-package hashes/ACL, reused
+3000/8000/5432, and official `darfus_erp/public` at `51/51/0` with zero idle
+transactions and waiting locks. The three inherited backend CRLF-only artifacts
+remained unstaged.
+
+The unchanged secure replay reproduced F008: valid operator restoration and the
+allowed route succeeded, but the verification shell and its PIN form each
+mounted once during hard-refresh hydration. Source ownership traced the flash
+to `contexts/operator-context.tsx` exposing only independent `loading` and
+`active` values, while `components/auth/auth-guard.tsx` treated `!active` as
+authoritative absence after a transient loading drop.
+
+`0c48bd2` adds explicit internal restore states (`uninitialized`, `deferred`,
+`restoring`, `active`, `absent`, `invalid`, `error`). The guard now renders a
+neutral protected loading shell until restoration is authoritative, renders
+verification only for authoritative absent/invalid states, and keeps a safe
+retry boundary for restore failure. No backend, session, logout, notification,
+request-logging, migration, package, fixture, or configuration path changed.
+
+The new focused contract failed before the repair and passed afterward. Final
+validation passed CONT3 `5/5`, complete Node inventory `59/59`, permission
+baseline `128/128`, typecheck, targeted lint with zero errors, and diff check.
+Post-commit secure replay produced one successful operator-current restore,
+restored the allowed route, completed normal logout `200`, and recorded zero
+verification-shell, PIN-form, and employee-selector mounts. The final owned
+technical/operator session counts were `0/0`; services and the official
+database remained preserved. `AUTHORIZATION-RUNTIME-FIX-CONT4 = COMPLETE`;
+`FULL-REGRESSION-F008 = RESOLVED_BY_CODE_AND_RUNTIME_REPLAY`.
+
+`RELEASE_READY = NO`; Staging and Production remain unauthorized. Exact next
+marker: `AUTHORIZATION-RUNTIME-ACCEPT-CONT3`. Do not start it automatically.
+
+## AUTHORIZATION-RUNTIME-ACCEPT-CONT2 — independent runtime acceptance partial — 2026-07-29
+
+The phase started at exact checkpoint `fbac02c6dd4b58da4e9d17d787c756ba2fd72083`
+on `main`. Preflight retained zero staged files, 11 stashes, no remotes, the
+protected semantic baseline and declaration hash, the existing 3000/8000/5432
+runtime, official `darfus_erp/public` at `51/51/0`, and the unchanged restricted
+current-user encrypted fixture package. The dedicated fixture remained active,
+non-admin, and distinct from its fixed Branch shell, with one explicit
+active/default Branch, one effective read capability, one denied administration
+capability, and a valid authorization version.
+
+A fresh non-persistent owned browser process completed one Branch-shell login
+and one employee-code/PIN verification (`200` each). The active operator had
+one backend-resolved effective permission, the fixed Branch control was
+disabled, the allowed dashboard route and safe allowed GET passed, and the
+privileged employee-administration route was absent. One deliberate safe denied
+route rendered no protected data, and its GET returned canonical correlated
+`403` without partial data. The fixed one-assignment shell makes Branch
+switching `NOT_APPLICABLE`.
+
+F010 remained closed: automatic unauthorized requests before and after refresh
+were both zero; notification list, unread, and SSE ownership were all zero.
+Hard refresh observed the non-ready interval, emitted zero operator-current
+requests while explicitly transitioning, then exactly one Branch-scoped
+operator-current request after validated authority; it returned `200`, restored
+the operator and allowed route, retained the denied navigation boundary, and
+settled with zero pending work. Independent replay nevertheless observed the
+employee-verification shell mount once during that restoration window. This
+reproducible unauthorized fallback flash reopens `FULL-REGRESSION-F008` as
+`OPERATOR_VERIFICATION_FALLBACK_FLASH_DURING_READY_RESTORE`; the repair restored
+the final state but did not keep the guard non-fallback for the whole hydration
+interval.
+
+F009 independently passed. Immediately before logout, the exact owned
+technical/operator counts were `1/1` and the operator carried the stable
+technical-session fingerprint. One normal Product logout returned `200`; both
+owned counts became `0/0`, protected post-logout traffic stayed zero, and no
+manual cleanup API was required. Thirteen completed owned request lifecycles
+had numeric durations and request IDs, with zero undefined duration. The
+pre-existing runtime terminal buffer was not exported or copied; the exact
+terminal-logger regression and aborted/client-disconnected classifications
+passed the focused static suite.
+
+Final static validation passed the CONT3 suite `5/5`, complete Node inventory
+`56/56`, permission baseline `128/128`, typecheck, diff check, and lint with
+zero errors and 18 inherited warnings. Runtime services stayed healthy, fixture
+authorization remained unchanged, sessions ended at zero, and the official
+database remained `51/51/0` with zero idle transactions and waiting locks.
+`AUTHORIZATION-RUNTIME-ACCEPT-CONT2 = PARTIAL`; F009, F010, and
+`OBSERVABILITY-F001` remain resolved, while F008 is open. `RELEASE_READY = NO`;
+exact next marker: `AUTHORIZATION-RUNTIME-FIX-CONT4`.
+
 ## AUTHORIZATION-RUNTIME-FIX-CONT3 — employee runtime regressions resolved — 2026-07-29
 
 Preflight at `da2e07f` retained `main`, zero staged files, 11 stashes, no

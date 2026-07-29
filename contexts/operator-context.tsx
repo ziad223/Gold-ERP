@@ -7,11 +7,14 @@ import { useCompanyContext } from "@/contexts/company-context";
 import { useBranchContext } from "@/contexts/branch-context";
 import { useErp } from "@/contexts/erp-context";
 
+export type OperatorRestoreStatus = "uninitialized" | "deferred" | "restoring" | "active" | "absent" | "invalid" | "error";
+
 interface OperatorContextValue {
   state: OperatorSessionState | null;
   authorization: EmployeeAuthorizationSummary | null;
   active: boolean;
   loading: boolean;
+  restoreStatus: OperatorRestoreStatus;
   reason?: string | null;
   refresh: () => Promise<void>;
   verify: (input: OperatorVerifyInput) => Promise<EmployeeAuthorizationSummary | null>;
@@ -31,6 +34,12 @@ const inactiveState: OperatorSessionState = {
   employee: null,
 };
 
+function restoreStatusFromCurrent(active: boolean, reason?: string | null): OperatorRestoreStatus {
+  if (active) return "active";
+  if (reason === "OPERATOR_SESSION_REQUIRED" || reason === "DEVICE_SESSION_REQUIRED") return "absent";
+  return "invalid";
+}
+
 export function OperatorProvider({ children }: { children: React.ReactNode }) {
   const { token, user } = useAuth();
   const { isSuperAdmin, isReady: companyReady } = useCompanyContext();
@@ -41,6 +50,7 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
   const [active, setActive] = useState(false);
   const [reason, setReason] = useState<string | null>("NOT_VERIFIED");
   const [loading, setLoading] = useState(true);
+  const [restoreStatus, setRestoreStatus] = useState<OperatorRestoreStatus>("uninitialized");
   const lastRestoreKeyRef = useRef<string | null>(null);
 
   const broadcast = useCallback((event: string) => {
@@ -71,6 +81,7 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
       setAuthorization(null);
       setActive(false);
       setReason("NOT_AUTHENTICATED");
+      setRestoreStatus("uninitialized");
       setLoading(false);
       return;
     }
@@ -79,6 +90,7 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
     // premature request that invalidates the authoritative Company bootstrap.
     if (isSuperAdmin && !companyReady) {
       setReason("COMPANY_CONTEXT_PENDING");
+      setRestoreStatus("deferred");
       setLoading(true);
       return;
     }
@@ -87,9 +99,11 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
     // A deferred restore is not an authoritative absent Employee session.
     if (user?.accountType === "branch_shell" && (!branchReady || !branchId)) {
       setReason("OPERATOR_RESTORE_PENDING");
+      setRestoreStatus("deferred");
       setLoading(true);
       return;
     }
+    setRestoreStatus("restoring");
     setLoading(true);
     try {
       const result = await operatorRepository.current();
@@ -97,11 +111,13 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
       setActive(Boolean(result.active));
       setAuthorization(result.active ? result.authorization ?? null : null);
       setReason(result.reason || result.operatorSession?.reason || null);
+      setRestoreStatus(restoreStatusFromCurrent(Boolean(result.active), result.reason || result.operatorSession?.reason));
     } catch (error) {
       setState(inactiveState);
       setAuthorization(null);
       setActive(false);
       setReason("CURRENT_FAILED");
+      setRestoreStatus("error");
     } finally {
       setLoading(false);
     }
@@ -116,6 +132,7 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
     if ((isSuperAdmin && !companyReady) || (user?.accountType === "branch_shell" && (!branchReady || !branchId))) {
       setLoading(true);
       setReason("OPERATOR_RESTORE_PENDING");
+      setRestoreStatus("deferred");
       return;
     }
     const restoreKey = [
@@ -131,6 +148,7 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
 
   const verify = useCallback(async (input: OperatorVerifyInput) => {
     setLoading(true);
+    setRestoreStatus("restoring");
     try {
       const result = await operatorRepository.verify(input);
       if (!result.success || !result.data) throw new Error(result.error?.message || "Operator verification failed");
@@ -138,6 +156,7 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
       setAuthorization(result.data.authorization ?? null);
       setActive(true);
       setReason(null);
+      setRestoreStatus("active");
       lastRestoreKeyRef.current = [
         token,
         isSuperAdmin ? "company-ready" : "server-company",
@@ -146,6 +165,9 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
       ].join(":");
       broadcast("operator:verified");
       return result.data.authorization ?? null;
+    } catch (error) {
+      setRestoreStatus("absent");
+      throw error;
     } finally {
       setLoading(false);
     }
@@ -160,6 +182,7 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
         setAuthorization(null);
         setActive(false);
         setReason(result.data.operatorSession.reason || "OPERATOR_SESSION_LOCKED");
+        setRestoreStatus("invalid");
         broadcast("operator:locked");
       }
     } finally {
@@ -176,6 +199,7 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
         setAuthorization(null);
         setActive(false);
         setReason(result.data.operatorSession.reason || "OPERATOR_SESSION_ENDED");
+        setRestoreStatus("absent");
         broadcast("operator:ended");
       }
     } finally {
@@ -188,6 +212,7 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
     setAuthorization(null);
     setActive(false);
     setReason(nextReason);
+    setRestoreStatus("uninitialized");
     lastRestoreKeyRef.current = null;
     setLoading(false);
     broadcast("operator:technical-session-ended");
@@ -200,6 +225,7 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
       setAuthorization(null);
       setActive(false);
       setReason("NOT_AUTHENTICATED");
+      setRestoreStatus("uninitialized");
       lastRestoreKeyRef.current = null;
       setLoading(false);
     }
@@ -237,13 +263,14 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
     authorization,
     active,
     loading,
+    restoreStatus,
     reason,
     refresh,
     verify,
     lock,
     endSession,
     clearLocal,
-  }), [state, authorization, active, loading, reason, refresh, verify, lock, endSession, clearLocal]);
+  }), [state, authorization, active, loading, restoreStatus, reason, refresh, verify, lock, endSession, clearLocal]);
 
   return <OperatorContext.Provider value={value}>{children}</OperatorContext.Provider>;
 }

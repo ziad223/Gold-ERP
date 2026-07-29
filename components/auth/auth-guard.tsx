@@ -42,6 +42,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     && operator.active
     && !employeeWorkspaceRoute.hasAssignedBusinessAccess,
   );
+  const showProtectedLoading = Boolean(
+    branchAccountBusinessRoute
+    && (operator.loading || operator.restoreStatus === "uninitialized" || operator.restoreStatus === "deferred" || operator.restoreStatus === "restoring"),
+  );
+  const showVerification = Boolean(
+    branchAccountBusinessRoute
+    && (operator.restoreStatus === "absent" || operator.restoreStatus === "invalid"),
+  );
 
   useEffect(() => {
     if (shouldRouteVerifiedEmployee) router.replace(employeeWorkspaceRoute.pathname);
@@ -58,9 +66,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (branchAccountBusinessRoute && operator.loading) {
+  if (showProtectedLoading) {
     return (
-      <div className="grid min-h-screen place-items-center bg-background">
+      <div className="grid min-h-screen place-items-center bg-background" data-operator-protected-loading="true">
         <div className="flex items-center gap-3 rounded-2xl border border-border bg-panel px-5 py-4 text-sm font-bold text-foreground shadow-soft">
           <LoaderCircle className="h-5 w-5 animate-spin text-brand-600" />
           {common("loading")}
@@ -69,8 +77,21 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (branchAccountBusinessRoute && !operator.active) {
+  if (showVerification) {
     return <EmployeeVerificationShell />;
+  }
+
+  if (branchAccountBusinessRoute && operator.restoreStatus === "error") {
+    return (
+      <div className="grid min-h-screen place-items-center bg-background p-6" data-operator-restore-error="true">
+        <div className="max-w-md rounded-3xl border border-border bg-panel p-8 text-center shadow-soft">
+          <h1 className="text-xl font-black text-foreground">{locale === "ar" ? "تعذر استعادة جلسة الموظف" : "Unable to restore Employee session"}</h1>
+          <button type="button" onClick={() => void operator.refresh()} className="mt-4 rounded-2xl bg-brand-600 px-4 py-2 text-xs font-black text-white">
+            {locale === "ar" ? "إعادة المحاولة" : "Retry"}
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (shouldRouteVerifiedEmployee) {

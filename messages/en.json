@@ -161,6 +161,8 @@
     "suppliers": "Suppliers & purchases",
     "finance": "Finance management",
     "accounting": "Accounting",
+    "chartOfAccounts": "Chart of accounts",
+    "financialStatements": "Financial statements",
     "employees": "Employees",
     "reports": "Reports & analytics",
     "system": "System",
