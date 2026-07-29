@@ -1,9 +1,10 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { EmployeeAuthorizationSummary, OperatorSessionState, OperatorVerifyInput } from "@/lib/types";
 import { useAuth } from "@/contexts/auth-context";
 import { useCompanyContext } from "@/contexts/company-context";
+import { useBranchContext } from "@/contexts/branch-context";
 import { useErp } from "@/contexts/erp-context";
 
 interface OperatorContextValue {
@@ -31,14 +32,16 @@ const inactiveState: OperatorSessionState = {
 };
 
 export function OperatorProvider({ children }: { children: React.ReactNode }) {
-  const { token, activeBranchId } = useAuth();
+  const { token, user } = useAuth();
   const { isSuperAdmin, isReady: companyReady } = useCompanyContext();
+  const { isReady: branchReady, branchId, generation: branchGeneration } = useBranchContext();
   const { operatorRepository } = useErp();
   const [state, setState] = useState<OperatorSessionState | null>(inactiveState);
   const [authorization, setAuthorization] = useState<EmployeeAuthorizationSummary | null>(null);
   const [active, setActive] = useState(false);
   const [reason, setReason] = useState<string | null>("NOT_VERIFIED");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const lastRestoreKeyRef = useRef<string | null>(null);
 
   const broadcast = useCallback((event: string) => {
     if (typeof window === "undefined") return;
@@ -68,16 +71,23 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
       setAuthorization(null);
       setActive(false);
       setReason("NOT_AUTHENTICATED");
+      setLoading(false);
       return;
     }
     // Super Admin operator state is Company-scoped.  The provider is mounted
     // outside the dashboard gate, so it must not make /operator/current a
     // premature request that invalidates the authoritative Company bootstrap.
     if (isSuperAdmin && !companyReady) {
-      setState(inactiveState);
-      setAuthorization(null);
-      setActive(false);
       setReason("COMPANY_CONTEXT_PENDING");
+      setLoading(true);
+      return;
+    }
+    // Branch-shell operator state is meaningful only after the fixed/selected
+    // Branch has been validated and installed in the canonical API accessor.
+    // A deferred restore is not an authoritative absent Employee session.
+    if (user?.accountType === "branch_shell" && (!branchReady || !branchId)) {
+      setReason("OPERATOR_RESTORE_PENDING");
+      setLoading(true);
       return;
     }
     setLoading(true);
@@ -95,11 +105,29 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [companyReady, isSuperAdmin, operatorRepository, token]);
+  }, [branchId, branchReady, companyReady, isSuperAdmin, operatorRepository, token, user?.accountType]);
 
   useEffect(() => {
+    if (!token) {
+      lastRestoreKeyRef.current = null;
+      void refresh();
+      return;
+    }
+    if ((isSuperAdmin && !companyReady) || (user?.accountType === "branch_shell" && (!branchReady || !branchId))) {
+      setLoading(true);
+      setReason("OPERATOR_RESTORE_PENDING");
+      return;
+    }
+    const restoreKey = [
+      token,
+      isSuperAdmin ? "company-ready" : "server-company",
+      user?.accountType === "branch_shell" ? branchId : "no-branch",
+      user?.accountType === "branch_shell" ? branchGeneration : 0,
+    ].join(":");
+    if (lastRestoreKeyRef.current === restoreKey) return;
+    lastRestoreKeyRef.current = restoreKey;
     void refresh();
-  }, [refresh]);
+  }, [branchGeneration, branchId, branchReady, companyReady, isSuperAdmin, refresh, token, user?.accountType]);
 
   const verify = useCallback(async (input: OperatorVerifyInput) => {
     setLoading(true);
@@ -110,12 +138,18 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
       setAuthorization(result.data.authorization ?? null);
       setActive(true);
       setReason(null);
+      lastRestoreKeyRef.current = [
+        token,
+        isSuperAdmin ? "company-ready" : "server-company",
+        user?.accountType === "branch_shell" ? branchId : "no-branch",
+        user?.accountType === "branch_shell" ? branchGeneration : 0,
+      ].join(":");
       broadcast("operator:verified");
       return result.data.authorization ?? null;
     } finally {
       setLoading(false);
     }
-  }, [broadcast, operatorRepository]);
+  }, [branchGeneration, branchId, broadcast, isSuperAdmin, operatorRepository, token, user?.accountType]);
 
   const lock = useCallback(async (lockReason = "manual_lock") => {
     setLoading(true);
@@ -154,6 +188,8 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
     setAuthorization(null);
     setActive(false);
     setReason(nextReason);
+    lastRestoreKeyRef.current = null;
+    setLoading(false);
     broadcast("operator:technical-session-ended");
   }, [broadcast]);
 
@@ -164,18 +200,10 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
       setAuthorization(null);
       setActive(false);
       setReason("NOT_AUTHENTICATED");
+      lastRestoreKeyRef.current = null;
+      setLoading(false);
     }
   }, [broadcast, token]);
-
-  useEffect(() => {
-    if (!token) return;
-    setState(inactiveState);
-    setAuthorization(null);
-    setActive(false);
-    setReason("BRANCH_CHANGED");
-    broadcast("operator:branch-changed");
-    void refresh();
-  }, [activeBranchId, broadcast, refresh, token]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

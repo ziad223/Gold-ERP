@@ -158,7 +158,7 @@ export default function ReservationsPage() {
   const queryClient = useQueryClient();
   const { company, activeBranch, activeBranchId, user } = useAuth();
   const { hasPermission } = usePermissions();
-  const { assets, customers } = useCoreErpData();
+  const { assets, customers } = useCoreErpData({ resources: ["assets", "customers"] });
   const { settings } = useAppSettings();
   const reservationAccountConfigured = Boolean(settings?.reservationAdvancesAccountId);
   const isApi = DATA_SOURCE === "api";

@@ -26,6 +26,7 @@ function staticContract() {
   const verificationShell = read("components/operator/employee-verification-shell.tsx");
   const authGuard = read("components/auth/auth-guard.tsx");
   const dashboardLayout = read("app/[locale]/(dashboard)/layout.tsx");
+  const companyDashboardShell = read("components/company/company-dashboard-shell.tsx");
 
   for (const token of [
     "employee_operational_sessions",
@@ -64,7 +65,7 @@ function staticContract() {
   assert.ok(verificationForm.includes("operator.verify"), "shared verification component owns the verification API path");
   assert.ok(verificationShell.includes('presentation="inline"'), "inactive Branch Account safe shell renders shared verification inline");
   assert.ok(authGuard.includes("EmployeeVerificationShell"), "inactive Branch Account access uses the verification shell without OperatorBar dependence");
-  assert.ok(dashboardLayout.includes("<AppShell>") && dashboardLayout.includes("<AuthGuard>{children}</AuthGuard>"), "AppShell remains mounted around guarded Branch Account content");
+  assert.ok(dashboardLayout.includes("<AuthGuard><CompanyDashboardShell>{children}</CompanyDashboardShell></AuthGuard>") && companyDashboardShell.includes("<AppShell><BranchContextGate>{children}</BranchContextGate></AppShell>"), "inactive Branch Accounts remain outside scoped shell traffic while authenticated content remains AppShell-wrapped");
   assert.ok(operatorBar.includes('presentation="dialog"'), "Change Employee reuses the shared verification component in dialog mode");
   assert.ok(operatorBar.includes("Change Employee") && operatorBar.includes("End Employee Session"), "OperatorBar exposes active Employee change and end controls");
   assert.ok(operatorBar.includes("operator.endSession"), "End Employee Session uses the operator-session boundary");

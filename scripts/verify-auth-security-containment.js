@@ -23,6 +23,7 @@ function verifyCoreContainment() {
   const audits = read("hooks/use-audit-logs.ts");
   const accounts = read("hooks/use-user-management.ts");
   const realtime = read("components/realtime-provider.tsx");
+  const notificationLifecycle = read("lib/notifications/company-scoped-lifecycle.ts");
   const eventsRoute = read("backend/src/routes/events.routes.js");
   const authMiddleware = read("backend/src/middleware/auth.middleware.js");
   const app = read("backend/src/app.js");
@@ -39,7 +40,11 @@ function verifyCoreContainment() {
   requireText(providers, "mutations: {\n            retry: false", "mutations do not auto-retry");
   assert.ok(!providers.includes("window.location.reload"), "terminal 401 never reloads the document");
   requireText(providers, "isTerminalTechnicalAuthError(error)", "terminal errors bypass per-query toast handling");
-  requireText(providers, "if (isTerminalTechnicalAuthError(error)) return;\n              toast.error", "terminal query failures are filtered before any per-query toast");
+  assert.match(
+    providers,
+    /if \(isTerminalTechnicalAuthError\(error\)\) return;\s+if \(error\.isValidationError\) return;\s+const metadata = query\.meta;/,
+    "terminal and validation query failures are filtered before any per-query toast ownership"
+  );
   requireText(api, "AUTH_REFRESHED_RETRY_REQUIRED", "refresh-required mutation error is typed");
   requireText(api, "isSafeReadMethod", "only safe read methods may replay after refresh");
   requireText(api, "if (!isSafeReadMethod(options.method))", "mutations are blocked from automatic replay");
@@ -54,7 +59,8 @@ function verifyCoreContainment() {
 
   assert.ok(!realtime.includes("EventSource("), "realtime uses fetch streaming instead of EventSource");
   assert.ok(!realtime.includes("events/stream?token="), "realtime never places an access token in the stream URL");
-  requireText(realtime, "Authorization: `Bearer ${token}`", "realtime stream uses a Bearer header");
+  requireText(realtime, "notificationSseHeaders(token, explicitCompanyId)", "realtime delegates authentication to the notification lifecycle helper");
+  requireText(notificationLifecycle, "Authorization: `Bearer ${token}`", "notification lifecycle uses a Bearer header");
   requireText(realtime, "AbortController", "realtime stream aborts on cleanup");
   requireText(realtime, "getStoredAccessToken", "reconnect obtains the current token instead of a captured URL token");
   requireText(eventsRoute, "authMiddleware", "SSE uses the normal technical-session middleware");

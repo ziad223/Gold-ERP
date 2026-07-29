@@ -78,8 +78,8 @@ export default function InventoryPage() {
   // P7.5a: barcode printing is permission-gated (UI + handler).
   const canPrintBarcode = isAuthorized("printBarcode");
   
-  const { products, assets, isLoading: isErpLoading, error: erpError, refetch } = useCoreErpData();
-  const { updateAsset } = useAssets();
+  const { products, isLoading: isErpLoading, error: erpError, refetch } = useCoreErpData({ resources: ["products"] });
+  const { updateAsset } = useAssets({ listEnabled: false });
   const { inventoryCodes: barcodeInventoryCodes, itemCodes: barcodeItemCodes } = useBarcodeSettings();
   
   const [activeTab, setActiveTab] = useState<"products" | "assets">("products");
@@ -381,13 +381,6 @@ export default function InventoryPage() {
     pending_tag: "slate",
   };
 
-  const branches = useMemo(() => {
-    if (activeTab === "products") {
-      return [...new Set(products.map((item) => item.branchName).filter(Boolean))];
-    }
-    return [...new Set(assets.map((item) => item.branch).filter(Boolean))];
-  }, [products, assets, activeTab]);
-  
   // Phase 4B: server-side paginated lists. The page slice AND the result total
   // come from the backend (?page&pageSize&search&filters), so the lists are no
   // longer capped at the backend default page size, and the assets list is
@@ -406,6 +399,13 @@ export default function InventoryPage() {
     filters: { type, status: statusFilter, branch },
     standaloneOnly: true,
   });
+  const assetsForCurrentQuery = assetsList.items;
+  const branches = useMemo(() => {
+    if (activeTab === "products") {
+      return [...new Set(products.map((item) => item.branchName).filter(Boolean))];
+    }
+    return [...new Set(assetsForCurrentQuery.map((item) => item.branch).filter(Boolean))];
+  }, [products, assetsForCurrentQuery, activeTab]);
 
   // Current-page rows. Names kept so existing render / selection / export /
   // barcode code paths read the ACTIVE PAGE (not the whole dataset).
@@ -452,8 +452,8 @@ export default function InventoryPage() {
     if (activeTab === "products") {
       return products.filter((p) => p.isActive && p.quantityAvailable > 0).length;
     }
-    return assets.filter((item) => item.status === "available" && !item.parentAssetId).length;
-  }, [products, assets, activeTab]);
+    return assetsForCurrentQuery.filter((item) => item.status === "available" && !item.parentAssetId).length;
+  }, [products, assetsForCurrentQuery, activeTab]);
   const isLowStock = availableCount < 8;
 
   // Any search/filter change returns BOTH tabs to page 1 and clears selections
@@ -520,7 +520,7 @@ export default function InventoryPage() {
     if (selectedAssetIds.length === 0) return;
 
     selectedAssetIds.forEach((id) => {
-      const original = assets.find((a) => a.id === id);
+      const original = filteredAssets.find((a) => a.id === id);
       if (!original) return;
 
       updateAsset(id, { status: bulkStatus });
@@ -952,10 +952,10 @@ export default function InventoryPage() {
                 : "bg-panel text-slate-500 border-border hover:bg-slate-50"
             }`}
           >
-            {filtersT("allStatuses")} ({assets.filter(a => !a.parentAssetId).length})
+            {filtersT("allStatuses")} ({assetsForCurrentQuery.filter(a => !a.parentAssetId).length})
           </button>
           {Object.entries(statusLabels).map(([status, label]) => {
-            const count = assets.filter((item) => item.status === status && !item.parentAssetId).length;
+            const count = assetsForCurrentQuery.filter((item) => item.status === status && !item.parentAssetId).length;
             return (
               <button
                 key={status}

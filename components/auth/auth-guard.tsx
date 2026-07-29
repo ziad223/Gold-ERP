@@ -58,6 +58,17 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
+  if (branchAccountBusinessRoute && operator.loading) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-background">
+        <div className="flex items-center gap-3 rounded-2xl border border-border bg-panel px-5 py-4 text-sm font-bold text-foreground shadow-soft">
+          <LoaderCircle className="h-5 w-5 animate-spin text-brand-600" />
+          {common("loading")}
+        </div>
+      </div>
+    );
+  }
+
   if (branchAccountBusinessRoute && !operator.active) {
     return <EmployeeVerificationShell />;
   }

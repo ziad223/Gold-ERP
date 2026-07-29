@@ -1,5 +1,163 @@
 # v1.0.0 Release Plan
 
+## AUTHORIZATION-RUNTIME-FIX-CONT3 — release gate remains controlled — 2026-07-29
+
+The operator hard-refresh, logout orphaning, unauthorized employee prefetch,
+and terminal-duration defects are resolved by the narrow commits from
+`428e9dd` through `3bb60c0`, with aligned regression tests through `37d262b`.
+Secure replay and postcheck passed; F004–F010 are resolved, no release-blocking
+Product regression remains, the encrypted fixture package is unchanged, owned
+sessions are zero, and official `darfus_erp` remains `51/51/0`.
+
+This completion does not authorize release, Staging, Production, deployment, or
+migration work. Next only: `AUTHORIZATION-RUNTIME-ACCEPT-CONT2`. Do not start it
+automatically.
+
+## AUTHORIZATION-RUNTIME-ACCEPT-CONT1 — release blocked by runtime session defects — 2026-07-29
+
+Do not deploy or begin migration rehearsal. Real employee runtime proved the
+explicit Branch/default and permission contracts, but hard refresh cannot
+reliably restore the active operator state and logout can leave an operator
+session active when its technical session lacks a device association. These are
+open `FULL-REGRESSION-F008` and `FULL-REGRESSION-F009`. Cleanup left no active
+owned session. Next only: `AUTHORIZATION-RUNTIME-FIX-CONT3`.
+
+## AUTHORIZATION-RUNTIME-TEST-FIXTURE-CONT1 — release gate remains closed — 2026-07-29
+
+One explicitly authorized local-only employee authorization fixture is ready for
+the separate runtime acceptance. Its encrypted current-user package is outside
+Git; no Product code, deployment, Staging, Production, or migration work was
+authorized. Next only: `AUTHORIZATION-RUNTIME-ACCEPT-CONT1`. Do not begin it
+automatically.
+
+## AUTHORIZATION-RUNTIME-ACCEPT-CONT1 — release gate remains closed — 2026-07-29
+
+Read-only preflight at `4564b37` passed, but the approved employee
+Branch-shell credential triplet was unavailable. No employee runtime session
+was attempted and no Product, runtime, or official database state changed. Do
+not deploy, rehearse Staging, or authorize Production. Next only:
+`AUTHORIZATION-RUNTIME-ACCEPT-CONT1` after approved process-scoped credentials
+are available.
+
+## AUTHORIZATION-RUNTIME-FIX-CONT2 — release gate remains closed — 2026-07-29
+
+The Branch transition financial regression is resolved by `80b9909` and an
+unchanged reuse-only runtime replay. No migration or official data change
+occurred. This does not authorize deployment, Staging, Production, or migration
+rehearsal: real employee Branch-shell acceptance still requires an approved
+credential. Next only: `AUTHORIZATION-RUNTIME-ACCEPT-CONT1`.
+
+## AUTHORIZATION-RUNTIME-FIX-CONT1 — deployment remains prohibited — 2026-07-29
+
+The employee Branch/authorization repair is accepted by code and isolated
+PostgreSQL lifecycle coverage. The official database was not changed and stays
+at `51/51/0`; no migration is pending. The live employee runtime replay cannot
+run until an approved employee credential is available. The unchanged runtime
+harness also found `FULL-REGRESSION-F007`: two pre-READY financial requests in
+a Branch A→B transition. Do not deploy, start Migration Staging Rehearsal, or
+authorize Staging/Production. Next only: `AUTHORIZATION-RUNTIME-FIX-CONT2`.
+
+## AUTHORIZATION-RUNTIME-AUDIT-CONT1 — employee authorization release block — 2026-07-29
+
+Do not begin migration rehearsal or release work. Read-only evidence proves
+employee creation/Branch assignment/default semantics and employee login
+bootstrap do not meet the required explicit-assignment contract. Three Product
+findings are open (`FULL-REGRESSION-F004`–`F006`). Employee login runtime is
+still credential-blocked, but the source/schema defects independently block
+release. Next only: `AUTHORIZATION-RUNTIME-FIX-CONT1` after approval.
+
+## FULL-REGRESSION-FIX-CONT1 — full regression accepted; release gate remains closed — 2026-07-29
+
+The two proven Product regressions are resolved by narrow frontend query/context
+repairs. A sanitized reuse-mode replay passed all required module records, N5,
+N8, Branch A→B, hard refresh, notification/SSE and logout; no runtime process
+or official database data was changed. `FULL-REGRESSION = COMPLETE` and open
+release-blocking regressions are zero.
+
+This is not deployment authorization: `RELEASE_READY = NO`, migration
+rehearsal/RC/Staging/Production remain gated. Continue only with
+`MIGRATION-STAGING-REHEARSAL` when explicitly authorized.
+
+## FULL-REGRESSION-HARNESS-FIX-CONT1 — release block changed from evidence to Product — 2026-07-29
+
+The module-evidence harness gap is closed, but read-only browser evidence now
+proves F002 duplicate successful list lifecycles and F003 headerless
+Branch-scoped asset reads. No Product fix was attempted. RC, migration
+rehearsal, Staging and Production remain prohibited. Continue only with
+`FULL-REGRESSION-FIX-CONT1` after explicit remediation scope approval.
+
+## FULL-REGRESSION — release gate remains closed — 2026-07-29
+
+The bounded read-only regression passed its repository, type/lint, permission,
+environment, First Run source-contract, error/deposit/accounting contract and
+accepted authenticated Company/Branch/notification checks. The existing harness
+does not retain enough sanitized endpoint/status detail to accept the complete
+browser module matrix. This is an acceptance-harness coverage gap, not a proven
+Product failure. `FULL-REGRESSION = PARTIAL`; `RELEASE_READY = NO`; RC, Staging
+and Production remain prohibited. Continue only with
+`FULL-REGRESSION-HARNESS-FIX-CONT1`.
+
+## NOTIF-ACCEPT complete — 2026-07-29
+
+The unchanged authenticated reuse-mode harness passed final notification
+acceptance. N5/N8 each observed exactly one Company-only list/unread/SSE
+lifecycle with zero context errors, reconnects and notification error toasts.
+Branch A→B did not restart notifications; the controlled Branch-B scoped
+absence remained outside notification toast ownership; logout left zero
+protected notification traffic. Credentials and owned temporary material were
+removed without stopping the existing runtime.
+
+`NOTIF-ACCEPT = COMPLETE`; `RELEASE_READY = NO`. Continue only with the next
+approved `FULL-REGRESSION` phase; no RC, Staging or Production authorization
+follows.
+
+## NOTIF-ACCEPT — release boundary: reused runtime unavailable — 2026-07-29
+
+The secure operator launch did not reach the existing frontend/backend: it
+returned sanitized `HARNESS_EXECUTION_FAILED` before fingerprint or scenario,
+and read-only follow-up found 3000/8000 unavailable. The wrapper removed its
+credentials and owned evidence; no process, database or Product state was
+changed. `NOTIF-ACCEPT = BLOCKED` until the accepted local runtime is restored
+outside this phase and the unchanged reuse capture runs. No release, RC,
+Staging or Production action is authorized.
+
+## Branch context prerequisite accepted — 2026-07-29
+
+The supplied sanitized operator-mediated reused-runtime replay passed the
+Branch customer-financial acceptance contract: N5/N8, Branch-A reads, A→B,
+controlled Branch-B `RESOURCE_NOT_FOUND`, refresh and logout. The scoped
+absence preserved both headers and Branch `READY`, with no context error or
+loop. `BRANCH-CONTEXT-HARNESS-FIX-CONT1 = COMPLETE`,
+`BRANCH-CONTEXT-RUNTIME-FIX = COMPLETE`, and
+`BRANCH-CONTEXT-RUNTIME-F001 = RESOLVED`.
+
+`NOTIF_ACCEPT_AUTHORIZED = YES` only to run `NOTIF-ACCEPT`; no RC, Staging,
+Production or release-readiness authorization follows.
+
+## BRANCH-CONTEXT-HARNESS-FIX-CONT1 — release boundary after authenticated partial replay — 2026-07-29
+
+The reused local runtime observed passing N5/N8 Company/notification
+lifecycle evidence and Branch-A financial reads with both contexts. A normal
+Branch-B request for the Branch-A-only customer returned the controlled stable
+`RESOURCE_NOT_FOUND` with both headers while Branch remained `READY`; it is a
+safe scoped-resource absence, not a release authorization failure. The harness
+has been corrected to preserve that distinction and not count its unrelated
+domain toast as a notification error. It must be replayed to capture Branch-B
+refresh and logout. `NOTIF_ACCEPT_AUTHORIZED = NO`; RC, Staging and Production
+remain unauthorized.
+
+## BRANCH-CONTEXT-HARNESS-FIX-CONT1 — release boundary — 2026-07-29
+
+The repository-local evidence collector has a static, exact one-to-one
+correlation repair. It is not release acceptance: an operator-mediated,
+sanitized rerun against the unchanged local runtime must still complete the
+customer-financial Branch A→B, refresh and logout capture. Do not authorize
+`NOTIF-ACCEPT`, RC, Staging or Production.
+
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT3-CONT1 — release boundary — 2026-07-29
+
+An authenticated reused-runtime capture now proves the ordinary N5/N8 Company and notification prerequisite, but does not complete customer-financial Branch acceptance. The unchanged harness miscounts concurrent same-path responses, so it stops after Branch-A reads and before A→B, refresh and logout. Treat this as a test-harness defect only; Product regression is not proven. Do not deploy, authorize `NOTIF-ACCEPT`, create data, or restart the existing runtime. Next only: `BRANCH-CONTEXT-HARNESS-FIX-CONT1`.
+
 ## BRANCH-CONTEXT-RUNTIME-FIX-CONT3 — release boundary — 2026-07-29
 
 Do not progress to `NOTIF-ACCEPT`, RC, Staging or Production. The customer

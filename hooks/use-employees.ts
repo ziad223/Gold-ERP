@@ -191,9 +191,9 @@ export function useEmployeeAuthorization(id: string | undefined) {
     return result;
   }, [employeeRepository, emitEmployeeAuthorizationLifecycle, refreshAuthorization]);
 
-  const updateBranches = useCallback(async (branchIds: string[]) => {
+  const updateBranches = useCallback(async (branchIds: string[], defaultBranchId?: string | null) => {
     if (!id) return { success: false };
-    const result = await employeeRepository.updateBranchAccess(id, branchIds);
+    const result = await employeeRepository.updateBranchAccess(id, branchIds, defaultBranchId);
     await refreshAuthorization();
     emitEmployeeAuthorizationLifecycle("employee:branch-access-updated");
     return result;

@@ -1,5 +1,221 @@
 # DARFUS Jewellery ERP — v1.0.0 Product Roadmap
 
+## AUTHORIZATION-RUNTIME-FIX-CONT3 complete — runtime authorization repairs — 2026-07-29
+
+F008 and F009 are resolved: operator restoration now waits for validated Branch
+READY and survives hard refresh, while logout transactionally revokes the exact
+owned technical/operator session pair even when no device association was
+stored. F010 was confirmed and resolved with authenticated fixed-shell Branch
+bootstrap plus effective-permission gating for module and notification request
+ownership. The observability candidate was confirmed and resolved with numeric
+monotonic duration and explicit terminal outcomes.
+
+New focused coverage passed `5/5`, the complete Node set `56/56`, permission
+baseline `128/128`, typecheck, and lint with zero errors. The secure replay
+passed refresh and logout, ended with zero owned sessions, retained the fixed
+fixture and encrypted package unchanged, and preserved official `51/51/0`.
+F004–F010 are resolved and no release-blocking Product regression remains.
+`RELEASE_READY = NO`; Staging and Production remain unauthorized. Exact next
+marker: `AUTHORIZATION-RUNTIME-ACCEPT-CONT2`; do not start it automatically.
+
+## AUTHORIZATION-RUNTIME-ACCEPT-CONT1 partial — runtime session findings — 2026-07-29
+
+The dedicated employee fixture passed real Branch-shell login, PIN verification,
+explicit one-Branch/default validation, backend-resolved permission bootstrap,
+allowed dashboard access, and frontend/backend denial. Assigned-Branch
+switching is `NOT_APPLICABLE` because the accepted fixture uses one assignment
+and a fixed Branch shell.
+
+The phase is partial because hard refresh loses the UI operator bootstrap while
+the backend session remains valid (`FULL-REGRESSION-F008`), and technical
+logout can leave that operator session active when the login session lacks a
+device association (`FULL-REGRESSION-F009`). Cleanup closed all owned sessions.
+`RELEASE_READY = NO`; Staging and Production remain unauthorized. Exact next
+marker: `AUTHORIZATION-RUNTIME-FIX-CONT3`; do not start it automatically.
+
+## AUTHORIZATION-RUNTIME-TEST-FIXTURE-CONT1 complete — local acceptance fixture ready — 2026-07-29
+
+The authorized local-only fixture `QA_EMPLOYEE_AUTH_RUNTIME_001` is ready for
+employee Branch-shell acceptance. It proves identity-first creation with no
+implicit Branch mapping, one explicit active assignment/default invariant, a
+minimal non-admin permission pair, a valid PIN, and a dedicated fixed-Branch
+shell. The encrypted current-user package remains outside Git. No Product code,
+migration, or unrelated local data changed. `RELEASE_READY = NO`; Staging and
+Production remain unauthorized. Exact next marker:
+`AUTHORIZATION-RUNTIME-ACCEPT-CONT1`.
+
+## AUTHORIZATION-RUNTIME-ACCEPT-CONT1 blocked — employee credentials unavailable — 2026-07-29
+
+The required process-scoped employee Branch-shell credential variables were
+absent after a successful read-only preflight at `4564b37`. No employee session
+was opened and no Product or official database state changed. The runtime
+acceptance remains unproven; the code-and-isolated closures for
+`FULL-REGRESSION-F004` through `F007` remain unchanged. `RELEASE_READY = NO`;
+Staging and Production remain unauthorized. Exact next marker:
+`AUTHORIZATION-RUNTIME-ACCEPT-CONT1`.
+
+## AUTHORIZATION-RUNTIME-FIX-CONT2 complete — Branch readiness financial closure — 2026-07-29
+
+`FULL-REGRESSION-F007` is resolved. The Branch transition now retains its
+imperative transport guard until the validated READY render commits, preventing
+customer-financial queries from observing a Branch-B accessor too early. The
+unchanged local reuse replay passed A→B with zero pre-READY financial traffic;
+notifications stayed Company-scoped and non-regressed. No migration was needed
+and official `darfus_erp` remains `51/51/0`.
+
+Real employee runtime acceptance remains blocked only by unavailable approved
+employee credentials. `RELEASE_READY = NO`; Staging and Production remain
+unauthorized. Exact next marker: `AUTHORIZATION-RUNTIME-ACCEPT-CONT1`; do not
+start it automatically.
+
+## AUTHORIZATION-RUNTIME-FIX-CONT1 partial — new Branch transition regression — 2026-07-29
+
+`FULL-REGRESSION-F004`, `F005`, and `F006` are resolved by Product code and
+isolated PostgreSQL acceptance. Employee identity creation is separate from
+explicit Branch access; a default is never inferred and, when set, must be an
+active assignment. Branch-shell operator authorization now validates assignment,
+Branch and authorization version before use. No migration was needed and the
+official database remains `51/51/0` without phase mutation.
+
+Real employee runtime acceptance is blocked because no approved employee
+credential was supplied. In addition, the unchanged reuse-only harness observed
+two pre-READY customer-financial requests during Branch A→B, proving new
+`FULL-REGRESSION-F007`. `RELEASE_READY = NO`; Staging and Production remain
+unauthorized. Exact next marker: `AUTHORIZATION-RUNTIME-FIX-CONT2`; do not
+start it automatically.
+
+## AUTHORIZATION-RUNTIME-AUDIT-CONT1 — release-blocking employee authorization defects — 2026-07-29
+
+The audit proves that `ADMIN_ACTIVE_BRANCH`, employee primary-Branch metadata,
+and `EmployeeBranchAccess` are not governed as three distinct, consistent
+concepts. Creation preselects a Branch label, creation omits the operational
+Branch identifier, and no default-Branch membership invariant exists. In
+addition, Employee PIN/operator authorization is not a direct employee User
+login contract. `FULL-REGRESSION-F004`, `F005`, and `F006` are open.
+
+`RELEASE_READY = NO`; no Staging or Production authority exists. Continue only
+with `AUTHORIZATION-RUNTIME-FIX-CONT1`; do not begin migration rehearsal.
+
+## FULL-REGRESSION-FIX-CONT1 complete — 2026-07-29
+
+`FULL-REGRESSION-F002` and `FULL-REGRESSION-F003` are resolved. The repair
+keeps the single-Company/multi-Branch model: explicit list ownership prevents
+duplicate authoritative successes, while Assets waits for validated Branch
+READY and uses canonical Company/Branch context. The unchanged reuse-mode
+replay passed all ten module records, N5/N8, Branch A→B, hard refresh,
+notification/SSE and logout. No official database data, migration, backend,
+package or runtime process changed.
+
+`FULL-REGRESSION = COMPLETE`; `OPEN_RELEASE_BLOCKING_REGRESSIONS = 0`.
+`RELEASE_READY = NO`, `STAGING_AUTHORIZED = NO`, and
+`PRODUCTION_AUTHORIZED = NO`. Exact next marker:
+`MIGRATION-STAGING-REHEARSAL`; do not start it automatically.
+
+## FULL-REGRESSION-HARNESS-FIX-CONT1 — evidence complete; Product regressions found — 2026-07-29
+
+`FULL-REGRESSION-F001` is resolved: the accepted browser harness now retains
+sanitized terminal module evidence, exact request/response correlation, scope
+booleans, hard-refresh association and completeness for dashboard, suppliers,
+products, assets, stock movements, transfers, reservations, purchase orders,
+approvals and invoices. N5/N8, Branch A→B, notification/SSE and logout remain
+non-regressed in the replay.
+
+`FULL-REGRESSION` remains `PARTIAL`: `FULL-REGRESSION-F002` proves duplicate
+successful list lifecycles; `FULL-REGRESSION-F003` proves headerless
+Branch-scoped asset reads after Branch READY. No Product code was changed here.
+`RELEASE_READY = NO`; Staging and Production remain prohibited. Exact next
+marker: `FULL-REGRESSION-FIX-CONT1` only; do not begin migration rehearsal.
+
+## FULL-REGRESSION — partial, browser-module evidence boundary — 2026-07-29
+
+The safe static/isolated matrix passed: selected cross-domain contracts `99/99`,
+permission baseline `128/128`, environment/database guards, typecheck, and
+lint with zero errors. The unchanged local reuse harness passed N5/N8, Branch
+A→B, customer-financial controlled Branch-B absence and logout while preserving
+the existing runtime and official `51/51/0` database baseline. It does not,
+however, retain per-module status evidence for the complete read-only dashboard
+matrix. `FULL-REGRESSION = PARTIAL`; `PRODUCT_REGRESSION = NOT_PROVEN`; and
+`RELEASE_READY = NO`. Exact next marker:
+`FULL-REGRESSION-HARNESS-FIX-CONT1`. Do not begin migration rehearsal, RC,
+Staging or Production.
+
+## NOTIF-ACCEPT complete — 2026-07-29
+
+The unchanged authenticated reuse-mode harness passed. N5 and N8 each had one
+Company bootstrap, Branch bootstrap, notification list, unread and SSE
+lifecycle, with zero 401/403/422, reconnect and notification-error-toast
+observations. Branch A→B added no Company-only notification lifecycle. The
+bounded Branch-B `RESOURCE_NOT_FOUND` remained a controlled scoped domain
+outcome, not a notification error. Logout left zero protected notification
+traffic.
+
+`NOTIF-ACCEPT = COMPLETE`; `NOTIF_ACCEPT_AUTHORIZED = CONSUMED`; and
+`NOTIF-PRE1-CONT1-CONT1-CONT1-CONT1-F001 = RESOLVED`. `RELEASE_READY = NO`;
+Staging and Production remain unauthorized. Exact next marker:
+`FULL-REGRESSION` — do not start it automatically.
+
+## NOTIF-ACCEPT — blocked by pre-existing runtime availability — 2026-07-29
+
+The approved operator-mediated reuse-mode launch cleaned up credentials and
+owned evidence, but exited before a fingerprint or Product scenario with
+`HARNESS_EXECUTION_FAILED`. Read-only follow-up found the required pre-existing
+3000 frontend and 8000 backend unavailable. No process was controlled and no
+Product, harness, DB, migration or configuration change was made.
+
+`NOTIF-ACCEPT = BLOCKED`; `BLOCKER = PREEXISTING_RUNTIME_UNAVAILABLE`.
+`NOTIF_ACCEPT_AUTHORIZED` remains unconsumed; restore the accepted local runtime
+outside this phase, then run the unchanged `NOTIF-ACCEPT` reuse capture. Do not
+start `FULL-REGRESSION`.
+
+## Branch context runtime acceptance complete — 2026-07-29
+
+The supplied sanitized operator-mediated replay reused the existing local
+runtime and completed N5/N8, Branch-A financial reads, atomic Branch A→B,
+controlled Branch-B scoped absence, refresh and logout. The accepted
+`RESOURCE_NOT_FOUND` kept both headers and Branch `READY`, with zero
+`BRANCH_CONTEXT_REQUIRED` and no retry loop. Thus
+`BRANCH-CONTEXT-HARNESS-FIX-CONT1 = COMPLETE`,
+`BRANCH-CONTEXT-RUNTIME-FIX = COMPLETE`, and
+`BRANCH-CONTEXT-RUNTIME-F001 = RESOLVED`.
+
+`NOTIF_ACCEPT_AUTHORIZED = YES` only for the dedicated `NOTIF-ACCEPT` phase.
+`RELEASE_READY = NO`; Staging and Production remain unauthorized. Do not begin
+`FULL-REGRESSION` automatically.
+
+## BRANCH-CONTEXT-HARNESS-FIX-CONT1 — scoped customer absence accepted by harness; replay pending — 2026-07-29
+
+The reused authenticated capture now proves observed N5 and N8 one-lifecycle
+Company/Branch/list/unread/SSE behavior with scoped Company context and zero
+401/403/422, reconnects and notification error toasts. Branch-A customer
+financial reads have exact successful responses with both contexts. A normal
+switch to Branch B correctly leaves Branch `READY` and returns a controlled
+`RESOURCE_NOT_FOUND` for the Branch-A-only customer with both headers; it is
+not a Company/Branch context failure. `aa9e77a` changes only the harness so it
+records this safe scoped absence and does not misclassify an unrelated generic
+domain toast as a notification toast. Branch-B refresh and logout remain
+unobserved until one unchanged authenticated replay completes.
+
+`BRANCH-CONTEXT-RUNTIME-FIX = PARTIAL`; `NOTIF_ACCEPT_AUTHORIZED = NO`.
+Continue only `BRANCH-CONTEXT-HARNESS-FIX-CONT1`; do not change Product or
+create data.
+
+## BRANCH-CONTEXT-HARNESS-FIX-CONT1 — static repair complete; authenticated replay pending — 2026-07-29
+
+The response collector now uses exact Playwright Request identity rather than
+normalized path identity, so concurrent same-path financial responses cannot
+overwrite or strand each other. Concurrent-response/redaction coverage and all
+focused suites pass (39 total); typecheck and targeted lint pass. This is a
+harness-only change. The required operator-mediated authenticated replay has
+not yet captured Branch A→B, Branch-B financial reads, refresh or logout.
+`NOTIF_ACCEPT_AUTHORIZED = NO`; continue `BRANCH-CONTEXT-HARNESS-FIX-CONT1`
+only to perform that unchanged secure replay.
+
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT3-CONT1 — authenticated capture partial — 2026-07-29
+
+The existing operator-mediated harness reached authenticated runtime on the reused local 3000/8000 services. N5 and N8 passed their observed Company, Branch, list/unread/SSE, header, zero-422 and zero-error-toast checks. Read-only discovery found a safe existing customer profile, confirming the prior immediate selector timing discrepancy. Branch-A invoice, statement-v2 and credit responses were observed at `200` with both contexts.
+
+The harness then failed its own success-count assertion because its response collector cannot uniquely correlate concurrent requests with identical method and normalized path; it leaves an older record pending. A→B, refresh and logout were therefore not executed. `BRANCH-CONTEXT-RUNTIME-FIX-CONT3-CONT1 = PARTIAL`; `BRANCH-CONTEXT-RUNTIME-FIX = PARTIAL`; and `NOTIF_ACCEPT_AUTHORIZED = NO`. Continue only with `BRANCH-CONTEXT-HARNESS-FIX-CONT1`; do not change Product behavior or create customer data.
+
 ## BRANCH-CONTEXT-RUNTIME-FIX-CONT3 — blocked before authenticated capture — 2026-07-29
 
 `013b388` makes the customer-runtime harness deterministic without changing

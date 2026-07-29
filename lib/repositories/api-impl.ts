@@ -364,10 +364,10 @@ export class ApiEmployeeRepository implements EmployeeRepository {
     return normalizeItems<EmployeeBranchAccess>(res);
   }
 
-  async updateBranchAccess(employeeId: string, branchIds: string[]): Promise<MutationResult<{ items: EmployeeBranchAccess[] }>> {
+  async updateBranchAccess(employeeId: string, branchIds: string[], defaultBranchId?: string | null): Promise<MutationResult<{ items: EmployeeBranchAccess[] }>> {
     return apiClient<MutationResult<{ items: EmployeeBranchAccess[] }>>(`/employees/${employeeId}/branches`, {
       method: "PUT",
-      body: JSON.stringify({ branchIds }),
+      body: JSON.stringify({ branchIds, defaultBranchId }),
       ...auth(),
     });
   }

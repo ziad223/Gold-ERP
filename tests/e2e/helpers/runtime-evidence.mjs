@@ -9,7 +9,8 @@ const SENSITIVE_HEADER_NAMES = new Set([
 export function normalizePath(rawUrl) {
   const parsed = new URL(rawUrl);
   const normalized = parsed.pathname.replace(/^\/api\/v1/, "") || "/";
-  return normalized.replace(/^(\/customers)\/[^/]+(?=\/|$)/, "$1/:id");
+  return normalized
+    .replace(/^(\/(?:customers|suppliers|products|assets|transfers|reservations|purchase-orders|approval-requests|invoices))\/[^/]+(?=\/|$)/, "$1/:id");
 }
 
 export function contextPresence(headers = {}) {
@@ -35,13 +36,18 @@ export function createEvidenceCollector(now = () => Date.now()) {
   let startedAt = now();
   let scenario = "UNSET";
   const entries = [];
+  const requestRecords = new WeakMap();
+  let correlationCount = 0;
 
   function begin(nextScenario) {
     scenario = nextScenario;
     startedAt = now();
   }
 
-  function request({ method, url, headers }) {
+  function request({ request: playwrightRequest, method, url, headers }) {
+    if (!playwrightRequest || typeof playwrightRequest !== "object") {
+      throw new TypeError("runtime evidence requires a request object for one-to-one correlation");
+    }
     const context = contextPresence(headers);
     const entry = {
       sequence: ++sequence,
@@ -53,25 +59,46 @@ export function createEvidenceCollector(now = () => Date.now()) {
       method,
       path: normalizePath(url),
       status: null,
+      terminalOutcome: "PENDING",
       ...context,
       retryOrReconnect: 0,
     };
     entries.push(entry);
+    requestRecords.set(playwrightRequest, entry);
+    correlationCount += 1;
     return entry;
   }
 
-  function response({ method, url, status, stableErrorCode = null }) {
-    const path = normalizePath(url);
-    const entry = [...entries].reverse().find(
-      (candidate) => candidate.scenario === scenario
-        && candidate.method === method
-        && candidate.path === path
-        && candidate.status === null,
-    );
-    if (entry) {
-      entry.status = status;
-      if (stableErrorCode) entry.stableErrorCode = stableErrorCode;
+  function finish(playwrightRequest, terminalOutcome, { status = null, stableErrorCode = null } = {}) {
+    const entry = requestRecords.get(playwrightRequest);
+    if (!entry || entry.terminalOutcome !== "PENDING") return entry || null;
+    entry.terminalOutcome = terminalOutcome;
+    if (status !== null) entry.status = status;
+    if (stableErrorCode) entry.stableErrorCode = stableErrorCode;
+    requestRecords.delete(playwrightRequest);
+    correlationCount -= 1;
+    return entry;
+  }
+
+  function response({ request: playwrightRequest, status, stableErrorCode = null }) {
+    return finish(playwrightRequest, "RESPONSE", { status, stableErrorCode });
+  }
+
+  function requestFailed({ request: playwrightRequest, aborted = false }) {
+    return finish(playwrightRequest, aborted ? "ABORTED" : "FAILED");
+  }
+
+  function requestFinished({ request: playwrightRequest }) {
+    // A response event owns success. This event cannot manufacture success or
+    // erase correlation before asynchronous response metadata is recorded.
+    return requestRecords.get(playwrightRequest) || null;
+  }
+
+  function annotateResponse(entry, { stableErrorCode = null } = {}) {
+    if (entry && stableErrorCode && entry.terminalOutcome === "RESPONSE") {
+      entry.stableErrorCode = stableErrorCode;
     }
+    return entry || null;
   }
 
   function records(path, selectedScenario = scenario) {
@@ -80,13 +107,14 @@ export function createEvidenceCollector(now = () => Date.now()) {
 
   function snapshot(selectedScenario = scenario) {
     const scoped = entries.filter((entry) => entry.scenario === selectedScenario);
-    return scoped.map(({ sequence: itemSequence, relativeMs, scenario: itemScenario, method, path, status, companyContextPresent, branchContextPresent, retryOrReconnect, stableErrorCode }) => ({
+    return scoped.map(({ sequence: itemSequence, relativeMs, scenario: itemScenario, method, path, status, terminalOutcome, companyContextPresent, branchContextPresent, retryOrReconnect, stableErrorCode }) => ({
       sequence: itemSequence,
       relativeMs,
       scenario: itemScenario,
       method,
       path,
       status,
+      terminalOutcome,
       companyContextPresent,
       branchContextPresent,
       retryOrReconnect,
@@ -94,5 +122,15 @@ export function createEvidenceCollector(now = () => Date.now()) {
     }));
   }
 
-  return { begin, request, response, records, snapshot };
+  return {
+    begin,
+    request,
+    response,
+    requestFailed,
+    requestFinished,
+    annotateResponse,
+    records,
+    snapshot,
+    correlationCount: () => correlationCount,
+  };
 }

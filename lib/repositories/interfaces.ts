@@ -112,7 +112,7 @@ export interface EmployeeRepository {
   getEmployeeCodeHistory(employeeId: string): Promise<Array<{ id: string; oldCode?: string | null; newCode?: string | null; reason?: string | null; createdAt?: string | null }>>;
   changeOwnPin(input: { currentPin: string; newPin: string; confirmation: string }): Promise<MutationResult<any>>;
   getBranchAccess(employeeId: string): Promise<EmployeeBranchAccess[]>;
-  updateBranchAccess(employeeId: string, branchIds: string[]): Promise<MutationResult<{ items: EmployeeBranchAccess[] }>>;
+  updateBranchAccess(employeeId: string, branchIds: string[], defaultBranchId?: string | null): Promise<MutationResult<{ items: EmployeeBranchAccess[] }>>;
   getPermissionState(employeeId: string): Promise<EmployeePermissionState>;
   updatePermissionState(employeeId: string, input: { roleIds: string[]; grantPermissionIds: string[]; denialPermissionIds: string[]; reason?: string }): Promise<MutationResult<{ authorization: EmployeePermissionState["authorization"] }>>;
   getVerificationAttempts(employeeId: string, query?: { page?: number; pageSize?: number }): Promise<PaginatedResult<EmployeeVerificationAttempt>>;

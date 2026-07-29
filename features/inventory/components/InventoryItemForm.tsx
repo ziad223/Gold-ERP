@@ -80,7 +80,7 @@ export function InventoryItemForm({ mode = "add", initialAsset = null, onDone, o
   const locale = useLocale();
   const rtl = locale === "ar";
   const { activeBranch } = useAuth();
-  const { updateAsset } = useAssets();
+  const { updateAsset } = useAssets({ listEnabled: false });
   const { inventoryCodes, itemCodes } = useBarcodeSettings();
 
   const [type, setType] = useState<AssetType>(initialAsset?.type ?? "gold-weight");

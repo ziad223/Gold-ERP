@@ -30,7 +30,7 @@ export default function SupplierPurchasesPage() {
   const queryClient = useQueryClient();
   const { company, activeBranch, activeBranchId, user } = useAuth();
   const { items: suppliers, loading: suppliersLoading, error: suppliersError, refresh: refreshSuppliers } = useSuppliers({ page: 1, pageSize: 100 });
-  const { createAsset, isCreating } = useAssets();
+  const { createAsset, isCreating } = useAssets({ listEnabled: false });
   const { inventoryCodes: barcodeInventoryCodes, itemCodes: barcodeItemCodes } = useBarcodeSettings();
   const isApi = DATA_SOURCE === "api";
 

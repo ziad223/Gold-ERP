@@ -24,10 +24,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Modal } from "@/components/ui/modal";
 import { NativeSelect } from "@/components/ui/native-select";
 import { PageHeader } from "@/components/ui/page-header";
-import { useAuth } from "@/contexts/auth-context";
 import { exportData } from "@/lib/export/export-service";
 import { useEmployees, useEmployeeMutations } from "@/hooks/use-employees";
-import { Link } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { toast } from "sonner";
 import type { Employee, EmployeeStatus, DarfusRole } from "@/lib/types";
 
@@ -54,7 +53,7 @@ export default function EmployeesPage() {
   const filtersT = useTranslations("Filters");
   const exportT = useTranslations("PrintExport");
   const locale = useLocale();
-  const { company } = useAuth();
+  const router = useRouter();
 
   const [queryState, setQueryState] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
@@ -102,10 +101,7 @@ export default function EmployeesPage() {
 
   const handleOpenAdd = () => {
     setIsEdit(false);
-    setForm({
-      ...initialForm,
-      branch: company?.branchName || "",
-    });
+    setForm(initialForm);
     setFormOpen(true);
   };
 
@@ -132,7 +128,7 @@ export default function EmployeesPage() {
 
   const handleSave = async (event: FormEvent) => {
     event.preventDefault();
-    if (!form.name.trim() || !form.role.trim() || !form.branch.trim() || !form.employeeCode.trim()) {
+    if (!form.name.trim() || !form.role.trim() || !form.employeeCode.trim()) {
       toast.error(common("required"));
       return;
     }
@@ -153,7 +149,6 @@ export default function EmployeesPage() {
         name: form.name.trim(),
         role: form.role.trim(),
         systemRole: form.systemRole,
-        branch: form.branch.trim(),
         email: form.email.trim(),
         phone: form.phone.trim(),
         jobTitle: form.jobTitle.trim(),
@@ -174,8 +169,8 @@ export default function EmployeesPage() {
         name: form.name.trim(),
         role: form.role.trim(),
         systemRole: form.systemRole,
-        branch: form.branch.trim(),
-        status: "present",
+        branch: "",
+        status: "inactive",
         email: form.email.trim(),
         phone: form.phone.trim(),
         jobTitle: form.jobTitle.trim(),
@@ -184,8 +179,9 @@ export default function EmployeesPage() {
         pinConfirm: form.pinConfirm,
       });
       if (res.success) {
-        toast.success(common("saved"));
+        toast.success(locale === "ar" ? "تم إنشاء هوية الموظف. أكمل تعيين الفروع صراحةً قبل التفعيل." : "Employee identity created. Assign allowed Branches explicitly before activation.");
         setFormOpen(false);
+        if (res.data?.id) router.push(`/employees/${res.data.id}?setup=branches`);
       } else {
         toast.error(res.error?.message || "Error saving employee");
       }
@@ -447,7 +443,7 @@ export default function EmployeesPage() {
                     </div>
                     <span className="font-mono text-[11px] font-bold text-slate-600 dark:text-slate-300">{person.employeeCode || "—"}</span>
                     <span className="text-slate-500">{person.role}</span>
-                    <span className="text-slate-500">{person.branch}</span>
+                    <span className="text-slate-500">{person.branch || (locale === "ar" ? "تعيين فرع مطلوب" : "Branch assignment required")}</span>
                     <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
                       {credentialStateLabel(person.authorizationSummary?.credentialState)}
                     </span>
@@ -608,15 +604,13 @@ export default function EmployeesPage() {
               </p>
             </>
           )}
-          <label>
-            <span className="label-base">{t("branch")}</span>
-            <input
-              required
-              className="input-base"
-              value={form.branch}
-              onChange={(event) => setForm((prev) => ({ ...prev, branch: event.target.value }))}
-            />
-          </label>
+          {isEdit ? null : (
+            <p className="sm:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+              {locale === "ar"
+                ? "لن يتم تعيين أي فرع تلقائياً. بعد الحفظ افتح ملف الموظف واختر الفروع المسموح بها ثم الفرع الأساسي صراحةً قبل التفعيل."
+                : "No Branch is assigned automatically. After saving, open the employee profile and explicitly assign allowed Branches, then choose a default Branch before activation."}
+            </p>
+          )}
           <label>
             <span className="label-base">{locale === "ar" ? "الدور الأمني" : "Security Role"}</span>
             <NativeSelect

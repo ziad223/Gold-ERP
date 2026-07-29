@@ -1,5 +1,226 @@
 # v1.0.0 Test and Acceptance Matrix
 
+## AUTHORIZATION-RUNTIME-FIX-CONT3 — employee runtime lifecycle repair — 2026-07-29
+
+| Contract | Evidence mode | Result |
+| --- | --- | --- |
+| F008 Branch-ready operator restoration | Failing-before source contract, focused test, secure browser replay | PASS — one READY-generation restore; operator and allowed route survive hard refresh; verification fallback absent |
+| F009 exact logout revocation | Failing-before linkage contract, service tests, session-count postcheck | PASS — stable technical fingerprint, transactional exact-owned revocation, active owned counts `1/1 → 0/0` |
+| User-wide security revocation | Static/service regression | PASS — explicit user-wide path retained independently of exact logout |
+| F010 fixed-shell bootstrap | Source ownership and clean-context replay | PASS — authenticated fixed Branch used; unauthorized Branch bootstrap removed |
+| F010 module/notification ownership | Permission-gate regression coverage | PASS — denied automatic module/notification REST/SSE owners disabled; deliberate denied probe remains `403` |
+| Terminal request logging | Middleware regression coverage | PASS — numeric monotonic duration; one completed/aborted/client-disconnected terminal outcome; undefined duration rejected |
+| New CONT3 regression suite | `node --test tests/authorization-runtime-fix-cont3.test.mjs` | PASS — `5/5` |
+| Complete Node regression | Current repository Node test inventory | PASS — `56/56` |
+| Employee/context/notification contracts | Existing focused and static verifiers | PASS |
+| Permission baseline | Exact canonical baseline | PASS — `128/128`, zero duplicates |
+| Typecheck and lint | Accepted repository commands | PASS — typecheck; lint errors `0`, inherited warnings `18` |
+| Secure runtime replay | Existing services and unchanged encrypted package | PASS — login/PIN, operator bootstrap, denial, hard refresh, logout |
+| Runtime/database safety | Postcheck | PASS — services preserved; official DB `51/51/0`; owned sessions `0/0`; no fixture/config mutation |
+
+## AUTHORIZATION-RUNTIME-ACCEPT-CONT1 — real employee runtime replay — 2026-07-29
+
+| Contract | Evidence mode | Result |
+| --- | --- | --- |
+| Secure package and fixture | Presence-only loader, ACL/hash check, read-only fixture proof | PASS — package unchanged; one assigned/default Branch; non-admin; permission pair valid |
+| Branch-shell login and employee PIN | Owned local browser session | PASS — one acceptance login; operator session created |
+| Operator bootstrap and Branch/default | UI plus correlated safe GET | PASS before refresh — active, assigned/default Branch valid, authorization version present |
+| Frontend permission rendering | Allowed and denied direct routes | PASS — dashboard visible; privileged navigation absent; denied route rendered no protected data |
+| Allowed backend API | Safe GET | PASS — `200`, active operator and allowed capability |
+| Denied backend API | Safe GET | PASS — `403`, canonical correlated envelope, no partial data or internal leakage |
+| Unassigned Branch protection | Fixed selector plus isolated backend contract | PASS / direct runtime NOT_APPLICABLE — unassigned Branch not offered |
+| Assigned Branch switch | Fixture manifest and fixed shell | NOT_APPLICABLE — `SINGLE_ASSIGNED_BRANCH_AND_FIXED_BRANCH_SHELL` |
+| Hard refresh | Owned browser reload on allowed route | FAIL — active backend session was not restored into frontend operator state (`FULL-REGRESSION-F008`) |
+| Logout cleanup | UI logout, session counts, supported cleanup APIs | FAIL then CLEANED — technical session revoked while one operator session remained (`FULL-REGRESSION-F009`); final active counts zero |
+| Notification/runtime error sanity | Owned browser console categories | PASS within observed pre-failure scope — zero notification/auth-storm warnings |
+| Static non-regression | Focused contracts, verifiers, typecheck, lint, diff check | PASS — 30/30; permission baseline 128/128; lint errors 0 |
+
+## AUTHORIZATION-RUNTIME-TEST-FIXTURE-CONT1 — local fixture provisioning — 2026-07-29
+
+| Contract | Evidence mode | Result |
+| --- | --- | --- |
+| Identity-first employee creation | Dedicated local fixture transactional provisioning | PASS — zero implicit Branch mappings before explicit assignment |
+| Explicit Branch/default invariant | Dedicated local fixture validation | PASS — one active assignment; default belongs to it |
+| Minimal effective and denied permission pair | Dedicated QA role plus resolver validation | READY — non-admin role; safe read allowed and safe administration capability denied |
+| Branch-shell and PIN credentials | Dedicated local shell plus current-user encrypted package | READY — presence-only loader and restricted ACL passed |
+| Static non-regression | Focused contracts, baseline, typecheck, targeted lint | PASS — 30 Node tests; permission baseline 128/128 |
+| Employee browser runtime | Not run during fixture provisioning | DEFERRED — separate acceptance marker |
+
+## AUTHORIZATION-RUNTIME-ACCEPT-CONT1 — real employee runtime — 2026-07-29
+
+| Contract | Evidence mode | Result |
+| --- | --- | --- |
+| Employee Branch-shell login, PIN, permissions, assigned Branches, refresh, and logout | Credential gate after read-only checkpoint preflight | BLOCKED — all three required approved process-scoped employee variables absent; no session attempt |
+| Existing employee authorization closures | Prior code and isolated PostgreSQL acceptance | RETAINED — F004 through F007 unchanged; runtime proof remains pending |
+| Official runtime/database safety | Read-only preflight | PASS — 3000/8000 reused; official database `51/51/0`; zero idle transactions and waiting locks |
+
+## AUTHORIZATION-RUNTIME-FIX-CONT2 — Branch readiness financial regression — 2026-07-29
+
+| Contract | Evidence mode | Result |
+| --- | --- | --- |
+| Branch accessor is not available before READY commit | Regression test + BranchContext source contract | PASS |
+| A→B pre-READY customer-financial traffic | Unchanged reuse-only browser harness | PASS — 0 |
+| Branch-B controlled customer scoped absence | Reused runtime | PASS — only after READY with both context headers and no context error |
+| Notifications/SSE during Branch transition | Reused runtime | PASS — no restart or owned error toast |
+| Employee authorization/permission baseline | Focused existing contracts | PASS — 128/128 baseline; real employee login remains blocked |
+
+## AUTHORIZATION-RUNTIME-FIX-CONT1 — employee authorization repair — 2026-07-29
+
+| Contract | Evidence mode | Result |
+| --- | --- | --- |
+| Identity creation has no implicit administrator or Company Branch assignment | Frontend/request contract + isolated DB | PASS |
+| Explicit multi-Branch mapping and primary membership invariant | Real PostgreSQL disposable lifecycle | PASS |
+| Operator bootstrap rejects setup-incomplete and unassigned Branch access | Service/session contract + disposable lifecycle | PASS |
+| Role grants, direct grants, denials, and stale authorization version fail closed | Service/session contract + disposable lifecycle | PASS |
+| Company/Branch/error/notification non-regression | Focused Node contracts | PASS — 28/28 selected tests |
+| Permission baseline | Existing verifier | PASS — 128/128 |
+| Typecheck and targeted lint | Static | PASS; inherited lint warnings unchanged |
+| Administrator create-form runtime inspection | Reused read-only runtime | NOT_OBSERVED — employee create control unavailable; no form submitted |
+| Employee Branch-shell runtime login | Credential boundary | BLOCKED — approved employee credentials unavailable |
+| Branch A→B pre-READY financial traffic | Unchanged reused-runtime harness | FAIL — observed count 2; accepted contract requires 0 |
+
+## AUTHORIZATION-RUNTIME-AUDIT-CONT1 — read-only employee authorization evidence — 2026-07-29
+
+| Contract | Evidence mode | Result |
+| --- | --- | --- |
+| Employee creation has no accidental operational Branch grant | Source/API trace | FAIL — required label is prefilled while no explicit Branch ID is submitted |
+| Explicit multi-Branch assignment | Source/schema | PASS — dedicated assignment endpoint and unique mapping key exist |
+| Default Branch belongs to assigned set | Schema/service trace | FAIL — nullable primary field has no membership constraint or assignment synchronization |
+| Role/grant/denial calculation | Source trace | PASS — active role permissions plus grants minus denials; Branch denial returns an empty effective set |
+| Permission/session invalidation | Source trace | PASS — authorization version revokes stale operator sessions on the next protected request |
+| Direct employee login and permission bootstrap | Source trace | FAIL — normal login is User-only; employee authorization requires Branch-shell operator session |
+| Existing mapping consistency | Read-only aggregate DB query | PASS — no duplicate active mapping or active primary/mapping mismatch observed |
+| Employee login runtime | Credential boundary | BLOCKED — no approved employee credential supplied |
+
+## FULL-REGRESSION-FIX-CONT1 — Product repair replay — 2026-07-29
+
+| Module | Scope | Route + hard refresh | Terminal result | Outcome |
+| --- | --- | --- | --- | --- |
+| Dashboard | Mixed | Observed | terminal pending `0`, duplicate lifecycle `0` | PASS |
+| Suppliers | Company-only | Observed | terminal pending `0`, duplicate lifecycle `0` | PASS |
+| Products | Branch-required | Observed | both context booleans, pending/duplicate `0` | PASS |
+| Assets | Branch-required | Observed, including Branch B | both context booleans, pending/duplicate `0` | PASS |
+| Stock movements | Branch-required | Observed | both context booleans, pending/duplicate `0` | PASS |
+| Transfers | Branch-required | Observed | both context booleans, pending/duplicate `0` | PASS |
+| Reservations | Branch-required | Observed | terminal pending `0`, duplicate lifecycle `0` | PASS |
+| Purchase orders | Company-only | Observed | terminal pending `0`, duplicate lifecycle `0` | PASS |
+| Approval requests | Branch-required | Observed | both context booleans, pending/duplicate `0` | PASS |
+| Invoices | Branch-required | Observed | both context booleans, pending/duplicate `0` | PASS |
+
+The replay retained no unexpected 401/403/422/500, no retry loop, and no
+pending required module request. N5/N8 each retained one bootstrap, Branch
+bootstrap, notification list, unread and SSE lifecycle; A→B retained zero
+pre-ready financial requests and no notification restart; logout retained zero
+protected notification traffic. Focused test coverage passed `24/24`,
+typecheck passed, and lint has zero errors with 18 inherited warnings.
+
+## FULL-REGRESSION-HARNESS-FIX-CONT1 — terminal module replay — 2026-07-29
+
+| Module | Scope | Route + hard refresh | Terminal result | Outcome |
+| --- | --- | --- | --- | --- |
+| Dashboard | Mixed | Observed | 22 successful `200`, 4 aborts, duplicate lifecycle `4` | FAIL — F002 |
+| Suppliers | Company-only | Observed | 8 successful `200`, 2 aborts, duplicate lifecycle `6` | FAIL — F002 |
+| Products | Branch-required | Observed | 2 successful `200`, both headers, no duplicate/pending | PASS |
+| Assets | Branch-required | Observed | 6 successful `200`, Company header yes, Branch header no, duplicate lifecycle `4` | FAIL — F003 |
+| Stock movements | Branch-required | Observed | 2 successful `200`, both headers, no duplicate/pending | PASS |
+| Transfers | Branch-required | Observed | 2 successful `200`, both headers, no duplicate/pending | PASS |
+| Reservations | Branch-required | Observed | 4 successful `200`, both headers, duplicate lifecycle `2` | FAIL — F002 |
+| Purchase orders | Company-only | Observed | 4 successful `200`, 2 aborts, duplicate lifecycle `2` | FAIL — F002 |
+| Approval requests | Branch-required | Observed | 2 successful `200`, both headers, no duplicate/pending | PASS |
+| Invoices | Branch-required | Observed | 2 successful `200`, both headers, no duplicate/pending | PASS |
+
+All rows have terminal-only sanitized evidence, module-owned hard refresh,
+zero retry/reconnect, and zero observed 401/403/422/500. This closes the
+harness evidence gap but makes `FULL-REGRESSION = PARTIAL` pending F002/F003.
+
+## FULL-REGRESSION — bounded read-only matrix — 2026-07-29
+
+| Area | Test source / execution mode | Result |
+| --- | --- | --- |
+| Repository integrity | `git diff --check`, protected semantic comparison, tracked-artifact and high-confidence secret scans | PASS |
+| Static/contract regression | Selected cross-domain Node suite | PASS — 99/99 |
+| Type/lint | `typecheck`; full lint | PASS — typecheck; lint 0 errors, 18 inherited warnings |
+| Environment and permissions | Bootstrap database configuration, local database guard and permission-baseline contract | PASS — 128/128 permission baseline |
+| First Run | Source/isolated lifecycle and UI contracts; real PostgreSQL test requires an explicit disposable target | DEFERRED_WITH_ACCEPTED_PRIOR_EVIDENCE |
+| Error/deposit/accounting contracts | Canonical error, redaction, complete-sale resolver and reservation/deposit rollback contracts | PASS — isolated/static |
+| Company/Branch/auth/session/notifications | Unchanged authenticated reuse harness on existing runtime | PASS — N5/N8 one lifecycle, Branch A→B atomic, logout clean |
+| Customers/customer finance | Same harness; safe existing profile plus controlled Branch-B absence | PASS — no context regression |
+| Dashboard module browser matrix | Existing harness tracks dashboard resources but retains no per-module terminal status matrix | NOT_OBSERVED — harness coverage gap |
+| Suppliers/products/inventory/transfers/reservations/purchase orders/approvals/invoices browser routes | No retained safe per-route runtime evidence in this phase | NOT_OBSERVED — do not infer pass |
+| Production build | Existing manually managed Next development runtime preserved | DEFERRED_DUE_TO_EXISTING_DEV_RUNTIME |
+
+`FULL-REGRESSION = PARTIAL`; `FULL-REGRESSION-F001` is open; no Product
+regression is proven. The required next marker is
+`FULL-REGRESSION-HARNESS-FIX-CONT1`.
+
+## NOTIF-ACCEPT — final authenticated reused-runtime result — 2026-07-29
+
+| Contract | Evidence | Result |
+| --- | --- | --- |
+| N5 lifecycle | Bootstrap/Branch/list/unread/SSE each one; Company-only notification context; 401/403/422, reconnect and error toast all zero | PASS |
+| N8 lifecycle | Same one-lifecycle counts after hard refresh; zero context errors, reconnects and error toasts | PASS |
+| Branch A→B notification non-regression | READY transition is atomic; no new notification list/unread/SSE or notification error toast | PASS |
+| Controlled Branch-B absence | Bounded `RESOURCE_NOT_FOUND` preserves Company/Branch headers and Branch READY; no notification impact | PASS |
+| Logout | Protected notification list/unread/SSE/reconnect/error counts all zero | PASS |
+| Cleanup/safety | Reused services preserved; credentials and temporary wrapper absent; secret/PII leakage zero | PASS |
+
+`NOTIF-ACCEPT = COMPLETE`; notification acceptance is complete while all broader
+release gates remain active.
+
+## NOTIF-ACCEPT — runtime availability boundary — 2026-07-29
+
+| Contract | Evidence | Result |
+| --- | --- | --- |
+| Secure credential wrapper | Credentials removed; owned cleanup removed; secret leakage zero | PASS |
+| Reused frontend/backend fingerprint | Sanitized harness exit `1/HARNESS_EXECUTION_FAILED`; no fingerprint or scenario; read-only checks find 3000/8000 unavailable | BLOCKED |
+| N5/N8/Branch/logout notification acceptance | No runtime observation in this attempt | NOT_OBSERVED |
+| Product/static regression | Focused notification/context/error/harness suite: 50 pass; typecheck and targeted lint pass | PASS — static only |
+
+## BRANCH-CONTEXT-HARNESS-FIX-CONT1 — authenticated replay closure — 2026-07-29
+
+| Contract | Evidence | Result |
+| --- | --- | --- |
+| N5/N8 bootstrap and notification prerequisite | Supplied sanitized reused-runtime replay exited `0/PASS` | PASS |
+| Branch-A financial reads | Invoice, statement and credit complete with both contexts | PASS |
+| Branch A→B transition | READY-false observed, Branch-B READY observed, pre-ready financial requests and `BRANCH_CONTEXT_REQUIRED` both zero | PASS |
+| Branch-B scoped absence | Controlled `RESOURCE_NOT_FOUND`, Company/Branch headers present, Branch READY, no loop | PASS |
+| Refresh/logout/cleanup | Refresh preserved Company/Branch readiness; logout protected traffic zero; secret leakage zero; cleanup removed | PASS |
+
+`BRANCH-CONTEXT-RUNTIME-F001 = RESOLVED`; `NOTIF_ACCEPT_AUTHORIZED = YES` for
+the separate notification acceptance phase only.
+
+## BRANCH-CONTEXT-HARNESS-FIX-CONT1 — authenticated partial replay — 2026-07-29
+
+| Contract | Evidence | Result |
+| --- | --- | --- |
+| N5 and N8 Company/notification lifecycle | One observed bootstrap/list/unread/SSE/Branch lifecycle, correct scoped Company context, gate absent, zero 401/403/422/reconnect/notification-error-toast observations | PASS — reused authenticated runtime |
+| Branch-A customer financial reads | Invoice, statement and credit each have an exact successful response with Company/Branch context; separate aborted peers are retained | PASS — reused authenticated runtime |
+| Branch-A to Branch-B scoped customer absence | Profile returns controlled `404 RESOURCE_NOT_FOUND` with both headers; Branch remains `READY`; no `BRANCH_CONTEXT_REQUIRED` | PASS — safe resource absence, not financial success |
+| Branch-B customer refresh and logout | Earlier harness assertion stopped before these phases; `aa9e77a` corrects only acceptance classification | NOT_OBSERVED — replay required |
+| Notification toast classification | Generic controlled domain toast is not attributed to notifications absent a notification transport failure | PASS — harness policy/static validation |
+
+## BRANCH-CONTEXT-HARNESS-FIX-CONT1 — static harness repair — 2026-07-29
+
+| Contract | Evidence | Result |
+| --- | --- | --- |
+| Exact request/response identity | `WeakMap<Request, Record>` binds one request to one terminal record; paths are display/grouping only | PASS — static |
+| Concurrent same normalized path | Out-of-order statement success with aborted peer; distinct credit failure/success; terminal idempotency and scenario ownership | PASS — focused regression tests |
+| Sanitization and cleanup | Dynamic IDs, query values and sensitive headers remain absent; terminal correlation entries are removed | PASS — focused regression tests |
+| Customer-financial Branch runtime | Requires unchanged secure operator-mediated authenticated replay | NOT_OBSERVED |
+| Product/static baseline | Focused Branch/Company/notification/harness suites: 39 pass; typecheck and targeted lint pass | PASS |
+
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT3-CONT1 — 2026-07-29
+
+| Contract | Evidence | Result |
+| --- | --- | --- |
+| N5 single-Company runtime | Bootstrap/list/unread/SSE/Branch each one logical observed lifecycle; Company context present on scoped traffic; 401/403/422, reconnects and notification error toasts all zero | PASS — authenticated reused runtime |
+| N8 hard refresh | Same one-lifecycle observations after refresh; Company gate absent and display visible | PASS — authenticated reused runtime |
+| Safe customer discovery | Read-only list category `MANY`; visible safe profile route available | PASS |
+| Branch-A customer financial reads | Invoice, statement-v2 and credit each observed `200` with Company/Branch context; no `BRANCH_CONTEXT_REQUIRED` | PARTIAL — collector summary invalidated by correlation defect |
+| Branch A→B, financial refresh, logout | Scenario stopped by harness assertion before these phases | NOT_OBSERVED |
+| Concurrent response accounting | Reverse method/path pending-record lookup can leave an earlier concurrent request unpaired | FAIL — harness-only defect |
+| Product/static baseline | Branch/Company/notification/harness suites: 37 pass; typecheck and targeted lint pass | PASS |
+
 ## BRANCH-CONTEXT-RUNTIME-FIX-CONT3 — 2026-07-29
 
 | Contract | Evidence | Result |

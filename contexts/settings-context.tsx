@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiClient, DarfusApiError } from "@/lib/api/client";
 import { DATA_SOURCE } from "@/lib/data-source";
@@ -212,6 +212,18 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const companyGenerationRef = useRef(companyGeneration);
+  const fixedBranchForShell = useMemo<Branch | null>(() => (
+    user?.accountType === "branch_shell" && user.accountScope?.branchId
+      ? {
+          id: user.accountScope.branchId,
+          companyId: user.accountScope.companyId || companyId || "",
+          name: user.accountScope.fixedBranch?.name || user.accountScope.branchName || user.accountScope.branchCode || "Assigned Branch",
+          code: user.accountScope.fixedBranch?.code || user.accountScope.branchCode || "ASSIGNED",
+          type: "store",
+          isActive: true,
+        }
+      : null
+  ), [companyId, user?.accountScope?.branchCode, user?.accountScope?.branchId, user?.accountScope?.branchName, user?.accountScope?.companyId, user?.accountScope?.fixedBranch?.code, user?.accountScope?.fixedBranch?.name, user?.accountType]);
 
   useEffect(() => {
     companyGenerationRef.current = companyGeneration;
@@ -243,6 +255,12 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     if (isSuperAdmin && !companyReady) return;
     const token = getStoredToken();
     if (!token) return;
+    if (user?.accountType === "branch_shell") {
+      setSettings(DEFAULT_SETTINGS);
+      setLoaded(true);
+      setError(false);
+      return;
+    }
     const requestGeneration = companyGenerationRef.current;
 
     try {
@@ -347,6 +365,18 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     if (isSuperAdmin && !companyReady) return;
     const token = getStoredToken();
     if (!token) return;
+    if (user?.accountType === "branch_shell") {
+      if (fixedBranchForShell) {
+        setBranches([fixedBranchForShell]);
+        setBranchesLoaded(true);
+        setBranchesError(false);
+      } else {
+        setBranches([]);
+        setBranchesLoaded(false);
+        setBranchesError(true);
+      }
+      return;
+    }
     const requestGeneration = companyGenerationRef.current;
 
     try {
@@ -368,7 +398,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       setBranchesLoaded(false);
       setBranchesError(true);
     }
-  }, [companyId, companyReady, isApi, isSuperAdmin, locale, user?.accountType]);
+  }, [companyId, companyReady, fixedBranchForShell, isApi, isSuperAdmin, locale, user?.accountType]);
 
   // Initial load
   useEffect(() => {

@@ -1,5 +1,122 @@
 # Market Release Findings Register
 
+## AUTHORIZATION-RUNTIME-FIX-CONT3 — runtime authorization closures — 2026-07-29
+
+| ID | Severity | Status | Evidence / closure |
+| --- | --- | --- | --- |
+| FULL-REGRESSION-F008 | P1, release-blocking Product defect | RESOLVED | `428e9dd` waits for validated Branch READY and restores operator state once per authenticated Branch generation. Secure replay preserved the active operator and allowed route across hard refresh with no verification fallback. |
+| FULL-REGRESSION-F009 | P1, release-blocking Product defect | RESOLVED | `44f9964` links the operator session to a stable technical-session fingerprint and revokes the exact owned pair transactionally; `25c0d45` preserves explicit user-wide security revocation. Secure logout changed active owned technical/operator counts from `1/1` to `0/0`. |
+| FULL-REGRESSION-F010 | P1, release-blocking Product defect | RESOLVED | Exact ownership confirmed unauthorized fixed-shell Branch bootstrap and module/notification prefetch. `3fabf5b` uses authenticated fixed-shell Branch metadata and effective-permission gates for module, notification REST, and SSE lifecycles. The explicit safe denial probe remains canonical `403`. |
+| OBSERVABILITY-F001 | P2, observability defect | RESOLVED | `3bb60c0` replaces the unclassifiable response-time terminal token with one monotonic numeric-duration record and explicit completed/aborted/client-disconnected outcomes. Regression coverage rejects undefined duration output and duplicate terminal records. |
+
+`FULL-REGRESSION-F004` through `FULL-REGRESSION-F007` remain resolved.
+`OPEN_RELEASE_BLOCKING_AUTHORIZATION_FINDINGS = 0` and
+`OPEN_RELEASE_BLOCKING_PRODUCT_REGRESSIONS = 0`. Release authorization remains
+closed pending `AUTHORIZATION-RUNTIME-ACCEPT-CONT2`.
+
+## AUTHORIZATION-RUNTIME-ACCEPT-CONT1 — runtime authorization findings — 2026-07-29
+
+| ID | Severity | Status | Evidence / required repair scope |
+| --- | --- | --- | --- |
+| FULL-REGRESSION-F008 | P1, release-blocking Product defect | OPEN — `OPERATOR_HARD_REFRESH_BRANCH_READINESS_RACE` | A real Branch-shell employee session was active and authorized before refresh, and the backend session remained valid afterward, but the UI returned to employee verification. `/operator/current` uses the default Branch-aware transport, is rejected while Branch transition is active, and is not retried when Branch READY completes. Gate or retry operator bootstrap against the validated Branch lifecycle without weakening Branch transport safety. |
+| FULL-REGRESSION-F009 | P1, release-blocking Product defect | OPEN — `LOGOUT_ORPHAN_OPERATOR_SESSION` | Client login creates the technical session before a device-session header exists. Logout revokes operator sessions only when the stored technical session has that association, so UI logout revoked the technical session but left one active operator session. Associate the device at login or revoke the exact owned operator session fail-closed during logout. |
+
+`FULL-REGRESSION-F004` through `FULL-REGRESSION-F007` remain resolved. The
+allowed and denied permission/runtime checks passed before the new hard-refresh
+and logout defects were observed.
+
+## AUTHORIZATION-RUNTIME-TEST-FIXTURE-CONT1 — fixture readiness — 2026-07-29
+
+No new Product finding was created. The dedicated local QA fixture
+`QA_EMPLOYEE_AUTH_RUNTIME_001` proves the repaired identity-first and explicit
+default-in-active-assignment setup path with a minimal effective/denied
+permission pair. Its encrypted current-user credential package is outside Git
+and ready for the separate real-runtime acceptance; no runtime employee session
+was opened in this provisioning phase.
+
+## AUTHORIZATION-RUNTIME-ACCEPT-CONT1 — evidence boundary — 2026-07-29
+
+No new Product finding was created. The approved employee Branch-shell
+credential triplet was unavailable at the accepted read-only checkpoint, so
+the real employee session, permission, Branch-switch, refresh, and logout
+acceptance steps were not attempted. This leaves runtime evidence blocked; it
+does not reopen the isolated closures for `FULL-REGRESSION-F004` through
+`FULL-REGRESSION-F007`.
+
+## AUTHORIZATION-RUNTIME-FIX-CONT2 — Branch readiness repair — 2026-07-29
+
+| ID | Severity | Status | Evidence / closure |
+| --- | --- | --- | --- |
+| FULL-REGRESSION-F007 | P1, release-blocking Product regression | RESOLVED | `80b9909` publishes the validated Branch accessor only after the READY commit. The unchanged reuse-only harness passed A→B with zero pre-READY customer-financial traffic, zero context errors, terminal pending `0`, and controlled Branch-B absence only after READY. |
+
+## AUTHORIZATION-RUNTIME-FIX-CONT1 — employee authorization repair — 2026-07-29
+
+| ID | Severity | Status | Evidence / closure boundary |
+| --- | --- | --- | --- |
+| FULL-REGRESSION-F004 | P1, release-blocking Product defect | RESOLVED BY CODE AND ISOLATED ACCEPTANCE | `0e72f28` removes the Company-derived create-form Branch prefill and makes creation identity-only; the UI labels Branch setup as required and directs to explicit assignment. |
+| FULL-REGRESSION-F005 | P1, release-blocking Product defect | RESOLVED BY CODE AND ISOLATED ACCEPTANCE | Explicit active mappings are the only Branch grant. `0e72f28` validates any primary/default against that selected active set transactionally and rejects revocation without a valid replacement. |
+| FULL-REGRESSION-F006 | P1, release-blocking Product defect | RESOLVED BY CODE AND ISOLATED ACCEPTANCE | Branch-shell verification/session validation now fail closed for missing or unassigned active Branch access and stale authorization version. Backend permission resolution remains authoritative. Real employee runtime replay is pending an approved credential. |
+| FULL-REGRESSION-F007 | P1, release-blocking Product regression | OPEN — `BRANCH_TRANSITION_PRE_READY_FINANCIAL_TRAFFIC` | The unchanged reuse-only runtime harness observed two Branch-scoped customer-financial requests before Branch-B was READY during a normal A→B transition. The contract requires zero. Treat as a separate Product regression; do not repair it in the employee authorization phase. |
+
+## AUTHORIZATION-RUNTIME-AUDIT-CONT1 — employee authorization findings — 2026-07-29
+
+| ID | Severity | Status | Evidence / required repair scope |
+| --- | --- | --- | --- |
+| FULL-REGRESSION-F004 | P1, release-blocking Product defect | OPEN — `EMPLOYEE_DEFAULT_BRANCH_PRESELECTED_WITHOUT_EXPLICIT_CONSENT` | The employee create page initializes the required primary-Branch label from Company session metadata. It is not an explicit employee assignment and is not derived from the validated Branch access set. Repair must separate administrative context, employee metadata, allowed Branches, and an explicit default. |
+| FULL-REGRESSION-F005 | P1, release-blocking Product defect | OPEN — `EMPLOYEE_BRANCH_MAPPING_FAILURE` | The creation UI sends a Branch label but no Branch identifier. `POST /employees` creates an operational mapping only when `branchId` is supplied. The identity can therefore be created without the explicit Branch assignment required for operator access. Repair must make the intended create/assign workflow atomic or visibly staged and fail closed. |
+| FULL-REGRESSION-F006 | P1, release-blocking Product defect | OPEN — `EMPLOYEE_LOGIN_BRANCH_BOOTSTRAP_FAILURE` | An Employee has a PIN credential and role/grant/denial records, but normal login authenticates a User. Employee authorization is consumed by Branch-shell operator-session middleware; employee creation does not create or link a branch-shell User account. The stated employee-sign-in contract is therefore incomplete. Repair must define and implement the supported identity/session handoff without granting implicit Branch access. |
+
+## FULL-REGRESSION-FIX-CONT1 — Product regression closure — 2026-07-29
+
+| ID | Severity | Status | Evidence / closure |
+| --- | --- | --- | --- |
+| FULL-REGRESSION-F002 | P1, release-blocking Product regression | RESOLVED | `ca5e386` assigns explicit, stable list ownership: demand-driven Header resources, Branch-independent Company-only keys, declarative Suppliers ownership, and a sole Reservations owner. Focused lifecycle coverage passed and reused-runtime evidence retained duplicate authoritative lifecycle count `0` for Dashboard, Suppliers, Reservations and Purchase Orders, with terminal pending `0` and no unexpected auth/context/server status. |
+| FULL-REGRESSION-F003 | P1, release-blocking Product regression | RESOLVED | `e2f075d`, `31a9fa3`, and `a32e42a` route Assets/Inventory reads through validated Branch readiness and canonical transport, remove `skipBranch`, include the Branch in keys, and retain cancellation. The read-only replay observed Assets with both context booleans, no Branch-context-required condition, pending `0`, duplicate lifecycle `0`, and an explicit Branch-B successful lifecycle. |
+
+## FULL-REGRESSION — read-only coverage boundary — 2026-07-29
+
+| ID | Severity | Status | Evidence / required next action |
+| --- | --- | --- | --- |
+| FULL-REGRESSION-F001 | P1, release-blocking acceptance-evidence gap | RESOLVED | `d660ea8`, `9dec085`, `5b05719`, and `d54d3ba` add request-identity-correlated, terminal, per-module evidence with module-owned hard refresh. The replay retained every required module key without payloads, raw headers, IDs, queries or credentials. The resulting failures below are Product evidence, not a remaining harness coverage gap. |
+
+## NOTIF-ACCEPT — final notification lifecycle closure — 2026-07-29
+
+| ID | Severity | Status | Evidence / closure |
+| --- | --- | --- |
+| NOTIF-PRE1-CONT1-CONT1-CONT1-CONT1-F001 | P2 | RESOLVED | The unchanged sanitized reuse-mode harness completed `0/PASS`. N5/N8 each recorded one list/unread/SSE lifecycle with Company context, zero 401/403/422, zero reconnect and zero notification error toast. Branch A→B created no new notification lifecycle; the controlled Branch-B scoped absence retained both headers and Branch READY. Logout created zero protected notification traffic. Credentials, temporary wrapper and evidence were removed; no Product, DB or runtime-process modification occurred. |
+
+## NOTIF-ACCEPT — secure-launch/runtime boundary — 2026-07-29
+
+| ID | Severity | Status | Evidence / required next action |
+| --- | --- | --- |
+| NOTIF-PRE1-CONT1-CONT1-CONT1-CONT1-F001 | P2 | OPEN — reused runtime unavailable | The credential-clean wrapper produced sanitized exit `1/HARNESS_EXECUTION_FAILED` before a runtime fingerprint, child, evidence or Product scenario. Cleanup removed owned data and secret leakage was zero. Read-only checks then found both required pre-existing 3000/8000 services unavailable. Do not start, stop, restart or replace them in this phase; restore the accepted local runtime outside this task, then rerun the unchanged reuse-mode harness. |
+
+## BRANCH-CONTEXT-HARNESS-FIX-CONT1 — replay closure — 2026-07-29
+
+| ID | Severity | Status | Evidence / closure |
+| --- | --- | --- |
+| BRANCH-CONTEXT-RUNTIME-F001 | P2, release-blocking runtime evidence gap | RESOLVED | The supplied sanitized reused-runtime replay exited `0/PASS`. It completed Branch-A financial reads, normal A→B with READY-false then Branch-B READY, zero pre-ready financial requests and zero `BRANCH_CONTEXT_REQUIRED`, controlled Branch-B `RESOURCE_NOT_FOUND` with both headers and no loop, refresh and logout. Secret leakage was zero and cleanup removed owned evidence. No Product, DB or runtime-process modification was made. |
+| NOTIF-PRE1-CONT1-CONT1-CONT1-CONT1-F001 | P2 | OPEN — final notification acceptance authorized | The Branch prerequisite is closed and `NOTIF_ACCEPT_AUTHORIZED = YES`; this notification finding remains open until the dedicated `NOTIF-ACCEPT` lifecycle capture completes. |
+
+## BRANCH-CONTEXT-HARNESS-FIX-CONT1 — authenticated replay partial / scoped absence policy — 2026-07-29
+
+| ID | Severity | Status | Evidence / required next action |
+| --- | --- | --- |
+| BRANCH-CONTEXT-RUNTIME-F001 | P2, release-blocking runtime evidence gap | OPEN — replay required after scoped-resource acceptance correction | The reused-runtime capture passed observed N5 and N8: one bootstrap/list/unread/SSE/Branch lifecycle each, scoped Company context on list/unread/SSE, Company gate absent, and zero observed 401/403/422, reconnects and notification error toasts. Branch-A invoice, statement and credit each have an exact `200` response with both contexts; an aborted peer is now distinct. During normal A→B, the same Branch-A customer returned controlled `404 RESOURCE_NOT_FOUND` under both contexts while Branch remained `READY` and `BRANCH_CONTEXT_REQUIRED = 0`. This is valid scoped-resource absence, not a context regression. `aa9e77a` makes the harness record that outcome and count notification toasts only when notification transport itself fails. Replay to capture Branch-B refresh and logout remains required; `NOTIF_ACCEPT_AUTHORIZED = NO`. |
+
+## BRANCH-CONTEXT-HARNESS-FIX-CONT1 — correlation repair pending authenticated replay — 2026-07-29
+
+| ID | Severity | Status | Evidence / required next action |
+| --- | --- | --- | --- |
+| BRANCH-CONTEXT-RUNTIME-F001 | P2, release-blocking runtime evidence gap | OPEN — authenticated replay required after harness repair | `26d25a2` changes the evidence collector only. It binds an exact Playwright `Request` object to one record through a `WeakMap`, emits one idempotent terminal outcome, and counts success/abort/failure/pending separately. Focused 39-test validation passes, including concurrent same normalized path with out-of-order success and aborted/failed peers. No Product behavior, DB data, migration, Company/Branch context or notification code changed. Run the unchanged harness through the approved operator-mediated process-scoped credential launcher; capture Branch-A, A→B, Branch-B, refresh and logout before closing this finding. |
+
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT3-CONT1 — authenticated capture exposes an evidence defect — 2026-07-29
+
+| ID | Severity | Status | Evidence / required next action |
+| --- | --- | --- | --- |
+| BRANCH-CONTEXT-RUNTIME-F001 | P2, release-blocking runtime evidence gap | OPEN — concurrent response correlation defect | The unchanged authenticated harness passed N5/N8 and discovered a safe existing customer (`MANY` category). Branch-A invoice, statement-v2 and credit each had an observed `200` with Company/Branch context and zero `BRANCH_CONTEXT_REQUIRED`; however, duplicate concurrent request records share method/path. `tests/e2e/helpers/runtime-evidence.mjs` associates responses through a reverse pending-record method/path search, allowing asynchronous response handlers to select the same later entry and leave the earlier entry `null`. This falsifies the per-resource success count and stops the scenario before A→B, refresh and logout. It is not Product evidence. Do not create data or relax context enforcement. Target only `BRANCH-CONTEXT-HARNESS-FIX-CONT1` to associate each Playwright response with its originating request object, add the exact concurrency regression test, and rerun the unchanged Product capture. |
+| NOTIF-PRE1-CONT1-CONT1-CONT1-CONT1-F001 | P2 | OPEN — final notification acceptance remains gated | N5/N8 notification counts are observed non-regressed in this capture, but acceptance cannot proceed while the customer-financial Branch A→B/refresh/logout scenario is halted by the harness evidence defect. `NOTIF_ACCEPT_AUTHORIZED = NO`. |
+
 ## BRANCH-CONTEXT-RUNTIME-FIX-CONT3 — authenticated customer evidence boundary — 2026-07-29
 
 | ID | Severity | Status | Evidence / required next action |

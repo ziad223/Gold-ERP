@@ -55,6 +55,14 @@ test("Branch switching enters a non-ready transition before retiring Branch auth
   assert.ok(transitioning.generation > ready.generation);
 });
 
+test("validated Branch authority is published only after the READY render commits", async () => {
+  const provider = await readFile(path.join(root, "contexts", "branch-context.tsx"), "utf8");
+
+  assert.match(provider, /useLayoutEffect/);
+  assert.match(provider, /state\.status !== "READY"[\s\S]*setBranchContextAccessor[\s\S]*setBranchContextTransitioning\(false\)/);
+  assert.doesNotMatch(provider, /setBranchContextAccessor\(\(\) => \(\{ branchId: next\.branchId[\s\S]*setState\(next\)[\s\S]*setBranchContextTransitioning\(false\)/);
+});
+
 test("Branch switch isolation targets only Branch-aware query identities", async () => {
   const state = await stateModule();
 
@@ -87,7 +95,8 @@ test("the shared client, customer financial queries, and dashboard gate require 
   assert.match(provider, /branchesLoaded/);
   assert.match(provider, /beginBranchTransition/);
   assert.match(provider, /setBranchContextTransitioning\(true\)[\s\S]*clearOperationalWork\(\)/);
-  assert.match(provider, /setBranchContextAccessor\(\(\) => \(\{ branchId[\s\S]*setState\(next\)[\s\S]*setBranchContextTransitioning\(false\)/);
+  assert.match(provider, /setBranchContextTransitioning\(true\)[\s\S]*setState\(next\)/);
+  assert.match(provider, /useLayoutEffect\(\(\) => \s*\{[\s\S]*state\.status !== "READY"[\s\S]*setBranchContextAccessor[\s\S]*setBranchContextTransitioning\(false\)/);
   assert.match(provider, /isBranchScopedQueryKey/);
   assert.match(provider, /setBranchContextAccessor\(\(\) => \(\{ branchId/);
   assert.match(client, /BRANCH_CONTEXT_REQUIRED/);

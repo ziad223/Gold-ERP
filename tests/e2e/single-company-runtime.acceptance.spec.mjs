@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { test, expect } from "@playwright/test";
-import { createEvidenceCollector } from "./helpers/runtime-evidence.mjs";
+import { createEvidenceCollector, normalizePath } from "./helpers/runtime-evidence.mjs";
+import { REQUIRED_MODULE_KEYS, summarizeModuleEvidence, summarizeModules } from "./helpers/module-runtime-evidence.mjs";
 
 const email = process.env.DARFUS_E2E_EMAIL;
 const password = process.env.DARFUS_E2E_PASSWORD;
@@ -39,8 +40,21 @@ const dashboardPathPrefixes = [
   "/products",
 ];
 
+const moduleNavigation = [
+  { key: "dashboard", route: "/en/dashboard" },
+  { key: "suppliers", route: "/en/suppliers" },
+  { key: "products", route: "/en/dashboard" },
+  { key: "assets", route: "/en/inventory" },
+  { key: "stockMovements", route: "/en/dashboard" },
+  { key: "transfers", route: "/en/inventory/transfers" },
+  { key: "reservations", route: "/en/sales/reservations" },
+  { key: "purchaseOrders", route: "/en/dashboard" },
+  { key: "approvalRequests", route: "/en/dashboard" },
+  { key: "invoices", route: "/en/dashboard" },
+];
+
 function isTracked(pathname) {
-  const normalized = pathname.replace(/^(\/customers)\/[^/]+(?=\/|$)/, "$1/:id");
+  const normalized = normalizePath(`http://evidence.local${pathname}`);
   return trackedPaths.has(normalized) || customerFinancialPaths.has(normalized) || dashboardPathPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
@@ -118,8 +132,14 @@ async function boundedCompanyReadinessSnapshot(page, accessibleCompanyCounts) {
   }
 }
 
-function notificationErrorToastCount(page) {
+function visibleErrorToastCount(page) {
   return page.locator('[data-sonner-toast][data-type="error"], [role="alert"][data-sonner-toast]').count();
+}
+
+function notificationErrorToastCount(page, records = []) {
+  const notificationFailure = records.some((record) => ["/notifications", "/notifications/unread-count", "/events/stream"].includes(record.path)
+    && (record.status >= 400 || record.stableErrorCode));
+  return notificationFailure ? visibleErrorToastCount(page) : 0;
 }
 
 function summarize(records, toastCount, companyGateVisible, companyDisplayVisible, branchOptionCount) {
@@ -156,14 +176,39 @@ function customerFinancialSummary(records) {
     const scoped = records.filter((record) => record.path === path);
     return {
       requests: scoped.length,
-      successes: scoped.filter((record) => record.status >= 200 && record.status < 300).length,
+      completedResponses: scoped.filter((record) => record.terminalOutcome === "RESPONSE").length,
+      successes: scoped.filter((record) => record.terminalOutcome === "RESPONSE" && record.status >= 200 && record.status < 300).length,
       statuses: [...new Set(scoped.map((record) => record.status).filter((status) => status !== null))],
+      aborts: scoped.filter((record) => record.terminalOutcome === "ABORTED").length,
+      failures: scoped.filter((record) => record.terminalOutcome === "FAILED").length,
+      pending: scoped.filter((record) => record.terminalOutcome === "PENDING").length,
       companyHeaderPresent: scoped.length > 0 && scoped.every((record) => record.companyContextPresent),
       branchHeaderPresent: scoped.length > 0 && scoped.every((record) => record.branchContextPresent),
       branchContextRequired: scoped.filter((record) => record.stableErrorCode === "BRANCH_CONTEXT_REQUIRED").length,
     };
   };
   return Object.fromEntries(Object.entries(paths).map(([name, path]) => [name, summarizePath(path)]));
+}
+
+function customerProfileSummary(records) {
+  const scoped = records.filter((record) => record.path === "/customers/:id");
+  return {
+    requests: scoped.length,
+    statuses: [...new Set(scoped.map((record) => record.status).filter((status) => status !== null))],
+    resourceNotFound: scoped.filter((record) => record.status === 404 && record.stableErrorCode === "RESOURCE_NOT_FOUND").length,
+    pending: scoped.filter((record) => record.terminalOutcome === "PENDING").length,
+    companyHeaderPresent: scoped.length > 0 && scoped.every((record) => record.companyContextPresent),
+    branchHeaderPresent: scoped.length > 0 && scoped.every((record) => record.branchContextPresent),
+    branchContextRequired: scoped.filter((record) => record.stableErrorCode === "BRANCH_CONTEXT_REQUIRED").length,
+  };
+}
+
+function isAcceptedScopedProfileAbsence(profile) {
+  return profile.resourceNotFound > 0
+    && profile.pending === 0
+    && profile.companyHeaderPresent
+    && profile.branchHeaderPresent
+    && profile.branchContextRequired === 0;
 }
 
 async function waitForCustomerProfileLink(page, evidence, customerListCategories) {
@@ -188,6 +233,17 @@ async function openCustomerFinancialViews(page, evidence) {
   await expect.poll(() => evidence.records("/customers/:id/invoices").length, { timeout: 30_000 }).toBeGreaterThan(0);
   await expect.poll(() => evidence.records("/customers/:id/statement-v2").length, { timeout: 30_000 }).toBeGreaterThan(0);
   await expect.poll(() => evidence.records("/customers/:id/credit").length, { timeout: 30_000 }).toBeGreaterThan(0);
+  await expect.poll(() => {
+    const summary = customerFinancialSummary(evidence.snapshot());
+    return Object.values(summary).every((result) => result.successes >= 1 && result.pending === 0);
+  }, { timeout: 30_000 }).toBe(true);
+}
+
+async function waitForCustomerProfileTerminal(evidence) {
+  await expect.poll(
+    () => evidence.records("/customers/:id").some((record) => record.terminalOutcome !== "PENDING"),
+    { timeout: 30_000 },
+  ).toBe(true);
 }
 
 async function observeBranchTransition(page, activateBranchB) {
@@ -235,6 +291,70 @@ async function waitForLifecycle(page, evidence) {
   await expect.poll(() => evidence.records("/events/stream").length, { timeout: 30_000 }).toBeGreaterThan(0);
 }
 
+function dashboardRouteObserved(page) {
+  try {
+    return new URL(page.url()).pathname.endsWith("/dashboard");
+  } catch {
+    return false;
+  }
+}
+
+async function waitForModuleEvidence(page, evidence, scenario, requiredKeys = REQUIRED_MODULE_KEYS) {
+  let latest = null;
+  try {
+    await expect.poll(() => {
+      latest = summarizeModules(evidence.snapshot(scenario), { dashboardRouteObserved: dashboardRouteObserved(page) });
+      return requiredKeys.every((key) => {
+        const result = latest[key];
+        return result.requestCount > 0 && result.pending === 0 && (result.completedResponses > 0 || result.failures > 0);
+      });
+    }, { timeout: 30_000 }).toBe(true);
+  } catch {
+    const safe = Object.fromEntries(requiredKeys.map((key) => [key, {
+      outcome: latest?.[key]?.outcome ?? "NOT_OBSERVED",
+      requestCount: latest?.[key]?.requestCount ?? 0,
+      completedResponses: latest?.[key]?.completedResponses ?? 0,
+      pending: latest?.[key]?.pending ?? 0,
+      aborts: latest?.[key]?.aborts ?? 0,
+      failures: latest?.[key]?.failures ?? 0,
+      companyHeaderPresent: latest?.[key]?.companyHeaderPresent ?? false,
+      branchHeaderPresent: latest?.[key]?.branchHeaderPresent ?? false,
+      scopeValid: latest?.[key]?.scopeValid ?? false,
+      duplicateLogicalLifecycleCount: latest?.[key]?.duplicateLogicalLifecycleCount ?? 0,
+      statuses: latest?.[key]?.statuses ?? [],
+      stableErrorCodes: latest?.[key]?.stableErrorCodes ?? [],
+    }]));
+    throw new Error(`MODULE_EVIDENCE_SETTLE_TIMEOUT ${JSON.stringify(safe)}`);
+  }
+  return latest;
+}
+
+async function captureModuleEvidence(page, evidence, { key, route }) {
+  const scenario = `MODULE_${key.replace(/[A-Z]/g, (letter) => `_${letter}`).toUpperCase()}`;
+  evidence.begin(scenario);
+  await page.goto(route, { waitUntil: "domcontentloaded" });
+  await expect(page.locator('[data-company-display="true"]')).toBeVisible({ timeout: 30_000 });
+  await expect.poll(() => page.locator('[data-branch-context-status]').first().getAttribute('data-branch-context-ready'), { timeout: 30_000 }).toBe('true');
+  await waitForModuleEvidence(page, evidence, scenario, [key]);
+  evidence.begin(`${scenario}_HARD_REFRESH`);
+  const session = await page.context().newCDPSession(page);
+  await session.send("Network.clearBrowserCache");
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.locator('[data-company-display="true"]')).toBeVisible({ timeout: 30_000 });
+  await expect.poll(() => page.locator('[data-branch-context-status]').first().getAttribute('data-branch-context-ready'), { timeout: 30_000 }).toBe('true');
+  await waitForModuleEvidence(page, evidence, `${scenario}_HARD_REFRESH`, [key]);
+  return {
+    key,
+    evidence: summarizeModuleEvidence(key, [
+      ...evidence.snapshot(scenario),
+      ...evidence.snapshot(`${scenario}_HARD_REFRESH`),
+    ], {
+      routeObserved: key === "dashboard" ? dashboardRouteObserved(page) : true,
+      hardRefreshObserved: true,
+    }),
+  };
+}
+
 async function establishActiveBranch(page, branchTrigger, branchOptionCount) {
   const branchState = page.locator('[data-branch-context-status]').first();
   const ready = await branchState.getAttribute('data-branch-context-ready').catch(() => null);
@@ -276,24 +396,37 @@ test("captures sanitized N5/N8 single-Company browser acceptance evidence", asyn
   let customerRefresh = { outcome: "NOT_OBSERVED" };
   let branchSwitch = { outcome: "NOT_APPLICABLE_FOR_AVAILABLE_IDENTITY" };
   let logout;
+  let modules = null;
   const accessibleCompanyCounts = [];
   const customerListCategories = [];
   page.on("request", (request) => {
     const url = new URL(request.url());
     const normalized = url.pathname.replace(/^\/api\/v1/, "") || "/";
-    if (isTracked(normalized)) evidence.request({ method: request.method(), url: request.url(), headers: request.headers() });
+    if (isTracked(normalized)) evidence.request({ request, method: request.method(), url: request.url(), headers: request.headers() });
   });
   page.on("response", async (response) => {
     const request = response.request();
     const normalized = new URL(response.url()).pathname.replace(/^\/api\/v1/, "") || "/";
     if (isTracked(normalized)) {
+      const record = evidence.response({ request, status: response.status() });
       if (normalized === "/auth/accessible-companies") {
         const count = await accessibleCompanyCount(response);
         if (count !== null) accessibleCompanyCounts.push(count);
       }
       if (normalized === "/customers") customerListCategories.push(await customerListCountCategory(response));
-      evidence.response({ method: request.method(), url: response.url(), status: response.status(), stableErrorCode: await stableErrorCode(response) });
+      evidence.annotateResponse(record, { stableErrorCode: await stableErrorCode(response) });
     }
+  });
+  page.on("requestfailed", (request) => {
+    const normalized = new URL(request.url()).pathname.replace(/^\/api\/v1/, "") || "/";
+    if (isTracked(normalized)) {
+      const failureText = request.failure()?.errorText || "";
+      evidence.requestFailed({ request, aborted: /abort|cancel/i.test(failureText) });
+    }
+  });
+  page.on("requestfinished", (request) => {
+    const normalized = new URL(request.url()).pathname.replace(/^\/api\/v1/, "") || "/";
+    if (isTracked(normalized)) evidence.requestFinished({ request });
   });
 
   try {
@@ -312,7 +445,8 @@ test("captures sanitized N5/N8 single-Company browser acceptance evidence", asyn
       branchOptionCount = await page.getByRole("option").count();
       await page.keyboard.press("Escape");
     }
-    n5 = summarize(evidence.snapshot(), await notificationErrorToastCount(page), n5CompanyGateVisible, n5CompanyDisplayVisible, branchOptionCount);
+    const n5Records = evidence.snapshot();
+    n5 = summarize(n5Records, await notificationErrorToastCount(page, n5Records), n5CompanyGateVisible, n5CompanyDisplayVisible, branchOptionCount);
 
   expect(n5.bootstrapRequests).toBe(1);
   expect(evidence.records("/auth/accessible-companies")[0]?.companyContextPresent).toBe(false);
@@ -342,7 +476,8 @@ test("captures sanitized N5/N8 single-Company browser acceptance evidence", asyn
   phase = "N8_SUMMARIZE";
   const n8CompanyGateVisible = await page.locator('[data-company-context-gate="true"]').isVisible().catch(() => false);
   const n8CompanyDisplayVisible = await page.locator('[data-company-display="true"]').isVisible();
-  n8 = summarize(evidence.snapshot(), await notificationErrorToastCount(page), n8CompanyGateVisible, n8CompanyDisplayVisible, branchOptionCount);
+  const n8Records = evidence.snapshot();
+  n8 = summarize(n8Records, await notificationErrorToastCount(page, n8Records), n8CompanyGateVisible, n8CompanyDisplayVisible, branchOptionCount);
 
   expect(n8.bootstrapRequests).toBe(1);
   expect(n8.companySelectionGateVisible).toBe(false);
@@ -353,6 +488,17 @@ test("captures sanitized N5/N8 single-Company browser acceptance evidence", asyn
   expect(n8.sseReconnects).toBe(0);
   expect(n8.http401 + n8.http403 + n8.http422).toBe(0);
   expect(n8.notificationErrorToasts).toBe(0);
+  const moduleEvidence = {};
+  for (const moduleTarget of moduleNavigation) {
+    phase = `MODULE_${moduleTarget.key}`;
+    const captured = await captureModuleEvidence(page, evidence, moduleTarget);
+    moduleEvidence[captured.key] = captured.evidence;
+  }
+  modules = Object.fromEntries(REQUIRED_MODULE_KEYS.map((key) => [key, moduleEvidence[key]]));
+  for (const key of REQUIRED_MODULE_KEYS) {
+    expect(modules[key].pending).toBe(0);
+    expect(modules[key].hardRefreshObserved).toBe(true);
+  }
 
     phase = "N8_BRANCH_READY";
     await expect.poll(() => page.locator('[data-branch-context-status]').first().getAttribute('data-branch-context-ready'), { timeout: 30_000 }).toBe('true');
@@ -389,6 +535,7 @@ test("captures sanitized N5/N8 single-Company browser acceptance evidence", asyn
           expect(result.branchHeaderPresent).toBe(true);
           expect(result.branchContextRequired).toBe(0);
           expect(result.successes).toBeGreaterThan(0);
+          expect(result.pending).toBe(0);
         }
       }
     } else {
@@ -408,19 +555,27 @@ test("captures sanitized N5/N8 single-Company browser acceptance evidence", asyn
       await waitForTrackedNetworkQuiescence(page, evidence);
       const branchRecords = evidence.snapshot();
       const branchScopedRecords = branchRecords.filter((record) => ["/assets", "/invoices", "/transfers", "/reservations", "/products", "/stock-movements"].includes(record.path));
-      expect(branchScopedRecords.some((record) => record.branchContextPresent)).toBe(true);
+      // No background Branch-scoped read is required during the transition.
+      // When work is triggered, it must retain the validated Branch context.
+      expect(branchScopedRecords.every((record) => record.branchContextPresent)).toBe(true);
       expect(branchRecords.filter((record) => record.stableErrorCode === "BRANCH_CONTEXT_REQUIRED")).toHaveLength(0);
-      const branchNotifications = summarize(branchRecords, await notificationErrorToastCount(page), false, true, branchOptionCount);
+      const branchNotifications = summarize(branchRecords, await notificationErrorToastCount(page, branchRecords), false, true, branchOptionCount);
       expect(branchNotifications.notificationListRequests).toBe(0);
       expect(branchNotifications.unreadRequests).toBe(0);
       expect(branchNotifications.sseConnections).toBe(0);
       expect(branchNotifications.notificationErrorToasts).toBe(0);
-      const branchFinancial = customerFinancial.outcome === "BRANCH_A_EXECUTED"
-        ? customerFinancialSummary(branchRecords)
-        : null;
-      if (branchFinancial) {
+      const branchProfile = customerProfileSummary(branchRecords);
+      const branchProfileMissing = isAcceptedScopedProfileAbsence(branchProfile);
+      if (branchProfileMissing) {
+        expect(transition.branchBReadyObserved).toBe(true);
+      }
+      let branchFinancial = null;
+      if (customerFinancial.outcome === "BRANCH_A_EXECUTED" && !branchProfileMissing) {
+        await openCustomerFinancialViews(page, evidence);
+        branchFinancial = customerFinancialSummary(evidence.snapshot());
         for (const result of Object.values(branchFinancial)) {
-          expect(result.requests).toBe(1);
+          expect(result.successes).toBeGreaterThan(0);
+          expect(result.pending).toBe(0);
           expect(result.companyHeaderPresent).toBe(true);
           expect(result.branchHeaderPresent).toBe(true);
           expect(result.branchContextRequired).toBe(0);
@@ -445,8 +600,27 @@ test("captures sanitized N5/N8 single-Company browser acceptance evidence", asyn
         notificationErrorToasts: branchNotifications.notificationErrorToasts,
         transition,
         preReadyFinancialRequests,
-        financial: branchFinancial || "NOT_OBSERVED_NO_SAFE_CUSTOMER",
+        financial: branchFinancial || (branchProfileMissing
+          ? { outcome: "BRANCH_B_RESOURCE_NOT_FOUND", profile: branchProfile }
+          : "NOT_OBSERVED_NO_SAFE_CUSTOMER"),
       };
+
+      evidence.begin("BRANCH_B_ASSETS");
+      phase = "BRANCH_B_ASSETS";
+      await page.goto("/en/inventory", { waitUntil: "domcontentloaded" });
+      await expect(page.locator('[data-company-display="true"]')).toBeVisible({ timeout: 30_000 });
+      await expect.poll(() => page.locator('[data-branch-context-status]').first().getAttribute('data-branch-context-ready'), { timeout: 30_000 }).toBe('true');
+      await waitForModuleEvidence(page, evidence, "BRANCH_B_ASSETS", ["assets"]);
+      const branchBAssets = summarizeModuleEvidence("assets", evidence.snapshot("BRANCH_B_ASSETS"), { routeObserved: true });
+      expect(branchBAssets.outcome).toBe("PASS");
+      expect(branchBAssets.companyHeaderPresent).toBe(true);
+      expect(branchBAssets.branchHeaderPresent).toBe(true);
+      expect(branchBAssets.branchContextRequired).toBe(0);
+      expect(branchBAssets.duplicateLogicalLifecycleCount).toBe(0);
+      branchSwitch.assetLifecycle = branchBAssets;
+      await page.goBack({ waitUntil: "domcontentloaded" });
+      await expect(page.locator('[data-company-display="true"]')).toBeVisible({ timeout: 30_000 });
+      await expect.poll(() => page.locator('[data-branch-context-status]').first().getAttribute('data-branch-context-ready'), { timeout: 30_000 }).toBe('true');
 
       if (customerFinancial.outcome === "BRANCH_A_EXECUTED") {
         evidence.begin("CUSTOMER_FINANCIAL_REFRESH");
@@ -456,21 +630,34 @@ test("captures sanitized N5/N8 single-Company browser acceptance evidence", asyn
         await page.reload({ waitUntil: "domcontentloaded" });
         await expect(page.locator('[data-company-display="true"]')).toBeVisible({ timeout: 30_000 });
         await expect.poll(() => page.locator('[data-branch-context-status]').first().getAttribute('data-branch-context-ready'), { timeout: 30_000 }).toBe('true');
-        await openCustomerFinancialViews(page, evidence);
-        const refreshRecords = evidence.snapshot();
-        const refreshFinancial = customerFinancialSummary(refreshRecords);
-        for (const result of Object.values(refreshFinancial)) {
-          expect(result.companyHeaderPresent).toBe(true);
-          expect(result.branchHeaderPresent).toBe(true);
-          expect(result.branchContextRequired).toBe(0);
+        await waitForCustomerProfileTerminal(evidence);
+        const refreshProfile = customerProfileSummary(evidence.snapshot());
+        if (isAcceptedScopedProfileAbsence(refreshProfile)) {
+          customerRefresh = {
+            outcome: "BRANCH_B_RESOURCE_NOT_FOUND",
+            companyDisplayVisible: await page.locator('[data-company-display="true"]').isVisible(),
+            branchReady: await page.locator('[data-branch-context-status]').first().getAttribute('data-branch-context-ready'),
+            profile: refreshProfile,
+            lifecycle: summarize(evidence.snapshot(), await notificationErrorToastCount(page, evidence.snapshot()), false, true, branchOptionCount),
+          };
+        } else {
+          await openCustomerFinancialViews(page, evidence);
+          const refreshFinancial = customerFinancialSummary(evidence.snapshot());
+          for (const result of Object.values(refreshFinancial)) {
+            expect(result.companyHeaderPresent).toBe(true);
+            expect(result.branchHeaderPresent).toBe(true);
+            expect(result.branchContextRequired).toBe(0);
+            expect(result.successes).toBeGreaterThan(0);
+            expect(result.pending).toBe(0);
+          }
+          customerRefresh = {
+            outcome: "EXECUTED",
+            companyDisplayVisible: await page.locator('[data-company-display="true"]').isVisible(),
+            branchReady: await page.locator('[data-branch-context-status]').first().getAttribute('data-branch-context-ready'),
+            ...refreshFinancial,
+            lifecycle: summarize(evidence.snapshot(), await notificationErrorToastCount(page, evidence.snapshot()), false, true, branchOptionCount),
+          };
         }
-        customerRefresh = {
-          outcome: "EXECUTED",
-          companyDisplayVisible: await page.locator('[data-company-display="true"]').isVisible(),
-          branchReady: await page.locator('[data-branch-context-status]').first().getAttribute('data-branch-context-ready'),
-          ...refreshFinancial,
-          lifecycle: summarize(refreshRecords, await notificationErrorToastCount(page), false, true, branchOptionCount),
-        };
       }
     }
 
@@ -486,12 +673,16 @@ test("captures sanitized N5/N8 single-Company browser acceptance evidence", asyn
     await logoutAction.click({ noWaitAfter: true });
     await expect(page.locator('input[type="email"]')).toBeVisible({ timeout: 30_000 });
     await page.waitForTimeout(1_000);
-    logout = summarize(evidence.snapshot(), await notificationErrorToastCount(page), false, false, branchOptionCount);
+    const logoutRecords = evidence.snapshot();
+    logout = summarize(logoutRecords, await notificationErrorToastCount(page, logoutRecords), false, false, branchOptionCount);
     expect(logout.notificationListRequests).toBe(0);
     expect(logout.unreadRequests).toBe(0);
     expect(logout.sseConnections).toBe(0);
     expect(logout.http401 + logout.http403 + logout.http422).toBe(0);
     expect(logout.notificationErrorToasts).toBe(0);
+    for (const key of REQUIRED_MODULE_KEYS) {
+      expect(modules[key].outcome).toBe("PASS");
+    }
     phase = "LOGOUT_COMPLETE";
   } finally {
     phase = `${phase}_FINAL_SNAPSHOT`;
@@ -505,6 +696,7 @@ test("captures sanitized N5/N8 single-Company browser acceptance evidence", asyn
         customerFinancial,
         customerDiscovery,
         customerRefresh,
+        modules,
         logout: logout || null,
         phase,
         runtimeState,

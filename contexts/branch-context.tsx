@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   DarfusApiError,
@@ -85,10 +85,13 @@ export function BranchContextProvider({ children }: { children: React.ReactNode 
     );
     generationRef.current = next.generation;
     if (next.status === "READY" && next.branchId && next.branch) {
-      setBranchContextAccessor(() => ({ branchId: next.branchId as string, generation: next.generation }));
+      // Keep the transport closed until the READY state has committed. A
+      // customer-financial observer can otherwise see the new accessor during
+      // the render-to-commit interval and start Branch-B work too early.
+      setBranchContextTransitioning(true);
+      setBranchContextAccessor(null);
       if (activeBranchId !== next.branchId) switchBranch(next.branchId, next.branch.name, { bootstrap: true });
       setState(next);
-      setBranchContextTransitioning(false);
     } else {
       setBranchContextTransitioning(true);
       setBranchContextAccessor(null);
@@ -96,6 +99,15 @@ export function BranchContextProvider({ children }: { children: React.ReactNode 
       setState(next);
     }
   }, [activeBranchId, authReady, branches, branchesError, branchesLoaded, clearBranch, companyReady, isAuthenticated, isSuperAdmin, switchBranch, user?.accountScope?.branchId, user?.accountType]);
+
+  // This runs after the DOM has committed the validated READY state but before
+  // passive query effects. It makes the accessor and imperative transport guard
+  // agree with the visible Branch readiness boundary.
+  useLayoutEffect(() => {
+    if (state.status !== "READY" || !state.branchId) return;
+    setBranchContextAccessor(() => ({ branchId: state.branchId as string, generation: state.generation }));
+    setBranchContextTransitioning(false);
+  }, [state.branchId, state.generation, state.status]);
 
   useEffect(() => registerBranchContextFailureHandler((error: DarfusApiError) => {
     setBranchContextTransitioning(true);

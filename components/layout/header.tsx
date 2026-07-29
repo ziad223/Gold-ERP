@@ -36,9 +36,12 @@ export function Header({ onOpenSidebar, onOpenCommandPalette }: { onOpenSidebar:
   const { theme, toggleTheme } = useTheme();
   const { user, company, logout } = useAuth();
   const { company: selectedCompany, companyId: selectedCompanyId, isSuperAdmin } = useCompanyContext();
-  const { assets, customers, invoices } = useCoreErpData();
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const { assets, customers, invoices } = useCoreErpData({
+    enabled: query.trim().length >= 2,
+    resources: ["assets", "customers", "invoices"],
+  });
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [logoFailed, setLogoFailed] = useState(false);

@@ -17,7 +17,7 @@ export const queryKeys = {
   invoices: ["invoices"] as const,
   invoice: (id: string) => ["invoice", id] as const,
 
-  assets: (branchId?: string) => (branchId ? (["assets", branchId] as const) : (["assets"] as const)),
+  assets: (branchId?: string) => (branchId ? (["assets", "branch", branchId] as const) : (["assets"] as const)),
   asset: (id: string) => ["asset", id] as const,
   assetTimeline: (id: string) => ["asset-timeline", id] as const,
   assetAttachments: (id: string) => ["asset-attachments", id] as const,

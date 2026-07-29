@@ -5,6 +5,7 @@ import { useLocale } from "next-intl";
 import { apiClient } from "@/lib/api/client";
 import { getDataSourceMode } from "@/lib/data-source";
 import { normalizePage } from "@/lib/api/normalize";
+import { useBranchContext } from "@/contexts/branch-context";
 import type { Asset, Product } from "@/lib/types";
 
 /**
@@ -73,19 +74,21 @@ function usePaginatedInventoryList<T>(
 ): PaginatedList<T> {
   const locale = useLocale();
   const dataSource = getDataSourceMode();
+  const { branchId, generation: branchGeneration, isReady: branchReady } = useBranchContext();
 
-  const fetchPage = async (q: InventoryListQuery) => {
+  const fetchPage = async (q: InventoryListQuery, signal?: AbortSignal) => {
     const res = await apiClient<unknown>(`${endpoint}?${buildInventoryQueryString(q)}`, {
       locale,
-      skipBranch: true,
+      signal,
+      branchId: branchId || undefined,
     });
     return normalizePage<T>(res, { page: q.page, pageSize: q.pageSize });
   };
 
   const query = useQuery({
-    queryKey: [entity, "paginated", queryState],
-    queryFn: () => fetchPage(queryState),
-    enabled: dataSource === "api",
+    queryKey: [entity, "paginated", "branch", branchId || "required", branchGeneration, queryState],
+    queryFn: ({ signal }) => fetchPage(queryState, signal),
+    enabled: dataSource === "api" && branchReady,
   });
 
   const fetchAllMatching = async (): Promise<T[]> => {

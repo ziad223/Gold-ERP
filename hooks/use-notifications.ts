@@ -36,13 +36,17 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
   const queryClient = useQueryClient();
   const { authReady, isAuthenticated, terminalAuthHandling, user } = useAuth();
   const operator = useOptionalOperator();
+  const operatorPermissions = operator?.authorization?.effectivePermissionNames
+    ?? operator?.authorization?.effectivePermissions
+    ?? [];
   const explicitCompanyId = normalizeExplicitCompanyId(options.explicitCompanyId);
   const enabled = DATA_SOURCE === "api" && canStartCompanyScopedNotifications({
     authResolved: authReady,
     authenticated: isAuthenticated,
     terminalAuthHandling,
     accountType: user?.accountType,
-    branchEmployeeReady: user?.accountType !== "branch_shell" || Boolean(operator?.active),
+    branchEmployeeReady: user?.accountType !== "branch_shell"
+      || (Boolean(operator?.active) && operatorPermissions.includes("notifications.view")),
     explicitCompanyId,
   });
   const requestOptions = notificationRequestOptions(explicitCompanyId);

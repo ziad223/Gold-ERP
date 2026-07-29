@@ -5,6 +5,7 @@ import { apiClient } from "@/lib/api/client";
 import { getDataSourceMode } from "@/lib/data-source";
 import { normalizeEntity, normalizeItems, toFiniteNumber } from "@/lib/api/normalize";
 import { useAuth } from "@/contexts/auth-context";
+import { useBranchContext } from "@/contexts/branch-context";
 import { useErp } from "@/contexts/erp-context";
 import { useLocale } from "next-intl";
 import type { Asset } from "@/lib/types";
@@ -20,8 +21,14 @@ const getPurityFromKarat = (karat?: number) => {
   return undefined;
 };
 
-export function useAssets() {
+type UseAssetsOptions = {
+  /** Mutation-only consumers must not become a second list-query owner. */
+  listEnabled?: boolean;
+};
+
+export function useAssets({ listEnabled = true }: UseAssetsOptions = {}) {
   const { activeBranch, activeBranchId, user } = useAuth();
+  const { branchId, generation: branchGeneration, isReady: branchReady } = useBranchContext();
   const { assets: mockAssets, addAsset: addMockAsset, updateAsset: updateMockAsset } = useErp();
   const queryClient = useQueryClient();
   const locale = useLocale();
@@ -36,13 +43,10 @@ export function useAssets() {
     error,
     refetch,
   } = useQuery<Asset[]>({
-    queryKey: queryKeys.assets(activeBranchId || activeBranch),
-    queryFn: async () => {
+    queryKey: [...queryKeys.assets(branchId || undefined), branchGeneration],
+    queryFn: async ({ signal }) => {
       try {
-        // List all company assets; branch is an optional explicit filter, not forced,
-        // so demo data across branches is visible regardless of the active branch.
-        // Backend returns a paginated envelope { items, page, total, ... }.
-        const res = await apiClient<any>(`/assets`, { locale });
+        const res = await apiClient<any>(`/assets`, { locale, signal, branchId: branchId || undefined });
         return normalizeItems<Asset>(res).map((asset) => ({
           ...asset,
           grossWeight: toFiniteNumber(asset.grossWeight),
@@ -58,7 +62,7 @@ export function useAssets() {
         return [];
       }
     },
-    enabled: dataSource === "api",
+    enabled: dataSource === "api" && listEnabled && branchReady,
   });
 
   // ── API mutation (disabled in mock/local mode) ────────────────────────────

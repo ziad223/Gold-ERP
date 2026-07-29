@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -193,6 +194,7 @@ export default function EmployeeProfilePage({ params }: PageProps) {
   const common = useTranslations("Common");
   const locale = useLocale();
   const rtl = locale === "ar";
+  const searchParams = useSearchParams();
   const { company, user } = useAuth();
   const { auditLogs } = useErp();
   const isApi = isApiDataSource();
@@ -213,8 +215,9 @@ export default function EmployeeProfilePage({ params }: PageProps) {
     refreshAuthorization,
   } = useEmployeeAuthorization(id);
   const { updateEmployee } = useEmployeeMutations();
-  const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [activeTab, setActiveTab] = useState<TabId>(() => searchParams.get("setup") === "branches" ? "branches" : "overview");
   const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>([]);
+  const [defaultBranchId, setDefaultBranchId] = useState<string | null>(null);
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
   const [grantPermissionIds, setGrantPermissionIds] = useState<string[]>([]);
   const [denialPermissionIds, setDenialPermissionIds] = useState<string[]>([]);
@@ -259,7 +262,8 @@ export default function EmployeeProfilePage({ params }: PageProps) {
 
   useEffect(() => {
     setSelectedBranchIds(branchAccess.map((row) => row.branchId));
-  }, [branchAccess]);
+    setDefaultBranchId(employee?.branchId && branchAccess.some((row) => row.branchId === employee.branchId) ? employee.branchId : null);
+  }, [branchAccess, employee?.branchId]);
 
   useEffect(() => {
     setSelectedRoleIds(permissionState?.roles?.map((role: { id: string }) => role.id) ?? []);
@@ -353,7 +357,7 @@ export default function EmployeeProfilePage({ params }: PageProps) {
   };
 
   const saveBranches = async () => {
-    const result = await updateBranches(selectedBranchIds);
+    const result = await updateBranches(selectedBranchIds, defaultBranchId);
     if (result.success) {
       toast.success(rtl ? "تم تحديث الفروع" : "Branch access updated");
       refresh();
@@ -453,6 +457,8 @@ export default function EmployeeProfilePage({ params }: PageProps) {
           branchOptions={branchOptions}
           selectedBranchIds={selectedBranchIds}
           setSelectedBranchIds={setSelectedBranchIds}
+          defaultBranchId={defaultBranchId}
+          setDefaultBranchId={setDefaultBranchId}
           canManage={canManageBranches}
           onSave={saveBranches}
           loading={authorizationLoading}
@@ -587,6 +593,8 @@ function EmployeeBranchAccessTab({
   branchOptions,
   selectedBranchIds,
   setSelectedBranchIds,
+  defaultBranchId,
+  setDefaultBranchId,
   canManage,
   onSave,
   loading,
@@ -597,6 +605,8 @@ function EmployeeBranchAccessTab({
   branchOptions: BranchOption[];
   selectedBranchIds: string[];
   setSelectedBranchIds: (ids: string[]) => void;
+  defaultBranchId: string | null;
+  setDefaultBranchId: (id: string | null) => void;
   canManage: boolean;
   onSave: () => Promise<void>;
   loading: boolean;
@@ -613,10 +623,10 @@ function EmployeeBranchAccessTab({
     <Card className="p-5">
       <h3 className="font-black text-navy-950 dark:text-white">{rtl ? "فروع تفويض الموظف" : "Employee Branch Access"}</h3>
       <p className="mt-1 text-[11px] text-muted-foreground">
-        {rtl ? "اختر الفروع من قائمة بحث خاضعة للشركة. الفرع الأساسي لا يمنح التفويض وحده." : "Use the same-company searchable branch selector. Primary branch does not grant authorization by itself."}
+        {rtl ? "اختر الفروع المسموح بها صراحةً، ثم اختر الفرع الأساسي من هذه المجموعة فقط. لا يوجد افتراضي تلقائي." : "Explicitly choose allowed Branches, then choose a default Branch only from that set. There is no automatic default."}
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
-        <Chip>{rtl ? "الفرع الأساسي" : "Primary branch"}: {employee.branch || employee.branchId || "—"}</Chip>
+        <Chip>{rtl ? "الفرع الأساسي" : "Default branch"}: {defaultBranchId ? labelFor(defaultBranchId) : (rtl ? "غير محدد" : "Not selected")}</Chip>
         {selectedBranchIds.map((branchId) => (
           <Chip key={branchId} onRemove={canManage ? () => setSelectedBranchIds(selectedBranchIds.filter((id) => id !== branchId)) : undefined}>
             {labelFor(branchId)}
@@ -634,16 +644,25 @@ function EmployeeBranchAccessTab({
                   checked={selectedSet.has(branch.id)}
                   onChange={(event) => {
                     if (event.target.checked) setSelectedBranchIds([...selectedBranchIds, branch.id]);
-                    else setSelectedBranchIds(selectedBranchIds.filter((id) => id !== branch.id));
+                    else {
+                      setSelectedBranchIds(selectedBranchIds.filter((id) => id !== branch.id));
+                      if (defaultBranchId === branch.id) setDefaultBranchId(null);
+                    }
                   }}
                 />
                 <span className="font-bold">{branch.name || branch.id}</span>
                 <span className="text-muted-foreground">{branch.code || branch.id}</span>
+                {selectedSet.has(branch.id) && (
+                  <span className="ms-auto flex items-center gap-1 text-[11px] text-muted-foreground">
+                    <input type="radio" name="employee-default-branch" checked={defaultBranchId === branch.id} onClick={(event) => event.stopPropagation()} onChange={() => setDefaultBranchId(branch.id)} />
+                    {rtl ? "أساسي" : "Default"}
+                  </span>
+                )}
               </label>
             )) : <p className="p-4 text-center text-xs text-muted-foreground">{rtl ? "لا توجد فروع مطابقة." : "No matching branches."}</p>}
           </div>
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setSelectedBranchIds(branchAccess.map((row) => row.branchId))}>{rtl ? "إلغاء" : "Cancel"}</Button>
+            <Button type="button" variant="secondary" onClick={() => { setSelectedBranchIds(branchAccess.map((row) => row.branchId)); setDefaultBranchId(employee.branchId || null); }}>{rtl ? "إلغاء" : "Cancel"}</Button>
             <Button type="button" disabled={loading} onClick={() => void onSave()}>{rtl ? "حفظ الفروع" : "Save Branches"}</Button>
           </div>
         </div>

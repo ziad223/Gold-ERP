@@ -1,5 +1,140 @@
 # Deployment Runbook — Parameterized and Tag-Gated
 
+## AUTHORIZATION-RUNTIME-FIX-CONT3 — pre-deployment acceptance boundary — 2026-07-29
+
+F008–F010 and OBSERVABILITY-F001 are resolved and the existing local runtime
+loaded the repairs through its owner-managed hot-reload behavior. Do not deploy,
+migrate, restart services, or begin Staging rehearsal. Preserve the unchanged
+encrypted fixture package and official `51/51/0` database. The secure replay
+ended with zero active owned technical/operator sessions and no
+business/configuration mutation. Complete
+`AUTHORIZATION-RUNTIME-ACCEPT-CONT2` next; do not start it automatically.
+
+## AUTHORIZATION-RUNTIME-ACCEPT-CONT1 — deployment prohibition — 2026-07-29
+
+Do not deploy, migrate, or begin Staging rehearsal. The real fixture accepted
+Branch-shell login, explicit Branch/default scope, and permission enforcement,
+but `FULL-REGRESSION-F008` blocks hard-refresh operator restoration and
+`FULL-REGRESSION-F009` blocks guaranteed logout session cleanup. Preserve the
+current runtime and official `51/51/0` database. Repair and separately accept
+these findings under `AUTHORIZATION-RUNTIME-FIX-CONT3`.
+
+## AUTHORIZATION-RUNTIME-TEST-FIXTURE-CONT1 — local fixture boundary — 2026-07-29
+
+The approved dedicated local employee fixture and its current-user encrypted
+credential package are ready only for the next read-only runtime acceptance.
+They do not authorize deployment, migration rehearsal, Staging, or Production.
+Keep the existing runtime processes under their owner; next only:
+`AUTHORIZATION-RUNTIME-ACCEPT-CONT1`.
+
+## AUTHORIZATION-RUNTIME-ACCEPT-CONT1 — credential boundary — 2026-07-29
+
+Do not deploy or begin migration rehearsal. The real employee Branch-shell
+acceptance did not run because its three approved process-scoped credential
+variables were absent. The existing runtime and official `51/51/0` database
+were only read. Resume the same acceptance marker only after credentials are
+available through the approved external wrapper.
+
+## AUTHORIZATION-RUNTIME-FIX-CONT2 — pre-deployment boundary — 2026-07-29
+
+`FULL-REGRESSION-F007` is closed by a validated Branch readiness publication
+boundary. Do not deploy or rehearse Staging yet. Complete
+`AUTHORIZATION-RUNTIME-ACCEPT-CONT1` with an approved read-only employee
+Branch-shell credential, then reassess the release gate. Existing 3000/8000
+runtime processes were reused and not controlled.
+
+## AUTHORIZATION-RUNTIME-FIX-CONT1 — pre-deployment boundary — 2026-07-29
+
+Do not deploy this repair yet. It introduces no schema migration and did not
+mutate the official local database. Before any deployment rehearsal, complete
+`AUTHORIZATION-RUNTIME-FIX-CONT2`: a reuse-only replay found two Branch-scoped
+customer-financial requests before Branch-B READY during A→B. Resolve that
+separate release blocker before obtaining the employee credential replay. Keep
+the existing runtime processes under their owner; no runtime restart was
+performed here.
+
+## AUTHORIZATION-RUNTIME-AUDIT-CONT1 — deployment prohibition — 2026-07-29
+
+The employee authorization audit found a release-blocking mismatch between a
+prefilled employee Branch label, explicit operational Branch access, default
+Branch invariants, and the branch-shell operator authorization path. No Product
+or database change was made. Do not deploy, migrate, or rehearse Staging until
+`FULL-REGRESSION-F004` through `F006` are repaired and accepted. Next only:
+`AUTHORIZATION-RUNTIME-FIX-CONT1`.
+
+## FULL-REGRESSION-FIX-CONT1 — regression closure; deployment still prohibited — 2026-07-29
+
+The reused local runtime accepted narrow frontend fixes for duplicate list
+lifecycle ownership and Branch-scoped Assets context. All required modules and
+context/non-regression checks passed with no official database mutation; the
+database remains `51/51/0`. This closes `FULL-REGRESSION-F002` and
+`FULL-REGRESSION-F003`, but it does not authorize deployment, RC, Staging or
+Production. Next only: `MIGRATION-STAGING-REHEARSAL` after separate approval.
+
+## FULL-REGRESSION-HARNESS-FIX-CONT1 — deployment prohibition after module replay — 2026-07-29
+
+Do not deploy. The reused local browser replay closed only the sanitized
+per-module evidence gap. It then proved duplicate module list lifecycles and
+Branch-header absence on asset reads under a READY Branch. These are release
+blocking Product findings (`FULL-REGRESSION-F002`, `FULL-REGRESSION-F003`). The
+official local database remains `51/51/0`; no migration or data change occurred.
+Next only: `FULL-REGRESSION-FIX-CONT1`.
+
+## FULL-REGRESSION partial; deployment remains prohibited — 2026-07-29
+
+The accepted runtime was preserved and the official local database remained at
+`51` applied / `0` pending with zero acceptance mutation. Static and focused
+runtime evidence passed, but the full browser module endpoint/status matrix was
+not retained by the unchanged harness. Treat `FULL-REGRESSION-F001` as a
+release-blocking evidence gap. Do not deploy, start migration rehearsal, create
+data, or alter the existing runtime. Next only:
+`FULL-REGRESSION-HARNESS-FIX-CONT1`.
+
+## NOTIF-ACCEPT completed; deployment remains prohibited — 2026-07-29
+
+Authenticated reused-runtime notification acceptance passed: one list/unread/SSE
+lifecycle for N5 and N8, no Branch-switch restart, controlled domain-error
+ownership, zero context errors/reconnects/notification error toasts, and safe
+logout cleanup. The pre-existing 3000/8000 services were preserved and
+credential material was removed. This closes `NOTIF-ACCEPT` only; deployment,
+RC, Staging and Production remain prohibited pending later release gates.
+
+## NOTIF-ACCEPT — deployment prohibition: runtime unavailable — 2026-07-29
+
+The secure reuse-mode harness stopped before authentication because the required
+pre-existing 3000/8000 runtime became unavailable. Credentials and owned
+evidence were removed; no process was controlled. Restore the approved local
+runtime outside this phase and repeat the unchanged capture before accepting
+notifications. No deployment, RC, Staging or Production action is authorized.
+
+## Branch prerequisite accepted; notification gate remains — 2026-07-29
+
+The sanitized reused-runtime Branch replay is accepted: Branch A→B is atomic,
+the Branch-B `RESOURCE_NOT_FOUND` is scoped and controlled, refresh and logout
+pass, and owned evidence was removed without secret leakage. This closes only
+the Branch prerequisite and authorizes `NOTIF-ACCEPT`. It does not authorize
+release, RC, Staging or Production.
+
+## BRANCH-CONTEXT-HARNESS-FIX-CONT1 — deployment prohibition after partial replay — 2026-07-29
+
+N5/N8 and Branch-A financial observations are positive, and the observed
+Branch-B `RESOURCE_NOT_FOUND` is correctly scoped with both context headers
+and Branch `READY`. This does not complete the required Branch-B refresh or
+logout capture. The harness-only acceptance-policy correction must be replayed
+through the approved authenticated process; no deployment, `NOTIF-ACCEPT`,
+Staging or Production action is authorized.
+
+## BRANCH-CONTEXT-HARNESS-FIX-CONT1 — deployment prohibition — 2026-07-29
+
+The concurrent-response evidence defect is statically repaired, but deployment
+remains prohibited until the unchanged authenticated capture completes Branch
+A→B, refresh and logout. The repair changes no Product behavior and does not
+authorize `NOTIF-ACCEPT`, Staging or Production.
+
+## BRANCH-CONTEXT-RUNTIME-FIX-CONT3-CONT1 — deployment prohibition — 2026-07-29
+
+No deployment authorization follows this authenticated local capture. Although N5/N8 and Branch-A context/header observations are positive, the harness cannot uniquely pair concurrent same-path request/response events and did not reach Branch A→B, refresh or logout. `NOTIF_ACCEPT_AUTHORIZED = NO`; Staging and Production remain unauthorized. Resolve only the repository-local response correlation defect, then rerun the read-only capture.
+
 ## BRANCH-CONTEXT-RUNTIME-FIX-CONT3 — deployment prohibition — 2026-07-29
 
 The pre-existing 3000/8000 local runtime remains untouched. A deterministic

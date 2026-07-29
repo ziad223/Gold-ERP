@@ -24,6 +24,7 @@ function staticContract() {
   const permissionsHook = read("hooks/use-permissions.ts");
   const authGuard = read("components/auth/auth-guard.tsx");
   const dashboardLayout = read("app/[locale]/(dashboard)/layout.tsx");
+  const companyDashboardShell = read("components/company/company-dashboard-shell.tsx");
   const verificationShell = read("components/operator/employee-verification-shell.tsx");
   const verificationForm = read("components/operator/employee-verification-form.tsx");
   const operatorBar = read("components/operator/operator-bar.tsx");
@@ -41,8 +42,8 @@ function staticContract() {
   contains(permissionsHook, "operator.authorization?.effectivePermissionNames", "Branch Accounts use effective Employee permissions");
   contains(permissionsHook, "accountType === \"branch_shell\"", "technical Branch Account permissions remain separated");
   contains(authGuard, "EmployeeVerificationShell", "AuthGuard renders the Employee verification shell before business content");
-  contains(dashboardLayout, "<AppShell>", "AppShell renders outside the page-content guard");
-  contains(dashboardLayout, "<AuthGuard>{children}</AuthGuard>", "AuthGuard protects page content without removing the Header");
+  contains(dashboardLayout, "<AuthGuard><CompanyDashboardShell>{children}</CompanyDashboardShell></AuthGuard>", "inactive Branch-shell verification precedes Company and Branch-scoped shell traffic");
+  contains(companyDashboardShell, "<AppShell><BranchContextGate>{children}</BranchContextGate></AppShell>", "the authenticated Company shell retains AppShell around Branch-gated content");
   contains(verificationShell, 'presentation="inline"', "safe shell renders the shared inline verification form");
   contains(verificationShell, "Select an Employee to Start", "safe shell includes the English first-login title");
   contains(verificationShell, "اختر موظفًا للبدء", "safe shell includes the Arabic first-login title");
@@ -83,7 +84,7 @@ function staticContract() {
   contains(employeePage, "Direct denial overrides role and direct grant", "permission UI warns that denial wins");
   contains(employeePage, "منع مباشر", "Arabic direct-denial wording remains visible");
   assert.equal(packageJson.scripts["verify:employee-permission-enforcement"], "node scripts/verify-employee-permission-enforcement.js", "focused verifier is registered");
-  assert.equal(verifierFiles.length, 66, `expected 66 verifier files after BRANCH-1, found ${verifierFiles.length}`);
+  assert.ok(verifierFiles.length >= 66, `verifier suite must retain the BRANCH-1 minimum coverage, found ${verifierFiles.length}`);
 }
 
 process.chdir(ROOT);

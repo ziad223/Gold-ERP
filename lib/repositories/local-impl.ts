@@ -799,7 +799,7 @@ export class LocalEmployeeRepository implements EmployeeRepository {
     }];
   }
 
-  async updateBranchAccess(employeeId: string, branchIds: string[]): Promise<MutationResult<{ items: EmployeeBranchAccess[] }>> {
+  async updateBranchAccess(employeeId: string, branchIds: string[], _defaultBranchId?: string | null): Promise<MutationResult<{ items: EmployeeBranchAccess[] }>> {
     const employee = this.ctx.employees.find((e) => e.id === employeeId);
     if (!employee) {
       return { success: false, error: { code: "NOT_FOUND", message: "الموظف غير موجود / Employee not found" } };

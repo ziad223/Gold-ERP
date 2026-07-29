@@ -37,7 +37,11 @@ export function RealtimeProvider({ children, explicitCompanyId: suppliedCompanyI
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef = useRef<EntityChangedEvent[]>([]);
-  const branchEmployeeReady = user?.accountType !== "branch_shell" || Boolean(operator?.active);
+  const operatorPermissions = operator?.authorization?.effectivePermissionNames
+    ?? operator?.authorization?.effectivePermissions
+    ?? [];
+  const branchEmployeeReady = user?.accountType !== "branch_shell"
+    || (Boolean(operator?.active) && operatorPermissions.includes("notifications.view"));
   const canStart = DATA_SOURCE === "api" && canStartCompanyScopedNotifications({
     authResolved: authReady,
     authenticated: isAuthenticated,

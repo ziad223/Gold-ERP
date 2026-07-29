@@ -1,33 +1,26 @@
 import { useCallback, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useErp } from "@/contexts/erp-context";
 import type { Supplier, PurchaseOrder, SupplierConsignment, SupplierDocument } from "@/lib/types";
 import type { ListQuery, PaginatedResult } from "@/lib/repositories/interfaces";
 
 export function useSuppliers(initialQuery: ListQuery = { page: 1, pageSize: 25 }) {
-  const { supplierRepository, suppliers: rawSuppliers } = useErp();
-  const [data, setData] = useState<PaginatedResult<Supplier>>({
+  const { supplierRepository } = useErp();
+  const [query, setQuery] = useState<ListQuery>(initialQuery);
+  const suppliersQuery = useQuery({
+    queryKey: ["suppliers", "list", query],
+    queryFn: () => supplierRepository.list(query),
+    // This hook owns the supplier list route. Avoid a second Strict Mode mount
+    // refetch; explicit refreshes and invalidations still fetch authoritatively.
+    refetchOnMount: false,
+  });
+  const data = suppliersQuery.data ?? {
     items: [],
-    page: 1,
-    pageSize: 25,
+    page: query.page ?? 1,
+    pageSize: query.pageSize ?? 25,
     total: 0,
     totalPages: 0,
-  });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState<ListQuery>(initialQuery);
-
-  const fetchSuppliers = useCallback(async (q: ListQuery) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await supplierRepository.list(q);
-      setData(result);
-    } catch (err: any) {
-      setError(err?.message || "Failed to fetch suppliers");
-    } finally {
-      setLoading(false);
-    }
-  }, [supplierRepository]);
+  };
 
   const fetchAllMatching = useCallback(async () => {
     const firstPage = await supplierRepository.list({ ...query, page: 1, pageSize: 250 });
@@ -44,17 +37,13 @@ export function useSuppliers(initialQuery: ListQuery = { page: 1, pageSize: 25 }
     return rows.slice(0, firstPage.total);
   }, [supplierRepository, query]);
 
-  useEffect(() => {
-    fetchSuppliers(query);
-  }, [query, fetchSuppliers, rawSuppliers]);
-
   return {
     ...data,
-    loading,
-    error,
+    loading: suppliersQuery.isLoading,
+    error: suppliersQuery.error instanceof Error ? suppliersQuery.error.message : suppliersQuery.error ? "Failed to fetch suppliers" : null,
     query,
     setQuery,
-    refresh: () => fetchSuppliers(query),
+    refresh: async () => { await suppliersQuery.refetch(); },
     fetchAllMatching,
   };
 }
