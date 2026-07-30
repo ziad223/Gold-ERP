@@ -1,5 +1,166 @@
 # READ THIS FIRST — CURRENT PROJECT HANDOFF
 
+## Current marker — OFFICIAL-LOCAL-FINANCIAL-FIX-CONT2
+
+`OFFICIAL-LOCAL-FINANCIAL-FIX-CONT1 = PARTIAL`.
+
+- `FINANCIAL-ACCEPT-F001 = RESOLVED`: collection now takes the persisted,
+  Company-authorized invoice Branch ID to the financial posting resolver; the
+  installment display Branch label is never mapping authority. Focused static
+  and disposable cash/bank proof passed, and a retained bank collection passed
+  with replay and changed-payload conflict protection.
+- `FINANCIAL-ACCEPT-F002 = OPEN — PARTIAL_INSTALLMENT_SECOND_COLLECTION_JOURNAL_UNIQUENESS_CONFLICT`: the retained installment is still partial, but a valid second collection returns canonical `409 STATE_CONFLICT` before new payment, treasury, or journal writes. The partial unique index on journal Company/source type/source ID conflicts with per-collection installment journals.
+- Valid retained data, existing runtime, `52/52/0`, setup/financial `READY`,
+  12/12 roles and 11/11 mappings are preserved. No reset, restore, migration,
+  service restart, or deployment occurred. Continue only with
+  `OFFICIAL-LOCAL-FINANCIAL-FIX-CONT2`.
+
+## Current marker — OFFICIAL-LOCAL-FINANCIAL-FIX-CONT1
+
+`OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-CONT1 = PARTIAL`.
+
+- Persistent acceptance started from `ce2f8be1` at `52/52/0`, `READY`, 12/12 roles and 11/11 mappings. Pre-backup/disposable restore passed; successful local customer/supplier, purchase/AP, cash/bank sale, and replay data remains retained.
+- `FINANCIAL-ACCEPT-F001 = OPEN — INSTALLMENT_COLLECTION_BRANCH_MAPPING_CONTEXT_LOSS`: a valid installment sale posted, while two supported bank-collection attempts returned canonical `422 FINANCIAL_MAPPING_REQUIRED`. Source shows the route uses a format-dependent null Branch value and passes the installment Branch label to the mapping-backed posting service. No collection payment, treasury row, or collection journal was persisted.
+- A post-boundary archive restored successfully only into a disposable database and was removed. No official reset/restore, Product repair, service restart, migration, or deployment occurred. Exact next marker: `OFFICIAL-LOCAL-FINANCIAL-FIX-CONT1`; do not start automatically.
+
+## Current marker — MANUAL-LOCAL-SMOKE-CONT1
+
+`OFFICIAL-LOCAL-FIRST-RUN-FIX-CONT1 = COMPLETE`.
+
+- First Run remains complete and financial/setup `READY` at `52/52/0`: one active Super Admin, Company, Branch, 12/12 account roles, and 11/11 Branch mappings. The ignored local setup token remains outside Git.
+- `LOCAL-FIRST-RUN-UI-F001 = RESOLVED_BY_RUNTIME_REPLAY`: source/full route manifests contained the dashboard group, but the active pre-existing `next dev` manifest was incomplete. A non-semantic existing-layout hot reload registered dashboard, Chart-of-Accounts, and settings; each returned 200 and authenticated dashboard hard refresh passed. No Product source bytes, service state, migration, reset, or deployment changed.
+- Typecheck passed; lint had zero errors and 18 inherited warnings. Exact next marker: `MANUAL-LOCAL-SMOKE-CONT1`.
+
+## Current marker — FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT4
+
+`FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT4 = COMPLETE`.
+Implementation commit `2b97e6a` (`fix: resolve treasury accounts from branch
+mappings`) resolves `FINANCIAL-BOOTSTRAP-F005`.
+
+The central resolver now owns Branch cash/bank selection. Treasury,
+cash-register, expense/other-income, customer deposit/refund, supplier
+payment, reservation, sale/return/exchange, and treasury-summary paths use
+canonical mapping roles or mapped account IDs; client settlement payloads no
+longer carry account codes.
+
+Disposable `52/52/0` proof retained 12/12 roles, 11/11 mappings, and `READY`.
+Six cash/bank/expense/other-income postings returned 201 and created six
+balanced journals with zero account creation. Missing mapping and incompatible
+mapping returned canonical 422 with zero writes; valid mapping and readiness
+were preserved. Replay added zero rows. Node 143/0/3, permission 128/128,
+typecheck, lint-error, diff, protected-hash, cleanup, and official read-only
+safety gates passed.
+
+Official runtime remains healthy and official `darfus_erp/public` remains
+`52/51/1`, migration 52 unapplied, locks 0/0. Release, Staging, Production,
+and deployment remain unauthorized. Next:
+`FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT4`; do not start automatically.
+
+## FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT3 — COMPLETE — 2026-07-30
+
+- Start: `d739150f088ac29700d7d3e0db5179785ba146b2`, `main`.
+- Implementation: `4fae9fd387a4e0831240d38646b23ecb12d9468e`,
+  `fix: protect financial account semantic integrity`.
+- Root cause repaired: account updates previously protected semantic changes
+  mainly after journal usage and omitted stable-role, active-mapping, and
+  statement-classification validation.
+- Repair: pure proposed-state validator plus atomic update/deactivation guard;
+  canonical 422 before persistence; no silent role/mapping cleanup.
+- Matrices: 12/12 stable roles and 11/11 mapping roles PASS.
+- Disposable proof: fresh `52/52/0`, First Run READY, safe display edit PASS,
+  protected changes rejected, all references/financial writes unchanged,
+  readiness READY, cleanup/residue zero.
+- Validation: Node 147 pass, 0 fail, 3 opt-in skips; permission 128/128;
+  typecheck PASS; lint errors 0, inherited warnings 18.
+- Frontend: unchanged; existing form surfaces the canonical backend rejection
+  and backend remains authoritative.
+- Official safety: runtime preserved; DB unchanged `52/51/1`.
+- `FINANCIAL-BOOTSTRAP-F010 = RESOLVED`; open financial blockers 0.
+- Full posting/report runtime acceptance remains pending.
+- Exact next marker: `FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT3`. Do not start it
+  automatically.
+
+## FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT2 — PARTIAL — 2026-07-30
+
+- Start: `618b2ff5b185668a5235bfbd80444249c3e7b42c`, `main`.
+- Preflight/static: exact protected baseline; official `52/51/1`; 137 pass,
+  zero fail, two skips; permission 128/128; typecheck/diff PASS; lint errors 0
+  with 18 inherited warnings.
+- Disposable runtime: empty DB migrated `52/52/0`; owned loopback children;
+  First Run Company/Branch 1/1, roles 12/12, mappings 11/11, setup and
+  financial readiness READY; repeat bootstrap 409 with zero duplicate delta.
+- F003: real UI search/filter/hierarchy/no-results/order/RTL/labels PASS;
+  custom operating-expense create and display-only edit PASS.
+- F010 mapping boundary: valid BANK candidate present, generic Asset absent,
+  custom expense eligible; generic Asset→BANK API rejected 422 with valid
+  mapping and READY preserved.
+- Mandatory regression: account PATCH returned 200 for an Asset→Liability
+  semantic change on the active BANK stable-role/mapped account. Stable
+  role/mapping remained active and readiness became BLOCKED with one invalid
+  mapping. Account count remained unchanged.
+- Cause: account update checks type/nature only after journal lines exist and
+  does not protect stable-role/active-mapping references or classification.
+- Disposition: `FINANCIAL-BOOTSTRAP-F010 = REOPENED`; open financial blockers
+  1. Posting/report/scope/idempotency acceptance not run after the stop.
+- Cleanup: normal logout active sessions 2→0; owned browser/process/database/
+  temp residue 0; official owners/fingerprints preserved; DB `52/51/1`.
+- Release/Staging/Production: NOT AUTHORIZED.
+- Exact next marker: `FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT3`. Do not start it
+  automatically.
+
+## FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT2 — COMPLETE — 2026-07-30
+
+- Start: `cec124afe0d8cdf91e8f3af2a4ae53891f383b48`, `main`.
+- Implementation: `0d23ea306a49271ad12d5c67304ad0f5e01cbf57`
+  (`fix: complete financial account configuration contracts`).
+- F003: normalized code/name search; type, classification, active, and posting
+  filters; combined/clear/no-results; deterministic ancestor-preserving tree
+  order; permission-gated Company-scoped fetch.
+- F010: catalog-driven exact stable role compatibility for all 11 Branch
+  mappings; explicit operating-expense family for `DEFAULT_EXPENSE`; shared
+  update/eligible/readiness/reconcile/resolver enforcement; safe canonical
+  rejection fields.
+- Before/after: combined contract `0/6` before; CONT2 `7/7` after. Focused
+  financial/First Run `22/22`; complete Node 137 pass/0 fail/2 intended
+  skips; permission 128/128; typecheck, lint, diff PASS.
+- Disposable proof: `52/52/0`, First Run READY, roles 12, mappings 11;
+  generic Asset→BANK rejected 422 with mapping/readiness/counts unchanged;
+  operating-expense family accepted and reconciliation-preserved; invalid
+  legacy resolver row rejected; database residue 0.
+- Official safety: chart/backend smoke 200/200; unauthorized new endpoint
+  401; no service control; exact financial fingerprints unchanged; official
+  DB `52/51/1`; idle/waiting `0/0`; package/migration/protected drift 0.
+- Findings: F003 and F010 RESOLVED; open financial release blockers 0.
+- Full posting/report runtime remains pending; do not claim it accepted.
+- Release/Staging/Production: NOT AUTHORIZED.
+- Exact next marker: `FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT2`. Do not start it
+  automatically.
+
+## FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT1 — PARTIAL — 2026-07-30
+
+- Start/checkpoint:
+  `894350ace3c410172262b446179ecec32cd58688`, `main`.
+- Static acceptance: focused 23/23; mjs 59/59; cjs 58 pass plus one intended
+  skip; permissions 128/128; typecheck, targeted lint, and diff check PASS.
+- Disposable proof: empty local DB, 52/52/0, owned high-port backend, real
+  setup API, setup READY, financial READY, 12/12 roles, 11/11 mappings,
+  duplicate account-code groups 0.
+- `F003` REOPENED: Chart list has no search/filter control; mapping candidates
+  use active/posting/type filtering rather than stable semantic roles.
+- `F010` REOPENED: supported mapping PUT accepted a synthetic posting Asset as
+  `BANK_ACCOUNT` without a BANK system-role binding and returned HTTP 200.
+- Cleanup: original valid mapping restored; readiness READY; logout 200;
+  owned backend and disposable DB removed; high-port listener residue 0.
+- Official safety: runtime PIDs preserved; DB fingerprints unchanged;
+  source/applied/pending 52/51/1; locks 0/0; Product/migration/package changes
+  0.
+- Runtime posting, ledger, statements, and reports were not continued after
+  the proven Product defect; do not claim them accepted in this phase.
+- Classification: `FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT1 = PARTIAL`.
+- Open release-blocking financial findings: 2.
+- Release/Staging/Production: NOT AUTHORIZED.
+- Exact next marker: `FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT2`.
+
 ## FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT1 — COMPLETE — 2026-07-30
 
 - Start: `387c5f8dfd1e4e15e6d949dafc68504b2a39de8f`, `main`.
@@ -7328,3 +7489,25 @@ DEPOSIT-1-FIX-CONT5-CONT14 — Extend only the committed fully owned verifier wi
 - Starting checkpoint: `6c0f741`; identity, no-stage state, protected semantic-zero diff, 11 stashes, no remotes, required `next-env.d.ts` hash, migrations 50/0 and idle/waiting locks 0/0 passed. The local Chrome executable was selected read-only. Approved local credentials were supplied only as process-scoped variables and are not recorded here.
 - Execution: `npm run test:single-company-runtime` exited `1` at launcher startup. Node raised `ERR_INVALID_ARG_VALUE` because the new `runtime-logs/backend.log` WriteStream had `fd: null` when supplied to `spawn` stdio. The error occurred before any owned backend/frontend/browser child, normal login, request observation, temporary browser context or N5/N8 scenario began.
 - Safety/decision: credentials were removed in `finally`; their final presence is `NO/NO`. Ports 3300/8001 remained absent, 8000 was not targeted and 5432 remained present. The runner's empty owned temporary log root could not be removed because the environment denied its cleanup command; no credential, session, HAR, screenshot, trace or raw evidence was written. `UX-FIX-CONT1-CONT1-CONT1-CONT1-CONT1-CONT1 = BLOCKED`, `HARNESS_FAILURE = PRE_SPAWN_RUNTIME_LOG_STREAM`, `NOTIF_ACCEPT_AUTHORIZED = NO`, and `NOTIF-PRE1-CONT1-CONT1-CONT1-CONT1-F001` remains **OPEN — HARNESS EXECUTION FAILURE / P2**. Exact next marker: `UX-FIX-CONT1-CONT1-CONT1-CONT1-CONT1-CONT1-CONT1`, to fix only the opener/cleanup behavior of this harness.
+
+## MANUAL-LOCAL-SMOKE-CONT1 — 2026-07-30
+
+- Started at `df2cd60a57e211d5124de6b7191b7d95e9e4ceb5` on `main`. Staged and
+  untracked paths were zero; the three inherited CRLF-only backend paths stayed
+  semantically unchanged; stashes stayed 11; remotes stayed absent; and the
+  protected generated-file hash stayed exact.
+- Persistent `darfus_erp/public` remained `52/52/0`, setup/financial readiness
+  remained READY, and roles/mappings remained `12/12` and `11/11`. All-table
+  pre/post fingerprints show zero BUSINESS, CONFIGURATION, FINANCIAL, and
+  SYSTEM change. The allowlisted AUTH_SESSION result was one technical session
+  row plus the successful-login timestamp update; normal logout revoked it.
+- Normal administrator login, 25 source-defined safe routes, accounting chart
+  readiness/mappings, and six direct hard refreshes passed. The one loading
+  customer-loyalty route rendered on its controlled direct replay. Browser
+  console errors/warnings were zero; a protected route redirected to login
+  after normal logout. No write control or form submission was used.
+- Permission baseline, typecheck, diff check, and protected hash passed; lint
+  remained zero errors with 18 inherited warnings. Temporary credentials and
+  the owned browser context were removed, the verified pre-reset backup remains
+  retained, and services were preserved. `MANUAL-LOCAL-SMOKE-CONT1 = COMPLETE`;
+  next only: `OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-CONT1`.

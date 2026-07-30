@@ -35,14 +35,14 @@ function returnUi() {
   assert.ok(src.includes("settlementEnabled"), "return UI has a settlement enable toggle");
   assert.ok(src.includes("setCashAmount") && src.includes("setBankAmount") && src.includes("setCreditAmount"), "return UI has cash/bank/credit inputs");
 
-  // Payload: cash/bank/credit + fixed account codes, included only when enabled + excess.
+  // Payload: amounts only; the backend owns Branch account resolution.
   assert.ok(/if\s*\(settlementEnabled\s*&&\s*excess\s*>\s*0\.01\)/.test(src), "settlement included only when enabled AND excess > 0");
   assert.ok(src.includes("payload.settlement = {"), "return UI adds settlement to the payload");
   assert.ok(src.includes("cashAmount: settleCash"), "payload sends cashAmount");
   assert.ok(src.includes("bankAmount: settleBank"), "payload sends bankAmount");
   assert.ok(src.includes("creditAmount: settleCredit"), "payload sends creditAmount");
-  assert.ok(src.includes('cashAccountCode: "1110"'), "payload uses cash account 1110");
-  assert.ok(src.includes('bankAccountCode: "1120"'), "payload uses bank account 1120");
+  assert.ok(!src.includes("cashAccountCode"), "payload cannot select a cash account");
+  assert.ok(!src.includes("bankAccountCode"), "payload cannot select a bank account");
 
   // Validation: sum == excess within tolerance; credit needs a customer.
   assert.ok(src.includes("Math.abs(settlementSum - excess) > 0.01"), "validation requires the split to equal the excess (0.01 tolerance)");

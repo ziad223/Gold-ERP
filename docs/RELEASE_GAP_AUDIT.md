@@ -1,5 +1,365 @@
 # Release Gap Audit
 
+## OFFICIAL-LOCAL-FINANCIAL-FIX-CONT1 — PARTIAL — 2026-07-30
+
+`FINANCIAL-ACCEPT-F001` is resolved by the narrow installment collection repair:
+the route now authorizes the persisted invoice Branch identifier and supplies it
+to the mapping-backed posting service; the service no longer treats the
+installment display label as authority. The new focused contract failed before
+the repair, passed after it, and passed cash/bank mapped posting on a migrated
+disposable database with zero residue. A retained local bank collection then
+passed with replay and conflicting-payload protection; it wrote one payment,
+treasury movement, and balanced installment journal.
+
+Continuation is blocked by newly proven `FINANCIAL-ACCEPT-F002`:
+`PARTIAL_INSTALLMENT_SECOND_COLLECTION_JOURNAL_UNIQUENESS_CONFLICT`. The
+retained installment remains `partial`, but a second collection returns
+canonical `409 STATE_CONFLICT` before any new payment, treasury, or journal
+row. The cause is the partial unique journal index over Company, source type,
+and source ID, while each collection attempts a new `installment` journal for
+the same installment. No reset, restore, or deletion occurred. Next only:
+`OFFICIAL-LOCAL-FINANCIAL-FIX-CONT2`.
+
+## OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-CONT1 — PARTIAL — 2026-07-30
+
+Persistent local Product acceptance began at `ce2f8be1` with `52/52/0`,
+financial/setup `READY`, 12/12 account roles, and 11/11 Branch mappings.
+Pre-backup and disposable restore passed. Product-owned customer/supplier
+creation, inventory receipt, supplier cash/bank settlement, cash/bank sales,
+and their same-key replays passed and the valid rows are retained.
+
+`FINANCIAL-ACCEPT-F001` is OPEN, P1, release-blocking:
+`INSTALLMENT_COLLECTION_BRANCH_MAPPING_CONTEXT_LOSS`. A posted receivable sale
+created its installment, but the supported bank collection endpoint returned
+canonical `422 FINANCIAL_MAPPING_REQUIRED` twice. The route derives a null
+Branch value from an ID-format predicate and calls posting with the installment
+Branch display value instead of the validated Branch ID. No collection payment,
+treasury row, or collection journal was written. No reset, restore of the
+official database, service restart, or Product repair occurred. Exact next
+marker: `OFFICIAL-LOCAL-FINANCIAL-FIX-CONT1`.
+
+## OFFICIAL-LOCAL-FIRST-RUN-FIX-CONT1 — COMPLETE — 2026-07-30
+
+`LOCAL-FIRST-RUN-UI-F001` is RESOLVED_BY_RUNTIME_REPLAY. No Product source
+bytes changed. Investigation showed that the pre-existing `next dev` route
+manifest had registered only the setup/login route subset although the full
+source and production route manifests included the dashboard group. A
+non-semantic existing-layout hot-reload event registered the dashboard,
+Chart-of-Accounts, and settings routes in that same process; each returned
+200, and an authenticated dashboard hard refresh had no 404 boundary.
+
+The guarded First Run result remains intact: one active Super Admin, Company,
+Branch, 12/12 account roles, 11/11 Branch mappings, and financial/setup
+`READY` at `52/52/0`; journals and journal lines remain zero. Typecheck passed
+and lint returned zero errors with 18 inherited warnings. No service restart,
+database mutation beyond the accepted First Run setup, migration, deployment,
+or source-code repair occurred. Exact next marker:
+`MANUAL-LOCAL-SMOKE-CONT1`.
+
+## OFFICIAL-LOCAL-FIRST-RUN-HARNESS-FIX-CONT1 continuation 2 — PARTIAL — 2026-07-30
+
+The approved local-only administrator credential passed the exact First Run
+policy without retaining its value. The supported guarded bootstrap returned
+`201`, then created one active Super Admin, the required Company and Branch,
+the complete 12/12 Company account-role catalog, 11/11 required Branch
+mappings, and `READY` setup/financial readiness. Same-key replay returned 200
+without a duplicate write; fresh-key repeat setup and missing/invalid-token
+guards returned canonical 409/403 responses. API login, authenticated profile,
+logout, post-logout 401, and a second normal login passed.
+
+`LOCAL-FIRST-RUN-UI-F001` is OPEN, P1, release-blocking:
+`DASHBOARD_ROUTE_GROUP_404_AFTER_VALID_ADMIN_LOGIN`. The existing Frontend
+runtime accepted the valid administrator login but returned HTTP 404 for the
+dashboard, Chart-of-Accounts, and settings routes. The corresponding route
+source files exist and the same runtime serves the login route successfully.
+No Product repair, service restart, database reset, migration, or deployment
+was performed. The local baseline is now `52/52/0`; First Run business setup
+is complete but UI acceptance is not. Exact next marker:
+`OFFICIAL-LOCAL-FIRST-RUN-FIX-CONT1`.
+
+## FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT4 — COMPLETE — 2026-07-30
+
+Started on `main` at
+`957d5374ae0687ebbf56c5bddc9ee827539b4306`
+(`docs: record final financial runtime regressions`). Source ownership proved
+that treasury transactions, cash-register state, customer deposits/refunds,
+supplier payments, reservation settlement, sales returns/exchanges, and
+treasury-backed posting helpers still crossed legacy cash/bank account-code
+boundaries. The unchanged disposable reproduction returned canonical 422 for
+cash, bank, expense, and other-income attempts with zero business, journal,
+journal-line, or account delta.
+
+Implementation commit `2b97e6a` (`fix: resolve treasury accounts from branch
+mappings`) adds the central required-Branch-mapping resolver and routes cash
+through `CASH_TREASURY`, bank through `BANK_ACCOUNT`, expenses through the
+selected account or `DEFAULT_EXPENSE`, income through `OTHER_INCOME`, and
+deposit/payable/reservation/sale settlement through their canonical roles.
+Client return-settlement payloads no longer carry account codes. All required
+accounts resolve inside the caller transaction before the business row or
+journal is created.
+
+The failing-before contract was 1/15 pass and 14/15 fail; after repair it was
+15/15 pass. Complete Node inventory passed 143 with zero failures and three
+intentional opt-in skips; permission baseline was 128/128; typecheck passed;
+targeted lint had zero errors and two inherited image warnings; diff and
+protected hashes passed. Historical verifiers were updated to assert mapped
+authority and all focused reservation, customer-credit, ledger, return,
+exchange, statement, treasury, and authorization verifiers passed after the
+implementation commit.
+
+On the unique disposable `52/52/0` database, supported First Run retained
+12/12 roles, 11/11 mappings, and `READY`. Cash, bank, expense-cash,
+expense-bank, other-income-cash, and other-income-bank each returned 201.
+They created six business rows, six balanced journals, and twelve lines with
+zero transaction-time account creation. Same-key replay added zero rows.
+An unmapped active synthetic Branch returned
+`FINANCIAL_MAPPING_REQUIRED`/422 with zero write delta. An incompatible
+expense-to-bank mapping attempt returned
+`FINANCIAL_MAPPING_ACCOUNT_INCOMPATIBLE`/422, preserved the valid bank
+mapping, and produced zero business/journal/account delta.
+
+The owned high-port backend, disposable database, and temporary evidence were
+removed with zero residue. Official 3000/8000 remained healthy; an
+unauthenticated treasury POST returned 401. Official `darfus_erp/public`
+remained read-only at `52/51/1`, with unchanged account, role, mapping,
+journal, and journal-line baselines and zero idle/waiting locks.
+`FINANCIAL-BOOTSTRAP-F005 = RESOLVED`; open release-blocking financial
+findings are zero. Full posting/report acceptance remains pending. Exact next
+marker: `FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT4`.
+
+## FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT3 — PARTIAL — 2026-07-30
+
+Independent acceptance started on `main` at
+`aa86fe499ddedf81fb74eaad91a5aa0ebb1f3721`
+(`docs: resolve financial account integrity regression`). Git, protected
+hashes, package/lockfile, migration 52, owner-managed runtime, and the
+read-only official database all matched the accepted baseline. The unchanged
+static inventory passed 147 tests with zero failures and three opt-in skips;
+permission baseline 128/128, typecheck, and lint with zero errors and 18
+inherited warnings also passed.
+
+A unique empty disposable PostgreSQL database had zero Product tables before
+migration and reached `52/52/0`. Owned loopback-only backend/frontend
+children used high ports. Supported First Run created one synthetic Company
+and first Branch, produced 12/12 stable account roles and 11/11 Branch
+mappings, and reached setup and financial `READY`. Same-key replay was
+idempotent and a new setup request was rejected after completion.
+
+Real Product UI acceptance passed the Chart of Accounts, code search,
+independent type filtering, custom operating-expense account creation and
+safe display edit, financial readiness display, and all 11 Branch-mapping
+rows. `BANK_ACCOUNT` eligibility contained only the compatible stable BANK
+account and excluded a generic posting Asset. A semantic BANK account edit
+was surfaced as a canonical protected-configuration rejection; generic Asset
+to BANK mapping returned canonical 422, preserved the valid mapping, produced
+zero financial writes, and retained `READY`.
+
+The mandatory posting gate then reopened `FINANCIAL-BOOTSTRAP-F005`.
+Supported cash, bank, operating-expense, and other-income treasury postings
+all returned canonical 422 before any business row or journal was created.
+The treasury route still resolves cash and bank through legacy fixed account
+codes `1110` and `1120`; fresh First Run instead supplies the authoritative
+Branch financial mappings and stable system accounts. This exact contract
+mismatch prevents the required fresh-database posting lifecycle.
+
+Per the acceptance-only stop rule, deposit, supplier-payable, inventory/COGS,
+ledger, statements, financial reports, scope, and end-to-end idempotency
+claims were not continued. Product/test/migration/package/configuration files
+were unchanged. Logout succeeded. The browser, owned children, disposable
+database, temporary secrets, dependencies, and evidence were removed with
+zero residue.
+
+Official 3000/8000 remained healthy. Official `darfus_erp/public` remained
+`52/51/1`, migration 52 unapplied, with exact preflight account, role,
+mapping, journal, and journal-line fingerprints and zero idle transactions or
+waiting locks. Classification:
+`FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT3 = PARTIAL`; reopened finding:
+`FINANCIAL-BOOTSTRAP-F005`; safe cause:
+`TREASURY_POSTING_LEGACY_ACCOUNT_CODE_RESOLUTION`. Release, Staging, and
+Production remain unauthorized. Exact next marker:
+`FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT4`.
+
+## FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT3 — COMPLETE — 2026-07-30
+
+Started on `main` at `d739150f088ac29700d7d3e0db5179785ba146b2`.
+The runtime defect was reproduced only on a disposable database: an active
+stable-role/mapped BANK account accepted an incompatible semantic update.
+
+`4fae9fd387a4e0831240d38646b23ecb12d9468e` adds one pure proposed-state
+validator and wires it into the canonical account update/deactivation service.
+It validates Company, hierarchy, journal references, all stable-role bindings,
+and every active Branch mapping before persistence. Type, nature, statement
+classification, posting, and active-state violations now return canonical 422
+without detaching or rewriting roles/mappings.
+
+Generated catalog tests cover 12/12 account roles and 11/11 mapping roles.
+The fresh `52/52/0` PostgreSQL proof passed First Run, a safe BANK display edit,
+all protected semantic rejections, unchanged account/role/mapping/journal
+state, READY readiness, logout, database removal, and zero residue. Complete
+Node inventory: 147 pass, zero fail, three opt-in skips; permission 128/128;
+typecheck PASS; lint errors 0 with 18 inherited warnings.
+
+Official runtime remained healthy and official `darfus_erp/public` remained
+read-only at `52/51/1`. `FINANCIAL-BOOTSTRAP-F010 = RESOLVED`; open financial
+blockers 0. Full posting/report runtime acceptance remains pending. Exact next
+marker: `FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT3`.
+
+## FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT2 — PARTIAL — 2026-07-30
+
+The phase started on `main` at
+`618b2ff5b185668a5235bfbd80444249c3e7b42c`
+(`docs: resolve financial runtime acceptance regressions`). Preflight passed:
+zero staged/untracked or semantic changes, 11 stashes, no remotes, exact
+protected/package/lock/migration hashes, healthy owner-managed services, and
+official `darfus_erp/public` unchanged at `52/51/1`.
+
+The complete recursive Node baseline passed 137 tests with zero failures and
+two intentional opt-in skips. Permission baseline 128/128, typecheck, lint
+with zero errors and 18 inherited warnings, and diff/hash gates passed.
+
+A new empty disposable PostgreSQL database was migrated to `52/52/0`. Owned
+loopback backend/frontend children used dynamic high ports and synthetic
+memory-only credentials. Supported First Run created one Company and Branch,
+12/12 stable account roles, 11/11 Branch mappings, READY setup/financial
+state, and no duplicate or cross-scope bindings. A second First Run returned
+the canonical already-complete conflict with zero account/role/mapping delta.
+
+Real Chart UI acceptance passed code/name search; type, classification,
+active, and posting filters; combined/clear/no-results behavior; ancestor
+context; unrelated-branch removal; canonical ordering; zero duplicate nodes;
+keyboard labels; and RTL logical indentation. A custom operating-expense
+posting account was created and its display field edited through the Product
+UI without changing Company or accounting semantics. The eligible-account UI
+included the valid BANK role account, excluded a generic posting Asset, and
+included the custom operating-expense account for `DEFAULT_EXPENSE`. Direct
+generic Asset to BANK mapping returned canonical 422, preserved the valid
+mapping, and kept readiness READY with zero financial delta.
+
+The mandatory Account Integrity gate then proved a Product regression. A
+supported PATCH changed the active BANK stable-role/mapped account from Asset
+classification to Liability and returned 200. The account remained referenced
+by one stable role and one active Branch mapping; readiness changed from READY
+to BLOCKED with one invalid mapping. Account count remained unchanged.
+`financial-account.service.updateAccount` protects type/nature only after
+journal lines exist and does not protect stable-role or active-mapping
+references; `statementClassification` is also unguarded. This reopens
+`FINANCIAL-BOOTSTRAP-F010`.
+
+Posting, ledger, statement, report, scope, and idempotency acceptance were not
+executed after the mandatory stop. Owned browser sessions logged out normally
+and active sessions reached zero. All owned processes, the disposable
+database, temporary dependencies, secrets, and evidence were removed.
+Official runtime owners remained continuous and official financial
+fingerprints matched preflight exactly.
+
+Classification: `FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT2 = PARTIAL`.
+Open release-blocking financial findings: 1. Release, Staging, and Production
+remain unauthorized. Exact next marker:
+`FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT3`.
+
+## FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT2 — COMPLETE — 2026-07-30
+
+The phase started on `main` at
+`cec124afe0d8cdf91e8f3af2a4ae53891f383b48`
+(`docs: record financial runtime acceptance regressions`) and produced
+implementation commit `0d23ea306a49271ad12d5c67304ad0f5e01cbf57`
+(`fix: complete financial account configuration contracts`). Preflight had
+zero staged/untracked files, 11 stashes, no remotes, exact package/lock and
+protected hashes, healthy owner-managed 3000/8000/5432 services, and official
+`darfus_erp/public` at source/applied/pending `52/51/1`. The known generated
+`next-env.d.ts` path drift was normalized to exact committed bytes before
+work; it was never staged.
+
+F003 was reproduced in source: the Chart list had no search, type,
+classification, active-status, or posting-status controls. The combined
+pre-repair contract failed `0/6`. The repair adds normalized code/name
+search, independent type/classification/active/posting filters, clear-all,
+loading/error/empty/no-results states, keyboard-labelled controls, and
+logical RTL indentation. A deterministic hierarchy reducer retains only
+matching nodes plus required ancestors, removes unrelated branches, prevents
+duplicates, and preserves canonical sibling ordering. Account reads remain
+Company-scoped and are gated by `accounting.view`.
+
+F010 was reproduced from the accepted boundary: active/posting/type/nature
+were the only mapping checks. The canonical Branch-mapping catalog now
+declares exact stable account roles for all 11 required mappings and one
+explicit `operating_expense` family for `DEFAULT_EXPENSE`. A single backend
+compatibility service validates Company/Branch scope, active/posting status,
+classification, and stable role authority; it supplies the eligible-account
+API, transactional mapping update, readiness, reconciliation, and central
+resolver legacy-row defense. Rejections use canonical 422
+`FINANCIAL_MAPPING_ACCOUNT_INCOMPATIBLE` with safe mapping-role/reason fields
+and no internal identifier. The frontend removed its broad-type rule table
+and consumes the permissioned backend eligibility endpoint.
+
+The new CONT2 contract passes `7/7`; focused financial/First Run coverage
+passes `22/22`; the full Node inventory reports 137 pass, zero fail, and two
+intentional disposable-DB skips. Permission baseline 128/128, typecheck,
+targeted lint, and diff check pass. On a unique disposable database all 52
+migrations applied, First Run reached READY with 12 roles and 11 mappings,
+a generic posting Asset was rejected as BANK with the prior valid mapping
+and all account/mapping/audit/journal counts unchanged, the central resolver
+rejected an injected legacy-invalid row, and an explicit operating-expense
+family account was accepted and preserved by reconciliation. The database
+was dropped with zero residue.
+
+Read-only official smoke returned frontend/chart/backend `200`; the new
+endpoint returned unauthenticated `401`. No service was controlled. Official
+financial fingerprints exactly matched preflight, idle/waiting locks were
+`0/0`, and migration state remained `52/51/1`. F003 and F010 are RESOLVED;
+open release-blocking financial findings: 0. Full posting/report runtime
+acceptance remains unexecuted after the prior mandatory stop boundary.
+Release, Staging, and Production remain unauthorized. Exact next marker:
+`FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT2`.
+
+## FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT1 — PARTIAL — 2026-07-30
+
+Independent acceptance started at exact checkpoint
+`894350ace3c410172262b446179ecec32cd58688` on `main`. Git preflight passed
+with zero staged/untracked files, 11 stashes, no remotes, exact package and
+protected hashes, and only the three inherited CRLF-only backend artifacts.
+The official owner-managed listeners remained healthy on 3000/8000/5432 and
+official `darfus_erp/public` was read-only at `52/51/1`.
+
+The static baseline passed unchanged: financial/First Run 23/23, `.mjs`
+59/59, `.cjs` 58 pass plus one intentional disposable-DB skip, permission
+catalog 128/128, typecheck, targeted lint, and diff check.
+
+A unique empty disposable PostgreSQL database was migrated to `52/52/0`.
+An owned backend child used a dynamic loopback-only port in the authorized
+13000–13999 range. Real First Run through `/setup/bootstrap` succeeded,
+created one synthetic Company and Branch, reached setup READY and financial
+READY, produced 12/12 system account roles and 11/11 required Branch
+mappings, and produced zero duplicate account-code groups. No official rows,
+copied rows, seed data, or manual bootstrap SQL were used.
+
+Acceptance then proved two Product regressions and stopped before financial
+posting/report execution:
+
+1. `FINANCIAL-BOOTSTRAP-F003` is REOPENED. The Chart-of-Accounts list has no
+   search/filter control despite the accepted runtime requirement. Its Branch
+   mapping candidate selector also filters only by active, posting, and broad
+   account type; it does not enforce stable semantic role compatibility.
+2. `FINANCIAL-BOOTSTRAP-F010` is REOPENED. Through the supported API, a
+   synthetic active posting Asset with no BANK system-role binding was
+   accepted as `BANK_ACCOUNT` with HTTP 200. The endpoint validates only
+   Company/Branch, active/posting, type, and nature. It does not require the
+   selected account to be the compatible stable role-bound account. The
+   original valid mapping was restored through the same API and readiness
+   returned to READY before cleanup.
+
+Because Product code is required to close these defects, the phase did not
+continue with posting, ledger, statement, or report runtime assertions.
+Logout returned 200. The owned backend exited, the disposable database was
+dropped, no high-port listener remained, and all temporary secrets remained
+process-only.
+
+Official postcheck remained `52/51/1`; account, role, mapping, journal, and
+journal-line fingerprints exactly matched preflight; idle transactions and
+waiting locks were 0/0. `FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT1 = PARTIAL`.
+Open release-blocking financial findings: 2. Exact next marker:
+`FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT2`.
+
 ## FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT1 — complete — 2026-07-30
 
 The repair started at exact checkpoint
@@ -1078,3 +1438,52 @@ This document does not assert a security certification, production performance,
 browser accessibility, restore capability, or Staging readiness. It records
 what current source/test evidence supports and makes every missing release
 claim an explicit gate.
+
+## PRE-RESET-BACKUP-RESTORE-REHEARSAL-CONT1 — 2026-07-30
+
+Stage 1 is complete. A custom full backup and schema-only backup were retained outside Git in `pre-reset-rehearsal-20260730092845779`. The local `darfus_erp/public` source remained read-only at `52/51/1`. The archive restored into a unique disposable local database and passed public schema inventory, row-count and financial fingerprints, migration metadata, constraint validity, foreign-key orphan checks, sequence alignment, and read-only smoke checks. The disposable database was dropped with zero residue. This authorizes only `OFFICIAL-LOCAL-DB-RESET-AND-FIRST-RUN-CONT1`.
+
+## OFFICIAL-LOCAL-DB-RESET-AND-FIRST-RUN-CONT1 — 2026-07-30
+
+The authorized local `darfus_erp/public` schema reset completed and all 52 migrations applied successfully. Backend 8000 and Frontend 3000 are running. First Run remains blocked at `SETUP_REQUIRED`: the supported endpoint requires `FIRST_RUN_SETUP_TOKEN`, which is absent from the running local environment and returns 403 when missing. No administrator, Company, Branch, financial roles/mappings, journals, or business rows were created. The verified backup remains retained. Exact next marker: `OFFICIAL-LOCAL-FIRST-RUN-HARNESS-FIX-CONT1`.
+
+## OFFICIAL-LOCAL-FIRST-RUN-HARNESS-FIX-CONT1 — 2026-07-30
+
+The exact setup-token contract was configured locally in ignored Backend
+environment and verified by an authorized single Backend reload. Missing and
+invalid tokens fail closed with canonical 403 and zero setup/business deltas.
+The supported valid-token bootstrap then reaches the existing first-run
+password policy and rejects the operator-specified administrator credential
+with 422 before the transaction opens. No password, token, setup data, or
+Product change is retained in documentation or Git. The database remains an
+empty `52/52/0` baseline and the next marker remains
+`OFFICIAL-LOCAL-FIRST-RUN-HARNESS-FIX-CONT1`.
+
+## OFFICIAL-LOCAL-FIRST-RUN-HARNESS-FIX-CONT1 continuation — 2026-07-30
+
+The approved local administrator replacement was evaluated through the exact
+First Run password validator before an HTTP call. It passes the structural
+requirements but fails the account-identity-substring guard. First Run was not
+attempted, database mutation is zero, and no Product behavior was changed.
+The existing ignored setup token, empty migrated `52/52/0` baseline, verified
+backup, and services remain preserved. Exact next marker remains
+`OFFICIAL-LOCAL-FIRST-RUN-HARNESS-FIX-CONT1`.
+
+## MANUAL-LOCAL-SMOKE-CONT1 — 2026-07-30
+
+The persistent local baseline passed a normal-login, read-only UI smoke.
+`darfus_erp/public` remained `52/52/0`; setup and financial readiness remained
+`READY`; the fixed one Company/one Branch context remained intact; and roles
+and mappings remained `12/12` and `11/11`. Twenty-five source-defined safe
+routes passed, covering Dashboard, accounting/chart/readiness/mappings,
+settings, users, business lists, reports, notifications, and audit. The
+customer-loyalty route rendered after its controlled direct replay and was not
+a reproducible 404. Six direct hard refreshes passed; browser console errors
+and warnings were zero.
+
+Whole-public-table fingerprints prove zero BUSINESS, CONFIGURATION, FINANCIAL,
+and SYSTEM deltas. The expected AUTH_SESSION effect was one technical-session
+row and the normal successful-login timestamp update; normal logout revoked
+the owned session. Permission baseline, typecheck, diff/hash gates, and lint
+(zero errors, 18 inherited warnings) passed. Exact next marker:
+`OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-CONT1`.

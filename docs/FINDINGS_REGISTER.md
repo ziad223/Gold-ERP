@@ -1,5 +1,137 @@
 # Market Release Findings Register
 
+## FINANCIAL-ACCEPT-F002 — OPEN — 2026-07-30
+
+| ID | Severity / status | Proven evidence | Required boundary |
+| --- | --- | --- | --- |
+| `FINANCIAL-ACCEPT-F002` | P1, OPEN, release-blocking | A retained installment accepted one valid partial bank collection after F001. A later valid remaining cash collection returned canonical `409 STATE_CONFLICT`; no additional payment, treasury, or journal row was written. The partial unique index on `(company_id, source_type, source_id)` conflicts with posting a separate `installment` journal for a second collection. | Repair the collection-to-journal source identity so every valid collection has one linked balanced journal, while preserving idempotency and zero-write guards. |
+
+## FINANCIAL-ACCEPT-F001 — RESOLVED — 2026-07-30
+
+The route now resolves the persisted invoice Branch ID through the authorized
+Company scope and passes it to installment posting. Posting accepts an explicit
+or persisted identifier only; the display Branch label is no longer mapping
+authority. Focused static and disposable cash/bank proof passed, and a retained
+local bank collection passed with replay/conflict protection.
+
+## FINANCIAL-ACCEPT-F001 — OPEN — 2026-07-30
+
+| ID | Severity / status | Proven evidence | Required boundary |
+| --- | --- | --- | --- |
+| `FINANCIAL-ACCEPT-F001` | P1, OPEN, release-blocking | A valid Product-owned installment sale posted successfully on a `READY` Company/Branch with 11/11 mappings. The supported installment collection endpoint returned `422 FINANCIAL_MAPPING_REQUIRED` twice. The unpaid installment remained; collection payment, cash transaction, and installment journal counts remained zero. | Preserve the validated Branch ID through installment collection and pass it to the posting/mapping resolver; add focused no-partial-write coverage, then replay the persistent financial acceptance. |
+
+## LOCAL-FIRST-RUN-UI-F001 — RESOLVED_BY_RUNTIME_REPLAY — 2026-07-30
+
+The route source and full route manifest were always present. The pre-existing
+development process had an incomplete active route manifest, initially
+containing only the setup/login subset. A non-semantic hot-reload event on the
+existing dashboard layout registered the affected route group without changing
+source bytes or restarting a service. Dashboard, Chart-of-Accounts, and
+settings then returned 200, and an authenticated dashboard hard refresh had no
+404. This was a local development-runtime registration boundary, not a Product
+source defect. Next: `MANUAL-LOCAL-SMOKE-CONT1`.
+
+## LOCAL-FIRST-RUN-UI-F001 — OPEN — 2026-07-30
+
+| ID | Severity / status | Proven evidence | Required boundary |
+| --- | --- | --- | --- |
+| `LOCAL-FIRST-RUN-UI-F001` | P1, OPEN, release-blocking | After the supported First Run API completed with `201`, a valid local administrator login reached the dashboard URL but the existing Frontend runtime returned 404. The Chart-of-Accounts and settings route URLs also returned 404, while login returned 200 and each matching route source exists. | Repair only the Frontend dashboard-route availability boundary; then replay local First Run UI acceptance without recreating setup data. |
+
+The bootstrap, Company/Branch creation, 12/12 account-role catalog, 11/11
+Branch mappings, `READY` readiness, idempotency, token guards, and API
+login/logout contracts passed. No credential, identifier, payload, or
+unrelated Product claim is retained here. Next:
+`OFFICIAL-LOCAL-FIRST-RUN-FIX-CONT1`.
+
+## FINANCIAL-BOOTSTRAP-F005 — RESOLVED — 2026-07-30
+
+`2b97e6a` removes fixed `1110`/`1120` runtime authority from treasury posting
+and uses the central validated Company/Branch financial mapping resolver.
+Cash and bank remain distinct mapping roles with no fallback. Deposit,
+refund, supplier payment, reservation, sale/return/exchange, cash-register,
+treasury summary, and customer-credit GL paths now consume authoritative
+mapped account IDs or roles before persistence.
+
+Disposable `52/52/0` acceptance passed six cash/bank/expense/other-income
+postings with balanced journals and zero account creation. Missing mapping
+and incompatible mapping each returned canonical 422 with zero business,
+journal, journal-line, and account delta; the valid mapping remained intact.
+Idempotent replay added zero rows. Static inventory, permission 128/128,
+typecheck, lint-error, diff, protected-hash, official-runtime, and official
+database safety gates passed. Full independent posting/report runtime
+acceptance remains the next phase.
+
+## FINANCIAL-BOOTSTRAP-F005 — REOPENED — 2026-07-30
+
+`FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT3` independently reproduced a
+fresh-database posting blocker after successful `52/52/0` migration, supported
+First Run, 12/12 account roles, 11/11 Branch mappings, and `READY` readiness.
+Supported cash, bank, operating-expense, and other-income treasury commands
+returned canonical 422 before creating a business row, journal, or journal
+line.
+
+Classification:
+`TREASURY_POSTING_LEGACY_ACCOUNT_CODE_RESOLUTION`. The treasury transaction
+path validates legacy fixed codes `1110`/`1120` for cash/bank instead of
+resolving the authoritative active Branch mappings created by the accepted
+financial bootstrap. This blocks fresh-install posting and therefore blocks
+the remaining deposit, supplier, inventory/COGS, ledger, statement, report,
+scope, and end-to-end idempotency acceptance claims.
+
+Account semantic integrity and mapping compatibility remained protected:
+the BANK semantic edit and generic Asset mapping were both rejected,
+the prior mapping was preserved, readiness remained `READY`, and zero
+financial writes occurred. Official data was unchanged. Release impact is
+blocking. Exact repair marker:
+`FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT4`.
+
+## FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT3 — finding resolved — 2026-07-30
+
+| ID | Status | Resolution |
+| --- | --- | --- |
+| `FINANCIAL-BOOTSTRAP-F010` | RESOLVED by code and disposable acceptance | Proposed account state is validated against all stable roles and active Branch mappings before persistence. Incompatible type/nature/classification/posting/active changes now return canonical 422 and preserve account, bindings, mappings, journals, and READY readiness. |
+
+Coverage is generated from the canonical 12-role and 11-mapping catalogs.
+Fresh `52/52/0` PostgreSQL acceptance and cleanup passed. Full posting/report
+runtime acceptance remains assigned to `FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT3`.
+
+## FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT2 — reopened finding — 2026-07-30
+
+| ID | Status | Independent runtime evidence | Safe cause |
+| --- | --- | --- | --- |
+| `FINANCIAL-BOOTSTRAP-F010` | REOPENED — release blocking | On a fresh `52/52/0` disposable runtime, the repaired mapping endpoint and eligible-account UI correctly rejected a generic Asset as BANK. However, the supported account PATCH accepted a semantic Asset→Liability change on the active BANK stable-role/mapped account, returned 200, and changed readiness READY→BLOCKED with one invalid mapping. | `financial-account.service.updateAccount` checks type/nature only when journal lines exist; it does not reject semantic changes for stable-role or active-mapping references, and it does not guard `statementClassification`. |
+
+Account count and the valid mapping row count remained unchanged. Downstream
+posting/report claims stopped at the mandatory defect. Disposable cleanup and
+official DB/runtime preservation passed. Open financial blockers: 1. Next:
+`FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT3`.
+
+## FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT2 — findings resolved — 2026-07-30
+
+| ID | Final status | Repair and acceptance evidence |
+| --- | --- | --- |
+| `FINANCIAL-BOOTSTRAP-F003` | RESOLVED | Chart search covers normalized code and display name; type, classification, active, and posting filters combine deterministically; clear/no-results/loading/error behavior passes; matching descendants retain ancestor context with canonical order and no duplicate nodes. |
+| `FINANCIAL-BOOTSTRAP-F010` | RESOLVED | One semantic compatibility service covers all 11 mappings across transactional updates, backend eligibility, readiness, reconciliation, and resolver defense. A same-type generic Asset is rejected as BANK with canonical 422, unchanged valid mapping/readiness, and zero account/business/journal delta; the explicit operating-expense family remains valid. |
+
+Implementation: `0d23ea306a49271ad12d5c67304ad0f5e01cbf57`.
+Disposable PostgreSQL: `52/52/0`, removed. Official DB: unchanged
+`52/51/1`; official mutation 0. Open release-blocking financial findings: 0.
+Full posting/report runtime acceptance remains pending. Next:
+`FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT2`.
+
+## FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT1 — reopened findings — 2026-07-30
+
+| ID | Status | Independent runtime evidence | Required repair boundary |
+| --- | --- | --- | --- |
+| `FINANCIAL-BOOTSTRAP-F003` | REOPENED, P1, release-blocking | Chart list has no search/filter control. Mapping UI candidates are filtered only by active/posting/type and can present semantically incompatible same-type accounts. | Add deterministic account list search/filter and make mapping candidates use the same stable semantic-role eligibility contract as the backend. |
+| `FINANCIAL-BOOTSTRAP-F010` | REOPENED, P1, release-blocking | On a fresh `52/52/0` database, the supported mapping API returned 200 when assigning a synthetic posting Asset without the BANK role binding to `BANK_ACCOUNT`. The valid mapping was restored and readiness returned to READY. | Require exact compatible system-role authority during mapping validation; reject wrong-role same-type accounts without mutating the valid mapping. |
+
+Fresh First Run independently retained F001, F002, and F009 evidence: 12/12
+roles, 11/11 mappings, READY, and duplicate account-code groups 0. Runtime
+posting/report acceptance stopped at the proven Product defect boundary.
+Official mutation: 0. Next:
+`FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT2`.
+
 ## FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT1 — findings resolved — 2026-07-30
 
 | ID | Final status | Acceptance evidence |
@@ -682,3 +814,41 @@ The acceptance preflight repeated from `5b49a25` passed identity, protected hash
 `UX-FIX-CONT1-CONT1-CONT1-CONT1` replaces the unavailable external browser binding with committed repository-local Playwright acceptance infrastructure, using an installed Chrome/Edge executable and an isolated temporary context. The launcher requires process-scoped `DARFUS_E2E_EMAIL` and `DARFUS_E2E_PASSWORD` before it starts any owned listener; both are absent in this environment, so it exited cleanly with code 2 and no runtime/login occurred. Redaction, evidence correlation, configuration, credential skip, focused Product tests, typecheck and targeted lint pass. `NOTIF-PRE1-CONT1-CONT1-CONT1-CONT1-F001` remains **OPEN — AUTHENTICATED SESSION UNAVAILABLE / P2**; all N5/N8 REST/SSE/header/toast evidence remains `NOT_OBSERVED` and `NOTIF_ACCEPT_AUTHORIZED = NO`. Next only: `UX-FIX-CONT1-CONT1-CONT1-CONT1-CONT1`.
 
 `UX-FIX-CONT1-CONT1-CONT1-CONT1-CONT1-CONT1` supplied the approved local test credentials only through the execution environment. The unchanged harness failed before spawning either owned service: Node rejected the newly-created runtime log `WriteStream` because its file descriptor was not yet open when passed to `spawn` as stdio (`ERR_INVALID_ARG_VALUE`). Credentials were removed immediately; 3300/8001 remained closed and 8000/5432 were untouched. No authenticated request, N5/N8 evidence, browser profile or Product regression was produced. The residual empty owned temporary log root could not be removed because the execution environment denied its cleanup command. `NOTIF-PRE1-CONT1-CONT1-CONT1-CONT1-F001` remains **OPEN — HARNESS EXECUTION FAILURE / P2** and `NOTIF_ACCEPT_AUTHORIZED = NO`. Next only: `UX-FIX-CONT1-CONT1-CONT1-CONT1-CONT1-CONT1-CONT1` for this exact pre-spawn log-stream/cleanup defect.
+
+### PRE-RESET-BACKUP-RESTORE-REHEARSAL-CONT1 — 2026-07-30
+
+No new Product finding was created. A complete local pre-reset backup passed a real disposable restore, schema/migration/count/fingerprint comparison, sequence validation, foreign-key orphan checks, and read-only smoke validation. The source remained unchanged at `52/51/1`; the disposable database was removed. Exact next marker: `OFFICIAL-LOCAL-DB-RESET-AND-FIRST-RUN-CONT1`.
+
+### OFFICIAL-LOCAL-DB-RESET-AND-FIRST-RUN-CONT1 — 2026-07-30
+
+`LOCAL-FIRST-RUN-INFRA-F001` is OPEN: `FIRST_RUN_SETUP_TOKEN_NOT_CONFIGURED`. This is a local runtime authorization/configuration boundary, not a Product defect. Reset and migration reached `52/52/0`, but the supported First Run API remained `SETUP_REQUIRED` and correctly rejected missing authorization with 403. No setup or business data was created. Next only: `OFFICIAL-LOCAL-FIRST-RUN-HARNESS-FIX-CONT1`.
+
+### OFFICIAL-LOCAL-FIRST-RUN-HARNESS-FIX-CONT1 — 2026-07-30
+
+`LOCAL-FIRST-RUN-INPUT-F001` is OPEN:
+`REQUESTED_ADMIN_PASSWORD_REJECTED_BY_FIRST_RUN_POLICY`. The local setup-token
+configuration and controlled Backend reload passed, and missing/invalid token
+guards are canonical 403 with zero data deltas. A valid-token supported
+bootstrap reached the current password policy and returned 422 before any
+transactional setup write. This is a test-input authorization boundary, not a
+Product defect; no alternate credential was assumed. Next remains
+`OFFICIAL-LOCAL-FIRST-RUN-HARNESS-FIX-CONT1`.
+
+### OFFICIAL-LOCAL-FIRST-RUN-HARNESS-FIX-CONT1 continuation — 2026-07-30
+
+`LOCAL-FIRST-RUN-INPUT-F002` is OPEN:
+`APPROVED_ADMIN_PASSWORD_CONTAINS_ACCOUNT_IDENTITY_SUBSTRING`. The approved
+replacement passed structural password checks but the exact First Run validator
+rejects it before any HTTP bootstrap call because account identity text is
+prohibited. This is a local test-input authorization boundary, not a Product
+defect. Database mutation is zero and the next marker remains
+`OFFICIAL-LOCAL-FIRST-RUN-HARNESS-FIX-CONT1`.
+
+### MANUAL-LOCAL-SMOKE-CONT1 — 2026-07-30
+
+No new Product finding was proven. The read-only persistent-local UI smoke
+passed after normal login/logout. One delayed customer-loyalty loading shell
+rendered under the permitted direct replay and was not reproducible as a route
+defect. BUSINESS, CONFIGURATION, FINANCIAL, and SYSTEM fingerprints were
+unchanged; only the expected technical-session lifecycle and successful-login
+timestamp changed. Next only: `OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-CONT1`.

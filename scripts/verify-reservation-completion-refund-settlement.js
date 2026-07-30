@@ -75,7 +75,8 @@ function postingContract() {
   assert.ok(posting.includes('accountCode: "1300", debit: 0, credit: amt'), "settlement credits AR/customer control");
   assert.ok(posting.includes("postReservationRefundEntry"), "refund posting exists");
   assert.ok(posting.includes('sourceType: "reservation_refund"'), "refund source type exists");
-  assert.ok(posting.includes("accountCode: treasuryAccountCode, debit: 0, credit: amt"), "refund credits selected treasury/bank");
+  assert.ok(posting.includes("accountId: treasuryAccountId || null"), "refund credits the authoritative selected treasury account");
+  assert.ok(posting.includes("treasuryAccountId ? null : treasuryAccountCode"), "refund retains account-code compatibility only when no authoritative account ID is supplied");
   const refundEnd = posting.indexOf("/**\n   * Supplier purchase receiving");
   const refundSection = posting.slice(posting.indexOf("async postReservationRefundEntry"), refundEnd);
   assert.ok(!/4100|2200|5000|1200|postInvoiceEntry/.test(refundSection), "refund does not post revenue/VAT/COGS/inventory or invoice posting");

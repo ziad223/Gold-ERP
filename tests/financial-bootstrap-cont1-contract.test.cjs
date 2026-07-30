@@ -50,7 +50,9 @@ test("account administration uses the accounting domain service instead of gener
   assert.match(service, /ACCOUNT_PROTECTED_FIELD_FORBIDDEN/);
   assert.match(service, /hierarchy would contain a cycle/);
   assert.match(service, /ACCOUNT_DELETE_FORBIDDEN/);
-  assert.match(service, /Mapped system accounts cannot be deactivated/);
+  assert.match(service, /validateFinancialAccountProposedState/);
+  const integrity = read("backend/src/services/financial-account-integrity.service.js");
+  assert.match(integrity, /FINANCIAL_ACCOUNT_SEMANTIC_CHANGE_INCOMPATIBLE/);
 });
 
 test("posting no longer creates accounts inside a business transaction", () => {

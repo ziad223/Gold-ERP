@@ -2,8 +2,8 @@
  * Phase 21.2-Fix — verify receivable-first return / exchange settlement.
  *
  * (A) Functional: exercises posting.service.postReturnEntry's money leg with a
- *     stubbed postEntry (captures GL lines, no DB). Confirms the AR 1300 / Cash
- *     split and legacy fallback, and that every entry balances.
+ *     stubbed postEntry (captures GL lines, no DB). Confirms the mapped AR /
+ *     treasury split and that every entry balances.
  * (B) Matrix: the settlement formula (returns + exchanges) across the scenarios.
  * (C) Static: the /sales/returns and /sales/exchanges route source uses the
  *     receivable-first split, gates treasury on real cash, posts to AR 1300, and
@@ -26,6 +26,7 @@ let captured = null;
 posting.postEntry = async (_companyId, _meta, lines) => { captured = lines; return { id: "JE-TEST", lines }; };
 
 const findLine = (lines, code, side) => lines.find((l) => l.accountCode === code && Number(l[side]) > 0);
+const findMappedLine = (lines, mappingRole, side) => lines.find((l) => l.mappingRole === mappingRole && Number(l[side]) > 0);
 const sum = (lines, side) => round(lines.reduce((s, l) => s + Number(l[side] || 0), 0));
 
 async function returnLines(opts) {
@@ -41,34 +42,34 @@ async function returnLines(opts) {
 
 async function functionalPostReturnEntry() {
   // Unpaid: full AR relief, no cash.
-  let l = await returnLines({ receivableReliefAmount: 3000, cashRefundAmount: 0, cashAccountCode: "1110" });
-  assert.ok(findLine(l, "1300", "credit"), "unpaid return credits AR 1300");
-  assert.equal(findLine(l, "1300", "credit").credit, 3000);
-  assert.ok(!findLine(l, "1110", "credit"), "unpaid return has no cash credit");
+  let l = await returnLines({ receivableReliefAmount: 3000, cashRefundAmount: 0 });
+  assert.ok(findMappedLine(l, "ACCOUNTS_RECEIVABLE", "credit"), "unpaid return credits mapped AR");
+  assert.equal(findMappedLine(l, "ACCOUNTS_RECEIVABLE", "credit").credit, 3000);
+  assert.ok(!findMappedLine(l, "CASH_TREASURY", "credit"), "unpaid return has no cash credit");
   assert.equal(sum(l, "debit"), sum(l, "credit"), "unpaid return entry balances");
 
   // Fully paid: full cash, no AR.
-  l = await returnLines({ receivableReliefAmount: 0, cashRefundAmount: 3000, cashAccountCode: "1110" });
-  assert.ok(findLine(l, "1110", "credit"), "fully-paid return credits cash 1110");
-  assert.equal(findLine(l, "1110", "credit").credit, 3000);
-  assert.ok(!findLine(l, "1300", "credit"), "fully-paid return has no AR credit");
+  l = await returnLines({ receivableReliefAmount: 0, cashRefundAmount: 3000 });
+  assert.ok(findMappedLine(l, "CASH_TREASURY", "credit"), "fully-paid return credits mapped cash");
+  assert.equal(findMappedLine(l, "CASH_TREASURY", "credit").credit, 3000);
+  assert.ok(!findMappedLine(l, "ACCOUNTS_RECEIVABLE", "credit"), "fully-paid return has no AR credit");
   assert.equal(sum(l, "debit"), sum(l, "credit"), "fully-paid return entry balances");
 
   // Partial: split AR + cash.
-  l = await returnLines({ receivableReliefAmount: 2000, cashRefundAmount: 1000, cashAccountCode: "1110" });
-  assert.equal(findLine(l, "1300", "credit").credit, 2000, "partial return AR relief");
-  assert.equal(findLine(l, "1110", "credit").credit, 1000, "partial return cash refund");
+  l = await returnLines({ receivableReliefAmount: 2000, cashRefundAmount: 1000 });
+  assert.equal(findMappedLine(l, "ACCOUNTS_RECEIVABLE", "credit").credit, 2000, "partial return AR relief");
+  assert.equal(findMappedLine(l, "CASH_TREASURY", "credit").credit, 1000, "partial return cash refund");
   assert.equal(sum(l, "debit"), sum(l, "credit"), "partial return entry balances");
 
-  // Bank refund uses 1120.
-  l = await returnLines({ receivableReliefAmount: 0, cashRefundAmount: 3000, cashAccountCode: "1120" });
-  assert.ok(findLine(l, "1120", "credit"), "bank refund credits 1120");
+  // Bank refund uses its dedicated Branch mapping.
+  l = await returnLines({ receivableReliefAmount: 0, cashRefundAmount: 0, bankRefundAmount: 3000 });
+  assert.ok(findMappedLine(l, "BANK_ACCOUNT", "credit"), "bank refund credits mapped bank");
 
-  // Legacy call (no opts) falls back to full cash on 1110 (backward compatible).
+  // An omitted split retains a full mapped-cash refund.
   l = await returnLines({});
-  assert.ok(findLine(l, "1110", "credit"), "legacy return still credits full cash 1110");
-  assert.equal(findLine(l, "1110", "credit").credit, 3000);
-  assert.ok(!findLine(l, "1300", "credit"), "legacy return has no AR credit");
+  assert.ok(findMappedLine(l, "CASH_TREASURY", "credit"), "default return credits full mapped cash");
+  assert.equal(findMappedLine(l, "CASH_TREASURY", "credit").credit, 3000);
+  assert.ok(!findMappedLine(l, "ACCOUNTS_RECEIVABLE", "credit"), "default return has no AR credit");
   assert.equal(sum(l, "debit"), sum(l, "credit"), "legacy return entry balances");
 }
 

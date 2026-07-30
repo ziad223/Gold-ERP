@@ -288,8 +288,6 @@ export default function ReturnsPage() {
             cashAmount: settleCash,
             bankAmount: settleBank,
             creditAmount: settleCredit,
-            cashAccountCode: "1110",
-            bankAccountCode: "1120",
             ...(settlementReference.trim() ? { reference: settlementReference.trim() } : {}),
             ...(settlementDescription.trim() ? { description: settlementDescription.trim() } : {}),
           };
@@ -582,11 +580,11 @@ export default function ReturnsPage() {
                             </div>
                             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                               <label className="block">
-                                <span className="label-base">{rtl ? "استرداد نقدي (1110)" : "Cash refund (1110)"}</span>
+                                <span className="label-base">{rtl ? "استرداد نقدي (تعيين الفرع)" : "Cash refund (Branch mapping)"}</span>
                                 <input type="number" min="0" step="0.01" className="input-base" value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} />
                               </label>
                               <label className="block">
-                                <span className="label-base">{rtl ? "استرداد بنكي (1120)" : "Bank refund (1120)"}</span>
+                                <span className="label-base">{rtl ? "استرداد بنكي (تعيين الفرع)" : "Bank refund (Branch mapping)"}</span>
                                 <input type="number" min="0" step="0.01" className="input-base" value={bankAmount} onChange={(e) => setBankAmount(e.target.value)} />
                               </label>
                               <label className="block">

@@ -52,11 +52,12 @@ function verifyBackendRoute() {
 
   assertIncludes(depositSection, "amount <= 0", "endpoint validates positive amount");
   assertIncludes(depositSection, 'Object.prototype.hasOwnProperty.call(body, "accountCode")', "client treasury-account override is rejected");
-  assertIncludes(depositSection, 'paymentMethod === "bank" ? "1120" : "1110"', "server derives the treasury account key");
+  assertNotMatches(depositSection, /["'](?:1110|1120)["']/, "payload normalization has no fixed treasury account authority");
   assertIncludes(route, "requireBranchCustomerResource", "endpoint binds the exact customer to the effective branch");
   assertIncludes(route, "effectiveBranchId", "endpoint resolves an authoritative effective branch");
   assertIncludes(route, "customer.status", "endpoint rejects inactive customers");
   assertIncludes(route, "resolveSystemAccountRole", "endpoint resolves the protected branch deposit role");
+  assertIncludes(route, "resolveTreasuryAccount", "endpoint resolves the selected Branch treasury mapping");
 
   assertIncludes(route, "CashTransaction.create", "endpoint creates CashTransaction");
   assertIncludes(route, 'type: "cash_in"', "cash transaction is cash_in");
@@ -67,9 +68,9 @@ function verifyBackendRoute() {
   assertIncludes(route, "cashTransactionId: cashTransaction.id", "credit row links cashTransactionId");
   assertIncludes(route, "glPosting", "endpoint passes glPosting");
   assertIncludes(route, "enabled: true", "glPosting is enabled");
-  assertIncludes(route, "debitAccountCode: payload.accountCode", "GL debit uses 1110/1120 payload account");
-  assertIncludes(route, "creditAccountCode: depositAccount.code", "GL credit uses the resolved branch deposit account");
-  assertIncludes(route, "customerDepositAccountCode: depositAccount.code", "credit service validates the resolved branch deposit account");
+  assertIncludes(route, "debitAccountId: treasuryAccount.id", "GL debit uses the authoritative mapped treasury account");
+  assertIncludes(route, "creditAccountId: depositAccount.id", "GL credit uses the resolved branch deposit account");
+  assertIncludes(route, "customerDepositAccountId: depositAccount.id", "credit service validates the resolved branch deposit account");
   assertIncludes(route, "cashTransaction.update({ journalEntryId: creditRow.journalEntryId }", "cash transaction links generated journalEntryId");
   assertIncludes(route, "availableCredit", "response includes available credit");
   assertIncludes(route, 'ledgerBased: true', "response is marked ledger-based");

@@ -1,5 +1,163 @@
 # v1.0.0 Release Plan
 
+## Persistent financial continuation boundary — 2026-07-30
+
+`FINANCIAL-ACCEPT-F001` is resolved: installment posting now receives the
+authorized persisted invoice Branch identifier rather than a display label.
+Do not restart or reset the accepted local financial run. A new P1 boundary,
+`FINANCIAL-ACCEPT-F002`, blocks a second collection on a partial installment
+because the journal source identity is unique per installment. Continue only
+with `OFFICIAL-LOCAL-FINANCIAL-FIX-CONT2`; deployment remains unauthorized.
+
+## OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-CONT1 — partial — 2026-07-30
+
+Do not advance financial acceptance: the Product's supported installment
+collection route loses the active Branch ID before the mapping-backed posting
+call and fails closed with `FINANCIAL_MAPPING_REQUIRED`. The valid local data
+already created remains retained; the rejected collection created no partial
+financial rows. Pre- and post-boundary archives were verified only through
+disposable restores. Continue only with `OFFICIAL-LOCAL-FINANCIAL-FIX-CONT1`.
+
+## OFFICIAL-LOCAL-FIRST-RUN-FIX-CONT1 — complete — 2026-07-30
+
+The dashboard-route finding was a pre-existing local `next dev` route-manifest
+registration boundary, not missing Product route source. The full source and
+production manifests already contained the affected routes. A non-semantic
+hot-reload registration on the existing process restored dashboard,
+Chart-of-Accounts, and settings to 200; authenticated dashboard hard refresh
+also passed. No Product code, reset, migration, service restart, or deployment
+occurred. First Run remains `READY` at `52/52/0`. Exact next marker:
+`MANUAL-LOCAL-SMOKE-CONT1`.
+
+## OFFICIAL-LOCAL-FIRST-RUN-HARNESS-FIX-CONT1 continuation 2 — partial — 2026-07-30
+
+The approved local-only First Run credential passed the exact Product policy
+and the supported guarded bootstrap completed at `52/52/0`. It created the
+required administrator, Company, Branch, 12 Company account roles, 11 Branch
+mappings, and `READY` financial/setup state. Replay, repeat/token guards, and
+API login/logout passed with no secret retained. The valid browser login then
+reached the dashboard URL, but the existing Frontend runtime returned 404 for
+dashboard, Chart-of-Accounts, and settings routes despite matching source
+routes being present. This is `LOCAL-FIRST-RUN-UI-F001`, a release-blocking
+Frontend route-availability regression. Do not reset the now-ready local
+database or deploy. Exact next marker:
+`OFFICIAL-LOCAL-FIRST-RUN-FIX-CONT1`.
+
+## OFFICIAL-LOCAL-FIRST-RUN-HARNESS-FIX-CONT1 blocker — 2026-07-30
+
+The local setup token is configured only in ignored Backend environment and
+the authorized Backend reload completed. The supported missing/invalid-token
+guards return canonical 403 with zero data deltas. A valid-token First Run
+request reaches password validation but the operator-specified local admin
+credential is rejected by the existing password policy with canonical 422.
+No alternate credential was assumed, and no setup data was created. Keep the
+token locally configured; do not reset or restore the database. Exact next
+marker remains `OFFICIAL-LOCAL-FIRST-RUN-HARNESS-FIX-CONT1`.
+
+## OFFICIAL-LOCAL-FIRST-RUN-HARNESS-FIX-CONT1 continuation blocker — 2026-07-30
+
+The approved replacement credential was checked against the exact First Run
+validator before any request. It meets the structural requirements but is
+rejected because it contains a prohibited account-identity substring. No
+bootstrap request, database write, reset, restore, migration, or restart was
+performed. The retained local setup token and empty `52/52/0` baseline remain
+unchanged. Exact next marker remains
+`OFFICIAL-LOCAL-FIRST-RUN-HARNESS-FIX-CONT1`.
+
+## OFFICIAL-LOCAL-DB-RESET-AND-FIRST-RUN-CONT1 boundary — 2026-07-30
+
+The authorized local `darfus_erp` reset completed and the source/applied/pending
+migration state is `52/52/0`. The new local Backend (`8000`) and Frontend
+(`3000`) are running, but First Run remains at `SETUP_REQUIRED`: the
+deployment-controlled setup authorization token is not configured locally, so
+the supported bootstrap fails closed with `403`. No administrator, Company,
+Branch, role/mapping, or financial setup data was created. The verified
+pre-reset backup remains retained. Do not deploy or bypass the authorization
+boundary; next marker: `OFFICIAL-LOCAL-FIRST-RUN-HARNESS-FIX-CONT1`.
+
+## Treasury mapping repair complete — 2026-07-30
+
+Do not authorize release, Staging, Production, or migration 52 on the
+official database. `2b97e6a` resolved `FINANCIAL-BOOTSTRAP-F005` by replacing
+fixed cash/bank posting authority with validated active Branch mappings.
+Disposable cash, bank, expense, other-income, missing/invalid mapping,
+balanced-journal, zero-account-creation, and idempotency proofs passed.
+
+The next controlled gate is the independent full posting/report replay:
+`FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT4`. Do not start it automatically.
+
+## Financial runtime CONT3 boundary — 2026-07-30
+
+Do not authorize release or Migration Staging Rehearsal. Independent fresh
+runtime acceptance passed migration/bootstrap/readiness, Chart UI, custom
+account, account-integrity, and mapping-compatibility gates, but reopened
+`FINANCIAL-BOOTSTRAP-F005`.
+
+The supported treasury posting path still resolves cash/bank by legacy fixed
+codes instead of the authoritative Branch mappings installed by First Run.
+Fresh cash, bank, expense, and other-income posting therefore fails
+canonically before any write. Repair only this resolver boundary, preserve
+zero-write/idempotency/account-integrity contracts, then replay the complete
+posting/report acceptance. Exact next marker:
+`FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT4`.
+
+## FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT3 — repair gate closed — 2026-07-30
+
+The stable-role/active-mapping account mutation invariant is repaired and
+accepted on fresh disposable PostgreSQL. Unsafe semantic updates fail before
+persistence with canonical 422; safe display edits remain supported and
+financial readiness remains READY.
+
+Do not apply migration 52 officially, begin Staging, or deploy. Run the final
+independent financial lifecycle under
+`FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT3`.
+
+## FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT2 — runtime gate reopened — 2026-07-30
+
+Independent fresh-database acceptance passed migrations, First Run, READY,
+F003 UI behavior, custom expense configuration, and the repaired F010 mapping
+candidate/update boundary. It then proved that a stable-role and actively
+mapped BANK account can still be changed semantically through the supported
+account PATCH before journal lines exist, leaving readiness BLOCKED.
+
+Do not run Migration Staging Rehearsal, apply migration 52 officially, begin
+Staging, or deploy. Repair and independently retest the account mutation
+invariant under `FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT3`. The official database
+remains read-only at `52/51/1`.
+
+## FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT2 — repair gate closed — 2026-07-30
+
+F003 and F010 are resolved by
+`0d23ea306a49271ad12d5c67304ad0f5e01cbf57`. The Chart list now
+supports deterministic hierarchy-safe search/filter. Branch mapping
+administration, readiness, reconciliation, eligible candidates, and central
+resolution share stable semantic role authority for all 11 mappings.
+
+Disposable fresh-database proof passed at `52/52/0` and was removed. A
+same-type generic Asset was rejected as BANK without changing the valid
+mapping or readiness; a catalog-authorized operating-expense family account
+was accepted. Static, permission, type, lint, and official read-only smoke
+gates pass.
+
+Do not apply migration 52 to official `darfus_erp`, begin Staging, or deploy.
+Official state remains `52/51/1`. The next controlled phase must independently
+run the previously stopped posting, ledger, statement, and report lifecycle:
+`FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT2`.
+
+## FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT1 — runtime gate reopened — 2026-07-30
+
+Do not begin migration rehearsal or deployment. Independent acceptance proved
+fresh migration and bootstrap but reopened `FINANCIAL-BOOTSTRAP-F003` and
+`FINANCIAL-BOOTSTRAP-F010`.
+
+The next repair must add Chart list search/filter and centralize mapping
+eligibility so both UI and API require the stable role-compatible account, not
+only a matching type/nature. A rejected incompatible save must preserve the
+previous valid mapping and readiness.
+
+After repair, rerun the full financial runtime lifecycle from a new empty
+database. Exact next marker: `FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT2`.
+
 ## FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT1 — repair gate closed — 2026-07-30
 
 The eight financial-bootstrap findings are resolved by implementation commit
@@ -692,3 +850,16 @@ Credentials are no longer the blocker: the unchanged harness exited before backe
 # ERROR-CONTRACT release boundary — 2026-07-28
 
 `ERROR-CONTRACT = COMPLETE`. Error payloads are canonical and secret-safe, request IDs are returned/logged safely, stable domain codes remain compatible and the frontend has a shared typed parser with field and toast ownership. This does not waive deferred browser N5/N8, `NOTIF-ACCEPT`, full regression, RC, Staging or Production gates. Next permitted phase: `RELEASE-GAP-AUDIT`.
+
+## Pre-reset local database gate — 2026-07-30
+
+`PRE-RESET-BACKUP-RESTORE-REHEARSAL-CONT1 = COMPLETE`. The current local `darfus_erp/public` state was backed up in custom full and schema-only formats and restored successfully into a unique disposable local database. Required schema, migration, count/fingerprint, relationship, sequence, and read-only checks passed; the restore database was dropped and the source remained unchanged. `RESET_AUTHORIZED_FOR_NEXT_STAGE = YES` only for `OFFICIAL-LOCAL-DB-RESET-AND-FIRST-RUN-CONT1`. Staging, Production, deployment, and push remain unauthorized.
+
+## Manual local smoke gate — 2026-07-30
+
+`MANUAL-LOCAL-SMOKE-CONT1 = COMPLETE`. The persistent first-run local baseline
+is preserved after normal administrator UI login/logout, read-only page
+coverage, direct-navigation/hard-refresh checks, and whole-database fingerprint
+comparison. No Product regression was found. This permits only the next local
+acceptance marker, `OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-CONT1`; Staging,
+Production, deployment, and push remain unauthorized.

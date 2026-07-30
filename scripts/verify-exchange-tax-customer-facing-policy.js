@@ -37,7 +37,7 @@ function verifyPurePolicyHelper() {
     returnedValue: 500,
     newSubtotal: 400,
     outstandingAR: 20,
-    settlement: { creditAmount: 24, cashAccountCode: "1110", bankAccountCode: "1120" },
+    settlement: { creditAmount: 24 },
   });
 
   assert.equal(preview.newTax, 56, "newTax is computed from newSubtotal only");

@@ -3,7 +3,7 @@
  *
  * (A) Functional: exercise salesService.resolveExcessSettlement (pure, no DB) —
  *     absent settlement (legacy), cash/bank/credit split, sum-must-equal-excess,
- *     no-excess rejection, credit-needs-customer, account-code + negative guards.
+ *     no-excess rejection, credit-needs-customer, authority + negative guards.
  * (B) Static: the return uses postReturnEntry with cash/bank/credit split, the
  *     exchange money leg splits 1110/1120/2300, both create a CustomerCreditTransaction
  *     credit_in (return_credit / exchange_credit) with an explicit journalEntryId
@@ -55,10 +55,10 @@ function functional() {
   assert.throws(() => R({ excessAmount: 0, settlement: { cashAmount: 100 }, hasCustomer: true }), /No excess/, "settlement on no-excess rejected");
   assert.equal(R({ excessAmount: 0, settlement: undefined, hasCustomer: true }).provided, false, "no excess + no settlement is fine");
 
-  // Negative + wrong account codes.
+  // Negative values and client account authority are rejected.
   assert.throws(() => R({ excessAmount: 300, settlement: { cashAmount: -100, bankAmount: 400 }, hasCustomer: true }), /must not be negative/, "negative amount rejected");
-  assert.throws(() => R({ excessAmount: 300, settlement: { cashAmount: 300, cashAccountCode: "1120" }, hasCustomer: true }), /cashAccountCode must be 1110/, "wrong cash account rejected");
-  assert.throws(() => R({ excessAmount: 300, settlement: { bankAmount: 300, bankAccountCode: "1110" }, hasCustomer: true }), /bankAccountCode must be 1120/, "wrong bank account rejected");
+  assert.throws(() => R({ excessAmount: 300, settlement: { cashAmount: 300, cashAccountCode: "legacy" }, hasCustomer: true }), /resolved from the active Branch financial mappings/, "client cash-account authority rejected");
+  assert.throws(() => R({ excessAmount: 300, settlement: { bankAmount: 300, bankAccountCode: "legacy" }, hasCustomer: true }), /resolved from the active Branch financial mappings/, "client bank-account authority rejected");
 }
 
 // ── (B) Static ───────────────────────────────────────────────────────────────
@@ -78,17 +78,17 @@ function staticChecks() {
   assert.ok((routes.match(/salesService\.resolveExcessSettlement\(/g) || []).length >= 2, "return + exchange both call resolveExcessSettlement");
   assert.ok(routes.includes("settlement: body.settlement"), "settlement is read from the request body");
 
-  // postReturnEntry splits the money leg into cash (1110) / bank (1120) / credit (2300).
+  // postReturnEntry splits the money leg into canonical Branch mapping roles.
   assert.ok(posting.includes("opts.bankRefundAmount"), "postReturnEntry accepts bankRefundAmount");
   assert.ok(posting.includes("opts.customerCreditAmount"), "postReturnEntry accepts customerCreditAmount");
-  assert.ok(/accountCode:\s*"2300"[\s\S]{0,80}customerCredit/.test(posting) || /customerCredit > 0[\s\S]{0,120}"2300"/.test(posting), "postReturnEntry posts Cr 2300 for the credit portion");
+  assert.ok(/customerCredit > 0[\s\S]{0,160}mappingRole:\s*"RESERVATION_ADVANCE_LIABILITY"/.test(posting), "postReturnEntry resolves the credit portion from its canonical mapping");
 
   // Return route: passes the split to postReturnEntry.
   assert.ok(/postReturnEntry\([\s\S]{0,400}customerCreditAmount:/.test(routes), "return passes customerCreditAmount to postReturnEntry");
   assert.ok(/postReturnEntry\([\s\S]{0,400}bankRefundAmount:/.test(routes), "return passes bankRefundAmount to postReturnEntry");
 
-  // Exchange money leg splits 1110 / 1120 / 2300 for a refund excess.
-  assert.ok(routes.includes('lines.push({ accountCode: "2300", debit: 0, credit: refundCreditPortion'), "exchange posts Cr 2300 for the credit portion");
+  // Exchange money leg splits canonical cash, bank, and liability mappings.
+  assert.ok(routes.includes('lines.push({ mappingRole: "RESERVATION_ADVANCE_LIABILITY", debit: 0, credit: refundCreditPortion'), "exchange resolves the credit portion from its canonical mapping");
   assert.ok(routes.includes("refundBankPortion") && routes.includes("refundCashPortion"), "exchange splits cash/bank refund portions");
 
   // Return credit row: return_credit, explicit journalEntryId, NO glPosting.

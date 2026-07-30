@@ -38,7 +38,7 @@ function verifyHelperFormula() {
     returnedValue: 500,
     newSubtotal: 400,
     outstandingAR: 20,
-    settlement: { creditAmount: 24, cashAccountCode: "1110", bankAccountCode: "1120" },
+    settlement: { creditAmount: 24 },
   });
 
   assert.equal(preview.newTax, 56, "newTax is computed from new replacement subtotal only");
@@ -87,7 +87,7 @@ function verifyLiveRoute() {
   const creditBlock = liveRoute.slice(creditStart, liveRoute.indexOf("});", creditStart) + 3);
   assertIncludes(creditBlock, "journalEntryId: journalEntry ? journalEntry.id : null", "exchange_credit uses explicit journalEntryId");
   assertNotMatches(creditBlock, /glPosting/, "exchange_credit does not use glPosting");
-  assertIncludes(liveRoute, 'accountCode: "2300"', "exchange credit settlement posts 2300 in the single journal");
+  assertIncludes(liveRoute, 'mappingRole: "RESERVATION_ADVANCE_LIABILITY"', "exchange credit settlement resolves the Branch liability mapping");
 
   assertIncludes(liveRoute, 'const idemScope = "sales.exchange"', "sales.exchange idempotency scope retained");
   assertIncludes(liveRoute, "idempotencyBodyWithActor(req, body, commandActor)", "whole-body idempotency hash includes operator actor consistency");

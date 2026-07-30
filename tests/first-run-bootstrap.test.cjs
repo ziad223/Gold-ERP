@@ -108,7 +108,16 @@ test("partial, inactive, and multi-Company states remain fail-closed", async () 
   assert.equal((await setupState.resolveSetupState(models)).state, setupState.STATES.RECOVERY_REQUIRED);
   for (const [roleCode, definition] of Object.entries(financialCatalog.ACCOUNT_ROLE_CATALOG)) {
     const accountId = `ACC-${roleCode}`;
-    store.accounts.push(record({ id: accountId, companyId: "COMP-A", branchId: null, isActive: true, type: definition.type, nature: definition.nature, isPosting: true }));
+    store.accounts.push(record({
+      id: accountId,
+      companyId: "COMP-A",
+      branchId: null,
+      isActive: true,
+      type: definition.type,
+      nature: definition.nature,
+      statementClassification: definition.statementClassification,
+      isPosting: true,
+    }));
     store.roles.push(record({ id: `ROLE-${roleCode}`, companyId: "COMP-A", branchId: "BR-A", roleCode, accountId }));
   }
   store.mappings.push(...Object.entries(financialCatalog.BRANCH_MAPPING_CATALOG).map(([mappingType, definition], index) =>

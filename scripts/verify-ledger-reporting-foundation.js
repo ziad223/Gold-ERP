@@ -54,9 +54,10 @@ function verifyLedgerRoutes() {
   assertIncludes(accountRoute, "sourceType", "account ledger exposes sourceType");
   assertIncludes(accountRoute, "sourceId", "account ledger exposes sourceId");
 
-  for (const code of ["1110", "1120"]) {
-    assertIncludes(cashRoute, code, `cash reconciliation includes GL account ${code}`);
-  }
+  assertIncludes(cashRoute, 'resolveTreasuryAccount(req.companyId, branchId, "cash")', "cash reconciliation resolves the Branch cash mapping");
+  assertIncludes(cashRoute, 'resolveTreasuryAccount(req.companyId, branchId, "bank")', "cash reconciliation resolves the Branch bank mapping");
+  assertIncludes(cashRoute, 'accountRoles: ["CASH_TREASURY", "BANK_ACCOUNT"]', "cash reconciliation declares mapped treasury roles");
+  assertNotMatches(cashRoute, /["'](?:1110|1120)["']/, "cash reconciliation has no fixed treasury account authority");
   assertIncludes(cashRoute, "models.CashTransaction.findAll", "cash reconciliation compares CashTransaction");
   assertIncludes(cashRoute, "glSource: \"journal_lines\"", "cash reconciliation declares GL source");
   assertIncludes(cashRoute, "operationalSource: \"cash_transactions\"", "cash reconciliation declares operational source");

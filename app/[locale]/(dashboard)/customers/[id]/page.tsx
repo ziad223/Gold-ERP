@@ -1348,8 +1348,8 @@ function CustomerStatementPanel({ customerId, money }: { customerId: string; mon
                   value={depositForm.paymentMethod}
                   onChange={(e) => updateDepositForm({ paymentMethod: e.target.value as "cash" | "bank" })}
                 >
-                  <option value="cash">{rtl ? "نقدي — 1110" : "Cash — 1110"}</option>
-                  <option value="bank">{rtl ? "بنك — 1120" : "Bank — 1120"}</option>
+                  <option value="cash">{rtl ? "نقدي — تعيين الفرع" : "Cash — Branch mapping"}</option>
+                  <option value="bank">{rtl ? "بنك — تعيين الفرع" : "Bank — Branch mapping"}</option>
                 </select>
               </label>
               <label className="text-xs font-bold text-slate-600 dark:text-slate-300">
@@ -1441,8 +1441,8 @@ function CustomerStatementPanel({ customerId, money }: { customerId: string; mon
                   value={refundForm.paymentMethod}
                   onChange={(e) => updateRefundForm({ paymentMethod: e.target.value as "cash" | "bank" })}
                 >
-                  <option value="cash">{rtl ? "نقدي — 1110" : "Cash — 1110"}</option>
-                  <option value="bank">{rtl ? "بنك — 1120" : "Bank — 1120"}</option>
+                  <option value="cash">{rtl ? "نقدي — تعيين الفرع" : "Cash — Branch mapping"}</option>
+                  <option value="bank">{rtl ? "بنك — تعيين الفرع" : "Bank — Branch mapping"}</option>
                 </select>
               </label>
               <label className="text-xs font-bold text-slate-600 dark:text-slate-300">

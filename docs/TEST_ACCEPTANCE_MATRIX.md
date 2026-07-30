@@ -1,5 +1,235 @@
 # v1.0.0 Test and Acceptance Matrix
 
+## OFFICIAL-LOCAL-FINANCIAL-FIX-CONT1 — 2026-07-30
+
+| Contract | Result | Sanitized evidence boundary |
+|---|---|---|
+| F001 source and focused contract | PASS | Persisted invoice Branch ID is authorized and forwarded; display label authority is absent |
+| Disposable mapped cash/bank posting | PASS | Both methods created balanced Branch-scoped journals; display-only Branch was rejected; database dropped |
+| Retained bank collection, replay, conflict | PASS | One valid collection succeeded; same payload replayed; changed payload conflicted without duplication |
+| Retained second partial collection | FAIL | Canonical `409 STATE_CONFLICT`; no added payment, treasury, or journal row |
+
+Classification: `OFFICIAL-LOCAL-FINANCIAL-FIX-CONT1 = PARTIAL`.
+Next: `OFFICIAL-LOCAL-FINANCIAL-FIX-CONT2`.
+
+## OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-CONT1 — 2026-07-30
+
+| Contract | Result | Sanitized evidence boundary |
+|---|---|---|
+| Pre-backup and disposable restore | PASS | Custom archive restored to a disposable database and was dropped; official database was not restored |
+| Persistent valid Product workflows started | PASS | Customer/supplier, two inventory receipts, supplier cash/bank settlements, cash/bank sales, and same-key replay contracts succeeded |
+| Installment receivable sale | PASS | Posted validly and created one unpaid installment |
+| Installment bank collection | FAIL | Two Product-owned attempts returned canonical `422 FINANCIAL_MAPPING_REQUIRED`; no collection payment, treasury, or journal delta |
+| Product regression disposition | OPEN | `FINANCIAL-ACCEPT-F001`; stop before remaining workflow and negative-probe matrix |
+
+Classification: `OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-CONT1 = PARTIAL`.
+Next: `OFFICIAL-LOCAL-FINANCIAL-FIX-CONT1`.
+
+## OFFICIAL-LOCAL-FIRST-RUN-FIX-CONT1 — 2026-07-30
+
+| Contract | Result | Sanitized evidence boundary |
+|---|---|---|
+| Development route registration diagnosis | PASS | Active dev manifest initially omitted dashboard-group routes while source/full manifest contained them |
+| Existing-runtime hot reload | PASS | Source bytes unchanged; dashboard, Chart-of-Accounts, and settings registered and each returned 200 |
+| Authenticated dashboard hard refresh | PASS | Dashboard route restored with no 404 boundary |
+| Typecheck | PASS | `tsc --noEmit` |
+| Lint | PASS | 0 errors; 18 inherited warnings |
+
+Classification: `OFFICIAL-LOCAL-FIRST-RUN-FIX-CONT1 = COMPLETE`;
+`LOCAL-FIRST-RUN-UI-F001 = RESOLVED_BY_RUNTIME_REPLAY`. Next:
+`MANUAL-LOCAL-SMOKE-CONT1`.
+
+## OFFICIAL-LOCAL-FIRST-RUN-HARNESS-FIX-CONT1 continuation 2 — 2026-07-30
+
+| Contract | Result | Sanitized evidence boundary |
+|---|---|---|
+| Exact approved credential policy check | PASS | Exact First Run policy accepted; value not retained |
+| Supported guarded First Run | PASS | 201; single Company/Branch/admin; 12/12 roles; 11/11 mappings; readiness READY |
+| Replay and repeat/token guards | PASS | Same-key replay 200; repeat 409; missing/invalid token canonical 403; no duplicate setup rows |
+| API login/profile/logout | PASS | Login and profile 200; logout 200; post-logout protected route 401; re-login 200 |
+| Browser login | PASS | Valid administrator credential transitions to dashboard URL |
+| Dashboard/financial navigation smoke | FAIL | Dashboard, Chart-of-Accounts, and settings route responses are 404 in the existing Frontend runtime; source routes exist |
+| Static/build acceptance | NOT RUN | Stopped at proven Frontend route regression; no Product repair in this phase |
+
+Classification: `OFFICIAL-LOCAL-FIRST-RUN-HARNESS-FIX-CONT1-CONTINUATION-2 =
+PARTIAL`; `LOCAL-FIRST-RUN-UI-F001 = OPEN`. Next:
+`OFFICIAL-LOCAL-FIRST-RUN-FIX-CONT1`.
+
+## OFFICIAL-LOCAL-FIRST-RUN-HARNESS-FIX-CONT1 blocker — 2026-07-30
+
+| Contract | Result | Evidence boundary |
+|---|---|---|
+| Local setup token configuration | PASS | Retained only in ignored Backend environment; not tracked or logged |
+| Controlled Backend reload | PASS | Backend 8000 healthy; Frontend and PostgreSQL preserved |
+| Missing/invalid token guards | PASS | Canonical 403; setup/business counters remain zero |
+| Valid-token First Run request | BLOCKED | Existing password policy rejects the operator-specified credential with canonical 422 |
+| Setup/readiness/login/UI/static acceptance | NOT RUN | No replacement credential was authorized; no setup data exists |
+
+Classification: `OFFICIAL-LOCAL-FIRST-RUN-HARNESS-FIX-CONT1 = BLOCKED`.
+Next remains `OFFICIAL-LOCAL-FIRST-RUN-HARNESS-FIX-CONT1`; deployment remains
+prohibited.
+
+## OFFICIAL-LOCAL-FIRST-RUN-HARNESS-FIX-CONT1 continuation blocker — 2026-07-30
+
+| Contract | Result | Evidence boundary |
+|---|---|---|
+| Exact first-run password policy | PASS | Minimum length, upper/lower/digit/special, common-password, and account-identity rules inspected |
+| Approved replacement validation | FAIL | Rejected locally only by the account-identity-substring rule |
+| First Run request | NOT ATTEMPTED | Mandatory pre-request stop; database mutation remains zero |
+| Runtime/local token/baseline | PASS | Existing services, retained ignored token, and empty `52/52/0` state preserved |
+
+Classification: `OFFICIAL-LOCAL-FIRST-RUN-HARNESS-FIX-CONT1 = BLOCKED`.
+Next remains `OFFICIAL-LOCAL-FIRST-RUN-HARNESS-FIX-CONT1`.
+
+## OFFICIAL-LOCAL-DB-RESET-AND-FIRST-RUN-CONT1 boundary — 2026-07-30
+
+| Contract | Result | Evidence boundary |
+|---|---|---|
+| Verified retained backup | PASS | Custom archive, schema dump, manifest, restore verification, and comparison summary retained outside Git |
+| Controlled local schema reset | PASS | Target limited to local `darfus_erp/public`; pre-reset application ports closed |
+| Migrations | PASS | Source/applied/pending = `52/52/0` |
+| Local service start | PASS | Backend `8000` healthy; Frontend `3000` available; PostgreSQL preserved |
+| Supported First Run authorization | BLOCKED | `SETUP_REQUIRED`; deployment-controlled setup token is absent and bootstrap fails closed with `403` |
+| First Run data/readiness/UI smoke | NOT RUN | Mandatory authorization stop boundary; no setup data created |
+
+Classification: `OFFICIAL-LOCAL-DB-RESET-AND-FIRST-RUN-CONT1 = PARTIAL`.
+Next: `OFFICIAL-LOCAL-FIRST-RUN-HARNESS-FIX-CONT1`. Deployment remains
+prohibited.
+
+## Financial bootstrap CONT4 repair — 2026-07-30
+
+| Contract | Result | Evidence |
+|---|---|---|
+| Fixed cash/bank authority | PASS | Central resolver uses `CASH_TREASURY` / `BANK_ACCOUNT`; no fallback |
+| Failing-before/after | PASS | 1/15 before; 15/15 after |
+| Fresh setup/readiness | PASS | Disposable 52/52/0; roles 12/12; mappings 11/11; READY |
+| Cash and bank posting | PASS | 201/201; mapped authority |
+| Expense cash/bank | PASS | 201/201; selected expense + mapped treasury |
+| Other income cash/bank | PASS | 201/201; mapped treasury + `OTHER_INCOME` |
+| Balanced/atomic posting | PASS | 6 business, 6 journals, 12 lines, unbalanced 0, account delta 0 |
+| Missing mapping | PASS | 422 `FINANCIAL_MAPPING_REQUIRED`; all write deltas 0 |
+| Invalid mapping | PASS | 422 incompatible; valid mapping preserved; all write deltas 0 |
+| Idempotency | PASS | replay business/journal/line/account deltas 0 |
+| Complete Node inventory | PASS | 143 pass, 0 fail, 3 intentional skips |
+| Permission/type/lint/diff | PASS | 128/128; typecheck; lint errors 0; diff/hash gates pass |
+| Official runtime/database | PASS | health 200/200, unauthorized treasury 401, read-only 52/51/1, locks 0/0 |
+
+Classification: `FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT4 = COMPLETE`;
+`FINANCIAL-BOOTSTRAP-F005 = RESOLVED`; next
+`FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT4`.
+
+## Financial runtime CONT3 acceptance — 2026-07-30
+
+| Acceptance area | Result | Evidence boundary |
+|---|---|---|
+| Git/protected/static baseline | PASS | 147 pass, 0 fail, 3 opt-in skips; permission 128/128; typecheck PASS; lint 0 errors/18 inherited warnings |
+| Empty database and migrations | PASS | zero pre-migration Product tables; source/applied/pending 52/52/0 |
+| Supported First Run | PASS | one Company/Branch; roles 12/12; mappings 11/11; setup/financial READY |
+| First Run idempotency | PASS | same-key replay accepted; later new setup rejected |
+| Chart UI search/filter | PASS | code search and independent type filter observed in real UI |
+| Custom account UI | PASS | operating-expense posting account created and safe display field edited |
+| Account semantic integrity | PASS | incompatible stable BANK edit rejected in UI; valid state preserved |
+| Mapping UI/compatibility | PASS | 11/11 rows; eligible BANK authority; generic Asset rejected 422; zero write; READY preserved |
+| Cash posting | FAIL | legacy fixed cash account code rejected on fresh bootstrap |
+| Bank posting | FAIL | legacy fixed bank account code rejected on fresh bootstrap |
+| Expense/other-income posting | FAIL | blocked by the same treasury account resolver before writes |
+| Deposit/supplier/inventory/report/scope lifecycle | NOT RUN | mandatory posting stop boundary |
+| Logout/cleanup | PASS | logout 200; browser/process/database/temp residue zero |
+| Official runtime/database | PASS | healthy; 52/51/1; exact financial fingerprints unchanged |
+
+Classification: `FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT3 = PARTIAL`;
+`FINANCIAL-BOOTSTRAP-F005 = REOPENED`;
+next `FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT4`.
+
+## FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT3 — acceptance matrix — 2026-07-30
+
+| Contract | Result |
+| --- | --- |
+| Failing-before regression coverage | PASS |
+| Stable role proposed-state matrix | PASS — 12/12 |
+| Active mapping proposed-state matrix | PASS — 11/11 |
+| Type/nature/classification guards | PASS |
+| Posting/active-state guards | PASS |
+| Company/hierarchy/journal-reference guards | PASS |
+| Safe display edit | PASS |
+| Canonical rejection | PASS — HTTP 422, safe code/reason, no raw IDs |
+| Atomic zero-write preservation | PASS — account/roles/mappings/journals unchanged |
+| Readiness after rejection | PASS — READY |
+| Disposable PostgreSQL | PASS — fresh `52/52/0`, cleanup zero |
+| Complete Node inventory | PASS — 147 pass, 0 fail, 3 opt-in skips |
+| Permission/typecheck/lint | PASS — 128/128; typecheck; 0 lint errors, 18 inherited warnings |
+| Official safety | PASS — runtime preserved, DB `52/51/1` |
+
+F010 is resolved. Full posting/report runtime acceptance is not claimed here;
+next marker is `FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT3`.
+
+## FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT2 — partial matrix — 2026-07-30
+
+| Contract | Independent evidence | Result |
+| --- | --- | --- |
+| Static baseline | Complete recursive Node, permission, typecheck, lint, diff/hash | PASS — 137 pass, 0 fail, 2 skips; 128/128; lint errors 0 |
+| Empty database/migrations | Unique disposable PostgreSQL | PASS — `52/52/0` |
+| First Run/readiness | Product UI/API and read-only inventory | PASS — Company 1, Branch 1, roles 12/12, mappings 11/11, READY |
+| First Run repeat | Second supported bootstrap | PASS — canonical 409; account/role/mapping delta 0 |
+| F003 real UI | Search/filter/hierarchy/no-results/RTL/accessibility | PASS |
+| Custom expense account | Product UI create and display-only edit | PASS |
+| F010 candidate authority | Protected eligible-account UI/API | PASS — valid BANK visible, generic Asset absent, custom expense eligible |
+| F010 mapping update | Generic Asset→BANK direct API | PASS — canonical 422, valid mapping/READY preserved, zero financial delta |
+| Account integrity | Semantic change on active stable-role/mapped BANK account | FAIL — PATCH 200 changed Asset→Liability and readiness READY→BLOCKED |
+| Posting/report/scope/idempotency | Mandatory downstream acceptance | NOT RUN — stopped at Account Integrity defect |
+| Session/cleanup | Normal logout, owned runtime/database/temp removal | PASS |
+| Official safety | Fingerprints, runtime owners, migrations, locks | PASS — unchanged `52/51/1`, locks `0/0` |
+
+Classification: PARTIAL. F010 reopened; open financial blockers 1. Next:
+`FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT3`.
+
+## FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT2 — acceptance matrix — 2026-07-30
+
+| Contract | Evidence | Result |
+| --- | --- | --- |
+| F003 failing-before proof | Combined CONT2 contract against old ownership | PASS — expected `0/6` |
+| Chart search/filter | Pure hierarchy reducer plus UI source contract | PASS — code/name, type, classification, active, posting, combined, clear, no-results |
+| Hierarchy/accessibility | Deterministic fixture and UI contract | PASS — ancestors retained, unrelated nodes removed, canonical order, no duplicates, labelled controls, RTL logical indentation |
+| F010 11-role matrix | Catalog-driven unit contract | PASS — exact roles accepted; inactive/non-posting/foreign/classification-invalid cases rejected |
+| Same-type wrong-role rejection | Disposable API, generic posting Asset as BANK | PASS — canonical 422 with safe role/reason fields |
+| Failed-update safety | Disposable pre/post counts and mapping/readiness | PASS — prior mapping unchanged; READY; account/mapping/audit/journal delta 0 |
+| Eligible-account frontend | Permissioned backend endpoint consumed by Chart UI | PASS — generic Asset excluded; valid BANK included; local broad-type table removed |
+| DEFAULT_EXPENSE family | Canonical catalog plus disposable API | PASS — explicit operating-expense family accepted and reconciliation-preserved |
+| Resolver legacy defense | Disposable injected-invalid mapping | PASS — fail closed before posting |
+| Fresh First Run | Disposable PostgreSQL, all source migrations | PASS — `52/52/0`, roles `12/12`, mappings `11/11`, READY |
+| Focused contracts | CONT1 + CONT2 + First Run | PASS — `22/22` |
+| Complete Node inventory | All `.test.cjs/.test.mjs` | PASS — 137 pass, 0 fail, 2 intentional skips |
+| Permission/type/lint/diff | Canonical baseline and repository commands | PASS — `128/128`, typecheck, lint errors 0, diff check |
+| Official smoke/safety | Read-only chart/backend/unauthorized endpoint plus DB postcheck | PASS — 200/200/401, fingerprints unchanged, `52/51/1`, locks `0/0` |
+| Full posting/report runtime | Deliberately outside CONT2 repair boundary | PENDING — next acceptance phase |
+
+Classification: COMPLETE. F003/F010 resolved. Next:
+`FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT2`.
+
+## FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT1 — partial matrix — 2026-07-30
+
+| Contract | Independent evidence | Result |
+| --- | --- | --- |
+| Git/runtime/official DB preflight | Exact checkpoint, hashes, listeners, DB fingerprints | PASS |
+| Static financial baseline | Focused 23/23; mjs 59/59; cjs 58 pass + 1 intentional skip; permissions 128/128; typecheck/lint/diff | PASS |
+| Empty disposable database | Unique local DB, no copied rows | PASS |
+| Source migrations | Supported CLI | PASS — 52/52/0 |
+| Isolated backend | Owned dynamic loopback high port | PASS — healthy and removed |
+| First Run | Supported setup API | PASS — setup READY and financial READY |
+| Account role inventory | Disposable DB | PASS — 12/12, inactive/duplicate defects 0 |
+| Branch mapping inventory | Disposable DB | PASS — 11/11 initial mappings |
+| Chart list search/filter | Frontend render ownership/source | FAIL — no list search/filter control |
+| Mapping UI semantic eligibility | Candidate reducer | FAIL — active/posting/type only |
+| Mapping API wrong-role rejection | Supported PUT using synthetic same-type non-role account | FAIL — HTTP 200 and mapping mutated |
+| Mapping restoration | Supported PUT of original valid mapping | PASS — readiness returned READY |
+| Posting/ledger/statements/reports | Stopped after proven Product defect | NOT PROVEN in this phase |
+| Logout | Isolated synthetic administrator | PASS — HTTP 200 |
+| Disposable cleanup | Process/listener/DB checks | PASS — residue 0 |
+| Official DB postcheck | Read-only fingerprints and locks | PASS — unchanged, 52/51/1, locks 0/0 |
+
+Classification: PARTIAL. Reopened: `F003`, `F010`. Next:
+`FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT2`.
+
 ## FINANCIAL-ACCOUNT-BOOTSTRAP-FIX-CONT1 — acceptance matrix — 2026-07-30
 
 | Contract | Evidence | Result |
@@ -832,3 +1062,5 @@ idempotency, rollback, isolation and zero residue.
 | Frontend parser/form/toast ownership | PASS | Canonical + legacy parsing, network fallback, inline First Run fields, and validation-toast suppression are covered. |
 | Regressions | PASS | First Run, Company context, notification lifecycle and reservation/deposit rollback targeted suites pass. |
 | Browser N5/N8 / NOTIF-ACCEPT | DEFERRED | No browser runtime counts claimed or authorization granted. |
+| PRE-RESET-BACKUP-RESTORE-REHEARSAL-CONT1 | PASS | Retained custom full and schema-only backups passed a real disposable restore. Public schema inventory, migration metadata, all table count/fingerprints, financial fingerprints, constraints, foreign-key orphan checks, sequence alignment, and read-only smoke checks passed. Source `darfus_erp/public` remained unchanged at `52/51/1`; restore residue was zero. |
+| MANUAL-LOCAL-SMOKE-CONT1 | PASS | Persistent `darfus_erp/public` `52/52/0`; setup/financial readiness READY; roles `12/12`; mappings `11/11`. Normal login/logout, 25 safe routes, Chart/mapping/readiness UI, six direct hard refreshes, and console review passed. One loading-only route passed controlled replay. BUSINESS/CONFIGURATION/FINANCIAL/SYSTEM fingerprints were unchanged; expected AUTH_SESSION delta only. Permission baseline, typecheck, diff check, and lint `0` errors/`18` inherited warnings passed. |

@@ -91,7 +91,9 @@ function staticChecks() {
   assert.ok(reservationBlock.includes("advancesAccountCode"), "reservation journal credits configured advances account");
   assert.ok(!/2200|4100|1300|5000|1200|2300/.test(reservationBlock), "reservation payment posting has no VAT/revenue/AR/COGS/inventory/deposit-account lines");
   const depositBlock = posting.slice(posting.indexOf("async postDepositEntry"), posting.indexOf("  /**", posting.indexOf("async postDepositEntry") + 10));
-  assert.ok(depositBlock.includes('{ accountCode: "2300"'), "legacy deposit posting remains isolated in postDepositEntry");
+  assert.ok(depositBlock.includes("mappingRole: treasuryMappingRole(method)"), "deposit posting resolves the selected treasury mapping");
+  assert.ok(depositBlock.includes('mappingRole: "RESERVATION_ADVANCE_LIABILITY"'), "deposit posting resolves the reservation liability mapping");
+  assert.ok(!/accountCode:\s*"(1110|1120|2300)"/.test(depositBlock), "deposit posting has no fixed treasury or liability account authority");
 
   const routes = read(files.routes);
   assert.ok(routes.includes('router.post("/reservations"'), "dedicated reservation create route exists");

@@ -1258,16 +1258,13 @@ export type ExchangeNewItem =
 /**
  * Phase 30-Fix — optional operator-selected settlement of the return EXCESS
  * (the value owed back to the customer AFTER receivable-first AR relief). The
- * parts must sum to the excess; cash uses 1110, bank uses 1120, and credit is
- * mapped to Customer Deposits 2300 by the backend. Omitted → legacy full
- * cash/bank refund.
+ * parts must sum to the excess. The backend resolves cash, bank, and customer
+ * deposit accounts from the active Branch mappings.
  */
 export interface ReturnSettlement {
   cashAmount: number;
   bankAmount: number;
   creditAmount: number;
-  cashAccountCode: "1110";
-  bankAccountCode: "1120";
   reference?: string;
   description?: string;
 }

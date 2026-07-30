@@ -54,15 +54,17 @@ async function functional() {
   try {
     const models = makeMockModels();
     const base = { models, companyId: "CMP-1", customerId: "CUST-1", amount: 100, sourceType: "manual_adjustment" };
-    const protectedDepositAccountCode = "SYS-CUSTOMER-DEPOSIT-A";
+    const treasuryAccountId = "ACCOUNT-CASH-MAPPED";
+    const protectedDepositAccountId = "ACCOUNT-CUSTOMER-DEPOSIT-MAPPED";
+    const receivableAccountId = "ACCOUNT-RECEIVABLE-MAPPED";
 
     const creditIn = await svc.recordCreditIn({
       ...base,
       glPosting: {
         enabled: true,
-        debitAccountCode: "1110",
-        creditAccountCode: protectedDepositAccountCode,
-        customerDepositAccountCode: protectedDepositAccountCode,
+        debitAccountId: treasuryAccountId,
+        creditAccountId: protectedDepositAccountId,
+        customerDepositAccountId: protectedDepositAccountId,
         description: "Customer deposit credit",
         date: "2026-07-07",
       },
@@ -71,8 +73,8 @@ async function functional() {
     assert.equal(calls[0].opts.sourceType, "customer_credit", "journal sourceType identifies credit ledger");
     assert.equal(calls[0].opts.sourceId, creditIn.id, "journal sourceId links to credit row");
     assert.deepEqual(
-      calls[0].lines.map((line) => [line.accountCode, line.debit, line.credit]),
-      [["1110", 100, 0], [protectedDepositAccountCode, 0, 100]],
+      calls[0].lines.map((line) => [line.accountId, line.debit, line.credit]),
+      [[treasuryAccountId, 100, 0], [protectedDepositAccountId, 0, 100]],
       "credit_in debits counter account and credits the resolved protected deposit account",
     );
 
@@ -84,16 +86,16 @@ async function functional() {
       sourceType: "credit_application",
       glPosting: {
         enabled: true,
-        debitAccountCode: protectedDepositAccountCode,
-        creditAccountCode: "1300",
-        customerDepositAccountCode: protectedDepositAccountCode,
+        debitAccountId: protectedDepositAccountId,
+        creditAccountId: receivableAccountId,
+        customerDepositAccountId: protectedDepositAccountId,
         description: "Apply customer credit",
       },
     });
     assert.equal(creditOut.journalEntryId, "JE-MOCK-2", "credit_out saves generated journalEntryId");
     assert.deepEqual(
-      calls[1].lines.map((line) => [line.accountCode, line.debit, line.credit]),
-      [[protectedDepositAccountCode, 25, 0], ["1300", 0, 25]],
+      calls[1].lines.map((line) => [line.accountId, line.debit, line.credit]),
+      [[protectedDepositAccountId, 25, 0], [receivableAccountId, 0, 25]],
       "credit_out debits the resolved protected deposit account and credits counter account",
     );
 
@@ -111,7 +113,7 @@ async function functional() {
       () => svc.recordCreditIn({
         ...base,
         journalEntryId: "JE-EXISTING",
-        glPosting: { enabled: true, debitAccountCode: "1110", creditAccountCode: protectedDepositAccountCode, customerDepositAccountCode: protectedDepositAccountCode },
+        glPosting: { enabled: true, debitAccountId: treasuryAccountId, creditAccountId: protectedDepositAccountId, customerDepositAccountId: protectedDepositAccountId },
       }),
       /either journalEntryId or glPosting\.enabled/i,
       "journalEntryId plus glPosting.enabled is rejected",
@@ -119,9 +121,9 @@ async function functional() {
     await assert.rejects(
       () => svc.recordCreditIn({
         ...base,
-        glPosting: { enabled: true, debitAccountCode: "1110", creditAccountCode: "1300", customerDepositAccountCode: protectedDepositAccountCode },
+        glPosting: { enabled: true, debitAccountId: treasuryAccountId, creditAccountId: receivableAccountId, customerDepositAccountId: protectedDepositAccountId },
       }),
-      /credit_in GL bridge must credit account 2300/i,
+      /credit_in GL bridge must credit the mapped customer-deposit liability/i,
       "credit_in must credit the exact resolved protected deposit account",
     );
     await assert.rejects(
@@ -131,9 +133,9 @@ async function functional() {
         customerId: "CUST-1",
         amount: 5,
         sourceType: "credit_application",
-        glPosting: { enabled: true, debitAccountCode: "1300", creditAccountCode: "1110", customerDepositAccountCode: protectedDepositAccountCode },
+        glPosting: { enabled: true, debitAccountId: receivableAccountId, creditAccountId: treasuryAccountId, customerDepositAccountId: protectedDepositAccountId },
       }),
-      /credit_out GL bridge must debit account 2300/i,
+      /credit_out GL bridge must debit the mapped customer-deposit liability/i,
       "credit_out must debit the exact resolved protected deposit account",
     );
   } finally {
@@ -144,9 +146,9 @@ async function functional() {
 function staticChecks() {
   const service = read("backend/src/services/customer-credit.service.js");
   assert.ok(service.includes("glPosting"), "service supports glPosting");
-  assert.ok(service.includes("customerDepositAccountCode"), "GL bridge accepts the server-resolved protected deposit account code");
-  assert.ok(service.includes('creditAccountCode !== customerDepositAccountCode'), "credit_in validates the exact protected deposit account credit");
-  assert.ok(service.includes('debitAccountCode !== customerDepositAccountCode'), "credit_out validates the exact protected deposit account debit");
+  assert.ok(service.includes("customerDepositAccountId"), "GL bridge accepts the server-resolved protected deposit account ID");
+  assert.ok(service.includes("creditAccountId !== customerDepositAccountId"), "credit_in validates the exact protected deposit account credit");
+  assert.ok(service.includes("debitAccountId !== customerDepositAccountId"), "credit_out validates the exact protected deposit account debit");
   assert.ok(service.includes("postingService.postEntry"), "service uses postingService.postEntry");
   assert.ok(service.includes("journalEntryId = journalEntry.id"), "generated journalEntryId is saved");
   assert.ok(service.includes("models.sequelize.transaction"), "service wraps GL bridge when caller gives no transaction");
@@ -161,7 +163,7 @@ function staticChecks() {
   assert.ok(routes.includes('router.post("/invoices/:id/apply-customer-credit"'), "invoice apply-credit endpoint exists");
   assert.ok(!/router\.(post|put|patch|delete)\([^)]*credit\/adjust/.test(routes), "no credit adjustment route");
   assert.ok(routes.includes("customerCreditService.recordCreditIn"), "manual deposit route creates credit_in through the service");
-  assert.ok(routes.includes("resolveSystemAccountRole") && routes.includes("customerDepositAccountCode: depositAccount.code"), "credit routes resolve and pass the effective branch protected deposit account");
+  assert.ok(routes.includes("resolveSystemAccountRole") && routes.includes("customerDepositAccountId: depositAccount.id"), "credit routes resolve and pass the effective branch protected deposit account");
   const refundStart = routes.indexOf('router.post("/customers/:id/credit/refund"');
   const refundEnd = routes.indexOf('router.post("/invoices/:id/apply-customer-credit"', refundStart);
   assert.ok(refundStart >= 0 && refundEnd > refundStart, "refund route section is bounded");
