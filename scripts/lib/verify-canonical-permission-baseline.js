@@ -16,7 +16,16 @@ async function assertCanonicalPermissionBaseline(models) {
   assert.deepEqual(actual, expected, "permission table matches the exact v1.0.0 canonical slug set");
 
   const [[migrationCount]] = await models.sequelize.query('select count(*)::int as count from "SequelizeMeta"');
-  assert.equal(Number(migrationCount.count), 48, "migration count is 48 after permission baseline reconciliation");
+  const migrationsDir = path.join(ROOT, "backend", "migrations");
+  const expectedMigrationCount = require("node:fs")
+    .readdirSync(migrationsDir)
+    .filter((file) => /\.js$/i.test(file))
+    .length;
+  assert.equal(
+    Number(migrationCount.count),
+    expectedMigrationCount,
+    "migration count matches the current source migration set"
+  );
 }
 
 module.exports = { baseline, assertCanonicalPermissionBaseline };

@@ -46,6 +46,11 @@ const EXACT_LABELS: Record<string, Partial<PermissionMeta>> = {
     description: { ar: "تنفيذ مرتجعات المبيعات مع تأثيرات المخزون والمحاسبة", en: "Execute sales returns with inventory and accounting effects" },
     sensitivity: "level_2"
   },
+  "inventory.returns.approve_restock": {
+    label: { ar: "اعتماد إعادة القطعة المرتجعة للمخزون", en: "Approve Returned Asset Restock" },
+    description: { ar: "اعتماد قطعة مرتجعة بحالة جيدة لتعود متاحة بالمخزون", en: "Approve a GOOD returned Asset back to available inventory" },
+    sensitivity: "level_2"
+  },
   "sales.exchanges.execute": {
     label: { ar: "تنفيذ استبدال المبيعات", en: "Execute Sales Exchanges" },
     description: { ar: "تنفيذ استبدال المبيعات مع تأثيرات المخزون والمحاسبة", en: "Execute sales exchanges with inventory and accounting effects" },
@@ -130,6 +135,7 @@ export const KNOWN_PERMISSION_CODES = [
   "sales.returns.execute", "sales.exchanges.execute", "sales.installments.collect",
   "pos.view", "pos.sell", "pos.discount.approve",
   "inventory.view", "inventory.create", "inventory.update", "inventory.delete", "inventory.adjust", "inventory.export", "inventory.print",
+  "inventory.returns.approve_restock",
   "suppliers.view", "suppliers.create", "suppliers.update", "suppliers.delete", "suppliers.export",
   "accounting.view", "accounting.post", "accounting.export", "accounting.lock.manage", "accounting.reconciliation.view",
   "treasury.view", "treasury.update", "treasury.register.view", "treasury.register.open", "treasury.register.close",

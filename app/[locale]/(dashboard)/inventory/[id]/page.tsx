@@ -1,326 +1,98 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, Barcode, Box, Building2, Clock3, Gem, GitBranch, MapPin, Pencil, RadioTower, Scale, ShieldCheck, FileText, FileQuestion } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
+import { ArrowLeft, ArrowRight, Barcode, Building2, FileText, Gem, GitBranch, History, MapPin, RadioTower, Scale, ShieldCheck } from "lucide-react";
+import { useLocale } from "next-intl";
 import { useParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ErrorState } from "@/components/ui/error-state";
 import { LoadingState } from "@/components/ui/loading-state";
-import { useAuth } from "@/contexts/auth-context";
-import { useErp } from "@/contexts/erp-context";
-import { useAssetQuery } from "@/features/assets/hooks/use-asset-query";
-import { AssetTimeline } from "@/features/assets/components/AssetTimeline";
-import { AssetLineageGraph } from "@/features/assets/components/AssetLineageGraph";
-import { Link } from "@/i18n/navigation";
-import { formatCurrency } from "@/lib/utils";
-import { Modal } from "@/components/ui/modal";
-import { BarcodeLabelPreview } from "@/features/barcodes/components/BarcodeLabelPreview";
-import { assetToLabelData } from "@/lib/print/barcode-label";
-import { AssetCostPanel } from "@/features/assets/components/AssetCostPanel";
-import { AssetEditModal } from "@/features/assets/components/AssetEditModal";
-import { AttachmentsPanel } from "@/features/assets/components/AttachmentsPanel";
-import { CertificatePanel } from "@/features/assets/components/CertificatePanel";
-import { PermissionGate } from "@/components/permissions/PermissionGate";
+import { useBranchContext } from "@/contexts/branch-context";
 import { usePermissions } from "@/hooks/use-permissions";
-import type { Asset } from "@/lib/types";
+import { Link } from "@/i18n/navigation";
+import { apiClient, generateUUID } from "@/lib/api/client";
+import { useInventoryV2Detail } from "@/features/inventory/hooks/use-inventory-v2";
+
+const PROFILE_LABELS: Record<string, string> = {
+  GOLD_BY_WEIGHT_JEWELLERY: "ذهب بالوزن – مجوهرات", GOLD_BAR_24K: "سبيكة 24K", GOLD_BY_PIECE: "ذهب بالقطعة",
+  DIAMOND_JEWELLERY: "مجوهرات ألماس", LOOSE_DIAMOND: "ألماس منفرد", GEMSTONE_JEWELLERY: "مجوهرات أحجار كريمة",
+  LOOSE_GEMSTONE: "حجر كريم منفرد", PEARL_JEWELLERY: "مجوهرات لؤلؤ", LOOSE_PEARL: "لؤلؤ منفرد", CGP_CUSTOMER_GOLD_PURCHASE: "شراء ذهب عميل (CGP)",
+};
+const STATUS_LABELS: Record<string, string> = { AVAILABLE: "متاحة", RESERVED: "محجوزة", SOLD: "مباعة", PENDING_TRANSFER: "بانتظار النقل", WORKSHOP: "في الورشة", RETURNED: "مرتجعة", MISSING: "مفقودة", MELTED: "مصهورة" };
+const STATUS_TONES: Record<string, "green" | "amber" | "blue" | "rose" | "violet" | "slate"> = { AVAILABLE: "green", RESERVED: "amber", SOLD: "slate", PENDING_TRANSFER: "violet", WORKSHOP: "blue", RETURNED: "amber", MISSING: "rose", MELTED: "rose" };
+
+const text = (value: unknown) => value === null || value === undefined || value === "" ? "—" : String(value);
+const dateTime = (value: unknown, locale: string) => value ? new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(String(value))) : "—";
+function Field({ label, value }: { label: string; value: unknown }) { return <div className="rounded-xl bg-slate-50 p-3 dark:bg-navy-950"><p className="text-[10px] text-slate-400">{label}</p><p className="mt-1 break-words text-xs font-bold text-navy-900 dark:text-slate-100">{text(value)}</p></div>; }
+function Section({ title, children }: { title: string; children: React.ReactNode }) { return <Card className="p-5"><h2 className="mb-4 text-sm font-black text-navy-950 dark:text-white">{title}</h2>{children}</Card>; }
 
 export default function AssetDetailsPage() {
-  const t = useTranslations("AssetDetails");
-  const inventoryT = useTranslations("Inventory");
   const locale = useLocale();
   const rtl = locale === "ar";
   const params = useParams<{ id: string }>();
-  const { company } = useAuth();
-  const { updateAsset: updateContextAsset } = useErp();
-  const { isAuthorized } = usePermissions();
-  
   const assetId = decodeURIComponent(params.id);
-  const { asset, timeline, isLoading, error, triggerAction, isPendingAction, uploadAttachment, deleteAttachment } = useAssetQuery(assetId);
-  const [transferBranch, setTransferBranch] = useState("");
-  const [showTransfer, setShowTransfer] = useState(false);
-  const [showPrintTag, setShowPrintTag] = useState(false);
-  const [showEdit, setShowEdit] = useState(false);
-  const [showMeltConfirm, setShowMeltConfirm] = useState(false);
-
+  const { branchId } = useBranchContext();
+  const { hasPermission } = usePermissions();
+  const detail = useInventoryV2Detail(assetId);
+  const [outcome, setOutcome] = useState("GOOD");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState("");
+  const data = detail.data;
+  const asset = data?.asset;
+  const canApproveRestock = hasPermission("inventory.returns.approve_restock");
+  const latestReview = data?.returnReviews?.[0] || null;
+  const profile = asset?.inventoryProfile || "";
   const BackIcon = rtl ? ArrowRight : ArrowLeft;
+  const timeline = useMemo(() => data?.timeline || [], [data?.timeline]);
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <LoadingState variant="skeleton" />
-      </div>
-    );
-  }
-
-  if (error || !asset) {
-    return (
-      <Card className="p-10 text-center">
-        <h1 className="text-xl font-black">{t("notFound")}</h1>
-        <Link href="/inventory" className="mt-4 inline-block font-bold text-brand-700">
-          {t("back")}
-        </Link>
-      </Card>
-    );
-  }
-
-  const statusTone = asset.status === "available" ? "green" : asset.status === "reserved" ? "amber" : asset.status === "sold" ? "slate" : "blue";
-  const currency = company?.currency ?? "AED";
-  const money = (value: number) => formatCurrency(value, currency, locale);
-
-  const handleAction = async (action: "reserve" | "release" | "repair" | "melt") => {
-    await triggerAction(action, { note: `User manual action: ${action.toUpperCase()}` });
-  };
-
-  const handleTransfer = async () => {
-    if (!transferBranch.trim()) return;
-    await triggerAction("transfer", { branch: transferBranch, note: `Transferred to ${transferBranch}` });
-    setShowTransfer(false);
-  };
-
-  const handleSaveEdit = (updates: Partial<Asset>) => {
-    updateContextAsset(asset.id, updates);
-  };
-
-  const handleAddAttachment = async (file: File) => {
+  const recordReview = async () => {
+    setBusy(true); setActionError("");
     try {
-      await uploadAttachment(file);
-    } catch (err: any) {
-      console.error(err);
-    }
+      await apiClient(`/inventory-v2/assets/${encodeURIComponent(assetId)}/return-review`, { method: "POST", body: JSON.stringify({ branchId, conditionOutcome: outcome, note }), idempotencyKey: generateUUID(), locale, branchId: branchId || undefined });
+      await detail.refetch();
+    } catch (error: any) { setActionError(error?.message || (rtl ? "تعذر تسجيل المراجعة." : "Could not record review.")); }
+    finally { setBusy(false); }
   };
-
-  const handleRemoveAttachment = async (id: string) => {
+  const approveRestock = async () => {
+    setBusy(true); setActionError("");
     try {
-      await deleteAttachment(id);
-    } catch (err: any) {
-      console.error(err);
-    }
+      await apiClient(`/inventory-v2/assets/${encodeURIComponent(assetId)}/return-review/approve-restock`, { method: "POST", body: JSON.stringify({ branchId }), idempotencyKey: generateUUID(), locale, branchId: branchId || undefined });
+      await detail.refetch();
+    } catch (error: any) { setActionError(error?.message || (rtl ? "تعذر اعتماد الإرجاع للمخزون." : "Could not approve restock.")); }
+    finally { setBusy(false); }
   };
 
-  const handleAddCertificate = (certNumber: string, type: string, issuer: string, date: string) => {
-    const newCert = {
-      id: `CRT-${Date.now()}`,
-      certificateNumber: certNumber,
-      type,
-      issuer,
-      issueDate: date,
-    };
-    const updated = [...(asset.certificates || []), newCert];
-    updateContextAsset(asset.id, { certificates: updated });
-  };
+  if (detail.isLoading) return <LoadingState variant="skeleton" />;
+  if (detail.error || !asset || !data) return <ErrorState onRetry={() => detail.refetch()} />;
+  const gross = data.goldDetails?.gross_weight ?? data.goldDetails?.grossWeight ?? asset.grossWeight;
+  const stone = data.goldDetails?.stone_weight ?? data.goldDetails?.stoneWeight;
+  const net = data.goldDetails?.net_gold_weight ?? data.goldDetails?.netGoldWeight ?? asset.netWeight;
+  const pure = data.goldDetails?.pure_gold_9999 ?? data.goldDetails?.pureGold9999;
+  const purchase = data.currentPurchaseCost;
+  const valuation = data.currentValuation;
+  const rfid = data.rfidAssignments?.find((item) => item.is_current ?? item.isCurrent) || data.rfidAssignments?.[0];
 
-  const handleRemoveCertificate = (id: string) => {
-    const updated = (asset.certificates || []).filter((c) => c.id !== id);
-    updateContextAsset(asset.id, { certificates: updated });
-  };
+  return <div className="space-y-6 text-xs">
+    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div><Link href="/inventory" className="mb-3 inline-flex items-center gap-1 font-bold text-slate-400 hover:text-brand-700"><BackIcon className="h-4 w-4" />{rtl ? "كل القطع" : "All Items"}</Link><div className="flex flex-wrap items-center gap-2"><h1 className="text-2xl font-black text-navy-950 dark:text-white">{asset.description || asset.name}</h1><Badge tone={STATUS_TONES[asset.operationalStatus] || "slate"}>{rtl ? (STATUS_LABELS[asset.operationalStatus] || asset.operationalStatus) : asset.operationalStatus}</Badge></div><p className="mt-2 font-mono text-[11px] text-slate-400">{asset.id} · {asset.barcode}</p></div><Badge tone="violet">{PROFILE_LABELS[profile] || profile}</Badge></div>
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <Link href="/inventory" className="mb-3 inline-flex items-center gap-1 text-xs font-bold text-slate-400 hover:text-brand-700">
-            <BackIcon className="h-4 w-4" />{t("back")}
-          </Link>
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-black text-navy-950 dark:text-white lg:text-3xl">{asset.name}</h1>
-            <Badge tone={statusTone}>{inventoryT(asset.status)}</Badge>
-          </div>
-          <p className="mt-2 font-mono text-xs text-slate-400">{asset.id}</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => setShowPrintTag(true)}>
-            <Barcode className="h-4 w-4" />{t("print")}
-          </Button>
-          {isAuthorized("manageSettings") && (
-            <Button onClick={() => setShowEdit(true)}>
-              <Pencil className="h-4 w-4" />{t("edit")}
-            </Button>
-          )}
-        </div>
-      </div>
+    <Section title={rtl ? "حالة المخزون" : "Stock Status"}><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Field label={rtl ? "الحالة التشغيلية" : "Operational status"} value={asset.operationalStatus} /><Field label={rtl ? "الفرع" : "Branch"} value={asset.branch || asset.branchId} /><Field label={rtl ? "الموقع" : "Location"} value={asset.location || asset.locationId} /><Field label={rtl ? "تاريخ الحالة/آخر حدث" : "Status date / latest event"} value={dateTime(timeline[0]?.occurredAt, locale)} /></div><p className="mt-3 text-[10px] text-slate-500">{rtl ? "الحالة للعرض فقط؛ تغييرها لا يتم من حقول الإدخال، بل من المسار القانوني للحركة." : "Status is read-only here; canonical business actions, not intake fields, change it."}</p></Section>
 
-      {/* Lifecycle Actions Tool Deck */}
-      <Card className="p-4 flex flex-wrap gap-2 items-center bg-slate-50/50 dark:bg-navy-950/20 border-dashed border-slate-200 dark:border-slate-800">
-        <span className="text-xs font-bold text-slate-400 mr-2">{t("actionsTitle")}</span>
-        {asset.status === "available" && (
-          <>
-            <Button size="sm" onClick={() => handleAction("reserve")} disabled={isPendingAction}>
-              {t("reserve")}
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => handleAction("repair")} disabled={isPendingAction}>
-              {t("repair")}
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => setShowTransfer(true)} disabled={isPendingAction}>
-              {t("transfer")}
-            </Button>
-            <Button size="sm" variant="secondary" className="text-rose-600 hover:bg-rose-50" onClick={() => setShowMeltConfirm(true)} disabled={isPendingAction}>
-              {t("melt")}
-            </Button>
-          </>
-        )}
-        {asset.status === "reserved" && (
-          <Button size="sm" onClick={() => handleAction("release")} disabled={isPendingAction}>
-            {t("release")}
-          </Button>
-        )}
-        {asset.status === "repair" && (
-          <Button size="sm" onClick={() => handleAction("release")} disabled={isPendingAction}>
-            {t("returnFromRepair")}
-          </Button>
-        )}
-      </Card>
+    {asset.operationalStatus === "RETURNED" && <Section title={rtl ? "مراجعة القطعة المرتجعة" : "Returned Asset Review"}>{canApproveRestock ? <div className="space-y-3"><p className="text-slate-600 dark:text-slate-300">{rtl ? "لا تعود القطعة متاحة تلقائيًا. يلزم توثيق نتيجة المراجعة ثم اعتمادها بصلاحية مستقلة." : "This Asset never returns to Available automatically. Record the review and then approve through the permission-gated canonical action."}</p>{!latestReview ? <div className="flex flex-col gap-2 sm:flex-row"><select className="input-base" value={outcome} onChange={(event) => setOutcome(event.target.value)} disabled={busy}><option value="GOOD">Good</option><option value="NEEDS_INSPECTION">Needs Inspection</option><option value="DAMAGED">Damaged</option><option value="BROKEN">Broken</option><option value="NEEDS_REPAIR">Needs Repair</option></select><input className="input-base flex-1" value={note} onChange={(event) => setNote(event.target.value)} placeholder={rtl ? "ملاحظة المراجعة" : "Review note"} disabled={busy} /><Button onClick={() => void recordReview()} disabled={busy}>{rtl ? "تسجيل المراجعة" : "Record review"}</Button></div> : <div className="flex flex-wrap items-center gap-3"><Badge tone={latestReview.conditionOutcome === "GOOD" ? "green" : "amber"}>{latestReview.conditionOutcome}</Badge><span>{rtl ? "تم تسجيل المراجعة" : "Review recorded"}</span>{latestReview.conditionOutcome === "GOOD" && !latestReview.approvedAt ? <Button onClick={() => void approveRestock()} disabled={busy}>{rtl ? "اعتماد العودة إلى المتاح" : "Approve restock"}</Button> : <span className="text-slate-500">{latestReview.approvedAt ? (rtl ? "تم الاعتماد" : "Approved") : (rtl ? "تبقى القطعة غير متاحة" : "Asset remains non-available")}</span>}</div>}{actionError && <p className="text-rose-600">{actionError}</p>}</div> : <p className="text-slate-500">{rtl ? "المراجعة والاعتماد غير متاحين لك؛ المنع من الخادم وليس من الواجهة فقط." : "You are not authorized to review or restock; the server enforces this permission."}</p>}</Section>}
 
-      {showTransfer && (
-        <Card className="p-4 space-y-4 max-w-md">
-          <h4 className="text-xs font-black">{t("selectBranch")}</h4>
-          <input
-            className="input-base"
-            value={transferBranch}
-            onChange={(e) => setTransferBranch(e.target.value)}
-            placeholder={t("branchPlaceholder")}
-          />
-          <div className="flex gap-2">
-            <Button size="sm" onClick={handleTransfer}>{t("confirmTransfer")}</Button>
-            <Button size="sm" variant="secondary" onClick={() => setShowTransfer(false)}>{t("cancel")}</Button>
-          </div>
-        </Card>
-      )}
+    <div className="grid gap-5 xl:grid-cols-2"><div className="space-y-5"><Section title={rtl ? "بيانات تعريف القطعة" : "Item Identification"}><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><Field label={rtl ? "الوصف" : "Description"} value={asset.description || asset.name} /><Field label={rtl ? "الماركة" : "Brand"} value={asset.brand} /><Field label={rtl ? "الموديل" : "Model"} value={asset.model} /><Field label={rtl ? "رقم الموديل" : "Model number"} value={asset.modelNumber} /><Field label={rtl ? "تاريخ الشراء" : "Purchase date"} value={asset.purchaseDate} /><Field label={rtl ? "الحالة/Condition" : "Condition"} value={asset.condition} /></div></Section>
+      <Section title={rtl ? "هوية القطعة والتتبع" : "Identity and Traceability"}><div className="grid gap-3 sm:grid-cols-2"><Field label="Barcode" value={asset.barcode} /><Field label="RFID" value={rfid?.rfid_number || rfid?.rfidNumber || "—"} /><Field label={rtl ? "حالة التاج" : "Tag state"} value={asset.tagState} /><Field label={rtl ? "مصدر الاستلام" : "Receipt origin"} value={data.origin?.origin_type || data.origin?.originType} /></div></Section>
+      {Boolean(data.goldDetails || asset.grossWeight) && <Section title={rtl ? "الأوزان والذهب" : "Weights and Gold"}><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><Field label={rtl ? "الوزن الإجمالي" : "Gross weight"} value={gross === "—" ? gross : `${gross} g`} /><Field label={rtl ? "وزن الأحجار" : "Stone weight"} value={stone == null ? "—" : `${stone} g`} /><Field label={rtl ? "وزن الذهب الصافي" : "Net gold weight"} value={net == null ? "—" : `${net} g`} /><Field label={rtl ? "العيار" : "Karat"} value={data.goldDetails?.karat ?? asset.karat} /><Field label={rtl ? "الذهب الخالص 999.9" : "Pure gold 999.9"} value={pure == null ? "—" : `${pure} g`} /></div></Section>}
+      {data.looseDetails && <Section title={rtl ? "تفاصيل القطعة المنفردة" : "Loose Profile Details"}><div className="grid gap-3 sm:grid-cols-2"><Field label={rtl ? "الاسم/النوع" : "Name/type"} value={data.looseDetails.stoneName || data.looseDetails.pearlType} /><Field label={rtl ? "القياس" : "Measurement"} value={data.looseDetails.measurement?.commercialDisplayValue ? `${data.looseDetails.measurement.commercialDisplayValue} ${data.looseDetails.measurement.unit}` : "—"} /><Field label={rtl ? "اللون" : "Color"} value={data.looseDetails.color} /><Field label={rtl ? "الشكل" : "Shape"} value={data.looseDetails.shape} /></div>{data.looseDetails.masterDataReferences?.length ? <ul className="mt-3 list-disc space-y-1 ps-5 text-slate-600">{data.looseDetails.masterDataReferences.map((ref: any) => <li key={`${ref.category}-${ref.masterDataId}`}>{ref.category}: {ref.label || ref.value}</li>)}</ul> : null}</Section>}
+      {data.components?.length ? <Section title={rtl ? "المكونات المضمنة" : "Embedded Components"}><div className="space-y-2">{data.components.map((component: any) => <div key={component.id} className="rounded-xl border border-border p-3"><p className="font-bold">{component.componentType || component.component_type || component.role}</p><p className="mt-1 text-slate-500">{rtl ? "العدد الوصفي" : "Descriptive count"}: {component.componentCount || component.component_count || "—"}</p></div>)}</div><p className="mt-3 text-[10px] text-slate-500">{rtl ? "عدد المكوّنات وصفي داخل أصل واحد وليس سلطة كمية للمخزون." : "Component count is descriptive within one Asset, never a physical inventory quantity."}</p></Section> : null}</div>
+      <div className="space-y-5"><Section title={rtl ? "قيمة الشراء التاريخية" : "Frozen Purchase Snapshot"}><div className="grid gap-3 sm:grid-cols-2"><Field label={rtl ? "سعر الذهب وقت الشراء" : "Purchase gold rate"} value={purchase?.purchase_gold_rate ?? purchase?.purchaseGoldRate} /><Field label={rtl ? "قيمة الذهب" : "Gold value"} value={purchase?.gold_value ?? purchase?.goldValue} /><Field label={rtl ? "تكلفة المصنعية" : "Making total"} value={purchase?.making_total ?? purchase?.makingTotal} /><Field label={rtl ? "تكلفة الشهادة" : "Certificate cost"} value={purchase?.certificate_cost ?? purchase?.certificateCost} /><Field label="VAT" value={purchase?.vat_amount ?? purchase?.vatAmount} /><Field label={rtl ? "إجمالي الشراء" : "Total purchase cost"} value={purchase?.total_purchase_cost ?? purchase?.totalPurchaseCost} /></div></Section>
+      <Section title={rtl ? "التقييم الحالي المنفصل" : "Separate Current Valuation"}><div className="grid gap-3 sm:grid-cols-2"><Field label={rtl ? "سعر الذهب الحالي" : "Current gold rate"} value={valuation?.gold_rate ?? valuation?.goldRate} /><Field label={rtl ? "قيمة الذهب الحالية" : "Current gold value"} value={valuation?.gold_value ?? valuation?.goldValue} /><Field label={rtl ? "قيمة الشهادة الحالية" : "Current certificate value"} value={valuation?.certificate_value ?? valuation?.certificateValue} /><Field label="VAT" value={valuation?.vat_amount ?? valuation?.vatAmount} /><Field label={rtl ? "إجمالي التقييم الحالي" : "Current total"} value={valuation?.total_value ?? valuation?.totalValue} /></div><p className="mt-3 text-[10px] text-slate-500">{rtl ? "لا يكتب هذا القسم فوق لقطة تكلفة الشراء التاريخية." : "This section never overwrites the historical purchase snapshot."}</p></Section>
+      <Section title={rtl ? "الشهادات والمرفقات" : "Certificates and Attachments"}><div className="space-y-3">{data.certificates.length ? data.certificates.map((certificate: any) => <div key={certificate.id} className="rounded-xl border border-border p-3"><p className="font-bold">{certificate.issuer || certificate.type}</p><p className="font-mono text-slate-500">{certificate.certificateNumber}</p></div>) : <p className="text-slate-500">{rtl ? "لا توجد شهادات" : "No certificates"}</p>}{data.attachments.length ? data.attachments.map((attachment: any) => <a key={attachment.id} className="block rounded-xl border border-border p-3 text-brand-700 hover:underline" href={attachment.url || "#"} target={attachment.url ? "_blank" : undefined} rel="noreferrer">{attachment.name || attachment.type}</a>) : <p className="text-slate-500">{rtl ? "لا توجد مرفقات" : "No attachments"}</p>}</div></Section></div></div>
 
-      <div className="grid gap-5 xl:grid-cols-[1.15fr_.85fr]">
-        <div className="space-y-5">
-          <Card className="p-5 lg:p-6">
-            <div className="mb-6 flex items-center justify-between">
-              <h2 className="font-black text-navy-950 dark:text-white">{t("data")}</h2>
-              <span className="text-[10px] font-bold text-slate-400 font-mono">
-                {timeline.at(-1)?.date ? timeline.at(-1)?.date : ""}
-              </span>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {[
-                [Gem, t("type"), inventoryT(asset.type)],
-                [Scale, t("grossWeight"), `${asset.grossWeight} g`],
-                [ShieldCheck, t("karat"), asset.karat ? `${asset.karat}K` : "—"],
-                [Building2, t("branch"), asset.branch],
-                [MapPin, t("location"), asset.location],
-                [Box, t("salePrice"), money(asset.price)],
-                [Barcode, "Barcode", asset.barcode],
-                [RadioTower, "RFID", asset.rfid ?? t("notAdded")],
-                [Clock3, t("created"), timeline[0]?.date ?? "—"],
-                [Gem, t("stonesCount"), asset.stones || 0],
-                [Gem, t("pearlsCount"), asset.pearls || 0],
-                [FileText, t("sourceDoc"), asset.source || "—"],
-              ].map(([IconValue, label, value], index) => {
-                const Icon = IconValue as typeof Gem;
-                return (
-                  <div key={index} className="rounded-2xl bg-slate-50 p-4 dark:bg-navy-950">
-                    <Icon className="mb-3 h-5 w-5 text-brand-600" />
-                    <p className="text-[10px] text-slate-400">{label as string}</p>
-                    <p className="mt-1 break-all text-xs font-black text-navy-800 dark:text-slate-100">
-                      {value as string}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
+    <Section title={rtl ? "سجل القطعة الموحد" : "Unified Item History"}><p className="mb-4 text-[10px] text-slate-500">{rtl ? "سجل الأحداث غير قابل للحذف هو السلطة الزمنية؛ وتعرض تحته حركات الأصل المربوطة كأدلة مادية." : "Immutable AssetEvents are the chronological authority; linked movement records are shown as physical evidence."}</p><div className="space-y-3">{timeline.length ? timeline.map((entry: any) => <div key={`${entry.kind}-${entry.id}`} className="rounded-xl border border-border p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><Badge tone={entry.kind === "EVENT" ? "violet" : "blue"}>{entry.kind === "EVENT" ? (rtl ? "حدث" : "Event") : (rtl ? "حركة" : "Movement")}</Badge><p className="font-bold">{entry.eventType}</p></div><span className="text-[10px] text-slate-400">{dateTime(entry.occurredAt, locale)}</span></div>{entry.note && <p className="mt-2 text-slate-600 dark:text-slate-300">{entry.note}</p>}<div className="mt-2 grid gap-1 text-[10px] text-slate-500 sm:grid-cols-3"><span>{rtl ? "المصدر" : "Source"}: {text(entry.sourceType)} / {text(entry.sourceId)}</span>{entry.actor && <span>{rtl ? "المستخدم" : "Actor"}: {entry.actor}</span>}{entry.oldStatus || entry.newStatus ? <span>{text(entry.oldStatus)} → {text(entry.newStatus)}</span> : null}</div></div>) : <p className="text-slate-500">{rtl ? "لا توجد أحداث بعد." : "No history events yet."}</p>}</div>{data.returnReviews.length ? <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50/40 p-4 dark:border-amber-900 dark:bg-amber-950/20"><p className="font-black">{rtl ? "أدلة مراجعة المرتجع R38" : "R38 returned-review evidence"}</p>{data.returnReviews.map((review: any) => <p key={review.id} className="mt-2 text-slate-600 dark:text-slate-300">{review.conditionOutcome} · {dateTime(review.reviewedAt, locale)} · {review.approvedAt ? (rtl ? "تم اعتماد العودة للمتاح" : "Restock approved") : (rtl ? "لم يُعتمد" : "Not approved")}</p>)}</div> : null}</Section>
 
-            {asset.notes && (
-              <div className="mt-6 p-4 rounded-2xl bg-amber-50/50 dark:bg-amber-950/10 border border-amber-100/50 dark:border-amber-900/30 text-xs">
-                <h4 className="font-black text-amber-900 dark:text-amber-300 mb-1">{t("notes")}</h4>
-                <p className="text-slate-600 dark:text-slate-400 font-medium leading-relaxed">{asset.notes}</p>
-              </div>
-            )}
-          </Card>
-
-          <PermissionGate permission="viewCosts">
-            <AssetCostPanel
-              cost={asset.cost}
-              price={asset.price}
-              currency={currency}
-              locale={locale}
-            />
-          </PermissionGate>
-
-          <Card className="p-5 lg:p-6">
-            <h2 className="mb-5 flex items-center gap-2 font-black text-navy-950 dark:text-white">
-              <GitBranch className="h-5 w-5 text-brand-600" />{t("lineage")}
-            </h2>
-            <AssetLineageGraph
-              assetId={asset.id}
-              assetName={asset.name}
-              parentAssetId={asset.parentAssetId}
-              childAssetIds={asset.childAssetIds}
-              contributionWeight={asset.contributionWeight}
-              processLoss={asset.processLoss}
-              source={asset.source}
-            />
-          </Card>
-        </div>
-
-        <div className="space-y-5">
-          <Card className="p-5 lg:p-6">
-            <div className="mb-6">
-              <h2 className="font-black text-navy-950 dark:text-white">{t("timeline")}</h2>
-              <p className="mt-1 text-xs text-slate-400">{t("timelineHint")}</p>
-            </div>
-            <AssetTimeline events={timeline} />
-          </Card>
-
-          <CertificatePanel
-            certificates={asset.certificates}
-            onAddCertificate={handleAddCertificate}
-            onRemoveCertificate={handleRemoveCertificate}
-          />
-
-          <AttachmentsPanel
-            attachments={asset.attachments}
-            onAddAttachment={handleAddAttachment}
-            onRemoveAttachment={handleRemoveAttachment}
-            isUploading={isPendingAction}
-          />
-        </div>
-      </div>
-
-      <Modal open={showPrintTag} onClose={() => setShowPrintTag(false)} title={rtl ? "طباعة ملصق الباركود" : "Print Barcode Sticker"} description={rtl ? "معاينة طباعة ملصق أصل المجوهرات والأسعار" : "Sticker tag label preview for printing physical price tags."}>
-        <BarcodeLabelPreview
-          item={assetToLabelData(asset)}
-          currency={currency}
-        />
-      </Modal>
-
-      {showEdit && (
-        <AssetEditModal
-          open={showEdit}
-          onClose={() => setShowEdit(false)}
-          asset={asset}
-          onSave={handleSaveEdit}
-        />
-      )}
-
-      {showMeltConfirm && (
-        <Modal open={showMeltConfirm} onClose={() => setShowMeltConfirm(false)} title={t("confirmMelt")}>
-          <div className="space-y-5 text-xs text-center">
-            <div className="mx-auto w-12 h-12 rounded-full bg-rose-50 dark:bg-rose-950/20 flex items-center justify-center text-rose-600">
-              <FileQuestion className="h-6 w-6" />
-            </div>
-            <p className="text-slate-600 dark:text-slate-300 font-bold leading-relaxed">
-              {t("confirmMeltText")}
-            </p>
-            <div className="flex justify-center gap-2 pt-4 border-t border-border">
-              <Button variant="secondary" onClick={() => setShowMeltConfirm(false)}>
-                {t("cancel")}
-              </Button>
-              <Button variant="danger" className="bg-rose-600 hover:bg-rose-700 text-white" onClick={() => {
-                handleAction("melt");
-                setShowMeltConfirm(false);
-              }}>
-                {t("melt")}
-              </Button>
-            </div>
-          </div>
-        </Modal>
-      )}
-    </div>
-  );
+    <Section title={rtl ? "الروابط والسجل النظامي" : "Relations and System Audit"}><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><Field label={rtl ? "الوثائق المرتبطة" : "Document links"} value={data.documentLinks.map((link) => `${link.type}: ${link.id}`).join(" · ")} /><Field label={rtl ? "أنشئ في" : "Created at"} value={dateTime(asset.createdAt, locale)} /><Field label={rtl ? "التحركات القانونية القادمة" : "Legal next transitions"} value={data.legalActions.join(", ")} /></div></Section>
+  </div>;
 }

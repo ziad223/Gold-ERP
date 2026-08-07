@@ -1,5 +1,26 @@
 # READ THIS FIRST — CURRENT PROJECT HANDOFF
 
+## OFFICIAL-LOCAL-FINANCIAL-FIX-CONT3 — partial — 2026-07-30
+
+Starting at `c06fbfb1fc69cc6f3a0a73aefd29bda85895b9f5`, commit `fc864e7a2ef89ed5a438b170a6bfce4bb60c0d75` replaced the installment float tolerance with locked exact four-decimal validation. New static coverage failed before the repair and passed after; fresh disposable HTTP proof passed rejection, precision, idempotency and concurrency. A pre-F003 backup restored to a disposable database successfully. The official database has no safe open installment, only the immutable over-collected one; no supported linked reversal/refund/credit path was found. Continue only `OFFICIAL-LOCAL-FINANCIAL-FIX-CONT3` with a new Product-owned installment and persistent proof.
+
+## OFFICIAL-LOCAL-FINANCIAL-FIX-CONT2 handoff — 2026-07-30
+
+Starting checkpoint was `a92ec169cc16c2427f6a4839f0355d40b09a145d`
+(`docs: record persistent financial continuation regression`). Implementation
+commit `37292b90ede9fdb85ca7666d80661f44aada3e95`
+(`fix: support repeated installment collections`) changes only the installment
+route/posting owner and focused verifiers. Canonical source identity is
+`installment_collection` + durable Payment ID; no migration 53 or index change.
+
+Pre-change backup and disposable restore, fresh proof, and upgrade rehearsal
+passed with no disposable residue. Persistent replay passed the second partial
+collection, cash/bank event-journal identity, replay, and conflict checks, but
+the over-collection probe was accepted. `FINANCIAL-ACCEPT-F002 = RESOLVED`;
+`FINANCIAL-ACCEPT-F003 = OPEN — INSTALLMENT_OVER_COLLECTION_TOLERANCE_ACCEPTED`.
+The retained installment is now settled with a positive paid overage; do not
+delete, reset, or silently correct it. Services remain running and migrations
+remain `52/52/0`. Exact next marker: `OFFICIAL-LOCAL-FINANCIAL-FIX-CONT3`.
 ## Current marker — OFFICIAL-LOCAL-FINANCIAL-FIX-CONT2
 
 `OFFICIAL-LOCAL-FINANCIAL-FIX-CONT1 = PARTIAL`.
@@ -7511,3 +7532,195 @@ DEPOSIT-1-FIX-CONT5-CONT14 — Extend only the committed fully owned verifier wi
   the owned browser context were removed, the verified pre-reset backup remains
   retained, and services were preserved. `MANUAL-LOCAL-SMOKE-CONT1 = COMPLETE`;
   next only: `OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-CONT1`.
+## OFFICIAL-LOCAL-FINANCIAL-FIX-CONT3 — persistent Product-API proof boundary — 2026-07-30
+
+Starting from `159406405f7c7266309b992940b83c823b841295`, user provenance
+accepted six intentionally created local open installments. Read-only integrity
+checks passed before two separate valid installments were used through normal
+administrator Product API authentication. F003 exact over-limit rejection,
+partial collection, exact settlement, replay/conflict idempotency and concurrent
+serialization all passed; F001/F002 static contracts remained pass. No source,
+migration, configuration, or package change was made.
+
+The historical over-collected installment and its original payment, treasury,
+journal, lines, invoice, and audit data matched the pre-proof fingerprint. Its
+customer receivable did not: valid proof data shares that customer and updated
+the balance through the normal collection flow. Do not repair, delete, restore,
+or directly correct anything. `LOCAL-FINANCIAL-DATA-F001` is OPEN for that
+isolation boundary. A custom/schema post-proof backup and disposable restore
+passed; disposable residue is zero. Exact next marker:
+`OFFICIAL-LOCAL-FINANCIAL-DATA-REMEDIATION-CONT1`.
+
+An open cash-register session count of one matches the pre-proof backup exactly;
+the collection proof did not create or alter that session. Preserve it for the
+same controlled data-remediation phase.
+
+## OFFICIAL-LOCAL-FINANCIAL-DATA-REMEDIATION-CONT1 — handoff (2026-07-30)
+
+Starting checkpoint was `7657b596c9931f394d912186640d685870ec9afa` and Product
+implementation commits are `fcee4e64b0fbed3173d9e951e52816c510043734` and
+`d2151daf10f5163496258cb41bb94ec5c2f858c3`. The Product workflow accepts only
+the immutable original installment-collection reference, derives the exact
+four-decimal overage from linked audit/Payment history, creates one customer
+credit linked to that source, and posts receivable debit/customer-deposit
+liability credit without a Treasury entry. Replay preserves one financial effect
+and repairs only the derived installment applied amount if required.
+
+Pre/post custom and schema backups under the local DARFUS backup root both passed
+disposable restore verification. The source ledger was deterministic, original
+and valid-proof fingerprints remained unchanged, the remediation Journal was
+balanced, global Journal/orphan checks were zero, and the inherited cash-register
+session was unchanged. Static contracts, TypeScript, targeted lint, and focused
+financial verifiers passed. `LOCAL-FINANCIAL-DATA-F001 = RESOLVED`; the full
+financial runtime matrix remains incomplete. Next only:
+`OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-CONT2`.
+
+## OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-CONT2 — handoff boundary (2026-07-30)
+
+Starting checkpoint `d64b52b73089bf4fae65fa87945463b0e065d796` passed all Git,
+runtime, migration, protected-file, and post-remediation backup comparison
+checks. The accepted historical remediation remains present and balanced with
+zero Treasury remediation effect. The remaining workflow matrix did not begin:
+the sole active Branch already has one pre-existing open cash-register session,
+and `cash-register.service` correctly rejects another open session for the same
+Branch. This phase does not own the inherited session and must not close or use
+it. No Product/test/migration/configuration change, financial acceptance write,
+or final post-acceptance backup occurred. Exact next marker:
+`OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-HARNESS-CONT2`.
+
+## OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-HARNESS-CONT2 — blocked handoff (2026-07-31)
+
+Starting checkpoint `4e10b6fc0074dc3b0effab5b7ed53b6899e0d123` passed Git,
+runtime, migration and protected-file preflight. Read-only session provenance
+found one active-Administrator-owned open session with financial activity, a
+valid active cash account, complete Journal linkage, no foreign/unlinked or
+duplicate-idempotency movements, and balanced linked Journals. The Product's
+canonical opening-plus-cash-ledger calculation is below the valid non-negative
+boundary, so no deterministic safe close/adopt decision exists. No login,
+session mutation, financial write, backup, or source change occurred. Exact next
+marker remains `OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-HARNESS-CONT2`.
+
+## OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-HARNESS-CONT2 — root-cause handoff (2026-07-31)
+
+At checkpoint `2aaf4c5d88a4e9d4eebfddf7ac5071aa4cfacc5c`, read-only chronology
+showed the first session negative crossing is a valid posted `purchase_order`
+cash outflow. The opening amount matches pre-session cash ledger; all-time cash
+Treasury/GL is also negative. Thus root cause is `VALID_REAL_CASH_DEFICIT`, not
+wrong session linkage, duplicate count, or report-only mismatch. The Product
+offers a variance close, but no observed physical count, valid reversal target,
+or real funding source authorizes a truthful resolution. No login, backup,
+rehearsal, session write, or financial write occurred. Resolution path `F`;
+next only: `OFFICIAL-LOCAL-FINANCIAL-CASH-SESSION-REMEDIATION-DESIGN-CONT1`.
+
+## OFFICIAL-LOCAL-FINANCIAL-CASH-SESSION-BASELINE-AUDIT-CONT1 — blocked handoff (2026-07-31)
+
+Starting checkpoint `ec751c292335692300b2e110a12773b43ea812fb` passed Git and
+protected-file preflight; the only inherited worktree differences remained
+CRLF-only protected artifacts. Read-only PostgreSQL chronology confirmed the
+historical posted purchase-order crossing from `111.3800` to `-388.6200`.
+During this audit, the stored cash-account snapshot changed from `3798.3900` to
+`13184.7900` without an action by this phase. The latter matches both
+`cash-register.service`'s reportable-ledger calculation and the current cash GL,
+but the change prevents a stable comparison with the earlier documented window.
+No login, session action, financial write, backup, source change, or service
+operation occurred. Classify `UNRECORDED_PERSISTENT_DB_DELTA = YES`; Product
+defect is not proven and the exact next marker remains
+`OFFICIAL-LOCAL-FINANCIAL-CASH-SESSION-BASELINE-AUDIT-CONT1`.
+
+## OFFICIAL-LOCAL-FINANCIAL-CASH-SESSION-BASELINE-AUDIT-CONT1 — stable-window continuation (2026-08-03)
+
+The protected-file repair remained valid at `main` / `bfb5c9c072b8052ea8bd5a0d1f1027b1916e20c0`: required `next-env.d.ts` hash passed, staged/untracked were `0/0`, stashes `11`, remotes `0`, and only the three inherited backend CRLF-only artifacts remained semantically changed. Snapshot A ran `2026-08-03 20:10:43 +03` in `REPEATABLE READ READ ONLY`, snapshot metadata `46913:46913:`, and rolled back explicitly. A/B/C/D all had root `a09c62563912bcaf724360010aad61d8`, stored/session/GL cash `13184.7900`, operational Treasury `13184.7730`, Treasury rows `28`, Journals `41`, cash lines `28`, Payments `26`, reservation payments `3`, audit rows `76`, and one open Main Branch session.
+
+Writer inventory: expected backend PID `21468` under nodemon, expected Next dev PID `21056`, PostgreSQL PID `8144`, no duplicate backend, no test runner, no relevant Windows task, BullMQ without Redis/financial worker, reservation-expiry scheduler disabled, no repository log files, and one expected idle PostgreSQL backend connection with no writer/lock. No database trigger or cash/balance routine exists. Read services calculate from reportable `posted`/`reversed` journal lines; `Account.balance` is a posting-time mirror.
+
+The earlier `3798.3900` value was followed by eight successful technical-user Product requests: reservation payment `600.0000` at `02:37:11`, POS receipt `5000.0000` at `02:40:49`, then six installment collections (`631.0700` ×5 and `631.0500` ×1) through `02:41:00`. Idempotency scopes and audit actions were successful and route-owned. `DELTA_3798_TO_13184 = 9386.4000`; `DELTA_NATURE = NEW_EVENTS`; `DELTA_SOURCE = ACTIVE_USER_PRODUCT_REQUEST`; no status transition, recomputation, background job, trigger, or unknown delta was found.
+
+Timeline: opening `1.5000`; valid GL inflows `13733.2900`; valid GL outflows `550.0000`; first negative crossing `purchase_order -500.0000` from `111.3800` to `-388.6200`; minimum `-388.6200`; first non-negative return `3798.3900`; GL/session book current `13184.7900`. Raw Treasury inflows total `13733.2730`, producing raw Treasury current `13184.7730`. Four older installment collections account for the `0.0170` overstatement in the cent-rounded journal legs. The current installment route still rounds before posting while accepting four-decimal payment/Treasury values, proving a supported precision-accounting Product defect.
+
+`STABLE_OBSERVATION_WINDOW = PASS`; session-to-GL `PASS`; raw Treasury-to-GL `FAIL` by `0.0170`; movement integrity `FAIL`; `UNKNOWN_MOVEMENT_AMOUNT = 0`; `INVALID_OR_DUPLICATE_AMOUNT = 0.0170`; `CURRENT_SESSION_CLASSIFICATION = INVALID_SESSION_DUE_TO_INVALID_EVENT`; `CLOSURE_OR_ADOPTION_READINESS = NOT_SAFE`; `PRIOR_HARNESS_DEFECT = YES`; `PRODUCT_DEFECT_PROVEN = YES`; `UNRECORDED_PERSISTENT_DB_DELTA = EXPLAINED`. No UI login was necessary after the passive window. Final DB postcheck remained `52/52/0`, READY, 12/11/128, one open session, zero unbalanced/orphan/duplicate/unlinked/transaction-time-account/idle/waiting/disposable residue. Typecheck passed; lint passed with 0 errors and 18 inherited warnings; diff check passed. Audit-caused writes were `0`; no backup, deployment, push, or acceptance matrix ran. Exact next marker: `OFFICIAL-LOCAL-FINANCIAL-DATA-AUDIT-CONT1`.
+
+## OFFICIAL-LOCAL-FINANCIAL-DATA-AUDIT-CONT1 — completed read-only handoff (2026-08-03)
+
+Starting checkpoint: `main` / `aba826fd90ba8b742afcb6e316fe376d003b635f`;
+protected gate passed, staged/untracked `0/0`, stashes `11`, remotes `0`, and
+only accepted semantic-equal CRLF artifacts remained. Runtime and DB identity
+passed (`3000/8000/5432`, `darfus_erp/public`, `52/52/0`, setup/financial
+`READY`, `12/11/128`, one open Main Branch session).
+
+The route parses, compares, and writes source mirrors in integer
+ten-thousandths, preserving F001 Invoice Branch authority, F002 durable Payment
+identity, F003 locked exact validation, idempotency and audit linkage.
+`posting.service.postInstallmentPayment` alone selects cent rounding before
+Journal posting. Existing columns support four/eight decimals, so
+`MIGRATION_REQUIRED = NO`.
+
+Database-wide result: only `installment_collection` is affected. `18` events
+have Payment/Treasury `3934.6580` and Journal `3934.6800`; five rows total
+`+0.0220` (maximum `0.0050`). Safe fingerprints/deltas are
+`b2ac8ef1d41e +0.0050`, `d4c943da56ea +0.0050`, `4502aece6bc2 +0.0050`,
+`250ba47f8864 +0.0050`, and `46eed78deb0b +0.0020`; the four current-session
+cash rows compose exactly `+0.0170`. Payment equals Treasury on every row;
+Journal legs match and balance; Invoice/Installment source effects remain exact.
+Economic classification is `ECONOMIC_EVENT_CORRECT_ACCOUNTING_REPRESENTATION_MISMATCH`;
+Account authority is `JOURNAL_MIRROR`; report impact is `REPORT_MIXED_SOURCE`.
+
+Canonical policy is `BUSINESS_4DP_POSTING_4DP_DISPLAY_2DP`. Future scope is
+`CODE_PLUS_DATA_REMEDIATION` plus tests: exact posting in
+`backend/src/services/posting.service.js`, four-decimal register calculation in
+`backend/src/services/cash-register.service.js`, and exact cross-ledger/replay,
+Account-mirror, report and historical-boundary coverage. Preferred data pattern
+is `SOURCE_LINKED_ROUNDING_REMEDIATION`: five idempotent correction Journals,
+total `0.0220`, AR debit / original cash-or-bank credit, no Treasury or source
+rewrite. Expected repaired cash is `13184.7730`; bank `-28.8650`.
+
+Typecheck, targeted lint, F001/F002/F003, overpayment contract, permission
+baseline, live `52/52` migration/permission inventory and diff check passed.
+All unbalanced/orphan/duplicate/unlinked/transaction-time-account/idle/waiting/
+disposable counts are zero; audit-owned DB writes are zero. Current session and
+financial acceptance remain blocked; re-audit and a physical count precede any
+close/adoption. No Product/test/migration/package/env/session/financial,
+deployment or push action occurred. The final documentation checkpoint is the
+commit with subject `docs: scope installment precision remediation`. Exact next
+marker: `OFFICIAL-LOCAL-FINANCIAL-FIX-CONT4`.
+
+## OFFICIAL-LOCAL-FINANCIAL-FIX-CONT4 — completed Product repair and local remediation (2026-08-03)
+
+Product commit `e9d7bbffed26d93346b1c201b5b4f4a5c46d5380` preserves installment posting and register calculations at exact four-decimal precision and adds the source-linked, idempotent correction-Journal workflow. Focused guards, disposable integration, typecheck, and targeted lint passed. The pre-write dump `backend/backups/darfus_erp_development_2026-08-03T19-00-37-920Z.dump` restored successfully to a disposable target, which was removed.
+
+Five deterministic Payment events were remediated through the Product route: five balanced correction Journals, total `0.0220` (`cash 0.0170`, `bank 0.0050`), zero remediation Treasury rows, and five audit/idempotency records. Same-key replay returned the original result; same-key body conflict and a different-key duplicate effect were rejected. Mapped cash and bank stored/GL/Treasury/report values are `13184.7730` and `-28.8650`, with zero cash-reconciliation movement difference. Original source rows and the prior `0.0100` overpayment reclassification remain intact. The inherited open session was untouched and still requires a physical cash count before closure/adoption. No migration, package, lockfile, environment, Inventory, deployment, push, or session action occurred. Documentation commit subject: `docs: accept installment precision remediation`. Exact next marker: `OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-HARNESS-CONT2`.
+
+## OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-HARNESS-CONT2 — complete with owner action boundary (2026-08-03)
+
+Starting checkpoint `main` / `ea8213ac99d6d3190b65211aa99ba431ef7edc6f` passed the protected/Git/runtime/DB gate. CONT4 is preserved: five remediation Journals, zero Treasury rows, total `0.0220`, zero active mismatch. Cash is `13184.7730` and bank `-28.8650` across stored, GL, Treasury, session service, dashboard, trial balance, account ledger, Balance Sheet, and reconciliation surfaces.
+
+The sole session is `INHERITED_PRE_CONT2`, opened `2026-07-30 19:38:12 +03` by a local Super Admin with opening `1.5000`. Twenty-nine valid posted movements net `13183.2730`, producing exact book cash `13184.7730`; unknown and invalid active movement amounts are zero. The historical purchase crossing remains confirmed and historically traceable, not a current deficit.
+
+No owner physical count was supplied: availability `NO`, comparison `NOT_TESTED`, readiness `ACCOUNTING_RECONCILED_AWAITING_PHYSICAL_COUNT`, financial acceptance `BLOCKED_BY_PHYSICAL_COUNT`. No financial/cash-session/Product/test/migration/package/env/Inventory/deployment/push action occurred. The docs commit subject is `docs: record physical cash count boundary`. Exact next marker: `OFFICIAL-LOCAL-FINANCIAL-CASH-COUNT-CONFIRMATION-CONT1`.
+
+## OFFICIAL-LOCAL-INVENTORY-MASTER-CURRENT-SYSTEM-AUDIT-CONT1 — completed read-only handoff (2026-08-03)
+
+The exact updated sources `Gold By Weight.docx`, `Gold By Piece.docx`, and `Add Item Pages.xlsx` were fully read; authority is `OWNER > PROFILE_SPECIFIC_WORD > EXCEL > GENERAL_WORD > EXISTING_PRODUCT`. Owner locks one physical piece per Asset/Barcode, removal of quantity stock, 24K certificate-only VAT, and manual/settings VAT rate. The current DB/source map proves a hybrid Asset/Product architecture with live quantity dependencies, partial cost/valuation separation, shared sales totals rather than profile strategies, one-column RFID, incomplete AssetEvent coverage, JSONB component/transfer/workshop bridges, partial stock audit, and CGP drafts without inventory materialization.
+
+Detailed A–BA evidence and fingerprints are in `docs/RELEASE_GAP_AUDIT.md`. Product/database/Inventory/financial/cash-session writes are zero; cash `13184.7730`, bank `-28.8650`, readiness and physical-count boundary are preserved. Docs-only commit subject: `docs: map updated inventory master dependencies`. Do not push or implement. Exact next marker: `OFFICIAL-LOCAL-INVENTORY-MASTER-TARGET-DESIGN-CONT1`.
+
+## OFFICIAL-LOCAL-INVENTORY-MASTER-TARGET-DESIGN-CONT1 — executable design handoff (2026-08-03)
+
+`OFFICIAL-LOCAL-INVENTORY-MASTER-TARGET-DESIGN-CONT1 = COMPLETE_WITH_REQUIREMENT_OPEN_ITEMS` and `TARGET_ARCHITECTURE = APPROVED_FOR_REHEARSAL`. Existing `assets` is `EXISTING_ASSETS_KEEP_AND_EXTEND`; Product quantity is `MIGRATE_THEN_DEPRECATE`. The detailed A–BP authority in `docs/RELEASE_GAP_AUDIT.md` defines exact core fields, table/FK/index/check design, relationship diagram, profile registry, decimal weight engine, normalized components, immutable cost revisions, separate valuation, VAT/pricing strategies, state transitions, RFID/history/audit, purchase/sale/reservation/return/exchange/transfer/workshop/melt/missing/audit/adjustment/CGP flows, compatibility APIs/frontend, A–E Product migration, financial regression and acceptance.
+
+Locked outcomes: stock quantity forbidden; document quantity and embedded-component counts preserved only as non-stock metadata; 24K VAT base certificate-only; VAT rate manual with optional settings default and amount server-calculated; permanent Asset/Barcode; optional historical RFID; append-only Asset History. Returned→Available approval, component unit/precision and CGP line-versus-piece identity remain non-blocking `STILL_OPEN` extension points; do not enable or guess them during foundation work.
+
+This phase changed only the seven authorized docs. Product/backend/frontend/test/migration/package/environment/DB/Inventory/financial/session writes are zero; cash `13184.7730`, bank `-28.8650` and the inherited open-session boundary remain unchanged. Exact docs commit subject: `docs: design inventory master target architecture`. No push/deploy. Exact next marker: `OFFICIAL-LOCAL-INVENTORY-MASTER-MIGRATION-REHEARSAL-CONT1`.
+
+## OFFICIAL-LOCAL-INVENTORY-MASTER-MIGRATION-REHEARSAL-CONT1 — resumable checkpoint (2026-08-04)
+
+Owner-approved `next-env.d.ts` repair is complete and fixed at SHA-256 `7B550DDA9686C16F36A17BF9051D5DBF31E98555B30D114AC49FC49A1E712651`. Preflight passed; persistent `darfus_erp` remains at 52 migrations, Assets 50, Products 3, cash `13184.7730`, bank `-28.8650`, one unchanged open session, and zero of the five new migration names. The verified backup remains unchanged at SHA-256 `CC0491439A500C68F0340272B58B9C7F04EA85B5136A2E5232EAC7D2B9C5A8AE`.
+
+The exact disposable `darfus_erp_inventory_rehearsal_20260804_073138z` was restored and migrated from 52 to 57 twice. Focused verifier passed 24/24: deterministic backfill, all three Products D-preserved/unmapped, invoice Asset/Product 6/6, no quantity authority, decimal weight, certificate-only 24K VAT, three pricing strategies, global immutable Barcode, RFID uniqueness, profile condition, components, append-only evidence, All Items row count, financial baseline and all zero integrity counters. Forward-only down rejected safely. Typecheck, targeted ESLint and barcode foundation passed. Code commit: `b0e5fa720eba4d02eaa2773e22654a9cb0b8cffa`.
+
+Do not mark COMPLETE yet. Authenticated isolated backend purchase/sale/reservation/return/exchange/permission smoke was not run because background process launch was blocked, and frontend smoke was not attempted because Next dev previously changed protected `next-env.d.ts`. Two old UI verifiers stopped at stale scope guards that ban all migrations; do not weaken them silently. Resume the same marker `OFFICIAL-LOCAL-INVENTORY-MASTER-MIGRATION-REHEARSAL-CONT1`; implementation, persistent apply, push, deploy, Staging and Production remain unauthorized.
+
+## OFFICIAL-LOCAL-INVENTORY-MASTER-MIGRATION-REHEARSAL-CONT1 — blocked authenticated continuation (2026-08-04)
+
+Fresh evidence DB: `darfus_erp_inventory_rehearsal_20260804_120001z`, restored from the verified backup and migrated to 57. An in-process `app.listen(0)` authenticated harness used a real disposable Company/Branch/legacy-admin User, normal `technical-session.service.issueTokens`, Company/Branch headers, branch financial mappings and barcode setup. `POST /purchase-orders/receive` with document quantity 2 produced first `201`, replay `201`, altered same-key body `409`, two distinct Assets/Barcodes, two legacy receipt events and source-linked balanced purchase Journal `JE-1785832507522` (`200/200`).
+
+The same two Assets have zero `asset_origins`, zero `purchase_order_item_asset_links`, and zero `inventory_asset_movements`. V2 runtime tables are not referenced by routes/services; receive also has no explicit `perPiece` input contract. Classification is `BLOCKER=INVENTORY_REHEARSAL_PRODUCT_DEFECT`. Do not implement the cross-cutting V2 workflow wiring in this rehearsal, do not drop the evidence DB, and do not claim mandatory five workflow or financial-regression PASS. Persistent `darfus_erp` postcheck remains 52 migrations, 50 Assets, 3 Products, Cash `13184.7730`, Bank `-28.8650`, one open session, unbalanced Journals `0`; `next-env.d.ts` hash remains exact. Exact next marker remains `OFFICIAL-LOCAL-INVENTORY-MASTER-MIGRATION-REHEARSAL-CONT1`.

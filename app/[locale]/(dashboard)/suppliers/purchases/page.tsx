@@ -22,6 +22,121 @@ import type { Supplier, Asset, AssetType, Product } from "@/lib/types";
 import { normalizeNumberInput, toEnglishDigits } from "@/lib/formatters/numbers";
 import { useBarcodeSettings } from "@/features/settings/hooks/use-barcode-settings";
 
+type ReceivePieceDraft = {
+  description: string;
+  grossWeight: string;
+  stoneWeight: string;
+  purchaseCost: string;
+  purchaseGoldRate: string;
+  makingPerGram: string;
+  currentGoldRate: string;
+  currentMakingPerGram: string;
+  certificateCost: string;
+  currentCertificateCost: string;
+  valuationVatRate: string;
+  currentValuationVatRate: string;
+  additionalCost: string;
+  currentValue: string;
+  currentVatRate: string;
+  markupPercent: string;
+  maximumDiscountPercent: string;
+  minimumSellingPrice: string;
+  sellingPrice: string;
+  condition: string;
+  goldColor: string;
+  brand: string;
+  model: string;
+  modelNumber: string;
+  supplierReference: string;
+  locationId: string;
+  certificateIssuer: string;
+  certificateNumber: string;
+  certificateIssueDate: string;
+  certificateUrl: string;
+  attachment: File | null;
+  masterData: Record<string, string>;
+  components?: any[];
+  stoneName: string; diamondType: string; carat: string; color: string; clarity: string; cut: string; shape: string; treatment: string; tone: string; toneLevel: string; saturation: string; opticalEffect: string; origin: string;
+  totalPearlWeight: string; pearlSize: string; pearlType: string; overtone: string; orient: string; luster: string; surfaceQuality: string; nacreQuality: string; looseNotes: string;
+};
+
+type InventoryProfileContract = {
+  key: string;
+  assetType: AssetType;
+  family: string;
+  required: string[];
+  optional: string[];
+  condition: "REQUIRED" | "OPTIONAL" | "NOT_APPLICABLE";
+  weightApplicable: boolean;
+  certificateSupported: boolean;
+  rfidAllowed: boolean;
+  locationOptional: boolean;
+  goldValuation?: {
+    enabled: boolean;
+    purchaseGoldRateRequired?: boolean;
+    currentGoldRateRequired?: boolean;
+    makingPerGramSupported?: boolean;
+    certificateCostsSupported?: boolean;
+    certificateOnlyVat?: boolean;
+  };
+  looseDetails?: {
+    kind: "DIAMOND" | "GEMSTONE" | "PEARL";
+    measurement?: { unit: string; inputPrecision: number; displayPrecision: number; commercialRounding: string; excessPrecision: string };
+    pearlSize?: { unit: string; authority: string; freeTextForNewRecords: boolean; automaticRounding: string };
+  } | null;
+};
+
+type PearlSizeMasterValue = { id: string; value: string; displayValue: string; label: string; unit: "MM"; isActive: boolean };
+type ProfileMasterDataValue = { id: string; category: string; value: string; label: string; isActive: boolean };
+
+const emptyPieceDraft = (): ReceivePieceDraft => ({
+  description: "", grossWeight: "", stoneWeight: "0", purchaseCost: "", purchaseGoldRate: "", makingPerGram: "0", currentGoldRate: "", currentMakingPerGram: "", certificateCost: "0", currentCertificateCost: "", valuationVatRate: "", currentValuationVatRate: "", additionalCost: "0", currentValue: "", currentVatRate: "", markupPercent: "", maximumDiscountPercent: "", minimumSellingPrice: "", sellingPrice: "", condition: "",
+  goldColor: "", brand: "", model: "", modelNumber: "", supplierReference: "", locationId: "",
+  certificateIssuer: "", certificateNumber: "", certificateIssueDate: "", certificateUrl: "", attachment: null,
+  stoneName: "", diamondType: "", carat: "", color: "", clarity: "", cut: "", shape: "", treatment: "", tone: "", toneLevel: "", saturation: "", opticalEffect: "", origin: "", totalPearlWeight: "", pearlSize: "", pearlType: "", overtone: "", orient: "", luster: "", surfaceQuality: "", nacreQuality: "", looseNotes: "", masterData: {},
+});
+
+// Labels and order are presentation-only. The server profile contract supplies
+// the selectable keys, asset type, requiredness, and all business semantics.
+const PROFILE_PRESENTATION: Record<string, { label: string; labelAr: string }> = {
+  GOLD_BY_WEIGHT_JEWELLERY: { label: "Gold By Weight Jewellery", labelAr: "مجوهرات ذهب بالوزن" },
+  GOLD_BAR_24K: { label: "Gold By Weight 24K / Gold Bar", labelAr: "ذهب 24 / سبيكة" },
+  GOLD_BY_PIECE: { label: "Gold By Piece", labelAr: "ذهب بالقطعة" },
+  DIAMOND_JEWELLERY: { label: "Diamond Jewellery", labelAr: "مجوهرات ألماس" },
+  LOOSE_DIAMOND: { label: "Loose Diamond", labelAr: "ألماس سائب" },
+  GEMSTONE_JEWELLERY: { label: "Gemstone Jewellery", labelAr: "مجوهرات أحجار كريمة" },
+  LOOSE_GEMSTONE: { label: "Loose Gemstone", labelAr: "أحجار كريمة سائبة" },
+  PEARL_JEWELLERY: { label: "Pearl Jewellery", labelAr: "مجوهرات لؤلؤ" },
+  LOOSE_PEARL: { label: "Loose Pearl", labelAr: "لؤلؤ سائب" },
+  CGP_CUSTOMER_GOLD_PURCHASE: { label: "CGP — Customer Gold Purchase", labelAr: "شراء ذهب العميل CGP" },
+};
+
+// Presentation only: category ownership, allowed values and validation come
+// from the server-owned Profile Master Data registry.
+const LOOSE_MASTER_FIELDS: Record<string, Array<{ field: string; category: string; label: string; labelAr: string; required?: boolean }>> = {
+  LOOSE_GEMSTONE: [
+    { field: "stoneName", category: "GEMSTONE_NAME", label: "Stone name", labelAr: "اسم الحجر", required: true },
+    { field: "stoneType", category: "GEMSTONE_TYPE", label: "Stone type", labelAr: "نوع الحجر" },
+    { field: "treatment", category: "GEMSTONE_TREATMENT", label: "Treatment", labelAr: "المعالجة" },
+    { field: "shape", category: "GEMSTONE_SHAPE", label: "Shape", labelAr: "الشكل" }, { field: "color", category: "GEMSTONE_COLOR", label: "Color", labelAr: "اللون" },
+    { field: "tone", category: "GEMSTONE_TONE", label: "Tone", labelAr: "طابع اللون" }, { field: "toneLevel", category: "GEMSTONE_TONE_LEVEL", label: "Tone level", labelAr: "درجة اللون" },
+    { field: "saturation", category: "GEMSTONE_SATURATION", label: "Saturation", labelAr: "التشبع" }, { field: "opticalEffect", category: "GEMSTONE_OPTICAL_EFFECT", label: "Optical effect", labelAr: "التأثير البصري" },
+    { field: "origin", category: "GEMSTONE_ORIGIN", label: "Origin", labelAr: "المنشأ" }, { field: "certificateAuthority", category: "CERTIFICATE_AUTHORITY", label: "Certificate authority", labelAr: "جهة الشهادة" },
+  ],
+  LOOSE_PEARL: [
+    { field: "pearlType", category: "PEARL_TYPE", label: "Pearl type", labelAr: "نوع اللؤلؤ" }, { field: "pearlColor", category: "PEARL_COLOR", label: "Pearl color", labelAr: "لون اللؤلؤ" },
+    { field: "overtone", category: "PEARL_OVERTONE", label: "Overtone", labelAr: "اللون الثانوي" }, { field: "orient", category: "PEARL_ORIENT", label: "Orient", labelAr: "البريق القزحي" },
+    { field: "pearlShape", category: "PEARL_SHAPE", label: "Pearl shape", labelAr: "شكل اللؤلؤ" }, { field: "luster", category: "PEARL_LUSTER", label: "Luster", labelAr: "اللمعان" },
+    { field: "surfaceQuality", category: "PEARL_SURFACE_QUALITY", label: "Surface quality", labelAr: "جودة السطح" }, { field: "nacreQuality", category: "PEARL_NACRE_QUALITY", label: "Nacre quality", labelAr: "جودة طبقة اللؤلؤ" },
+    { field: "pearlOrigin", category: "PEARL_ORIGIN", label: "Origin", labelAr: "المنشأ" }, { field: "certificateAuthority", category: "CERTIFICATE_AUTHORITY", label: "Certificate authority", labelAr: "جهة الشهادة" },
+    { field: "description", category: "PEARL_ITEM_DESCRIPTION", label: "Item description", labelAr: "وصف اللؤلؤ" },
+  ],
+};
+const LOOSE_MASTER_DRAFT_FIELD: Record<string, keyof ReceivePieceDraft> = {
+  stoneName: "stoneName", stoneType: "diamondType", treatment: "treatment", shape: "shape", color: "color", tone: "tone", toneLevel: "toneLevel", saturation: "saturation", opticalEffect: "opticalEffect", origin: "origin",
+  pearlType: "pearlType", pearlColor: "color", overtone: "overtone", orient: "orient", pearlShape: "shape", luster: "luster", surfaceQuality: "surfaceQuality", nacreQuality: "nacreQuality", pearlOrigin: "origin", description: "description",
+};
+
 export default function SupplierPurchasesPage() {
   const t = useTranslations("Suppliers");
   const common = useTranslations("Common");
@@ -46,8 +161,9 @@ export default function SupplierPurchasesPage() {
   const [taxIncluded, setTaxIncluded] = useState(false);
   const [isRecoverable, setIsRecoverable] = useState(true);
 
-  // New quantity-based product fields
-  const [isQuantityBased, setIsQuantityBased] = useState(true);
+  // A serialized receipt is the default. The Product path remains an explicitly
+  // labelled legacy compatibility mode; it is never used for physical pieces.
+  const [isQuantityBased, setIsQuantityBased] = useState(false);
   const [productCode, setProductCode] = useState("");
   const [salePrice, setSalePrice] = useState("");
   const [matchingProduct, setMatchingProduct] = useState<Product | null>(null);
@@ -102,9 +218,11 @@ export default function SupplierPurchasesPage() {
   const [category, setCategory] = useState("");
   const [itemCode, setItemCode] = useState("RNG");
   const [karat, setKarat] = useState("21");
+  const [inventoryProfile, setInventoryProfile] = useState("GOLD_BY_PIECE");
   const [quantity, setQuantity] = useState("1");
   const [weightPerUnit, setWeightPerUnit] = useState("");
   const [unitCost, setUnitCost] = useState("");
+  const [pieceDrafts, setPieceDrafts] = useState<ReceivePieceDraft[]>([emptyPieceDraft()]);
   const [paidAmount, setPaidAmount] = useState("0");
   const [paymentMethod, setPaymentMethod] = useState("credit");
   const [purchaseDate, setPurchaseDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -112,6 +230,33 @@ export default function SupplierPurchasesPage() {
 
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+
+  // Profile requiredness is deliberately read from the canonical backend
+  // registry.  The local option list below supplies labels only.
+  const { data: profileContracts = [], isLoading: profilesLoading } = useQuery<InventoryProfileContract[]>({
+    queryKey: ["inventory-v2", "profiles"],
+    queryFn: async () => {
+      const response = await apiClient<any>("/inventory-v2/profiles", { locale });
+      return response?.data?.profiles || [];
+    },
+    enabled: isApi,
+  });
+  const { data: pearlSizeMasterValues = [] } = useQuery<PearlSizeMasterValue[]>({
+    queryKey: ["pearl-size-master-data"],
+    queryFn: async () => {
+      const response = await apiClient<any>("/pearl-size-master-data", { locale });
+      return response?.data?.values || [];
+    },
+    enabled: isApi && inventoryProfile === "LOOSE_PEARL",
+  });
+  const { data: profileMasterDataValues = [] } = useQuery<ProfileMasterDataValue[]>({
+    queryKey: ["profile-master-data", inventoryProfile],
+    queryFn: async () => {
+      const response = await apiClient<any>("/profile-master-data", { locale });
+      return response?.data?.values || [];
+    },
+    enabled: isApi && ["LOOSE_GEMSTONE", "LOOSE_PEARL"].includes(inventoryProfile),
+  });
 
   const currency = company?.currency ?? "AED";
   const selectedInventoryCode = barcodeInventoryCodes.find((code) => code.assetType === assetType && code.isActive);
@@ -126,12 +271,20 @@ export default function SupplierPurchasesPage() {
   const BackIcon = rtl ? ArrowRight : ArrowLeft;
   const parseDecimal = (value: string) => Number(toEnglishDigits(value).replace(",", ".")) || 0;
   const normalizeDecimalValue = (value: string) => normalizeNumberInput(value).replace(",", ".");
+  // Client-side guard is presentation-only.  It never rounds or derives a
+  // business value; the server policy remains authoritative.
+  const decimalInputAtMost = (value: string, places: number) => {
+    const normalized = normalizeDecimalValue(value);
+    return new RegExp(`^\\d*(?:\\.\\d{0,${places}})?$`).test(normalized) ? normalized : null;
+  };
   const quantityNum = parseDecimal(quantity);
   const weightPerUnitNum = parseDecimal(weightPerUnit);
   const unitCostNum = parseDecimal(unitCost);
+  const canonicalPieceTotal = pieceDrafts.reduce((sum, piece) => sum + parseDecimal(piece.purchaseCost), 0);
+  const canonicalPieceWeight = pieceDrafts.reduce((sum, piece) => sum + parseDecimal(piece.grossWeight), 0);
   const paidAmountNum = parseDecimal(paidAmount);
-  const totalWeight = Math.round(quantityNum * weightPerUnitNum * 10000) / 10000;
-  const totalCost = Math.round(quantityNum * unitCostNum * 100) / 100;
+  const totalWeight = Math.round((isQuantityBased ? quantityNum * weightPerUnitNum : canonicalPieceWeight) * 10000) / 10000;
+  const totalCost = Math.round((isQuantityBased ? quantityNum * unitCostNum : canonicalPieceTotal) * 100) / 100;
   const remainingAmount = Math.max(0, Math.round((totalCost - paidAmountNum) * 100) / 100);
   const paymentStatus = remainingAmount <= 0 && totalCost > 0 ? "paid" : paidAmountNum > 0 ? "partial" : "unpaid";
 
@@ -171,6 +324,56 @@ export default function SupplierPurchasesPage() {
   // generated once per attempt, reused on retry, reset on success.
   const idempotencyKeyRef = useRef("");
 
+  useEffect(() => {
+    if (isQuantityBased || !Number.isInteger(quantityNum) || quantityNum < 1) return;
+    setPieceDrafts((current) => {
+      const next = current.slice(0, quantityNum);
+      while (next.length < quantityNum) {
+        next.push({ ...emptyPieceDraft(), grossWeight: weightPerUnit, stoneWeight: "0", purchaseCost: unitCost });
+      }
+      return next;
+    });
+  }, [isQuantityBased, quantityNum, weightPerUnit, unitCost]);
+
+  const updatePieceDraft = (index: number, field: keyof ReceivePieceDraft, value: ReceivePieceDraft[keyof ReceivePieceDraft]) => {
+    setPieceDrafts((current) => current.map((piece, pieceIndex) => pieceIndex === index ? { ...piece, [field]: value } : piece));
+  };
+  const updatePieceMasterData = (index: number, field: string, value: string) => {
+    const target = LOOSE_MASTER_DRAFT_FIELD[field];
+    const selectedLabel = profileMasterDataValues.find((entry) => entry.id === value)?.label || "";
+    setPieceDrafts((current) => current.map((piece, pieceIndex) => pieceIndex === index ? {
+      ...piece, masterData: { ...piece.masterData, [field]: value },
+      ...(target ? { [target]: selectedLabel } : {}),
+    } : piece));
+  };
+  const masterOptions = (category: string) => profileMasterDataValues.filter((entry) => entry.category === category && entry.isActive);
+
+  const selectedProfileContract = profileContracts.find((profile) => profile.key === inventoryProfile);
+  const selectedProfilePresentation = PROFILE_PRESENTATION[inventoryProfile] || { label: inventoryProfile, labelAr: inventoryProfile };
+  const canonicalAssetType = selectedProfileContract?.assetType || assetType;
+  const isCgpProfile = inventoryProfile === "CGP_CUSTOMER_GOLD_PURCHASE";
+  const conditionRequired = selectedProfileContract?.condition === "REQUIRED";
+  const conditionApplicable = selectedProfileContract?.condition !== "NOT_APPLICABLE";
+  const certificateSupported = selectedProfileContract?.certificateSupported ?? inventoryProfile !== "CGP_CUSTOMER_GOLD_PURCHASE";
+  const weightApplicable = selectedProfileContract?.weightApplicable ?? true;
+  const isGoldProfile = selectedProfileContract?.family === "GOLD";
+  const goldValuationContract = selectedProfileContract?.goldValuation;
+  const goldValuationApplicable = Boolean(goldValuationContract?.enabled);
+  const is24kGoldBar = inventoryProfile === "GOLD_BAR_24K";
+  const isLooseProfile = ["LOOSE_DIAMOND", "LOOSE_GEMSTONE", "LOOSE_PEARL"].includes(inventoryProfile);
+  const profileRequires = (field: string) => Boolean(selectedProfileContract?.required.includes(field));
+  const goldColorApplicable = isGoldProfile && Boolean(selectedProfileContract?.optional.includes("goldColor"));
+
+  useEffect(() => {
+    if (!isQuantityBased && selectedProfileContract && assetType !== selectedProfileContract.assetType) {
+      setAssetType(selectedProfileContract.assetType);
+    }
+  }, [assetType, isQuantityBased, selectedProfileContract]);
+
+  useEffect(() => {
+    if (!isQuantityBased && is24kGoldBar && karat !== "24") setKarat("24");
+  }, [is24kGoldBar, isQuantityBased, karat]);
+
   const handlePostPurchase = async (event: React.FormEvent) => {
     event.preventDefault();
     setErrorMsg("");
@@ -178,6 +381,24 @@ export default function SupplierPurchasesPage() {
 
     if (!selectedSupplier) {
       setErrorMsg(rtl ? "اختر المورد أولًا" : "Please select a supplier first");
+      return;
+    }
+
+    if (!activeBranchId) {
+      setErrorMsg(rtl ? "اختر فرعًا تشغيليًا قبل الاستلام." : "Select an operational Branch before receiving.");
+      return;
+    }
+
+    if (!isQuantityBased && isApi && (profilesLoading || !selectedProfileContract)) {
+      setErrorMsg(rtl ? "يجري تحميل عقد Profile المعتمد؛ أعد المحاولة بعد اكتماله." : "The canonical Profile contract is still loading. Please try again shortly.");
+      return;
+    }
+
+    // CGP is displayed by the same registry, but its material-pool / piece
+    // semantics are intentionally deferred.  Do not turn this receipt form
+    // into an invented CGP physical-Asset workflow.
+    if (!isQuantityBased && isCgpProfile) {
+      setErrorMsg(rtl ? "مسار CGP التشغيلي مؤجل إلى Batch 6؛ لا يمكن إنشاء Asset من شاشة الاستلام لهذه Profile." : "CGP operational semantics are deferred to Batch 6; this receipt screen cannot fabricate a CGP Asset.");
       return;
     }
 
@@ -192,12 +413,33 @@ export default function SupplierPurchasesPage() {
       return;
     }
 
-    if (!assetName.trim() || quantityNum <= 0 || !Number.isInteger(quantityNum) || weightPerUnitNum <= 0 || unitCostNum < 0 || totalCost <= 0) {
+    if (!assetName.trim() || quantityNum <= 0 || !Number.isInteger(quantityNum) || (!goldValuationApplicable && totalCost <= 0)) {
       setErrorMsg(rtl ? "برجاء استكمال بيانات التوريد بشكل صحيح." : "Please fill in all asset purchase details correctly.");
+      return;
+    }
+    if (isQuantityBased && (weightPerUnitNum <= 0 || unitCostNum < 0)) {
+      setErrorMsg(rtl ? "برجاء استكمال بيانات المنتج بالكمية بشكل صحيح." : "Please complete the quantity-product details correctly.");
       return;
     }
     if (!isQuantityBased && (!selectedInventoryCode || !itemCode)) {
       setErrorMsg(rtl ? "يجب اختيار كود مخزون وكود قطعة نشطين." : "Select active inventory and item codes before receiving a serialized asset.");
+      return;
+    }
+    if (!isQuantityBased && (pieceDrafts.length !== quantityNum || pieceDrafts.some((piece) => parseDecimal(piece.grossWeight) <= 0 || (!goldValuationApplicable && parseDecimal(piece.purchaseCost) < 0)))) {
+      setErrorMsg(rtl ? "أدخل وزنًا وتكلفة لكل قطعة فعلية. عدد سجلات القطع يجب أن يساوي كمية المستند." : "Enter a weight and cost for every physical piece. Piece records must match the document quantity.");
+      return;
+    }
+    if (!isQuantityBased && goldValuationApplicable && pieceDrafts.some((piece) => parseDecimal(piece.purchaseGoldRate) <= 0 || parseDecimal(piece.currentGoldRate) <= 0 || (is24kGoldBar && (parseDecimal(piece.certificateCost) < 0 || parseDecimal(piece.currentCertificateCost) < 0)))) {
+      setErrorMsg(rtl ? "أدخل أسعار الذهب للتقييم الحالي والشراء، وتكلفة الشهادة لسبيكة 24K." : "Enter purchase/current gold rates and the 24K certificate costs.");
+      return;
+    }
+    if (!isQuantityBased && conditionRequired && pieceDrafts.some((piece) => !piece.condition)) {
+      setErrorMsg(rtl ? "حالة القطعة مطلوبة لهذه Profile." : "Condition is required for this Profile.");
+      return;
+    }
+
+    if (!isQuantityBased && pieceDrafts.some((piece) => (piece.certificateIssuer || piece.certificateNumber || piece.certificateIssueDate || piece.certificateUrl) && (!piece.certificateIssuer || !piece.certificateNumber || !piece.certificateIssueDate))) {
+      setErrorMsg(rtl ? "عند إدخال شهادة، الاسم والرقم وتاريخ الإصدار مطلوبة معًا." : "When entering a certificate, issuer, number, and issue date are required together.");
       return;
     }
 
@@ -261,9 +503,10 @@ export default function SupplierPurchasesPage() {
 
       if (isApi) {
         if (!idempotencyKeyRef.current) idempotencyKeyRef.current = generateUUID();
+        const receiveIdempotencyKey = idempotencyKeyRef.current;
         const response = await apiClient<any>("/purchase-orders/receive", {
           method: "POST",
-          idempotencyKey: idempotencyKeyRef.current,
+          idempotencyKey: receiveIdempotencyKey,
           locale,
           body: JSON.stringify({
             id: purchaseOrderId,
@@ -271,7 +514,7 @@ export default function SupplierPurchasesPage() {
             date: dateStr,
             receivedDate: dateStr,
             supplierName: selectedSupplier.name,
-            stockType: assetType,
+            stockType: isQuantityBased ? assetType : canonicalAssetType,
             itemName: assetName,
             description: category.trim(),
             purchaseDate: dateStr,
@@ -295,29 +538,113 @@ export default function SupplierPurchasesPage() {
             items: [
               {
                 name: assetName,
-                type: assetType,
+                type: isQuantityBased ? assetType : canonicalAssetType,
                 inventoryCode: selectedInventoryCode?.code,
                 itemCode: isQuantityBased ? undefined : itemCode,
                 inventorySubtype: assetType === "watch" ? "watch" : undefined,
                 category: category.trim() || (rtl ? "خام" : "Raw material"),
                 karat: Number(karat) || undefined,
-                weightPerUnit: weightPerUnitNum,
-                grossWeight: weightPerUnitNum,
-                netWeight: weightPerUnitNum,
-                unitCost: unitCostNum,
-                cost: unitCostNum,
-                price: isQuantityBased ? salePriceNum : Math.round(unitCostNum * 1.32),
+                weightPerUnit: isQuantityBased ? weightPerUnitNum : totalWeight / quantityNum,
+                grossWeight: isQuantityBased ? weightPerUnitNum : totalWeight / quantityNum,
+                netWeight: isQuantityBased ? weightPerUnitNum : totalWeight / quantityNum,
+                unitCost: isQuantityBased ? unitCostNum : (goldValuationApplicable ? 0 : totalCost / quantityNum),
+                cost: isQuantityBased ? unitCostNum : (goldValuationApplicable ? 0 : totalCost / quantityNum),
+                price: isQuantityBased ? salePriceNum : (goldValuationApplicable ? 0 : totalCost / quantityNum),
                 quantity: quantityNum,
                 unit: rtl ? "قطعة" : "piece",
                 location: "Showroom",
                 notes: useReverseCharge ? "Domestic reverse charge verified" : "",
                 productCode: isQuantityBased ? productCode.trim() : undefined,
+                ...(!isQuantityBased ? {
+                  perPiece: pieceDrafts.map((piece, index) => ({
+                    name: quantityNum > 1 ? `${assetName} ${index + 1}` : assetName,
+                    description: piece.description.trim() || assetName,
+                    type: canonicalAssetType,
+                    category: category.trim() || "Received purchase",
+                    inventoryProfile,
+                    profile: inventoryProfile,
+                    inventoryCode: selectedInventoryCode?.code,
+                    itemCode,
+                    karat: profileRequires("karat") ? Number(karat) || null : null,
+                    grossWeight: parseDecimal(piece.grossWeight),
+                    stoneWeight: parseDecimal(piece.stoneWeight),
+                    purchaseCost: goldValuationApplicable ? undefined : parseDecimal(piece.purchaseCost),
+                    goldValue: goldValuationApplicable ? undefined : parseDecimal(piece.purchaseCost),
+                    ...(goldValuationApplicable ? {
+                      goldValuation: {
+                        purchaseGoldRate: parseDecimal(piece.purchaseGoldRate),
+                        makingPerGram: is24kGoldBar ? undefined : parseDecimal(piece.makingPerGram),
+                        currentGoldRate: parseDecimal(piece.currentGoldRate),
+                        currentMakingPerGram: is24kGoldBar ? undefined : parseDecimal(piece.currentMakingPerGram || piece.makingPerGram),
+                        certificateCost: is24kGoldBar ? parseDecimal(piece.certificateCost) : undefined,
+                        currentCertificateCost: is24kGoldBar ? parseDecimal(piece.currentCertificateCost || piece.certificateCost) : undefined,
+                        vatRate: is24kGoldBar && piece.valuationVatRate.trim() ? parseDecimal(piece.valuationVatRate) : undefined,
+                        currentVatRate: is24kGoldBar && piece.currentValuationVatRate.trim() ? parseDecimal(piece.currentValuationVatRate) : undefined,
+                      },
+                    } : {}),
+                    ...(isLooseProfile ? { looseDetails: {
+                      stoneName: piece.stoneName.trim() || undefined, diamondType: piece.diamondType.trim() || undefined,
+                      carat: piece.carat.trim() || undefined, color: piece.color.trim() || undefined,
+                      clarity: piece.clarity.trim() || undefined, cut: piece.cut.trim() || undefined, shape: piece.shape.trim() || undefined,
+                      treatment: piece.treatment.trim() || undefined, tone: piece.tone.trim() || undefined, toneLevel: piece.toneLevel.trim() || undefined,
+                      saturation: piece.saturation.trim() || undefined, opticalEffect: piece.opticalEffect.trim() || undefined, origin: piece.origin.trim() || undefined,
+                      totalPearlWeight: piece.totalPearlWeight.trim() || undefined,
+                      pearlSizeId: piece.pearlSize.trim() || undefined, pearlType: piece.pearlType.trim() || undefined,
+                      overtone: piece.overtone.trim() || undefined, orient: piece.orient.trim() || undefined, luster: piece.luster.trim() || undefined,
+                      surfaceQuality: piece.surfaceQuality.trim() || undefined, nacreQuality: piece.nacreQuality.trim() || undefined, notes: piece.looseNotes.trim() || undefined,
+                      masterData: piece.masterData,
+                    }} : {}),
+                    ...(isLooseProfile ? { looseFinancial: {
+                      purchaseCost: parseDecimal(piece.purchaseCost), additionalCost: parseDecimal(piece.additionalCost) || 0,
+                      vatRate: applyVat && piece.valuationVatRate.trim() ? parseDecimal(piece.valuationVatRate) : undefined,
+                    }, looseCurrentValuation: {
+                      currentValue: parseDecimal(piece.currentValue || piece.purchaseCost),
+                      currentVatRate: applyVat && piece.currentVatRate.trim() ? parseDecimal(piece.currentVatRate) : undefined,
+                    }, pricing: {
+                      markupPercent: parseDecimal(piece.markupPercent), maximumDiscountPercent: parseDecimal(piece.maximumDiscountPercent),
+                      minimumSellingPrice: parseDecimal(piece.minimumSellingPrice), sellingPrice: parseDecimal(piece.sellingPrice),
+                    }} : {}),
+                    condition: conditionApplicable ? (piece.condition || null) : null,
+                    goldColor: piece.goldColor.trim() || null,
+                    brand: piece.brand.trim() || null,
+                    model: piece.model.trim() || null,
+                    modelNumber: piece.modelNumber.trim() || null,
+                    supplierReference: piece.supplierReference.trim() || null,
+                    locationId: piece.locationId.trim() || null,
+                    ...(piece.certificateIssuer || piece.masterData.certificateAuthority || piece.certificateNumber || piece.certificateIssueDate || piece.certificateUrl ? {
+                      certificate: {
+                        issuer: piece.certificateIssuer.trim(),
+                        issuerId: piece.masterData.certificateAuthority || undefined,
+                        certificateNumber: piece.certificateNumber.trim(),
+                        issueDate: piece.certificateIssueDate,
+                        url: piece.certificateUrl.trim() || null,
+                      },
+                    } : {}),
+                    components: Array.isArray(piece.components) && piece.components.length ? piece.components : undefined,
+                  })),
+                } : {}),
               },
             ],
+            ...(!isQuantityBased ? { inventoryV2: true } : {}),
           }),
         });
-        idempotencyKeyRef.current = ""; // success → next receive gets a fresh key
-        createdAssetId = response?.assets?.[0]?.id || response?.data?.assets?.[0]?.id || assetId;
+        const createdAssets = response?.assets || response?.data?.assets || [];
+        if (createdAssets.length !== pieceDrafts.length) throw new Error("The canonical receipt response did not return one Asset per physical piece.");
+        for (const [index, piece] of pieceDrafts.entries()) {
+          if (!piece.attachment) continue;
+          const targetAsset = createdAssets[index];
+          if (!targetAsset?.id) throw new Error("The received Asset identity is missing for attachment upload.");
+          const formData = new FormData();
+          formData.append("file", piece.attachment);
+          await apiClient(`/assets/${encodeURIComponent(targetAsset.id)}/attachments`, {
+            method: "POST",
+            body: formData,
+            idempotencyKey: `${receiveIdempotencyKey}:attachment:${index}`,
+            locale,
+          });
+        }
+        idempotencyKeyRef.current = ""; // all durable receipt evidence succeeded → next receipt gets a fresh key
+        createdAssetId = createdAssets[0]?.id || assetId;
         invalidateAffectedQueries(queryClient, {
           entity: "PurchaseOrder",
           action: "receive",
@@ -441,7 +768,7 @@ export default function SupplierPurchasesPage() {
                       className="text-brand-600 focus:ring-brand-500 h-4 w-4"
                     />
                     <span className="text-xs font-bold text-navy-800 dark:text-slate-200">
-                      {rtl ? "منتج بالكمية (نموذج موحد)" : "Quantity-Based Product"}
+                      {rtl ? "منتج قديم بالكمية (توافق فقط)" : "Legacy Quantity Product (compatibility only)"}
                     </span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -456,7 +783,7 @@ export default function SupplierPurchasesPage() {
                       className="text-brand-600 focus:ring-brand-500 h-4 w-4"
                     />
                     <span className="text-xs font-bold text-navy-800 dark:text-slate-200">
-                      {rtl ? "أصل فردي برقم تسلسلي" : "Serialized Individual Asset"}
+                      {rtl ? "استلام أصول فعلية منفصلة" : "Serialized Physical Assets"}
                     </span>
                   </label>
                 </div>
@@ -525,17 +852,32 @@ export default function SupplierPurchasesPage() {
                 <input type="text" required className="input-base" placeholder={rtl ? "خاتم ذهب، سبيكة..." : "Gold ring, bullion..."} value={assetName} onChange={(e) => setAssetName(e.target.value)} />
               </label>
 
-              <label className="block">
-                <span className="label-base">{rtl ? "نوع المخزون" : "Inventory Type"}</span>
-                <NativeSelect value={assetType} onChange={(e) => setAssetType(e.target.value as AssetType)}>
-                  <option value="gold-piece">{rtl ? "ذهب بالقطعة" : "Gold by Piece"}</option>
-                  <option value="gold-weight">{rtl ? "ذهب بالوزن" : "Gold by Weight"}</option>
-                  <option value="diamond">{rtl ? "ألماس" : "Diamond"}</option>
-                  <option value="gemstone">{rtl ? "أحجار كريمة" : "Gemstones"}</option>
-                  <option value="pearl">{rtl ? "لؤلؤ" : "Pearl"}</option>
-                  <option value="watch">{rtl ? "ساعات" : "Watch"}</option>
-                </NativeSelect>
-              </label>
+              {isQuantityBased ? (
+                <label className="block">
+                  <span className="label-base">{rtl ? "نوع المخزون" : "Inventory Type"}</span>
+                  <NativeSelect value={assetType} onChange={(e) => setAssetType(e.target.value as AssetType)}>
+                    <option value="gold-piece">{rtl ? "ذهب بالقطعة" : "Gold by Piece"}</option>
+                    <option value="gold-weight">{rtl ? "ذهب بالوزن" : "Gold by Weight"}</option>
+                    <option value="diamond">{rtl ? "ألماس" : "Diamond"}</option>
+                    <option value="gemstone">{rtl ? "أحجار كريمة" : "Gemstones"}</option>
+                    <option value="pearl">{rtl ? "لؤلؤ" : "Pearl"}</option>
+                    <option value="watch">{rtl ? "ساعات" : "Watch"}</option>
+                  </NativeSelect>
+                </label>
+              ) : (
+                <label className="block">
+                  <span className="label-base">{rtl ? "Profile المخزون" : "Inventory Profile"}</span>
+                  <NativeSelect value={inventoryProfile} disabled={profilesLoading || profileContracts.length === 0} onChange={(e) => setInventoryProfile(e.target.value)}>
+                    {profileContracts.map((profile) => {
+                      const presentation = PROFILE_PRESENTATION[profile.key] || { label: profile.key, labelAr: profile.key };
+                      return <option key={profile.key} value={profile.key}>{rtl ? presentation.labelAr : presentation.label}</option>;
+                    })}
+                  </NativeSelect>
+                  <p className="mt-1 text-[10px] text-slate-500">
+                    {profilesLoading ? (rtl ? "جاري تحميل عقد الحقول المعتمد..." : "Loading canonical field contract...") : (rtl ? `Profile الحالي: ${selectedProfilePresentation.labelAr}. الحقول المطلوبة يحسمها الخادم عند الحفظ.` : `Current Profile: ${selectedProfilePresentation.label}. The server is authoritative for required fields on save.`)}
+                  </p>
+                </label>
+              )}
 
               {!isQuantityBased && <label className="block">
                 <span className="label-base">{rtl ? "كود القطعة" : "Item Code"}</span>
@@ -551,16 +893,22 @@ export default function SupplierPurchasesPage() {
                 <input type="text" placeholder={rtl ? "مثال: خواتم، سبائك" : "e.g. rings, bars"} className="input-base" value={category} onChange={(e) => setCategory(e.target.value)} />
               </label>
 
-              <label className="block">
+              {profileRequires("karat") && <label className="block">
                 <span className="label-base">{rtl ? "العيار" : "Karat"}</span>
-                <NativeSelect disabled={selectedInventoryCode?.requiresKarat === false} value={karat} onChange={(e) => setKarat(e.target.value)}>
+                <NativeSelect disabled={selectedInventoryCode?.requiresKarat === false || is24kGoldBar} value={karat} onChange={(e) => setKarat(e.target.value)}>
                   {selectedInventoryCode?.requiresKarat === false && <option value="">{selectedInventoryCode.defaultKaratCode || "00"}</option>}
                   <option value="18">18K</option>
                   <option value="21">21K</option>
                   <option value="22">22K</option>
                   <option value="24">24K</option>
                 </NativeSelect>
-              </label>
+              </label>}
+
+              {!isQuantityBased && <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs dark:border-slate-700 dark:bg-navy-950/40">
+                <p className="font-black text-navy-950 dark:text-white">{rtl ? "الفرع التشغيلي" : "Operational Branch"} <span className="text-rose-500">*</span></p>
+                <p className="mt-1 font-semibold text-slate-600 dark:text-slate-300">{activeBranch || (rtl ? "لا يوجد فرع نشط" : "No active Branch")}</p>
+                <p className="mt-1 text-[10px] text-slate-500">{rtl ? "الشركة محددة من الجلسة، ولا يوجد اختيار شركة في شاشة الاستلام." : "Company is server-scoped; this intake screen has no Company switcher."}</p>
+              </div>}
 
               <label className="block">
                 <span className="label-base">{rtl ? "تاريخ الشراء" : "Purchase Date"}</span>
@@ -574,7 +922,7 @@ export default function SupplierPurchasesPage() {
               </label>
 
               <label className="block">
-                <span className="label-base">{rtl ? "الكمية" : "Quantity"}</span>
+                <span className="label-base">{isQuantityBased ? (rtl ? "الكمية" : "Quantity") : (rtl ? "كمية المستند / عدد القطع الفعلية" : "Document quantity / physical pieces")}</span>
                 <input
                   type="text"
                   inputMode="numeric"
@@ -587,7 +935,7 @@ export default function SupplierPurchasesPage() {
                 />
               </label>
 
-              <label className="block">
+              {isQuantityBased && <label className="block">
                 <span className="label-base">{rtl ? "وزن الوحدة (جم)" : "Weight per Unit (g)"}</span>
                 <input
                   type="text"
@@ -599,9 +947,9 @@ export default function SupplierPurchasesPage() {
                   value={toEnglishDigits(weightPerUnit)}
                   onChange={(e) => setWeightPerUnit(normalizeDecimalValue(e.target.value))}
                 />
-              </label>
+              </label>}
 
-              <label className="block">
+              {isQuantityBased && <label className="block">
                 <span className="label-base">{rtl ? "سعر تكلفة الوحدة" : "Unit Cost"}</span>
                 <input
                   type="text"
@@ -613,7 +961,7 @@ export default function SupplierPurchasesPage() {
                   value={toEnglishDigits(unitCost)}
                   onChange={(e) => setUnitCost(normalizeDecimalValue(e.target.value))}
                 />
-              </label>
+              </label>}
 
               {isQuantityBased ? (
                 <label className="block">
@@ -630,7 +978,9 @@ export default function SupplierPurchasesPage() {
                   />
                 </label>
               ) : (
-                <div />
+                <div className="sm:col-span-2 rounded-2xl border border-brand-200 bg-brand-50/60 p-3 text-[11px] font-bold text-brand-800 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-100">
+                  {rtl ? "كل سجل قطعة أدناه ينشئ Asset مستقلًا وBarcode مستقلًا. الكمية هنا للمستند فقط." : "Each piece record below creates one distinct Asset and Barcode. The quantity here is document metadata only."}
+                </div>
               )}
 
               <label className="block">
@@ -666,6 +1016,64 @@ export default function SupplierPurchasesPage() {
               </label>
             </div>
 
+            {!isQuantityBased && isCgpProfile && (
+              <section className="rounded-3xl border border-amber-300 bg-amber-50 p-4 text-sm font-bold text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100">
+                {rtl ? "CGP ظاهر من العقد المعتمد، لكن الاستلام غير متاح هنا حتى تُحسم دلالات القطعة/السطر/حوض المادة في Batch 6." : "CGP is visible from the canonical contract, but receipt is unavailable until piece, line, and material-pool semantics are resolved in Batch 6."}
+              </section>
+            )}
+
+            {!isQuantityBased && !isCgpProfile && (
+              <section className="space-y-3 rounded-3xl border border-brand-200 bg-brand-50/40 p-4 dark:border-brand-500/30 dark:bg-brand-500/10">
+                <div>
+                  <h3 className="text-sm font-black text-navy-950 dark:text-white">{rtl ? "تفاصيل القطع الفعلية" : "Physical piece details"}</h3>
+                  <p className="mt-1 text-[11px] font-semibold text-slate-500">{rtl ? "لا يتم إنشاء أي Asset من العدد وحده؛ يجب إدخال سجل مستقل لكل قطعة." : "No Asset is created from the count alone; every physical piece needs its own record."}</p>
+                </div>
+                {pieceDrafts.map((piece, index) => (
+                  <div key={index} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-navy-950/40 sm:grid-cols-2 lg:grid-cols-4">
+                    <p className="text-xs font-black text-brand-700 dark:text-brand-200 sm:col-span-2 lg:col-span-4">{rtl ? `القطعة ${index + 1}` : `Piece ${index + 1}`}</p>
+                    <label className="block sm:col-span-2"><span className="label-base">{rtl ? "وصف القطعة" : "Piece description"}{profileRequires("description") && <span className="text-rose-500"> *</span>}</span><input required={profileRequires("description")} type="text" className="input-base" value={piece.description} placeholder={assetName || (rtl ? "مثال: خاتم ذهب" : "e.g. Gold ring")} onChange={(e) => updatePieceDraft(index, "description", e.target.value)} /></label>
+                    {weightApplicable && <><label className="block"><span className="label-base">{rtl ? "الوزن الإجمالي (جم)" : "Gross weight (g)"}{profileRequires("grossWeight") && <span className="text-rose-500"> *</span>}</span><input required={profileRequires("grossWeight")} type="text" inputMode="decimal" dir="ltr" className="input-base" value={toEnglishDigits(piece.grossWeight)} onChange={(e) => updatePieceDraft(index, "grossWeight", normalizeDecimalValue(e.target.value))} /></label>
+                    <label className="block"><span className="label-base">{rtl ? "وزن الأحجار (جم)" : "Stone weight (g)"}</span><input type="text" inputMode="decimal" dir="ltr" className="input-base" value={toEnglishDigits(piece.stoneWeight)} onChange={(e) => updatePieceDraft(index, "stoneWeight", normalizeDecimalValue(e.target.value))} /></label></>}
+                    {!goldValuationApplicable && !isLooseProfile && <label className="block"><span className="label-base">{rtl ? "تكلفة الشراء للقطعة" : "Piece purchase cost"}{profileRequires("purchaseCost") && <span className="text-rose-500"> *</span>}</span><input required={profileRequires("purchaseCost")} type="text" inputMode="decimal" dir="ltr" className="input-base" value={toEnglishDigits(piece.purchaseCost)} onChange={(e) => updatePieceDraft(index, "purchaseCost", normalizeDecimalValue(e.target.value))} /></label>}
+                    {goldValuationApplicable && <div className="grid gap-3 rounded-xl border border-amber-200 bg-amber-50/50 p-3 sm:col-span-2 lg:col-span-4 dark:border-amber-500/30 dark:bg-amber-500/10 sm:grid-cols-2 lg:grid-cols-4"><p className="text-xs font-black text-amber-800 dark:text-amber-200 sm:col-span-2 lg:col-span-4">{rtl ? "تقييم الذهب الخاضع للحساب الخادمي" : "Server-calculated gold valuation"}</p><label className="block"><span className="label-base">{rtl ? "سعر الذهب وقت الشراء / جم" : "Purchase gold rate / g"} *</span><input required type="text" inputMode="decimal" dir="ltr" className="input-base" value={toEnglishDigits(piece.purchaseGoldRate)} onChange={(e) => updatePieceDraft(index, "purchaseGoldRate", normalizeDecimalValue(e.target.value))} /></label>{!is24kGoldBar && <label className="block"><span className="label-base">{rtl ? "مصنعية الشراء / جم" : "Purchase making / g"}</span><input type="text" inputMode="decimal" dir="ltr" className="input-base" value={toEnglishDigits(piece.makingPerGram)} onChange={(e) => updatePieceDraft(index, "makingPerGram", normalizeDecimalValue(e.target.value))} /></label>}<label className="block"><span className="label-base">{rtl ? "سعر الذهب الحالي / جم" : "Current gold rate / g"} *</span><input required type="text" inputMode="decimal" dir="ltr" className="input-base" value={toEnglishDigits(piece.currentGoldRate)} onChange={(e) => updatePieceDraft(index, "currentGoldRate", normalizeDecimalValue(e.target.value))} /></label>{!is24kGoldBar && <label className="block"><span className="label-base">{rtl ? "مصنعية التقييم الحالي / جم" : "Current making / g"}</span><input type="text" inputMode="decimal" dir="ltr" className="input-base" value={toEnglishDigits(piece.currentMakingPerGram)} onChange={(e) => updatePieceDraft(index, "currentMakingPerGram", normalizeDecimalValue(e.target.value))} /></label>}{is24kGoldBar && <><label className="block"><span className="label-base">{rtl ? "تكلفة الشهادة وقت الشراء" : "Purchase certificate cost"} *</span><input required type="text" inputMode="decimal" dir="ltr" className="input-base" value={toEnglishDigits(piece.certificateCost)} onChange={(e) => updatePieceDraft(index, "certificateCost", normalizeDecimalValue(e.target.value))} /></label><label className="block"><span className="label-base">{rtl ? "تكلفة الشهادة الحالية" : "Current certificate cost"} *</span><input required type="text" inputMode="decimal" dir="ltr" className="input-base" value={toEnglishDigits(piece.currentCertificateCost)} onChange={(e) => updatePieceDraft(index, "currentCertificateCost", normalizeDecimalValue(e.target.value))} /></label><label className="block"><span className="label-base">{rtl ? "نسبة VAT للشهادة % (يدوي أو إعدادات)" : "Certificate VAT rate % (manual or Settings)"}</span><input type="text" inputMode="decimal" dir="ltr" className="input-base" value={toEnglishDigits(piece.valuationVatRate)} onChange={(e) => updatePieceDraft(index, "valuationVatRate", normalizeDecimalValue(e.target.value))} /></label><label className="block"><span className="label-base">{rtl ? "نسبة VAT الحالية للشهادة %" : "Current certificate VAT rate %"}</span><input type="text" inputMode="decimal" dir="ltr" className="input-base" value={toEnglishDigits(piece.currentValuationVatRate)} onChange={(e) => updatePieceDraft(index, "currentValuationVatRate", normalizeDecimalValue(e.target.value))} /></label></>}<p className="text-[10px] text-amber-800 dark:text-amber-100 sm:col-span-2 lg:col-span-4">{rtl ? "القيم النهائية للذهب وVAT وإجمالي التكلفة يحسبها الخادم ويعيدها من السجلات المعيارية؛ VAT لسبيكة 24K لا يُحسب على قيمة الذهب." : "The server calculates final gold values, VAT, and total cost and returns normalized evidence. For 24K bars VAT never uses the gold value."}</p></div>}
+                    {isLooseProfile && <>
+                      <div className="grid gap-3 rounded-xl border border-violet-200 bg-violet-50/40 p-3 sm:col-span-2 lg:col-span-4 dark:border-violet-500/30 dark:bg-violet-500/10 sm:grid-cols-2 lg:grid-cols-4">
+                        <p className="text-xs font-black text-violet-900 dark:text-violet-100 sm:col-span-2 lg:col-span-4">{rtl ? "تفاصيل القطعة السائبة — سجل واحد يمثل Asset واحداً" : "Loose-piece details — one record is one Asset"}</p>
+                        {inventoryProfile === "LOOSE_GEMSTONE" && <label className="block"><span className="label-base">{rtl ? "وزن الحجر بالقيراط CT" : "Stone weight (CT)"} *</span><input required type="text" inputMode="decimal" className="input-base" value={piece.carat} onChange={(e) => { const value = decimalInputAtMost(e.target.value, 3); if (value !== null) updatePieceDraft(index, "carat", value); }} /><p className="mt-1 text-[10px] text-slate-500">{rtl ? "حتى 3 منازل؛ العرض التجاري يحسبه الخادم إلى منزلتين وفق CIBJO." : "Up to 3 decimals; the server calculates the 2-decimal commercial display using CIBJO."}</p></label>}
+                        {inventoryProfile === "LOOSE_PEARL" && <><label className="block"><span className="label-base">{rtl ? "إجمالي وزن اللؤلؤ (CT)" : "Total pearl weight (CT)"} *</span><input required type="text" inputMode="decimal" className="input-base" value={piece.totalPearlWeight} onChange={(e) => { const value = decimalInputAtMost(e.target.value, 2); if (value !== null) updatePieceDraft(index, "totalPearlWeight", value); }} /></label><label className="block"><span className="label-base">{rtl ? "المقاس (mm) — اختياري" : "Size (mm) — optional"}</span><NativeSelect value={piece.pearlSize} onChange={(e) => updatePieceDraft(index, "pearlSize", e.target.value)}><option value="">{rtl ? "غير محدد" : "Not specified"}</option>{pearlSizeMasterValues.map((size) => <option key={size.id} value={size.id}>{size.label}</option>)}</NativeSelect></label></>}
+                        {(LOOSE_MASTER_FIELDS[inventoryProfile] || []).map((field) => <label key={field.field} className="block"><span className="label-base">{rtl ? field.labelAr : field.label}{field.required && <span className="text-rose-500"> *</span>}</span><NativeSelect required={Boolean(field.required)} value={piece.masterData[field.field] || ""} onChange={(e) => updatePieceMasterData(index, field.field, e.target.value)}><option value="">{rtl ? "اختر قيمة معتمدة" : "Select an approved value"}</option>{masterOptions(field.category).map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</NativeSelect></label>)}
+                      </div>
+                      <div className="grid gap-3 rounded-xl border border-emerald-200 bg-emerald-50/40 p-3 sm:col-span-2 lg:col-span-4 dark:border-emerald-500/30 dark:bg-emerald-500/10 sm:grid-cols-2 lg:grid-cols-4">
+                        <p className="text-xs font-black text-emerald-900 dark:text-emerald-100 sm:col-span-2 lg:col-span-4">{rtl ? "التكلفة والتقييم والتسعير السائب — الحساب الخادمي هو المرجع" : "Loose cost, valuation and pricing — server calculations are authoritative"}</p>
+                        <label className="block"><span className="label-base">{rtl ? "تكلفة الشراء الأساسية" : "Purchase base cost"} *</span><input required type="text" inputMode="decimal" className="input-base" value={toEnglishDigits(piece.purchaseCost)} onChange={(e) => updatePieceDraft(index, "purchaseCost", normalizeDecimalValue(e.target.value))} /></label>
+                        {inventoryProfile === "LOOSE_GEMSTONE" && <label className="block"><span className="label-base">{rtl ? "تكاليف إضافية" : "Additional cost"}</span><input type="text" inputMode="decimal" className="input-base" value={toEnglishDigits(piece.additionalCost)} onChange={(e) => updatePieceDraft(index, "additionalCost", normalizeDecimalValue(e.target.value))} /></label>}
+                        <label className="block"><span className="label-base">{rtl ? "نسبة VAT للشراء % (اختيارية)" : "Purchase VAT rate % (optional)"}</span><input type="text" inputMode="decimal" className="input-base" value={toEnglishDigits(piece.valuationVatRate)} onChange={(e) => updatePieceDraft(index, "valuationVatRate", normalizeDecimalValue(e.target.value))} /></label>
+                        <label className="block"><span className="label-base">{rtl ? "القيمة الحالية" : "Current value"} *</span><input required type="text" inputMode="decimal" className="input-base" value={toEnglishDigits(piece.currentValue)} onChange={(e) => updatePieceDraft(index, "currentValue", normalizeDecimalValue(e.target.value))} /></label>
+                        <label className="block"><span className="label-base">{rtl ? "نسبة VAT الحالية % (اختيارية)" : "Current VAT rate % (optional)"}</span><input type="text" inputMode="decimal" className="input-base" value={toEnglishDigits(piece.currentVatRate)} onChange={(e) => updatePieceDraft(index, "currentVatRate", normalizeDecimalValue(e.target.value))} /></label>
+                        <label className="block"><span className="label-base">{rtl ? "نسبة الربح %" : "Markup %"}</span><input type="text" inputMode="decimal" className="input-base" value={toEnglishDigits(piece.markupPercent)} onChange={(e) => updatePieceDraft(index, "markupPercent", normalizeDecimalValue(e.target.value))} /></label>
+                        <label className="block"><span className="label-base">{rtl ? "أقصى خصم %" : "Maximum discount %"}</span><input type="text" inputMode="decimal" className="input-base" value={toEnglishDigits(piece.maximumDiscountPercent)} onChange={(e) => updatePieceDraft(index, "maximumDiscountPercent", normalizeDecimalValue(e.target.value))} /></label>
+                        <label className="block"><span className="label-base">{rtl ? "أدنى سعر بيع" : "Minimum selling price"}</span><input type="text" inputMode="decimal" className="input-base" value={toEnglishDigits(piece.minimumSellingPrice)} onChange={(e) => updatePieceDraft(index, "minimumSellingPrice", normalizeDecimalValue(e.target.value))} /></label>
+                        <label className="block"><span className="label-base">{rtl ? "سعر البيع اليدوي" : "Manual selling price"}</span><input type="text" inputMode="decimal" className="input-base" value={toEnglishDigits(piece.sellingPrice)} onChange={(e) => updatePieceDraft(index, "sellingPrice", normalizeDecimalValue(e.target.value))} /></label>
+                      </div>
+                    </>}
+                    {conditionApplicable && <label className="block"><span className="label-base">{rtl ? "الحالة الوصفية" : "Condition"}{conditionRequired ? " *" : ""}</span><NativeSelect value={piece.condition} onChange={(e) => updatePieceDraft(index, "condition", e.target.value)}><option value="">{rtl ? "غير محددة" : "Not specified"}</option><option value="NEW">{rtl ? "جديد" : "New"}</option><option value="USED">{rtl ? "مستعمل" : "Used"}</option></NativeSelect></label>}
+                    {goldColorApplicable && <label className="block"><span className="label-base">{rtl ? "لون الذهب" : "Gold color"}</span><input type="text" className="input-base" value={piece.goldColor} onChange={(e) => updatePieceDraft(index, "goldColor", e.target.value)} /></label>}
+                    <label className="block"><span className="label-base">{rtl ? "العلامة التجارية" : "Brand"}</span><input type="text" className="input-base" value={piece.brand} onChange={(e) => updatePieceDraft(index, "brand", e.target.value)} /></label>
+                    <label className="block"><span className="label-base">{rtl ? "الموديل" : "Model"}</span><input type="text" className="input-base" value={piece.model} onChange={(e) => updatePieceDraft(index, "model", e.target.value)} /></label>
+                    <label className="block"><span className="label-base">{rtl ? "رقم الموديل" : "Model number"}</span><input type="text" className="input-base" value={piece.modelNumber} onChange={(e) => updatePieceDraft(index, "modelNumber", e.target.value)} /></label>
+                    <label className="block"><span className="label-base">{rtl ? "مرجع المورد" : "Supplier reference"}</span><input type="text" className="input-base" value={piece.supplierReference} onChange={(e) => updatePieceDraft(index, "supplierReference", e.target.value)} /></label>
+                    <label className="block"><span className="label-base">{rtl ? "الموقع (اختياري)" : "Location (optional)"}</span><input type="text" className="input-base" value={piece.locationId} onChange={(e) => updatePieceDraft(index, "locationId", e.target.value)} /></label>
+                    {isGoldProfile && weightApplicable && <div className="rounded-xl border border-slate-200 bg-slate-50 p-2 text-[10px] dark:border-slate-700 dark:bg-navy-950/40"><p className="font-black text-slate-700 dark:text-slate-200">{rtl ? "الأوزان المشتقة" : "Server-derived weights"}</p><p className="mt-1 text-slate-500">{rtl ? "وزن الذهب الصافي وذهب 999.9 يحسبهما الخادم بعد الحفظ ويظهران من بيانات Asset؛ لا تُرسل هذه الشاشة قيمة مشتقة." : "Net Gold Weight and Pure Gold 999.9 are calculated by the server after save and read from the Asset; this form never submits derived values."}</p></div>}
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-2 text-[10px] dark:border-slate-700 dark:bg-navy-950/40"><p className="font-black text-slate-700 dark:text-slate-200">{rtl ? "الوسم وRFID والحالة التشغيلية" : "Tag, RFID, and operational status"}</p><p className="mt-1 text-slate-500">{rtl ? "Barcode ينشئه النظام بعد الحفظ؛ RFID اختياري ويُربط من دورة RFID المعتمدة؛ الحالة التشغيلية Available للعرض فقط." : "Barcode is system-generated after save; RFID remains optional and is assigned by the canonical RFID workflow; operational status is read-only Available."}</p></div>
+
+                    {certificateSupported && <div className="grid gap-3 rounded-xl border border-amber-200 bg-amber-50/50 p-3 sm:col-span-2 lg:col-span-4 dark:border-amber-500/30 dark:bg-amber-500/10 sm:grid-cols-2 lg:grid-cols-4"><p className="text-xs font-black text-amber-800 dark:text-amber-200 sm:col-span-2 lg:col-span-4">{rtl ? "بيانات الشهادة (اختيارية)" : "Certificate data (optional)"}</p><label className="block"><span className="label-base">{rtl ? "الجهة / الاسم" : "Issuer / name"}</span><input type="text" className="input-base" value={piece.certificateIssuer} onChange={(e) => updatePieceDraft(index, "certificateIssuer", e.target.value)} /></label><label className="block"><span className="label-base">{rtl ? "رقم الشهادة" : "Certificate number"}</span><input type="text" className="input-base" value={piece.certificateNumber} onChange={(e) => updatePieceDraft(index, "certificateNumber", e.target.value)} /></label><label className="block"><span className="label-base">{rtl ? "تاريخ الإصدار" : "Issue date"}</span><input type="date" className="input-base" value={piece.certificateIssueDate} onChange={(e) => updatePieceDraft(index, "certificateIssueDate", toEnglishDigits(e.target.value))} /></label><label className="block"><span className="label-base">{rtl ? "مرجع صورة/ملف الشهادة" : "Certificate image/file reference"}</span><input type="url" className="input-base" value={piece.certificateUrl} onChange={(e) => updatePieceDraft(index, "certificateUrl", e.target.value)} /></label></div>}
+
+                    <label className="block rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs sm:col-span-2 lg:col-span-4 dark:border-slate-700 dark:bg-navy-950/40"><span className="font-black text-navy-950 dark:text-white">{rtl ? "صورة أو مرفق للقطعة (اختياري)" : "Piece image or attachment (optional)"}</span><input type="file" accept="image/*,.pdf" className="mt-2 block w-full text-xs" onChange={(e) => updatePieceDraft(index, "attachment", e.target.files?.[0] || null)} /><p className="mt-1 text-[10px] text-slate-500">{piece.attachment ? piece.attachment.name : (rtl ? "يُرفع بعد إنشاء Asset عبر علاقة المرفقات المعتمدة." : "Uploaded after Asset creation through the canonical attachment relation.")}</p></label>
+                  </div>
+                ))}
+              </section>
+            )}
+
             <div className="grid gap-3 rounded-3xl border border-brand-100 bg-brand-50/60 p-4 text-xs dark:border-brand-500/20 dark:bg-brand-500/10 sm:grid-cols-2 lg:grid-cols-4">
               <div>
                 <p className="text-[10px] font-bold text-slate-500">{rtl ? "إجمالي الوزن" : "Total Weight"}</p>
@@ -673,7 +1081,9 @@ export default function SupplierPurchasesPage() {
                   {toEnglishDigits(totalWeight.toFixed(2))}g
                 </p>
                 <p className="mt-1 text-[10px] text-slate-400">
-                  {toEnglishDigits(quantityNum)} × {toEnglishDigits(weightPerUnitNum)}
+                  {isQuantityBased
+                    ? `${toEnglishDigits(quantityNum)} × ${toEnglishDigits(weightPerUnitNum)}`
+                    : (rtl ? `${toEnglishDigits(pieceDrafts.length)} سجلات قطع فعلية` : `${toEnglishDigits(pieceDrafts.length)} physical piece records`)}
                 </p>
               </div>
               <div>
@@ -785,9 +1195,9 @@ export default function SupplierPurchasesPage() {
             )}
 
             <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-800">
-              <Button type="submit" disabled={isPosting || (!isApi && isCreating) || suppliersLoading || activeSuppliers.length === 0 || (useReverseCharge && !drcVerified)}>
+              <Button type="submit" disabled={isCgpProfile || isPosting || (!isApi && isCreating) || suppliersLoading || activeSuppliers.length === 0 || (useReverseCharge && !drcVerified)}>
                 <Plus className="h-4.5 w-4.5" />
-                {isPosting || (!isApi && isCreating) ? common("loading") : rtl ? "استلام وتسجيل الأصل" : "Post Purchase & Add Asset"}
+                {isCgpProfile ? (rtl ? "CGP مؤجل إلى Batch 6" : "CGP deferred to Batch 6") : isPosting || (!isApi && isCreating) ? common("loading") : rtl ? "استلام وتسجيل الأصل" : "Post Purchase & Add Asset"}
               </Button>
             </div>
           </form>

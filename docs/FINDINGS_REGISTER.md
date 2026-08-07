@@ -1,5 +1,25 @@
 # Market Release Findings Register
 
+## FINANCIAL-ACCEPT-F003 — OPEN — CONT3 boundary (2026-07-30)
+
+Locked exact four-decimal validation is implemented and fresh disposable HTTP proof passes. Persistent Product-API evidence remains pending a new minimal valid installment; the retained overpayment is immutable and has no supported linked remediation workflow. Next: `OFFICIAL-LOCAL-FINANCIAL-FIX-CONT3`.
+
+## FINANCIAL-ACCEPT-F002 — RESOLVED (2026-07-30)
+
+**INSTALLMENT_PARTIAL_COLLECTION_JOURNAL_SOURCE_CONFLICT.** The unique journal
+identity previously used the installment aggregate, so a second valid payment
+conflicted. Repair: collection journals now use source type
+`installment_collection` and the durable Payment event identity. The unique
+index and accepted legacy journal are preserved. Static, fresh-DB, and
+restore-upgrade proofs pass.
+
+## FINANCIAL-ACCEPT-F003 — OPEN (2026-07-30)
+
+**INSTALLMENT_OVER_COLLECTION_TOLERANCE_ACCEPTED.** Persistent replay showed
+that an amount just above the exact remaining balance can pass the current
+tolerance check, create normal financial rows, and leave a positive paid
+overage. This is a release-blocking Product defect. No rollback or corrective
+data mutation was authorized. Repair marker: `OFFICIAL-LOCAL-FINANCIAL-FIX-CONT3`.
 ## FINANCIAL-ACCEPT-F002 — OPEN — 2026-07-30
 
 | ID | Severity / status | Proven evidence | Required boundary |
@@ -852,3 +872,124 @@ rendered under the permitted direct replay and was not reproducible as a route
 defect. BUSINESS, CONFIGURATION, FINANCIAL, and SYSTEM fingerprints were
 unchanged; only the expected technical-session lifecycle and successful-login
 timestamp changed. Next only: `OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-CONT1`.
+## LOCAL-FINANCIAL-DATA-F001 — OPEN — historical customer-receivable isolation boundary (2026-07-30)
+
+Persistent F003 proof used valid user-created installments and completed only
+normal Product API collections. The historical installment, original payment,
+treasury movement, journal, journal lines, invoice, and audit records retained
+their pre-proof fingerprints. The proof customer is also the historical
+overpayment customer, so the valid collection changed that customer's
+receivable. This is a retained-data boundary failure, not an over-collection
+guard failure; no direct correction, restore, or Product repair is authorized.
+Resolve only through `OFFICIAL-LOCAL-FINANCIAL-DATA-REMEDIATION-CONT1`.
+
+One open cash-register session is also pre-existing (pre/post count unchanged)
+and is not attributed to the proof.
+
+## FINANCIAL-ACCEPT-F003 — RESOLVED_IN_PRODUCT_AND_PERSISTENT_PROOF (2026-07-30)
+
+The installed exact four-decimal, locked-row guard rejected an outstanding plus
+one-unit request with canonical 422 and no command write. Persistent partial,
+exact settlement, replay/conflict idempotency, and two-request concurrency
+proofs passed through the normal Product API. The separate historical-data
+remediation boundary remains open as `LOCAL-FINANCIAL-DATA-F001`.
+
+## LOCAL-FINANCIAL-DATA-F001 — RESOLVED (2026-07-30)
+
+The historical overpayment was isolated from later valid shared-customer proof
+activity by source-linked chronological collection evidence, not by aggregate
+customer balance. A new Product workflow reclassifies the server-derived exact
+overage from receivable to the canonical customer-deposit liability, references
+the original collection event, creates a single audited balanced Journal, and
+creates zero Treasury movement. Existing remediations replay without a duplicate
+financial effect and reconcile the installment's derived applied total only.
+Original and valid-proof financial fingerprints remained unchanged; disposable
+boundary rehearsal and retained pre/post backup restores passed.
+
+## OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-CONT2 — BLOCKED_BY_VALID_PRECONDITION (2026-07-30)
+
+The post-remediation baseline is unchanged, but cash-dependent acceptance flows
+cannot safely begin. A pre-existing open cash-register session occupies the only
+active Branch, while the Product permits at most one open session per Branch.
+The session is not owned by this phase and may not be closed or repurposed. This
+is a controlled acceptance boundary, not a Product defect.
+
+## CASH-SESSION-HARNESS-CONT2 — BLOCKED_INVALID_SESSION_BOUNDARY (2026-07-31)
+
+The single inherited open cash-register session cannot be safely automated: its
+linked movements reconcile structurally, but the canonical opening-plus-ledger
+calculation crosses the invalid negative boundary. No session or financial row
+was modified. Product defect is not proven; the session requires controlled
+owner-led investigation through normal Product operations before reuse.
+
+## CASH-SESSION-HARNESS-CONT2-ROOT-CAUSE — NO_SAFE_PRODUCT_PATH (2026-07-31)
+
+The first negative session crossing is a posted purchase-order cash outflow and
+the global cash Treasury/GL is negative too. Classification:
+`VALID_REAL_CASH_DEFICIT`. The existing close-with-variance capability cannot be
+used without a truthful counted-cash fact, and no approved real transfer/funding
+source or reversible invalid event was proven. No Product defect or data mutation
+is claimed. Design decision is required before any resolution.
+
+## CASH-SESSION-BASELINE-AUDIT-CONT1 — UNSTABLE_OBSERVATION_BOUNDARY (2026-07-31)
+
+The prior negative-current-balance claim cannot yet be corrected safely. A
+read-only timeline confirmed the historical purchase-order crossing, but the
+cash-account stored balance changed independently during the audit from the
+prior `3798.3900` snapshot to `13184.7900`; the latter reconciles with the
+current service and posted cash GL. This establishes an unrecorded persistent
+delta/unstable observation window, not a Product defect and not authority for a
+session close or accounting action. No write was made by the audit.
+
+## CASH-SESSION-BASELINE-AUDIT-CONT1 — STABLE_BUT_INVALID_PRECISION_BOUNDARY (2026-08-03)
+
+The stable writer-isolation continuation passed Snapshot A/B/C/D equality. Stored, session-service, and GL cash were all `13184.7900`; the fingerprint root remained `a09c62563912bcaf724360010aad61d8` across all four snapshots. The earlier `3798.3900 → 13184.7900` change is fully explained by eight successful authenticated Product requests: reservation `600.0000`, POS receipt `5000.0000`, and six installment collections totaling `3786.4000`. This is `NEW_EVENTS` from `ACTIVE_USER_PRODUCT_REQUEST`, not recomputation or a background writer.
+
+Separate historical integrity evidence found four installment movements whose raw Treasury amounts are `0.0170` below the cent-rounded journal cash legs. The current supported installment path still rounds before posting despite four-decimal payment/Treasury inputs. This proves a precision-accounting Product defect and leaves `INVALID_OR_DUPLICATE_AMOUNT = 0.0170`, `UNKNOWN_MOVEMENT_AMOUNT = 0`. The session is not safe to adopt or close. `PRIOR_HARNESS_DEFECT = YES`; `PRODUCT_DEFECT_PROVEN = YES`; no audit-caused write occurred. Next: `OFFICIAL-LOCAL-FINANCIAL-DATA-AUDIT-CONT1`.
+
+## INSTALLMENT-PRECISION-SCOPE — OPEN REMEDIATION BOUNDARY (2026-08-03)
+
+| Finding | Severity / status | Evidence | Impact | Required future action |
+| --- | --- | --- | --- | --- |
+| `FIN-PREC-F001` | P1, release-blocking Product defect | `postInstallmentPayment` cent-rounds valid four-decimal input before default Journal posting. | Five events have balanced but overstated cash/bank and AR Journal legs. | Select exact-four-decimal posting and add regression tests. |
+| `FIN-PREC-F002` | P1, historical remediation required | 18 collection events: Payment/Treasury `3934.6580`, Journal `3934.6800`; five rows, total `+0.0220`. | Cash overstatement `0.0170`, bank `0.0050`; current session remains invalid. | Five idempotent source-linked AR/cash-bank correction Journals; no original-row rewrite. |
+| `FIN-PREC-F003` | P2, coupled report precision defect | Register expected value is Journal-derived but final-rounded to cents. | A repaired GL would still produce a two-decimal session value unless calculation precision is fixed. | Preserve four decimals in calculation; make two decimals presentation-only. |
+
+Affected source type is only `installment_collection`; safe fingerprints are
+`b2ac8ef1d41e`, `d4c943da56ea`, `4502aece6bc2`, `250ba47f8864`, and
+`46eed78deb0b`. The current-session subset composes exactly `0.0170`.
+Economic classification is `ECONOMIC_EVENT_CORRECT_ACCOUNTING_REPRESENTATION_MISMATCH`;
+Account authority is `JOURNAL_MIRROR`; report impact is `REPORT_MIXED_SOURCE`.
+F001/F002/F003 and the prior `0.0100` overpayment remediation remain intact.
+No database, Product, test, migration, session, or financial repair occurred.
+Next only: `OFFICIAL-LOCAL-FINANCIAL-FIX-CONT4`.
+
+## FIN-PREC-CONT4 — RESOLVED LOCALLY / ACCEPTANCE STILL BLOCKED (2026-08-03)
+
+The authorized repair is complete on local `darfus_erp` at Product commit `e9d7bbffed26d93346b1c201b5b4f4a5c46d5380`. Five affected durable Payment events each received one balanced AR-to-original-cash/bank Journal, total `0.0220` (`0.0170` cash, `0.0050` bank), with zero Treasury rows. Backup/restore, focused/disposable tests, same-key replay, and duplicate guards passed. Stored, GL, Treasury, dashboard, and Treasury-summary values now agree at cash `13184.7730` and bank `-28.8650`; movement difference is zero. Original source rows and the prior `0.0100` overpayment reclassification remain intact. The inherited open session was not opened, closed, adopted, or edited and still requires a physical count. Release/deployment/push, Inventory, migration, package, lockfile, and environment changes remain outside this phase. Next: `OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-HARNESS-CONT2`.
+
+## CASH-SESSION-CONT2 — ACCOUNTING RECONCILED, PHYSICAL COUNT PENDING (2026-08-03)
+
+CONT4 remains reconciled at cash `13184.7730` and bank `-28.8650`, with five correction Journals, zero Treasury effects, and zero active mismatch. The sole session is inherited, open, and unchanged. Its exact book reconstruction is `1.5000 + 13183.2730 = 13184.7730`; 29 posted movements across installment, invoice, reservation, purchase-order, and customer-credit source classes have zero unknown or invalid active amount. Historical negative crossing remains confirmed but is not a current deficit.
+
+No physical count was supplied, so `PHYSICAL_CASH_COUNT_MATCH = NOT_TESTED`, no variance exists to classify, and no close/adopt/edit action is authorized. Classification: `ACCOUNTING_RECONCILED_AWAITING_PHYSICAL_COUNT`; financial acceptance is `BLOCKED_BY_PHYSICAL_COUNT`. Next: `OFFICIAL-LOCAL-FINANCIAL-CASH-COUNT-CONFIRMATION-CONT1`.
+
+## INVENTORY-MASTER-CONT1 — current system conflicts mapped (2026-08-03)
+
+The exact updated Word/Word/Excel sources were completely read under `OWNER > PROFILE_SPECIFIC_WORD > EXCEL > GENERAL_WORD > EXISTING_PRODUCT`. Current Product is a hybrid 50 serialized Assets plus 3 quantity Products; Product `GOLD-PES` has 100 on hand, and quantity dependencies remain live across supplier receiving, POS, returns/exchanges, valuation and Inventory UI. Required piece-only Inventory, profile pricing, certificate-only 24K VAT, normalized components, RFID history, lifecycle history, state dimensions and CGP disposition are not a single compatible implementation yet. Classifications include `QUANTITY_MODEL_CONFLICT`, `PRICING_STRATEGY_CONFLICT`, `VAT_RULE_CONFLICT`, `STATE_MODEL_CONFLICT`, and `NEW_RELATION/NEW_WORKFLOW` gaps. No Product/DB/Inventory/financial/session writes occurred. Detailed A–BA evidence is in `docs/RELEASE_GAP_AUDIT.md`; next: `OFFICIAL-LOCAL-INVENTORY-MASTER-TARGET-DESIGN-CONT1`.
+
+## INVENTORY-MASTER-TARGET-CONT1 — architecture approved for rehearsal (2026-08-03)
+
+The implementation blueprint keeps and extends existing `assets` as the permanent one-piece identity, normalizes operational/condition/tag state, locations, components, RFID lifecycle, source/document links and serialized custody, and separates immutable purchase-cost revisions from current valuation. Pricing is profile-strategy based; 24K VAT is certificate-only with manual/settings rate and server calculation. Product quantity is `MIGRATE_THEN_DEPRECATE`, never cloned into invented per-piece facts; document quantity and embedded-component count remain non-stock metadata.
+
+Three non-blocking findings remain deliberately open: exact Returned→Available approval semantics, exact component unit/precision policy, and CGP line-versus-piece identity. The proposed schema keeps each reversible/configurable and does not enable unresolved behavior. Classification is `COMPLETE_WITH_REQUIREMENT_OPEN_ITEMS`; architecture is `APPROVED_FOR_REHEARSAL`. Product/DB/Inventory/financial/session writes are zero. Detailed A–BP design is in `docs/RELEASE_GAP_AUDIT.md`. Next only: `OFFICIAL-LOCAL-INVENTORY-MASTER-MIGRATION-REHEARSAL-CONT1`.
+
+## INVENTORY-MASTER-MIGRATION-REHEARSAL-CONT1 — FOUNDATION PASS / WORKFLOW SMOKE OPEN (2026-08-04)
+
+Five additive forward-only migrations passed twice on the exact backup-restored disposable DB. Backfill and 24 focused checks passed with zero orphan/duplicate/invalid counters; all three Products are preserved as classification D, and invoice Asset/Product identities remain 6/6. Persistent `darfus_erp` is unchanged at 52 migrations, 50 Assets, 3 Products, cash `13184.7730`, bank `-28.8650`, and one open session. Code commit: `b0e5fa720eba4d02eaa2773e22654a9cb0b8cffa`.
+
+Open test finding `INVENTORY_REHEARSAL_AUTHENTICATED_WORKFLOW_SMOKE_NOT_RUN`: isolated backend process launch was blocked by the execution environment, and frontend launch was excluded because it previously regenerated protected `next-env.d.ts`. Do not classify the full phase COMPLETE or advance to implementation until authenticated purchase/sale/reservation/return/exchange and permission smoke is run against a disposable service. Two old UI verifiers also carry stale scope guards that forbid all migration paths; they were not weakened.
+
+## INVENTORY_REHEARSAL_PRODUCT_DEFECT — V2 workflow persistence absent (2026-08-04)
+
+Authenticated in-process HTTP supplier receive succeeded on a fresh disposable with real technical session, Company/Branch context, idempotency and balanced Journal. Yet two newly received serialized Assets received no V2 origin, source-link or movement rows (`0/0/0`); source search confirms no runtime use of the new Inventory Master V2 tables. The route also lacks explicit `perPiece` receipt input. This blocks all five mandatory target workflow proofs and transaction-level financial regression. Preserve `darfus_erp_inventory_rehearsal_20260804_120001z`; do not apply migrations or repairs to persistent `darfus_erp`.

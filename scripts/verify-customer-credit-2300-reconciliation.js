@@ -192,6 +192,12 @@ const allowedFiles = new Set([
   "lib/types.ts",
   "lib/permissions/module-access.ts",
   "docs/employee-authorization/PHASE-HF6D-EMPLOYEE-PERMISSION-ENFORCEMENT.md",
+  // LOCAL-FINANCIAL-DATA-F001 adds a source-linked, no-Treasury credit
+  // reclassification; these are its narrowly owned financial files.
+  "backend/src/services/installment-overpayment-reclassification.service.js",
+  "backend/src/services/customer-credit.service.js",
+  "backend/src/services/posting.service.js",
+  "scripts/verify-installment-overpayment-reclassification.js",
 ]);
 
 const forbiddenFiles = changedFiles.filter((file) => {

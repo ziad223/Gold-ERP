@@ -1,5 +1,25 @@
 # Release Gap Audit
 
+## OFFICIAL-LOCAL-FINANCIAL-FIX-CONT3 — partial — 2026-07-30
+
+F003 code now validates locked persisted installment state in exact four-decimal units without a float tolerance. Fresh migrated disposable HTTP proof passed rejection, precision, replay, and concurrent serialization; F001/F002 coverage remains pass. Persistent Product-API proof needs a new valid installment because the only retained installment is the immutable over-collected one. No linked supported reversal, refund, or credit workflow was found, so no correction was attempted. Pre-F003 backup and disposable restore passed. Next: `OFFICIAL-LOCAL-FINANCIAL-FIX-CONT3`.
+
+## OFFICIAL-LOCAL-FINANCIAL-FIX-CONT2 — 2026-07-30
+
+`FINANCIAL-ACCEPT-F002` is resolved by code-only event identity: a collection
+Payment is created inside the existing transaction before its journal, and the
+journal uses `installment_collection` plus that Payment identity. The global
+`(company_id, source_type, source_id)` uniqueness index remains unchanged;
+legacy aggregate journal rows remain untouched. Fresh and restored-upgrade
+disposable proofs passed, as did the pre-change backup restore rehearsal.
+
+Persistent replay proved a second partial collection creates a distinct,
+balanced event journal. It then exposed `FINANCIAL-ACCEPT-F003`:
+`INSTALLMENT_OVER_COLLECTION_TOLERANCE_ACCEPTED`. A request above the exact
+remaining balance by the route tolerance was accepted and settled the retained
+installment with a positive overage. No automatic rollback, reset, or data
+deletion was performed. Financial acceptance remains partial; next only:
+`OFFICIAL-LOCAL-FINANCIAL-FIX-CONT3`.
 ## OFFICIAL-LOCAL-FINANCIAL-FIX-CONT1 — PARTIAL — 2026-07-30
 
 `FINANCIAL-ACCEPT-F001` is resolved by the narrow installment collection repair:
@@ -1487,3 +1507,557 @@ row and the normal successful-login timestamp update; normal logout revoked
 the owned session. Permission baseline, typecheck, diff/hash gates, and lint
 (zero errors, 18 inherited warnings) passed. Exact next marker:
 `OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-CONT1`.
+## OFFICIAL-LOCAL-FINANCIAL-FIX-CONT3 — persistent Product-API proof boundary — 2026-07-30
+
+User statement accepted the six recent local open installments as intentional
+local data. Read-only integrity checks classified all six as usable before the
+proof began. The retained F003 implementation passed through the persistent
+Product API: exact over-limit rejection returned canonical 422 with zero
+command write, partial and exact settlement succeeded, replay returned 200,
+same-key changed payload returned 409, and concurrent collections serialized
+as 200 plus 422. New payment, treasury, and event-journal records reconcile;
+there are no duplicate event journals or unbalanced/orphan journals.
+
+The historical over-collected installment, its original payment, treasury
+movement, journal, lines, and audit fingerprint stayed unchanged. However, the
+selected valid proof data shared that historical customer, so the legitimate
+collection updated the same customer receivable. This violates the required
+historical-data isolation boundary. No automatic restore, correction, deletion,
+or further financial command was performed. `FINANCIAL-ACCEPT-F003` is proven
+in Product and persistent API behavior, while `LOCAL-FINANCIAL-DATA-F001` is
+OPEN: `HISTORICAL_CUSTOMER_RECEIVABLE_SHARED_WITH_PROOF_DATA`. The post-proof
+custom/schema backup and disposable restore passed. Next only:
+`OFFICIAL-LOCAL-FINANCIAL-DATA-REMEDIATION-CONT1`.
+
+Postcheck also found one open cash-register session, but comparison with the
+pre-proof backup proves it pre-existed and the Product-API proof did not change
+that count. It is retained for the same controlled data-remediation boundary.
+
+## OFFICIAL-LOCAL-FINANCIAL-DATA-REMEDIATION-CONT1 — resolved — 2026-07-30
+
+`LOCAL-FINANCIAL-DATA-F001` is resolved. A deterministic source ledger isolated
+one historical collection event as the first cumulative collection to cross its
+installment's scheduled collectible amount; later proof invoices and collections
+were excluded from that calculation. The Product now accepts only that original
+collection reference, calculates the exact DECIMAL(15,4) overage on the server,
+posts one receivable-to-`CUSTOMER_DEPOSIT_LIABILITY` reclassification, and creates
+no Treasury movement. The original payment, Treasury entry, journal, journal
+lines and the separate valid proof records retained their fingerprints.
+
+The derived installment applied amount is now capped at its collectible amount;
+the excess exists once as customer credit. Pre- and post-remediation custom/schema
+backups each passed disposable restore verification. Product API create/replay and
+duplicate-effect prevention, source-boundary rehearsal, Journal balance, and the
+F001/F002/F003 regression contracts passed. The inherited open cash-register
+session remains unchanged. Next only: `OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-CONT2`.
+
+## OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-CONT2 — valid precondition boundary — 2026-07-30
+
+Preflight and post-remediation backup comparison passed: migration state,
+permission baseline, remediation event/Journals, Journal integrity, and the
+pre-existing cash-register session matched the accepted boundary. The remaining
+cash financial matrix is blocked safely: the sole operational Branch has one
+pre-existing open cash-register session, and the Product rejects a second open
+session for that Branch. This phase does not own that user session and may not
+close, alter, or use it. No new acceptance transaction, configuration change, or
+final backup was created. Next only: `OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-HARNESS-CONT2`.
+
+## OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-HARNESS-CONT2 — invalid session boundary — 2026-07-31
+
+The inherited open cash-register session has a valid active cash account, linked
+movement journals, no foreign movement, no duplicate idempotency linkage, and
+no orphaned cash movement. Its source-derived current cash calculation is
+nonetheless invalid for an open session: opening counted cash plus the linked
+cash-ledger movement is below the valid non-negative boundary. Ownership is an
+active local Super Admin, not an employee/operator fixture, and the session has
+financial activity. It was not adopted, closed, or changed. Exact next marker:
+`OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-HARNESS-CONT2`.
+
+## OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-HARNESS-CONT2 — root-cause design boundary — 2026-07-31
+
+Chronological cash-ledger analysis identifies the first negative crossing as a
+valid posted `purchase_order` cash outflow. The session opening amount matches
+the pre-session cash ledger, so this is not a pre-session inclusion or opening
+count mismatch. The all-time cash Treasury/GL balance is also negative, proving
+an economic cash deficit rather than a session-only/report-linkage defect.
+The Product supports a variance close, but this phase has no independently
+observed physical cash count or truthful funding source. No fake income, expense,
+capital, refund, transfer, reversal, or variance was created. Resolution path is
+`F`: no safe supported Product path. Next:
+`OFFICIAL-LOCAL-FINANCIAL-CASH-SESSION-REMEDIATION-DESIGN-CONT1`.
+
+## OFFICIAL-LOCAL-FINANCIAL-CASH-SESSION-BASELINE-AUDIT-CONT1 — unstable baseline boundary — 2026-07-31
+
+This strict read-only audit reconfirmed the historical temporary negative
+crossing: a posted purchase-order cash outflow changed the running balance from
+`111.3800` to `-388.6200`. During the same observation window, the stored
+cash-account balance moved from the previously observed `3798.3900` to
+`13184.7900` without an action by this phase. The latter amount matches the
+Product service's opening-plus-reportable-ledger calculation and the current
+cash GL, but the independently changing persistent baseline prevents a safe
+financial reclassification. No session, Treasury, Journal, source document, or
+configuration row was written. `UNRECORDED_PERSISTENT_DB_DELTA = YES`; next
+remains `OFFICIAL-LOCAL-FINANCIAL-CASH-SESSION-BASELINE-AUDIT-CONT1`.
+
+## OFFICIAL-LOCAL-FINANCIAL-CASH-SESSION-BASELINE-AUDIT-CONT1 — stable window and precision boundary — 2026-08-03
+
+The repaired protected-file gate passed at `main` / `bfb5c9c072b8052ea8bd5a0d1f1027b1916e20c0`; `next-env.d.ts` matched its required SHA-256, with no Product, test, migration, package, lockfile, or environment semantic delta. Snapshot A (`20:10:43.637–20:10:43.672 +03`, repeatable-read read-only, snapshot `46913:46913:`) recorded stored cash `13184.7900`, session-service cash `13184.7900`, and GL cash `13184.7900`; fingerprint root was `a09c62563912bcaf724360010aad61d8`. Snapshots B/C/D at approximately 60-second intervals were identical: root `a09c62563912bcaf724360010aad61d8`, Treasury rows `28`, Journals `41`, cash Journal lines `28`, Payments `26`, reservation payments `3`, audit rows `76`, and one open Main Branch session.
+
+Writer isolation found one expected backend under nodemon (port 8000), one expected Next dev frontend (port 3000), no duplicate backend, no test runner, no relevant Windows task, BullMQ configured but Redis unset/in-memory with no financial worker, and the reservation-expiry scheduler explicitly disabled. PostgreSQL showed only one expected idle backend connection, no writer class, no idle transaction, and no waiting lock. No triggers or database cash/balance routines exist. Reads use reportable `posted`/`reversed` journal lines; `Account.balance` is a mirror updated atomically by posting, not a read-endpoint source.
+
+The prior `3798.3900` value was the running GL/session value after the `02:31:19` reservation payment and before eight later authenticated Product requests. The exact delta was new activity, not recomputation: one reservation payment `600.0000` at `02:37:11`, one POS cash receipt `5000.0000` at `02:40:49`, and six successful installment collections (`631.0700` five times and `631.0500` once) from `02:40:55` through `02:41:00`. Their total is exactly `9386.4000`; audit actions and successful idempotency scopes identify normal Product requests by a technical user. `DELTA_NATURE = NEW_EVENTS`; `DELTA_SOURCE = ACTIVE_USER_PRODUCT_REQUEST`. No unknown delta amount remains.
+
+The historical session timeline confirms the purchase-order crossing from `111.3800` to `-388.6200`, minimum `-388.6200`, and first return to non-negative at `3798.3900`. Current GL/session book balance is positive `13184.7900`, but raw linked Treasury movements total `13184.7730`. Four older installment collections (first `20:03:33`, last `20:55:39`) are `0.0170` lower in Treasury than their cent-rounded journal cash legs. This is a supported Product precision-accounting defect: installment/payment/Treasury data accepts four decimals while the current installment posting path rounds before journal posting. `UNKNOWN_MOVEMENT_AMOUNT = 0`; `INVALID_OR_DUPLICATE_AMOUNT = 0.0170`.
+
+`STABLE_OBSERVATION_WINDOW = PASS`; session-to-GL reconciliation passes, raw Treasury-to-GL reconciliation fails by `0.0170`; movement integrity therefore fails. `CURRENT_SESSION_CLASSIFICATION = INVALID_SESSION_DUE_TO_INVALID_EVENT`; `CLOSURE_OR_ADOPTION_READINESS = NOT_SAFE`. `PRIOR_HARNESS_DEFECT = YES` because the earlier conclusion used an unstable observation window; `PRODUCT_DEFECT_PROVEN = YES` for the precision-accounting path. Audit-caused writes, session changes, Treasury changes, Journal changes, login, and financial acceptance writes were all zero. Financial acceptance remains blocked. Exact next marker: `OFFICIAL-LOCAL-FINANCIAL-DATA-AUDIT-CONT1`.
+
+## OFFICIAL-LOCAL-FINANCIAL-DATA-AUDIT-CONT1 — precision scope and remediation boundary — 2026-08-03
+
+This strict read-only phase started at `main` / `aba826fd90ba8b742afcb6e316fe376d003b635f` (`docs: stabilize cash session audit baseline`). The Git gate passed: staged/untracked `0/0`, stashes `11`, remotes `0`, required `next-env.d.ts` SHA-256 `7B550DDA9686C16F36A17BF9051D5DBF31E98555B30D114AC49FC49A1E712651`, and only the three accepted CRLF-only backend artifacts were dirty and semantically equal to HEAD. Ports `3000/8000/5432` were healthy; `darfus_erp/public` was `52/52/0`, setup and financial readiness were `READY`, roles/mappings/permissions were `12/11/128`, and one Main Branch session remained open.
+
+The schema already supports the domain contract: Payment/Treasury/Installment/session money is `numeric(15,4)`, Journal headers/lines and Account balance are `numeric(20,8)`, Customer balances and invoice/source-document totals are `numeric(20,8)`, customer credit is `numeric(15,4)`, and reservation, amendment, refund, transfer, supplier and purchase money is `numeric(20,8)` or an explicitly narrower `numeric(15,4)` cost/rate field. VAT rates are `numeric(6,3)`; gold exchange rates are `numeric(24,8)`, price proposals `numeric(20,4)`, and weights/purity six decimals. Optional snapshots/components are nullable; non-null money defaults are zero where defined. No migration is required.
+
+The source trace is `TREASURY_4DP_JOURNAL_2DP`. The route validates at most four decimal places, converts to integer ten-thousandths, locks the Installment, compares exact outstanding units, and writes Payment, Treasury, Installment, Invoice, and Customer mirrors atomically. It uses trusted `Invoice.branchId`, durable Payment `source_id`, central idempotency, and audit linkage. `posting.service.postInstallmentPayment` calls cent `round(amount)` and the default `postEntry`, which rounds both Journal lines and updates `Account.balance` from those rounded lines; the exact-four-decimal posting branch is not selected.
+
+The database-wide exact-decimal scan found only one affected source class: `installment_collection`. It has `18/18/18` source/Treasury/Journal-linked events, exact Payment and Treasury sum `3934.6580`, Journal cash/AR sum `3934.6800`, five mismatches, maximum row delta `0.0050`, and signed/absolute GL-over-Treasury delta `0.0220`. Other present classes (`cash_transaction` 3, `customer_credit` 2, legacy `installment` 1, `invoice` 8 with seven Treasury-linked cash effects `5166.5000`, `purchase_order` 4 with two linked payments net `-550.0000`, `reservation_payment` 3 at `4784.0000`, `reservation_settlement` 1 with no Treasury, and prior `installment_overpayment_reclassification` 1 at `0.0100` with no Treasury) have zero precision mismatch. Named absent expense, settlement, income, return, deposit, POS-specific, and transfer classes have zero events. Exactly five current Payment/Treasury amounts have more than two decimals, all five affected events.
+
+Safe affected fingerprints and exact deltas are:
+
+| Fingerprint | Business time (+03) | Target | Payment/Treasury | Journal target / AR | Signed delta | Current-session subset |
+| --- | --- | --- | ---: | ---: | ---: | --- |
+| `b2ac8ef1d41e` | `2026-07-30 20:03:33.762` | cash | `5.3750` | `5.3800 / 5.3800` | `+0.0050` | yes |
+| `d4c943da56ea` | `2026-07-30 20:03:33.848` | bank | `5.3850` | `5.3900 / 5.3900` | `+0.0050` | no |
+| `4502aece6bc2` | `2026-07-30 20:55:39.605` | cash | `4.4150` | `4.4200 / 4.4200` | `+0.0050` | yes |
+| `250ba47f8864` | `2026-07-30 20:55:39.677` | cash | `4.4150` | `4.4200 / 4.4200` | `+0.0050` | yes |
+| `46eed78deb0b` | `2026-07-30 20:55:39.722` | cash | `5.2980` | `5.3000 / 5.3000` | `+0.0020` | yes |
+
+Every row has Payment-to-Treasury equality, equal balanced Journal legs, durable source identity, and linked idempotency/audit evidence. The four current-session cash rows compose exactly `0.0050 + 0.0050 + 0.0050 + 0.0020 = 0.0170`. The economic event is correct and the defect is an accounting-representation mismatch. `Account.balance` is a `JOURNAL_MIRROR`: stored account values exactly equal reportable Journal calculations. Current cash is stored/GL `13184.7900` versus Treasury `13184.7730`; bank is stored/GL `-28.8600` versus Treasury `-28.8650`. GL, account statement, trial balance, accounting dashboard, balance sheet and Treasury balance summary follow Journal; raw Treasury/source views follow operational data; cash reconciliation exposes the difference; Income Statement is unaffected. Overall report impact is `REPORT_MIXED_SOURCE`.
+
+F001 trusted Invoice Branch authority, F002 durable Payment identity, and F003 locked exact comparison remain intact and distinct. The prior overpayment remediation remains one active `0.0100` credit and one balanced exact reclassification Journal with zero Treasury rows/delta; original and persistent-proof records are unchanged.
+
+Canonical policy is `BUSINESS_4DP_POSTING_4DP_DISPLAY_2DP`: validate at most four decimals; store/compare/post exact ten-thousandths; allow two-decimal display only as presentation; never feed display rounding into storage, comparison or posting; and require Payment = Treasury = Journal target leg = opposing AR leg at exact four-decimal precision. Future scope is `CODE_PLUS_DATA_REMEDIATION` plus tests: change `backend/src/services/posting.service.js` to use exact posting for installment collections and `backend/src/services/cash-register.service.js` to retain four-decimal session calculations. No migration 53 is justified.
+
+Preferred historical pattern is `SOURCE_LINKED_ROUNDING_REMEDIATION`: one idempotent Product-owned correction Journal per affected Payment, debiting AR and crediting the original mapped cash/bank account by the exact row delta, with audit evidence and no Treasury, Payment, Invoice, Installment, Customer, or original Journal rewrite. Total correction is `0.0220` (cash `0.0170`, bank `0.0050`). After the complete repair, cash Treasury/GL/stored should be `13184.7730` and bank `-28.8650`; the open session can then be re-audited without invented cash, but a physical count remains required before closure/adoption.
+
+Typecheck, targeted lint, F001/F002/F003, overpayment-remediation contract, permission baseline, live migration/permission inventory and diff check passed. Unbalanced/orphan/duplicate/unlinked-Treasury/transaction-time-account/idle/waiting/disposable counts are zero. Audit-caused writes are zero. Financial acceptance, release, Staging, Production, session action, migration, deployment and push remain blocked. Exact next marker: `OFFICIAL-LOCAL-FINANCIAL-FIX-CONT4`.
+
+## OFFICIAL-LOCAL-FINANCIAL-FIX-CONT4 — Product/data repair result — 2026-08-03
+
+The authorized code repair is committed as `e9d7bbffed26d93346b1c201b5b4f4a5c46d5380` (`fix: preserve installment posting precision`). Posting and register calculations preserve four decimals; the source-linked route validates immutable evidence and posts one exact correction Journal per Payment under idempotency/audit controls. Five events were remediated: total `0.0220` (`cash 0.0170`, `bank 0.0050`), no CashTransaction, and no original source-row rewrite. The pre-write dump and disposable restore rehearsal passed; focused tests and replay/duplicate guards passed.
+
+Stored Account, posted GL, Treasury summary, dashboard, and cash reconciliation now agree at cash `13184.7730` and bank `-28.8650`; movement difference is zero. The prior `0.0100` overpayment reclassification remains with zero Treasury effect, integrity counts are clean, and migrations remain `52/52`. The open session was deliberately untouched; physical count evidence is still required before closure/adoption. This phase is local-only with no deployment or push. Next: `OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-HARNESS-CONT2`.
+
+## OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-HARNESS-CONT2 — physical-count boundary — 2026-08-03
+
+The read-only harness started at `main` / `ea8213ac99d6d3190b65211aa99ba431ef7edc6f`. CONT4 remains intact: five remediation Journals, zero remediation Treasury rows, effective correction `0.0220` (`cash 0.0170`, `bank 0.0050`), and zero active precision mismatches. Cash stored/GL/Treasury/session-service are `13184.7730`; bank stored/GL/Treasury is `-28.8650`.
+
+The sole Main Branch session is `INHERITED_PRE_CONT2`, open since `2026-07-30 19:38:12 +03` by a local Super Admin, with opening amount `1.5000`. Exact reconstruction is opening `1.5000` plus 29 valid posted session movements net `13183.2730`, yielding `13184.7730`. Source classes are 18 installment collections, four invoices, three reservation payments, two purchase orders, and two customer-credit bank movements. All 29 safe fingerprints have valid Company/Branch/account/source/Journal/Treasury linkage; `UNKNOWN_MOVEMENT_AMOUNT = 0` and `INVALID_ACTIVE_MOVEMENT_AMOUNT = 0`.
+
+The accepted original historical trace remains `111.3800 - 500.0000 = -388.6200`, first returning non-negative at `3798.3900`. CONT4's exact historical corrections make the effective ledger view `111.3750 -> -388.6250` and first return `3798.3730` at the same later reservation event; this remains a historical crossing, not a current deficit.
+
+No owner-supplied physical count was provided. Therefore `PHYSICAL_CASH_COUNT_AVAILABLE = NO`, comparison is `NOT_TESTED`, session readiness is `ACCOUNTING_RECONCILED_AWAITING_PHYSICAL_COUNT`, and financial acceptance remains `BLOCKED_BY_PHYSICAL_COUNT`. No financial, cash-session, Inventory, source, test, migration, deployment, or push action occurred. Exact next marker: `OFFICIAL-LOCAL-FINANCIAL-CASH-COUNT-CONFIRMATION-CONT1`.
+
+## OFFICIAL-LOCAL-INVENTORY-MASTER-CURRENT-SYSTEM-AUDIT-CONT1 — read-only completed audit — 2026-08-03
+
+### A–H — decision, boundary, checkpoints, and authority
+
+**A Executive decision.** The current implementation is a hybrid serialized-Asset plus legacy quantity-Product system. It is not the locked piece-only target. This audit is complete as a dependency/gap baseline; no target refactor is implemented and release/staging/production remain unauthorized.
+
+**B Authorization boundary.** Product source, frontend/backend, schema, data, migration, package, environment, Inventory, financial and cash-session writes were forbidden and measured as zero. Only the seven existing documentation files were eligible for a docs-only checkpoint.
+
+**C Starting/final checkpoints.** Start: `main`, `03fc7c69415397c2f1d1667917bac5fb7c6148c4`, `docs: record physical cash count boundary`, staged `0`, untracked `0`, stashes `11`, remotes `0`. Required `next-env.d.ts` SHA-256 remains `7B550DDA9686C16F36A17BF9051D5DBF31E98555B30D114AC49FC49A1E712651`.
+
+**D Git/protected-file preflight.** Only inherited CRLF materialization remains in `backend/package-lock.json`, `backend/package.json`, and `backend/src/controllers/erp.controller.js`; ignore-EOL diffs are empty. Protected semantic equality passed for `backend/src/app.js`, `backend/src/routes/events.routes.js`, and `next-env.d.ts`. No reset, restore, checkout, clean, stash, broad staging, push, deployment, or service restart was used.
+
+**E Requirement-source access and complete-read proof.** Exact sources read are `H:\WORK\client-requirements\Gold By Weight.docx` (1161 paragraphs, 879 non-empty, 0 tables, SHA-256 `271023241f284d7e69a3e6d992cc2a87d7a3044c5e2e1d21e4d35d20b7221869`), `H:\WORK\client-requirements\Gold By Piece.docx` (481 paragraphs, 442 non-empty, 0 tables, SHA-256 `93fafc2b71d4d1e7ff73ef1761b3cffb69ea974f838a2335f2cd925a0cf8629c`), and `H:\WORK\client-requirements\Add Item Pages.xlsx` (10 populated sheets, SHA-256 `c8826790b0f2ae3f34c7ea02f02630a4ce2278e5a9f24635c17588a465c0fb2b`). Structural reads completed for both Word files. Spreadsheet inspection covered every sheet's populated cells, merged headings, classifications, notes, and formulas; all sheets contain zero formulas and zero cell comments. LibreOffice rendering was unavailable (`soffice` not installed), so visual QA is recorded as unavailable, not as a source-read failure.
+
+**F Updated requirement authority.** Locked precedence is `OWNER > PROFILE_SPECIFIC_WORD > EXCEL > GENERAL_WORD > EXISTING_PRODUCT`. The superseded UUID filename was not required or substituted.
+
+**G Owner overrides.** `UNIQUE_PHYSICAL_ASSET_PER_PIECE = YES`; quantity stock is removed (not hidden); one piece owns one Asset ID, primary Barcode, weight, state, branch/location, cost context and lifecycle. Gold Bar VAT base is `CERTIFICATE_ONLY`; VAT rate is manual with optional settings default; no hard-coded rate.
+
+**H Canonical requirements summary.** Ten profiles share one Asset core plus strategies/components: Gold-by-Weight jewellery, 24K bar, Gold-by-Piece, diamond jewellery/loose diamond, gemstone jewellery/loose gemstone, pearl jewellery/loose pearl, and CGP. Target strategies are `WEIGHT_BASED_MAKING_STRATEGY`, `BAR_CERTIFICATE_STRATEGY`, `PIECE_MARKUP_STRATEGY`, and profile-specific stone/pearl/loose strategies.
+
+### I–L — profile contracts and Excel matrix
+
+**I Gold By Weight.** The Word contract has eight sections. Jewellery uses `net = gross - stone`, `pure999.9 = net × karat / 24`, historical gold rate snapshot, making-per-gram and separate current valuation; selling uses current global/retail gold rate, selling making per gram, minimum making and manager approval below minimum. Excel additionally lists optional Pure Gold 995.
+
+**J 24K Gold Bar.** Specialized weight profile with certificate name/number/cost. Purchase/current totals are gold value + certificate + certificate VAT; VAT is certificate-only and the rate is operator/settings supplied. Sales uses certificate charge per piece and minimum certificate charge with manager approval below minimum. Any current formula taxing gold value is a future gap.
+
+**K Gold By Piece.** Weight fields remain, but sales is markup over current cost. Total selling price, maximum discount, minimum allowed price, VAT, net-before-VAT and profit margin are derived; manual selling-price/discount protection overrides require audit and permission.
+
+**L Excel remaining-profile summary.** Diamond/gemstone/pearl jewellery sheets contain shared gold/cost/pricing fields plus stone/pearl attributes, certificate fields and dynamic component rows. Loose sheets explicitly repeat a component group with `Quantity` and component cost; that quantity is component metadata, not stock quantity. CGP is source-transaction-derived (invoice/customer/mobile/date/barcode/karat/weights/evaluation/rates/deduction/paid cost/current value/disposition/conversion/transfer/transit/melt/missing). Sheet ranges observed: `ذهب بالوزن A1:E64`, `ذهب بالوزن عيار 24 A1:E65`, `ذهب بالقطعة A1:E68`, `مجوهرات الماس A1:E88`, `فقط احجار الماس A1:E70`, `مجوهرات الاحجار الكريمة A1:E89`, `فقط احجار كريمة A1:E68`, `مجوهرات الؤلؤ A1:E89`, `فقط لؤلؤ A1:E71`, `CGP - Customer Gold Purchase A1:E39`.
+
+### M–T — current architecture, schema, quantity, identity, weights, components
+
+**M Current Inventory architecture.** `assets` is a serialized core with `type` enum (`gold-piece`, `gold-weight`, `diamond`, `gemstone`, `pearl`, `watch`), identity/taxonomy, weights, legacy price/cost, JSON metadata and soft delete. `products` is a separate quantity stock ledger. Direct generic mutations are fail-closed (`GENERIC_INVENTORY_MUTATION_FORBIDDEN`); supplier receiving is the authoritative intake path.
+
+**N Current DB relationship graph.** `assets` links to Company/Branch, AssetEvents, AssetAttachments, AssetCertificates, StockMovements, PurchaseOrderItems, InvoiceItems and ReservationItems. `products` links to Company/Branch, StockMovements and PurchaseOrderItems. Transfers store `asset_ids` as JSONB (no FK child table). Manufacturing stores input/output assets as JSONB. Stock audits use `stock_audits` + `stock_audit_items` with Asset/Branch FKs. CGP uses document/item tables; `inventory_gold_pools` is currently empty. Schema migrations are 52/52/0.
+
+**O Quantity-model elimination audit.** True stock quantity exists in `products.quantity_*`, `stock_movements.quantity_in/out`, purchase-order line `quantity/received_quantity`, product POS/exchange/return paths, supplier receiving, inventory valuation and the Products tab/grid. Document-line quantity remains valid for invoice lines and purchase lines; component `Quantity` remains component metadata. Target disposition: Product stock fields `REMOVE_AFTER_DEPENDENCIES_MIGRATED`; document quantities `KEEP_AS_DOCUMENT_METADATA`; component quantities `KEEP_AS_COMPONENT_METADATA`; totals become Asset/status counts. Current DB has 50 Assets and 3 Products; Product `GOLD-PES` has on-hand 100, proving the legacy quantity path is live.
+
+**P Identity model.** Asset PK is `assets.id`; `barcode` is persisted primary lookup; taxonomy fields support generated identity. `product_code` is a quantity SKU. RFID is nullable. Certificate/model numbers are metadata or certificate relations, not universal identity. `invoice_items.asset_id` also stores `product.id` for quantity sales, a semantic compatibility conflict.
+
+**Q Barcode.** `barcode-identity.service.js` allocates company-scoped sequence rows atomically and prevents reuse/collision; partial unique indexes prove zero duplicate groups. Generic Asset PATCH rejects identity changes. Reprint UI/template exists, but durable print-history entity is absent; print/reprint history is a gap.
+
+**R RFID.** Current `assets.rfid` is one nullable column; no assignment/history/scan table or route was found. Duplicate RFID protection exists when populated. Required RFID states/history/scan metadata are `MISSING/NEW_RELATION`; Barcode remains primary.
+
+**S Weight engine.** Assets have gross/net/gold/net-gold weights at DECIMAL(10,4)/(15,4); source code does not persist stone-weight or pure-999.9/995 as first-class columns. `netWeight`, `goldWeight`, `totalWeight`, and `averageUnitWeight` are overloaded across serialized and quantity paths. Profile-specific units/precision/provenance are a target gap.
+
+**T Stone/Pearl component model.** `stone_details` and `pearl_details` JSONB columns exist, but all 50 local Assets have empty arrays and no normalized child rows. Target is repeatable `StoneComponents`/`PearlComponents`; loose independently inventoried stones/pearls become separate Assets.
+
+### U–Y — costs, VAT, pricing, and states
+
+**U Purchase-cost model.** Supplier receiving creates one Asset per serialized quantity unit and stores `Asset.cost` plus gold-cost snapshot fields; quantity lines update weighted-average Product cost. PurchaseOrderItems retain historical unit/total and snapshots. Classification: `PARTIAL_SEPARATION`.
+
+**V Current-valuation model.** `/reports/inventory-valuation` computes live valuation from active Assets and Product quantity rows and is explicitly not a historical snapshot. Asset price/cost and Product averageCost/salePrice mix current and historical semantics. Target must isolate immutable purchase and current valuation layers.
+
+**W VAT/tax model.** Settings expose VAT rate/purchase defaults/recoverability/RCM; posting routes input VAT/RCM and non-recoverable capitalisation. Gold By Piece taxes gold plus making; legacy Excel text contains hard-coded 5% and ambiguous parentheses; Owner overrides 24K to certificate-only/manual-rate. Classification: `VAT_RULE_CONFLICT` until profile formulas are isolated.
+
+**X Pricing-strategy model.** POS uses shared `salesService.computeTotals` and accepts line price/discount/making/stone values; no persisted profile strategy/minimum layer was found. Classification: `PRICING_STRATEGY_CONFLICT`.
+
+**Y Status/state dimensions.** Asset enum includes available/reserved/sold/repair/transferred/melted/archived/pending_transfer/returned/in_workshop/pending_tag. Gold By Piece adds Available/Used, Pending Tag and Exchanged. Target splits operational status, condition, tag state, lifecycle event and transaction state. Classification: `STATE_MODEL_CONFLICT`; Returned-to-Available approval semantics remain `REQUIREMENT_OPEN`.
+
+### Z–AJ — integrations and surfaces
+
+**Z Purchase integration.** Supplier receive loops serialized line quantity into individual Assets with barcode, branch, event and PO-item FK; product-coded lines update Product quantity, create StockMovement and product-linked PO item. Accounting and optional Treasury payment are transactional. Quantity support remains a target conflict.
+
+**AA Sales integration.** POS/sales-post resolve Product first (quantity) then Asset (specific identity). Product sales decrement counters; Asset sales set `sold`, create InvoiceItem and AssetEvent. Returns/exchanges mirror both branches. Target requires Asset links for each physical piece.
+
+**AB Reservation integration.** Reservation is Asset-specific (`ReservationItem.asset_id`) with branch/status guards, AssetEvents and AuditLog. Legacy header retains one asset id; no quantity reservation target is accepted.
+
+**AC Return/Exchange integration.** Routes preserve source invoice/line and Asset identity for serialized items; Product paths restock quantities. Exchange supports mixed asset/product payloads. Target requires explicit source/returned/replacement Asset lineage.
+
+**AD Transfer/Workshop integration.** Transfers use JSONB `asset_ids`, reserve at request, then update branch/status on approval/receipt. Manufacturing/workshop uses JSONB input/output and can mark parent melted. Normalized transfer/workshop history is missing.
+
+**AE Melted/Missing.** Melted status is terminal in current guards but lacks a dedicated melting record; stock audit can mark missing but investigation fields are absent. Returned can reset to available. Permanent identity/history and approved return workflow are future gaps.
+
+**AF Inventory Audit.** `stock_audits`/`stock_audit_items` support branch-scoped Asset matching/missing/unexpected. Required Draft/In Progress/Completed/Closed, audit number/date/location/method, RFID scan and immutable close are only partial; local audit rows are zero.
+
+**AG Asset History.** 60 AssetEvents are only `PURCHASE_RECEIVED` (50), `RESERVED` (4), and `SALE` (6). Required extension/cancellation, transfer, workshop, return/exchange, audit/adjustment, RFID and tag/melt/conversion events are not comprehensive.
+
+**AH Audit logging.** 81 AuditLog rows use a tamper-evident hash chain and dual technical/employee actor fields. AuditLog is separate from immutable AssetEvent history and cannot alone satisfy the lifecycle timeline.
+
+**AI All Items/Grid/Search.** Inventory UI has separate Products/Assets tabs, server pagination, filters, column visibility persistence, barcode print/tag templates, bulk asset status and export. Product quantity columns and valuation are live; Asset grid lacks required saved views, pin/reorder/resize/filter totals and complete smart-search/profile columns.
+
+**AJ CGP.** CGP draft/submit/approve/validate governance exists with 2 documents/4 items; no Asset or InventoryGoldPool rows are created. Target must derive per-piece lifecycle identity from approved CGP source lines without duplicate manual entry.
+
+### AK–BA — financial/API/UI/permission/legacy, disposition, safety, and closure
+
+**AK Accounting/financial dependencies.** Purchase posts inventory/payable/VAT/RCM and optional Treasury; sales posts revenue/VAT/AR/COGS/inventory; returns/exchanges reverse or restock; reservations post liability/advance without quantity stock. Any migration requires exact COGS/VAT/source/branch/journal regression. Financial readiness is READY; cash session is open and untouched.
+
+**AL API compatibility map.** Read/list: `/assets`, `/assets/:id`, `/assets/:id/timeline`, `/inventory/products`, `/products/:id/{movements,sales,purchases}`, `/stock-audits`, `/reports/inventory-valuation`, barcode settings. Mutations: supplier receive, POS/sales post/return/exchange, reservation lifecycle, transfers, stock audits, attachments and barcode taxonomy settings. Generic Asset/Product/StockMovement/Transfer CRUD mutations are fail-closed. Highest breaking risk is `asset_id`/Product quantity semantics and mixed exchange payloads.
+
+**AM Frontend dependency map.** Inventory main page consumes Product and Asset repositories, quantity counters, filters and print templates; supplier purchases creates intake; POS/exchanges consume Product quantity or Asset IDs; reservations, transfers, audits, valuation reports and Asset detail/timeline consume Asset status/branch/barcode. Future field replacement must update all consumers in one workstream.
+
+**AN Permission map.** Existing guards cover `inventory.view/create/update/delete/adjust/export/print`, attachment management, sales/return/exchange, POS discount approval, reservations and transfer/audit adjustment. Barcode taxonomy writes use settings/inventory adjust; no dedicated RFID, profile pricing, VAT/making/certificate minimum, melt or missing permissions were found.
+
+**AO Legacy/test-data classification.** Rows with purchase/invoice/reservation/event/journal links are `MUST_PRESERVE_IDENTITY` and `FINANCIAL_REFERENCE_PRESENT`; Product/quantity rows are `REQUIRES_MAPPING`; empty component/CGP pool surfaces are `LEGACY_INCOMPLETE`; recreation is allowed only after disposable rehearsal. No deletion/backfill occurred.
+
+**AP Profile gap matrix.** Weight core `EXISTS_NEEDS_EXTENSION`; bar VAT/certificate `EXISTS_DIFFERENT_SEMANTICS` + `VAT_RULE_CONFLICT`; piece pricing `EXISTS_DIFFERENT_SEMANTICS`; diamond/gemstone/pearl `EXISTS_NEEDS_EXTENSION`; loose components `NEW_RELATION`; CGP-to-Asset `NEW_WORKFLOW`; RFID/history/grid/state `NEW_RELATION/NEW_WORKFLOW`; quantity `QUANTITY_MODEL_CONFLICT`.
+
+**AQ Target disposition matrix.** Keep/extend `assets`; split stone/pearl JSON to child relations; keep AssetEvent/AuditLog with richer immutable lifecycle events; remove Product stock only after all dependencies migrate; keep document/component quantities in scope; replace transfer JSONB with normalized asset links; migrate/deprecate overloaded valuation fields.
+
+**AR Future refactor boundary.** Design only: lock requirements, design shared Asset core/profile strategies, schema/compatibility/migration rehearsal, then controlled backend/frontend/integration refactor, local backfill, acceptance and financial regression. No implementation is authorized here.
+
+**AS Future migration safety plan.** Backup first; restore disposable clone; rehearse schema/backfill; validate FKs/orphans, barcode uniqueness/non-reuse, Asset identity, financial references, API/UI regression and rollback; only then apply locally. Preserve IDs and journal source links.
+
+**AT Requirement-open items.** Owner certificate-only/manual VAT supersedes legacy 5% text. Returned-to-Available approval/condition semantics, exact component units/precision and CGP line-versus-piece identity remain open but do not block this architecture map.
+
+**AU Static validation.** Read-only source searches, model/migration inventory, schema introspection, barcode index/duplicate preflight, typecheck/lint/diff-check contracts were used. No mutating tests ran against `darfus_erp`.
+
+**AV Final DB/financial postcheck baseline.** Migrations `52/52/0`, setup `READY`, financial readiness `READY`; cash `13184.7730`, bank `-28.8650`, active precision mismatch `0`, unbalanced/orphan/duplicate/unlinked/idle/waiting/disposable counts `0`. Inventory fingerprints before documentation: assets `50 / 05b87d94d28183c66dadab77b10b41fa`; AssetEvents `60 / 940a8d0164ac8d7541fc30ec22210c2e`; Products `3 / a41a93115d45fc8de2166e6fd9e36c99`; StockMovements `11 / 022b52105d167e88042fb0bb493a12dc`; PO items `53 / 2386602fc42aba2e96159a40975389fe`; Invoice items `12 / 23affc15d54600bfcbceb0122ac97ec8`; Reservations `2 / 19a50544009a9d06e3501384aabf0`; Reservation items `4 / 1a9a52d0c3689a9d06e3501384aabf78`; CGP documents `2 / a8591c4a236c6bf13256bc6ed6e7c225`; CGP items `4 / 384de4825d2f8b75dbc6731ce2c9e4ca`. Audit-owned writes: `0`.
+
+**AW Documentation.** This A–BA report is the detailed evidence package in the repository's existing release-audit convention. The same checkpoint, authority, quantity elimination, target boundary and marker are summarized in the other six authorized docs.
+
+**AX Documentation commit.** If final postchecks remain unchanged, exact docs-only commit subject is `docs: map updated inventory master dependencies`; stage only the seven authorized paths and do not push.
+
+**AY Final Git safety.** Final required state: branch `main`, staged `0` before exact-path staging, untracked `0`, stashes `11`, remotes `0`, protected semantic equality preserved, no deployment/push.
+
+**AZ Final classification.** `OFFICIAL-LOCAL-INVENTORY-MASTER-CURRENT-SYSTEM-AUDIT-CONT1 = COMPLETE`; `ALL_REQUIREMENT_SOURCES_READ_COMPLETELY = YES`; target `PIECE_BASED_ONLY`; quantity stock target `REMOVE`; Product/database/Inventory/financial/cash-session writes `0`; current financial baseline and physical-count boundary preserved; release/staging/production unauthorized.
+
+**BA Exact next marker.** `OFFICIAL-LOCAL-INVENTORY-MASTER-TARGET-DESIGN-CONT1` (do not start automatically).
+
+## OFFICIAL-LOCAL-INVENTORY-MASTER-TARGET-DESIGN-CONT1 — executable target architecture (2026-08-03)
+
+**A Executive decision.** The existing `assets` table is the canonical inventory identity and will be kept and extended. The approved target is `PIECE_BASED_ASSET_ONLY`: one independent physical piece, including each loose stone or pearl, is one Asset with one permanent ID, one permanent primary Barcode, its own state, location, cost/valuation context and lifecycle. Legacy Product stock is `MIGRATE_THEN_DEPRECATE`. The reversible foundation is approved for disposable rehearsal, with three non-blocking requirements isolated in extension points rather than guessed.
+
+**B Authorization boundary.** This phase is documentation/design only. Product, frontend, backend, schema, migration, test, package, environment, database, Inventory, financial and cash-session writes are forbidden and are `0`. No push, deployment, release, Staging or Production action is authorized.
+
+**C Starting/final checkpoints.** Start and design postcheck are `main` at `1d21e95e5cf148ffbf0edc0d6e43f123fd9c540d`, subject `docs: map updated inventory master dependencies`; staged/untracked `0/0` before documentation, stashes `11`, remotes `0`. Frontend `:3000` and backend health `:8000` returned HTTP `200` at preflight.
+
+**D Git/protected-file preflight.** Required `next-env.d.ts` SHA-256 is `7B550DDA9686C16F36A17BF9051D5DBF31E98555B30D114AC49FC49A1E712651`. Only the three accepted CRLF materializations (`backend/package-lock.json`, `backend/package.json`, `backend/src/controllers/erp.controller.js`) differ bytewise and they compare semantically equal to `HEAD`; `backend/src/app.js`, `backend/src/routes/events.routes.js` and `next-env.d.ts` compare exactly. No destructive Git command was used.
+
+**E Requirement authority.** The locked order is `OWNER > PROFILE_SPECIFIC_WORD > EXCEL > GENERAL_WORD > CURRENT_PRODUCT`. Owner rules control piece identity, quantity elimination, 24K certificate-only VAT and manual/settings VAT rate. Profile Word controls workflows/formulas/status/history; Excel controls field presence and input/derived classification. Unresolved semantics remain `REQUIREMENT_OPEN`.
+
+**F Accepted current-system baseline.** The accepted input is the hybrid 50-Asset/3-Product system, including `GOLD-PES` on-hand `100`; serialized relations already reach events, attachments, certificates, movements, PO/invoice/reservation items, while Product quantity remains live. Transfers and manufacturing use JSONB references, RFID is a nullable Asset column, component JSON is empty locally, AssetEvents are incomplete, stock-audit and gold-pool tables exist, and supplier receiving is the only authoritative intake path.
+
+**G Target architecture principles.** Extend rather than replace `assets`; preserve every existing ID, Barcode, document and financial source link; keep Company/Branch authority server-side; make state, components, document links and custody relations normalized; use decimal-safe domain strategies; separate immutable purchase facts from current valuation; append history instead of rewriting it; dual-read/dual-write only behind measured compatibility gates; and never infer per-piece facts from aggregate quantity.
+
+**H Canonical Asset Core.** `CANONICAL_ASSET_CORE = EXISTING_ASSETS_KEEP_AND_EXTEND`. Target core fields are:
+
+| Field | Target contract |
+| --- | --- |
+| `id` | Existing `varchar` PK, non-null, permanent, server-generated, never edited/reused; all history uses `RESTRICT`. |
+| `company_id` | Existing `varchar` FK Company, non-null, immutable after creation, authority-derived; indexed with operational queries. |
+| `branch_id` | Existing nullable `varchar` becomes required for active Assets after backfill; server-authoritative, changed only through receipt/transfer/approved adjustment. |
+| `location_id` | New nullable `varchar` FK `inventory_locations` during compatibility, then required for non-terminal Assets; state workflow only; indexed. Legacy `location` remains read-only until cutover. |
+| `inventory_profile` | New non-null `varchar(40)` after classified backfill; one of the ten registry codes; immutable except audited correction; indexed. Legacy `type`/`inventory_subtype` dual-read until removal. |
+| `name`, `category`, `description`, `brand`, `model`, `model_number`, `notes` | Keep `name/category/notes`; add nullable descriptive text fields. User-editable with validation; material edits create `ASSET_MODIFIED`; model/model-number searchable. |
+| `barcode` | Existing non-null `varchar`, server-generated, company-scoped unique including soft-deleted rows, immutable and never reused. Existing component/sequence fields remain generation metadata. |
+| `operational_status` | New non-null `varchar(24)`, default only on service creation (`AVAILABLE` or `RETURNED` by source); state-machine-only; indexed. |
+| `condition` | New non-null `varchar(8)` (`NEW`,`USED`), no guessed DB default during backfill; audited edit. |
+| `tag_state` | New non-null `varchar(8)` (`PENDING`,`PRINTED`), state-machine-only; default `PENDING` for new receipt. |
+| `purchase_date`, `supplier_id` | New nullable date/FK convenience projections populated from immutable origin/cost revision; server-derived and not independent economic authority; indexed for list filters. |
+| `created_by`, `updated_by` | New nullable technical-user FKs/snapshots according to existing identity convention; server-derived. `updated_by` never substitutes for Asset History. |
+| `retired_at`, `retired_by`, `retirement_reason` | New nullable terminal administrative metadata; terminal state is not deletion. Existing `deleted_at` remains compatibility only; Barcodes remain reserved. |
+| `created_at`, `updated_at` | Existing timestamps; `updated_at` is not lifecycle history. |
+
+No redundant `asset_code` is added: `id` is the permanent system identity and `barcode` is the operational lookup. Weight, cost, valuation, VAT, price, origin, component and RFID facts live in typed child relations. Existing overloaded fields remain compatibility projections until their consumers migrate.
+
+**I Asset identity.** Asset identity begins at authoritative receipt/conversion/manufacturing output. Creation is one transactional operation: validate Company/Branch/profile/per-piece input; lock the Barcode sequence; insert Asset, origin, initial cost revision, profile details, state event and receipt movement; attach the source item; commit once. Independent pieces can never share an Asset row. IDs and Barcodes survive return, transfer, workshop, missing, sale, melt, retirement and soft deletion.
+
+**J Barcode.** Keep `barcode_inventory_codes`, `barcode_item_codes`, `barcode_sequences` and the current atomic generator. Retain `assets_company_barcode_uq` and the component unique index, but rehearsal must prove the unique index exists after duplicate preflight. Lookups use `paranoid:false` collision checks so terminal/deleted identities reserve their Barcode. New `asset_tag_print_events` records initial print and every reprint; reprint needs `inventory.barcode.reprint`, reason, operator/device context, AuditLog and `TAG_REPRINTED` history. Reprint never changes Barcode.
+
+**K RFID.** Replace the single-column authority with `asset_rfid_assignments` plus `rfid_scan_events`. At most one current assignment may exist per Asset; a company/RFID pair is permanently unique and never reassigned. Replacement closes the current row as `REPLACED`, records actor/time/reason, inserts a new current row and emits history/audit in one transaction. `INACTIVE` or `MISSING` RFID never invalidates the Asset; Barcode remains primary. Existing nonblank `assets.rfid` is copied to an initial historical assignment in rehearsal, verified, then becomes read-only compatibility data.
+
+**L Profile storage model.** Use a shared Asset core plus typed extensions: `asset_gold_details`, normalized components/subtypes, purchase-cost revisions, current valuation and pricing policy. `InventoryProfileRegistry` owns the ten profile definitions, required fields, component roles, weight/tax/pricing strategies and legal operations. JSONB is allowed for UI saved-view definitions and immutable old/new event context, not for authoritative weights, components, costs, state, source identity or custody.
+
+**M Weight engine.** `asset_gold_details` stores `weight_unit='GRAM'`, `gross_weight`, `stone_weight`, `net_gold_weight`, `karat`, `purity_ratio`, `pure_gold_9999` and optional `pure_gold_995`, all `decimal(20,8)`. Server formulas are `net = gross - stone` and `pure9999 = net * karat / 24`; `pure995` is nullable and enabled only by a profile rule. Gross/stone/karat are validated inputs; net/pure are server-derived, persisted for stable reporting, recomputed atomically on authorized correction, and old/new values enter History/Audit. No float arithmetic. Legacy `gross_weight`, `net_weight`, `gold_weight`, `net_gold_weight`, `weight`, `totalWeight` and `averageUnitWeight` are mapped by profile and never treated as interchangeable; unexplained values block that row's backfill.
+
+**N Stone/Gem/Pearl components.** `asset_components` provides stable `[0..n]` ordering, `role` (`EMBEDDED`,`PRIMARY_SUBJECT`), `component_kind`, name/type, quantity, weight/carat/unit, cost/current value, certificate link and notes. Jewellery may group identical embedded components with count greater than one. A loose Asset must have exactly one `PRIMARY_SUBJECT` representing the one physical item; independent loose pieces are separate Assets and component quantity is one. One-to-one subtype tables store Excel fields: diamond treatment/color/tone/saturation/clarity/cut/shape/origin/position/setting; gemstone shape/color/tone/level/saturation/optical-effect/origin/position/setting; pearl size/type/color/overtone/orient/shape/luster/surface/nacre/origin. Component edits affecting material or money create History/Audit. Legacy `stone_details`/`pearl_details` are classified and copied only when deterministic; empty arrays become no rows.
+
+**O Historical purchase-cost layer.** `asset_purchase_cost_revisions` is append-only, not a mutable Asset column. Each revision stores currency, purchase gold-rate source/rate/value, making-per-gram/total, certificate cost, component cost, VAT enabled/rate/source/base/amount, total, supplier/date, PO/CGP source item, manual-override reason/actor and full provenance. Receipt creates revision 1. Corrections insert revision N with `supersedes_id`, close `is_current` in the same locked transaction, and create Audit/History; prior revisions never update economically. Existing cost snapshot columns are migration sources/read-only projections until consumers cut over.
+
+**P Current-valuation layer.** `asset_current_valuations` is a one-to-one cache of the current server-calculated view: rate source (`GLOBAL`,`RETAIL`,`MANUAL_OVERRIDE`), rate, gold/making/certificate/component values, VAT rate/source/base/amount, total, `as_of`, input version and override provenance. Detail/quote services may compute live; list/report uses a versioned cache and rejects stale input versions where necessary. Automated refresh may replace cache values, but never purchase history. Manual override requires permission, reason and old/new Audit/History.
+
+**Q VAT engine.** `InventoryVatService` receives profile, economic context (`PURCHASE`,`CURRENT_VALUATION`,`SALE`), typed inputs and a server-resolved rate. Rate is `decimal(9,6)`, source `SETTINGS_DEFAULT` or `MANUAL`, constrained `0..100`; amount is decimal-safe `base * rate / 100`, rounded only by the established monetary policy. Users may select/enter an authorized rate but never authoritative amount. Every economic snapshot persists enabled/rate/source/base/amount. Controllers do not contain profile formulas.
+
+**R 24K Gold Bar VAT.** `GOLD_BAR_24K_VAT_BASE = CERTIFICATE_ONLY`. Purchase VAT base is purchase certificate cost; current VAT base is current certificate cost; sale base follows the certificate charge defined by the Bar strategy. Gold value is excluded. Rate remains manual with optional settings default and amount remains system-calculated; zero certificate cost produces zero base/amount without silently disabling the rule.
+
+**S Pricing strategy architecture.** A registry selects `WEIGHT_BASED_MAKING_STRATEGY`, `BAR_CERTIFICATE_STRATEGY`, `PIECE_MARKUP_STRATEGY`, `DIAMOND_PROFILE_STRATEGY`, `GEMSTONE_PROFILE_STRATEGY`, `PEARL_PROFILE_STRATEGY` or `LOOSE_ASSET_STRATEGY`. Each strategy validates typed policy inputs, derives gold/component/making/certificate subtotal, VAT, net/total price, profit and threshold result, then returns a quote plus approval requirement. A sale stores the accepted quote snapshot. Below-minimum/manual overrides are server-authorized, reasoned and audited; the client never supplies authoritative totals.
+
+**T Gold By Weight strategy.** Inputs: current/selling gold rate and source, net gold weight, selling making per gram, minimum making per gram, optional permitted discount and VAT context. Outputs: gold value, making value, net before VAT, VAT, total, cost basis and profit. Below-minimum making requires `inventory.price.approve_below_minimum`; sale-time revalidation prevents stale quotes.
+
+**U 24K Bar strategy.** Inputs: bar gold weight/purity/rate, certificate charge per piece, minimum certificate charge and VAT rate/source. Outputs separate gold and certificate values; VAT base is certificate only. Below-minimum certificate charge needs manager approval. Document quantity may present multiple selected bars, but quote and sale link each Asset.
+
+**V Gold By Piece strategy.** Inputs: current cost basis, markup percent, maximum discount percent, minimum selling price, permitted manual price and VAT context. Outputs net before VAT, VAT, total, discount, cost/profit/margin and threshold result. Excess discount or below-minimum price requires manager approval; one formula is not shared with Weight or Bar profiles.
+
+**W Diamond/Gemstone/Pearl/Loose strategies.** Jewellery strategies use the profile's gold details plus normalized embedded-component values and configured making/markup rules. Loose strategies price the single primary-subject component and prohibit inventory quantity. Their exact optional profile inputs come from the registry/Excel field contract; unsupported calculations fail validation rather than fall back to another profile. All return the common quote envelope while retaining strategy-specific inputs and audit evidence.
+
+**X State dimensions.** `STATE_MODEL = OPERATIONAL_STATUS_PLUS_CONDITION_PLUS_TAG_STATE_PLUS_LIFECYCLE_EVENTS`. Operational is exactly `AVAILABLE, RESERVED, PENDING_TRANSFER, WORKSHOP, RETURNED, MISSING, MELTED, SOLD`; condition is `NEW, USED`; tag is `PENDING, PRINTED`. `EXCHANGED` is a transaction/history fact. The state machine is sole writer. `MELTED` and `SOLD` are terminal for availability; missing/workshop/pending-transfer cannot sell. The legacy `status` enum is dual-written only where an exact mapping exists, then retired.
+
+**Y State transition matrix.** All rows lock the Asset and require matching Company/Branch; every successful lifecycle change appends Asset History.
+
+| From | Action | To / dimension | Preconditions and block conditions | Permission / approval | Side effects |
+| --- | --- | --- | --- | --- | --- |
+| none | receive/create | AVAILABLE or RETURNED; tag PENDING | one-piece facts, valid origin, Barcode/cost/profile; retry key unused | `inventory.create` | origin, cost rev1, receipt movement, print pending |
+| any non-retired | tag print/reprint | tag PRINTED | printer result; reprint reason | `inventory.print`; reprint dedicated | print event; reprint Audit |
+| AVAILABLE | reserve | RESERVED | active specific reservation; no competing lock | `reservations.create` | reservation item/event |
+| RESERVED | extend | RESERVED | same active reservation | `reservations.extend_expiry` | expiry/history only |
+| RESERVED | cancel/expire | AVAILABLE | reservation released; refund rules pass | cancel/expiry authority | reservation event |
+| AVAILABLE or RESERVED | sell | SOLD | selected Asset, quote current; reservation must match | `sales.create`; threshold approval | invoice link, sale movement, financial posting unchanged |
+| SOLD | return | RETURNED; condition USED unless inspected otherwise | source invoice/Asset link, return idempotency | `sales.returns.execute` | return doc/movement/history/financial reversal |
+| SOLD | exchange-return leg | RETURNED | source invoice and replacement selection | `sales.exchanges.execute` | exchange event links both legs; normal sale for replacement |
+| AVAILABLE | transfer request | PENDING_TRANSFER | normalized target branch/location; no competing workflow | inventory transfer authority | transfer item/history |
+| PENDING_TRANSFER | dispatch | PENDING_TRANSFER | approved request, origin custody matches | transfer dispatch authority | `TRANSFER_OUT` movement |
+| PENDING_TRANSFER | receive | AVAILABLE | destination receipt and item lock | transfer receive authority | branch/location update + `TRANSFER_IN` movement |
+| AVAILABLE or RETURNED | send workshop | WORKSHOP | workshop order and custody destination | `inventory.workshop.manage` | workshop item/movement |
+| WORKSHOP | workshop return | prior safe state or RETURNED | matching open workshop item, inspection facts | `inventory.workshop.manage` | return movement and close item |
+| AVAILABLE/RESERVED/PENDING_TRANSFER/WORKSHOP/RETURNED | mark missing | MISSING | reason/case; active workflow reconciled or explicitly referenced | `inventory.missing.mark`; manager | missing case, movement/history/Audit |
+| MISSING | resolve found | prior safe state or RETURNED | open case, found location and inspection | `inventory.missing.resolve`; manager | close case, location movement |
+| AVAILABLE or RETURNED | melt | MELTED | normalized manufacturing/melt order, inputs locked, weights captured | `inventory.melt.execute`; manager | input movement, lineage; output is new Asset(s) |
+| RETURNED | approve available | AVAILABLE | inspection and owner-configured approval policy | `inventory.return_to_available`; approval extension | state event; no automatic financial effect |
+| any nonterminal | RFID assign/replace | state unchanged | unique tag; replace reason for current row | dedicated RFID permission | assignment + scan/history/Audit |
+| any | stock-audit observation | unchanged | audit open; scan belongs to scope | `inventory.audit.manage` | audit item/history; never auto-adjust |
+| allowed by approved request | apply adjustment | explicit old→new | approved adjustment, reason, optimistic version | request/approve/apply separation | movement/history/Audit; no quantity |
+
+**Z Asset History.** Extend `asset_events` in place into the immutable lifecycle stream. Add Company/Branch, typed event, timestamptz occurrence, technical user, employee code/name snapshot, operator/device sessions, source type/ID, old/new context, reason/notes, correlation and idempotency key. Preserve legacy action/date/user/branch fields through backfill. Service and later DB guards prohibit update/delete after migration validation. Required creation, modification, reservation, transfer, workshop, sale, return, exchange, audit, adjustment, RFID, tag, melt and conversion events are registered and versioned.
+
+**AA AuditLog.** Generic `audit_logs` remains the privileged/security/economic-change ledger and its hash-chain contract remains intact. Asset History answers “what happened to this piece”; AuditLog answers “who invoked or overrode a privileged operation.” Cost/valuation/VAT/price overrides, reprint, RFID replacement, missing/melt and adjustment approvals create both when lifecycle/material context is involved. Neither table substitutes for financial Journals.
+
+**AB Attachments/Certificates.** Keep/extend existing tables. Add Company/Branch scope and attachment category; archive with actor/time instead of deleting evidence. Certificates keep stable identity and can link versioned attachments; certificate number/issuer indexes serve search. Certificate cost remains in purchase/valuation layers, not on mutable certificate metadata.
+
+**AC Supplier purchase intake.** Extend the existing authoritative receive workflow. A PO line may retain document quantity, but the request supplies/collects one `perPiece` record for each independent item. Transaction locks the PO line, enforces remaining document count, creates one Asset bundle per piece, inserts `purchase_order_item_asset_links`, and posts the same economic purchase effect once at document level. Retry returns the original result; partial duplicate creation is impossible.
+
+**AD Sales.** Add `invoice_item_asset_links`; serialized sale requires explicit Asset IDs, locks each row and validates sellable state. One invoice line may present document quantity N only when it links exactly N distinct Assets. Accepted strategy quote, VAT and cost basis are immutable invoice snapshots. Existing financial service/source identity remains unchanged; the Product adapter is feature-gated until cutover.
+
+**AE Reservation.** Keep existing Asset-specific `reservation_items` and governance. New creation cannot accept quantity without exact Asset links. State and reservation row change atomically; extension affects reservation/history, not identity/cost. Cancellation/expiry returns only its own reserved Asset to `AVAILABLE`, subject to existing refund/financial contracts.
+
+**AF Return.** Return is source-linked to original invoice-item/Asset link, replay-safe, and creates return document, reversal under the existing financial contract, return movement and `RETURNED` event in one transaction. It never manufactures Product quantity or automatically makes the piece sellable.
+
+**AG Exchange.** Exchange is an immutable transaction relating returned and replacement Assets; it is not an operational state. The old Asset follows the Return transition and the replacement follows the normal Sale transition. The financial delta continues through current exchange accounting with exact source links and no client-selected account.
+
+**AH Transfer.** Keep/extend `transfers`; add `transfer_items` with one Asset per row, origin/destination Branch/Location, status and dispatch/receipt facts. Accept legacy `assetIds` requests temporarily, normalize server-side and dual-write JSONB only during compatibility. Backfill and equality proof precede JSONB retirement.
+
+**AI Workshop/Manufacturing.** Add `inventory_workshop_orders/items` for custody-only external/internal work. Extend existing manufacturing orders with normalized `manufacturing_order_inputs/outputs`; JSONB remains compatibility only. Processing consumes specific Asset identities; every output physical piece gets a new Asset/Barcode. `asset_lineage_links` preserves transformed-from/converted-from relationships without reusing an input identity.
+
+**AJ Melted/Missing.** Melt uses the normalized manufacturing order as melt number/date and captures each input's pre-process weight/disposition; input becomes terminal `MELTED`, outputs are new Assets and process loss is explicit. Missing uses `asset_missing_cases` with open/resolved lifecycle, last custody, reason, discovery/resolution actors and outcome extension. No invented write-off/accounting behavior is encoded.
+
+**AK Inventory Audit.** Extend `stock_audits/items` with audit number/date, Company/Branch/Location, method, DRAFT/IN_PROGRESS/COMPLETED/CLOSED states, expected/found Asset identity and close metadata. Barcode/RFID scans are observations. Completion reports matches/missing/unexpected/duplicate scans; it never mutates Asset state or posts an adjustment.
+
+**AL Inventory Adjustment.** New `inventory_adjustments/items` implement request→approve→apply separation. Each item names one Asset and explicit old/new field context; reason, evidence, approvers and idempotency are mandatory. Apply locks the Asset, verifies its version, runs the state/location correction through domain services, writes movement/history/Audit and creates no stock quantity. Requester/approver separation is enforced for sensitive fields.
+
+**AM All Items/Grid.** One Asset query endpoint replaces the Product/Asset split after cutover. It supports company/authorized branch, profile, operational status, condition, tag, Barcode/RFID, location, supplier, certificate, model and purchase-date filters with cursor/page semantics. `inventory_saved_views` stores user-owned UI column/filter/sort JSON only; it never stores authority or calculated inventory facts.
+
+**AN Details/Status/History.** Asset detail composes core, typed profile, components, origin, current purchase revision, current valuation, pricing policy, RFID current/history, attachments/certificates, custody and immutable timeline. Status actions come from server-returned legal transitions and permissions, not client inference. Compatibility fields are clearly marked deprecated and cannot silently override typed facts.
+
+**AO CGP architecture.** Keep CGP documents/items and existing gold-pool tables as source/material governance. Add `cgp_item_dispositions` linking each source item to `PENDING`, `CONVERTED_TO_ASSET`, `TRANSFER`, `TRANSIT`, `MELTED` or `MISSING`, with optional Asset or existing material-pool link and actor/time/source evidence. Default preserves a CGP line as a source lot until per-piece evidence exists; conversion creates only evidenced individual Assets and lineage, never clones aggregate weight or purchase accounting. Exact line-versus-piece semantics remain an extension point.
+
+**AP Profile registry/rule engine.** A versioned registry entry defines profile code, required/optional fields, allowed component roles/kinds, weight strategy, VAT strategy, pricing strategy, allowed operations and validator. Database check constraints protect stable enums; changing calculation policy creates a new registry version, while purchase/sale snapshots retain the applied version. No controller fallback to a “generic” formula is permitted.
+
+**AQ Company/Branch scope.** Every new operational row carries `company_id`; branch-sensitive rows carry `branch_id` or explicit from/to Branch. Services derive Company and permitted Branch from authenticated context and verify all joined entities share Company. Client-selected Company/account/branch authority is rejected. Transfer is the only normal branch ownership change; history preserves both sides.
+
+**AR Permission/approval model.** Reuse `inventory.view/create/update/adjust/export/print`, sales, reservation and existing audit permissions. Add a new immutable permission-baseline version for `inventory.cost.override`, `inventory.valuation.override`, `inventory.vat.override`, `inventory.price.override`, `inventory.price.approve_below_minimum`, `inventory.return_to_available`, `inventory.melt.execute`, `inventory.missing.mark`, `inventory.missing.resolve`, `inventory.workshop.manage`, `inventory.barcode.reprint`, `inventory.rfid.assign`, `inventory.rfid.replace`, `inventory.audit.manage`, `inventory.adjustment.request`, `.approve`, `.apply`. Built-in grants are explicit; custom roles are never broadened automatically. Sensitive approvals require level-2 identity and AuditLog; self-approval is denied unless an authoritative rule later permits it.
+
+**AS API compatibility.** `GET /assets`, `/assets/:id`, `/assets/:id/timeline` are `KEEP_AND_EXTEND` with additive/versioned response fields. Asset create is internal to authoritative receipt/conversion workflows. `/inventory/products` and `/products/:id/*` are `DEPRECATE` behind telemetry/feature gate, removed only after zero consumers/rows requiring Product stock. Supplier receiving, POS/sales, return/exchange and valuation are `VERSION_AND_EXTEND` for Asset links and profile quotes. Reservations are `KEEP_AND_EXTEND`; transfers accept `assetIds` then normalize; stock audits are `EXTEND`. Old responses remain stable during dual-read, with deprecation headers and explicit removal gate.
+
+**AT Frontend transition.** Sequence: introduce an additive Asset query/repository and feature flags; build profile-aware receive/Add Item forms; move All Items/grid/detail/status/history/Barcode/RFID; migrate POS/reservation/transfer/return/exchange selectors to exact Assets; migrate valuation/reports and audits; show legacy Products read-only during reconciliation; then remove Product tabs and adapters after acceptance. Each slice deploys only with both old and new backend compatibility; no big-bang switch.
+
+**AU Legacy Product-to-Asset migration.** Create `legacy_product_asset_map` and classify every Product: A known individual pieces from durable evidence → create mapped Assets; B operator per-piece identity/weight required → block pending capture; C proven disposable local test data with no business/financial links → recreate only in disposable rehearsal and later explicit local phase; D financial/business links → preserve Product and source mapping while creating only evidenced Assets; E unsafe/ambiguous → block. Never clone one average/aggregate weight into N Assets. Product rows, quantities and historical movements remain read-only until all linked documents, reports and APIs reconcile; only then deprecate, never silently delete.
+
+**AV Document quantity boundary.** `INVENTORY_STOCK_QUANTITY = FORBIDDEN`; availability is a count/query of Asset state, not quantity arithmetic. `PurchaseOrderItem.quantity` and invoice presentation quantity may remain document facts, and component count may describe multiple embedded components inside one Asset. A serialized document line's quantity must equal its distinct Asset-link count; reservations/transfers/sales cannot submit quantity without Asset identities.
+
+**AW Stock movement replacement.** New `inventory_asset_movements` is the authoritative physical custody ledger: one row per Asset movement, no quantity columns, typed from/to Branch/Location, source and linked AssetEvent. Receipt, transfer, sale, return, workshop, melt/conversion and applied adjustment create movement+event atomically. Existing `stock_movements` is immutable historical evidence and remains queryable until Product removal; it is never rewritten into fabricated per-piece movement.
+
+**AX Inventory valuation.** Active inventory is individual Assets in `AVAILABLE`, `RESERVED`, `PENDING_TRANSFER`, `WORKSHOP`, and conditionally `RETURNED` as a separately disclosed bucket; `SOLD` and `MELTED` are excluded, `MISSING` is separately disclosed and not silently written off. Company/Branch/Location scope uses current custody. Current valuation reports use `asset_current_valuations`; historical reports use purchase revisions or document snapshots by report purpose. CGP material-pool value remains its own source bucket until conversion. No Product quantity valuation remains after cutover.
+
+**AY Financial compatibility.** Inventory refactoring cannot change economic effects or account authority. Regressions must prove purchase Inventory/Input VAT/RCM/payable/Treasury, sale revenue/Output VAT/AR/COGS/Inventory credit, return/exchange reversals, reservation liabilities/advances, Branch mapping, Company context and Journal source identity. Every slice compares entry count, source keys, debit/credit amounts and mapped accounts before/after on a disposable clone. No transaction-time account creation, fallback mapping, duplicate posting or client-selected account is allowed.
+
+**AZ Target table blueprint.** PostgreSQL types follow the current string-ID/`decimal(20,8)` convention. All mutable tables retain `created_at/updated_at`; immutable event/revision tables have `created_at` only or reject updates. FKs are `RESTRICT` for evidence and `CASCADE` only for child cleanup before any immutable/economic use.
+
+| Classification / table | Key fields, constraints, indexes, immutability and backfill |
+| --- | --- |
+| `EXISTING_EXTEND assets` | PK `id varchar`; add core fields in H. Checks for profile/status/condition/tag; company+barcode unique across deleted rows; indexes `(company_id,branch_id,inventory_profile,operational_status)`, location, supplier/purchase-date, model. No physical delete once referenced. Backfill from Asset/type/status/source only when deterministic. |
+| `NEW_TABLE inventory_locations` | `id varchar` PK; Company/Branch FKs; `code varchar(32)`, `name varchar(120)`, `location_type varchar(24)`, `is_active boolean default true`; unique `(company_id,branch_id,code)`; RESTRICT delete. Backfill distinct validated legacy locations. |
+| `NEW_TABLE asset_origins` | PK `id`; unique Asset FK; Company/Branch; `origin_type varchar(32)`; nullable PO-item/CGP-item/legacy-Product/manufacturing-output FKs; `received_at timestamptz`, actor. Check exactly the source required by origin type; immutable. |
+| `NEW_TABLE asset_gold_details` | Asset PK/FK; Company; `weight_unit varchar(8) default 'GRAM'`; all weights/purity `decimal(20,8)`; karat `decimal(9,6)`; nonnegative and formula-tolerance checks. One-to-one, audited correction; backfill only mapped legacy facts. |
+| `NEW_TABLE asset_components` | `id varchar` PK; Asset/Company FKs; role/kind, `sequence int`, quantity `decimal(20,8)`, weight/carat `decimal(20,8)`, unit, name/type, cost/current-value `decimal(20,8)`, certificate FK, notes; unique `(asset_id,sequence)`; checks quantity>0 and allowed roles. Soft delete prohibited after economic use; correction audited. |
+| `NEW_TABLE asset_diamond_component_details` | Component PK/FK; typed nullable treatment/color/tone/saturation/clarity/cut/shape/origin/position/setting. Check parent kind in service/constraint trigger. |
+| `NEW_TABLE asset_gemstone_component_details` | Component PK/FK; typed nullable shape/color/tone/level/saturation/optical-effect/origin/position/setting. |
+| `NEW_TABLE asset_pearl_component_details` | Component PK/FK; typed nullable size/type/color/overtone/orient/shape/luster/surface/nacre/origin. |
+| `NEW_TABLE asset_purchase_cost_revisions` | `id varchar` PK; Asset/Company/Branch/currency; revision `int`; monetary/rate fields `decimal(20,8)`, VAT rate `decimal(9,6)`; supplier/date/source FKs; `supersedes_id`, `is_current`, reason/actor. Unique `(asset_id,revision_no)` and partial unique current. Append-only; legacy cost columns are source. |
+| `NEW_TABLE asset_current_valuations` | Asset PK/FK; Company/Branch; source/rates/parts/VAT/total `decimal`; `as_of timestamptz`, policy/input versions, override reason/actor/version. Index company/branch/as-of; optimistic version; replaceable cache with Audit/History for manual override. |
+| `NEW_TABLE asset_pricing_policies` | Asset PK/FK; Company; strategy code/version; weight-making/bar-certificate/markup/discount/minimum inputs `decimal`; `manual_price_allowed boolean`; checks by strategy; manual change audited. |
+| `NEW_TABLE asset_rfid_assignments` | `id varchar` PK; Asset/Company/Branch FKs; RFID `varchar(128)`, status, `is_current`, assign/replace actor/time/reason. Unique `(company_id,rfid_number)` for permanent non-reuse; partial unique current Asset; indexed lookup. Historical rows immutable after closure. |
+| `NEW_TABLE rfid_scan_events` | `id varchar` PK; assignment/Asset/Company/Branch FKs; `scanned_at timestamptz`, device/operator identities/snapshots, source/method/result. Append-only; indexes RFID assignment/time and Asset/time. |
+| `NEW_TABLE asset_tag_print_events` | `id varchar` PK; Asset/Company/Branch; print kind, template/version, printer/device/operator, reason, `printed_at`, result, idempotency key; unique scoped idempotency; append-only. |
+| `EXISTING_EXTEND asset_events` | Add typed event/context/provenance fields described in Z; unique `(company_id,idempotency_key)` when non-null; indexes Asset/occurred-at, source, correlation. Append-only after verified backfill; legacy columns preserved temporarily. |
+| `EXISTING_EXTEND asset_attachments` / `asset_certificates` | Add Company/Branch, category/version/archive provenance and search indexes; retain Asset FK and evidence. Archive, do not hard delete used evidence. |
+| `NEW_TABLE purchase_order_item_asset_links` | `id varchar` PK; PO-item/Asset/Company FKs, ordinal, received-at/by; unique Asset, unique `(po_item_id,ordinal)`; immutable source link. Backfill existing PO-item `asset_id`. |
+| `NEW_TABLE invoice_item_asset_links` | `id varchar` PK; invoice-item/Asset/Company FKs, ordinal, quote/cost snapshot refs; unique sale link under active/non-reversed semantics and `(invoice_item_id,asset_id)`; immutable, reversal via document state. Backfill only IDs proven to be Assets. |
+| `EXISTING_KEEP reservation_items` | Asset-specific authority retained; add missing company/idempotency/index fields only if rehearsal catalog proves absent. Unique active reservation per Asset enforced with state lock/constraint. |
+| `EXISTING_EXTEND transfers` + `NEW_TABLE transfer_items` | Item PK; transfer/Asset/Company FKs; from/to Branch/Location, status, dispatch/receive actor/time; unique `(transfer_id,asset_id)` and partial one active transfer per Asset. Backfill JSONB then compare. |
+| `NEW_TABLE inventory_workshop_orders/items` | Order identity/status/provider/Company/Branch/dates; item links one Asset, from/to location, prior state, send/return facts. Unique active workshop item per Asset; history retained. |
+| `EXISTING_EXTEND manufacturing_orders` + `NEW_TABLE manufacturing_order_inputs/outputs` | Normalize input Asset and output Asset links, ordinal, pre/post weights `decimal(20,8)`, disposition/loss; each input/output linked once per order. JSONB compatibility until proof. |
+| `NEW_TABLE asset_lineage_links` | PK; Company; parent/child Asset FKs; relation type, source order, occurred-at; unique `(parent_asset_id,child_asset_id,relation_type)`; append-only; parent != child. |
+| `NEW_TABLE asset_missing_cases` | PK; Asset/Company/Branch; status, discovered/resolved times/actors, prior state/location, reason, resolution code/notes, audit source. Partial unique open case per Asset; no automatic financial effect. |
+| `EXISTING_EXTEND stock_audits/stock_audit_items` | Add audit number/date/location/method/status/count summaries and found/expected Asset observations, scan provenance; unique audit number per Company and `(audit_id,asset_id)`. Closed audits immutable. |
+| `NEW_TABLE inventory_adjustments/items` | Header Company/Branch/status/reason/request/approve/apply identities/idempotency; item Asset FK and old/new context. Unique scoped idempotency, one applied effect; immutable after apply. |
+| `NEW_TABLE inventory_asset_movements` | PK; Asset/Company; movement type, from/to Branch/Location, source type/ID, event FK unique, occurred-at/operator. No quantity. Append-only; indexes Asset/time and custody/time. |
+| `NEW_TABLE cgp_item_dispositions` | PK; CGP-item/Company/Branch; disposition, optional Asset FK or existing pool FK, source/actor/time; uniqueness preventing duplicate conversion; append-only corrections. |
+| `NEW_TABLE legacy_product_asset_map` | PK; Product/Asset/Company FKs; ordinal, classification A–E, mapping status, evidence/reason; unique `(product_id,asset_id)` and Asset; permanent compatibility evidence. |
+| `NEW_TABLE inventory_saved_views` | PK; Company, owner user/employee, name, `definition jsonb`, default flag; unique owner/name and partial one default; owner-editable/soft-deletable UI configuration only. |
+| `LEGACY_DEPRECATE_LATER products/stock_movements` | Preserve rows and financial/document references read-only. Remove stock authority only after zero-consumer/data gates; do not rewrite history. |
+
+**BA Relationship diagram.** The actual target cardinality is:
+
+```text
+Company --< Branch --< InventoryLocation
+   |          |             |
+   +--< Asset (existing canonical identity; one physical piece)
+          |--1 AssetOrigin --0..1 POItem / CGPItem / LegacyProduct / ManufacturingOutput
+          |--0..1 AssetGoldDetails
+          |--< AssetComponent --0..1 DiamondDetails/GemstoneDetails/PearlDetails
+          |--< PurchaseCostRevision (exactly one current)
+          |--0..1 CurrentValuation
+          |--0..1 PricingPolicy
+          |--< RFIDAssignment --< RFIDScanEvent
+          |--< TagPrintEvent
+          |--< Attachment / Certificate
+          |--< AssetEvent (immutable lifecycle)
+          |--< InventoryAssetMovement (immutable custody)
+          |--0..1 active ReservationItem / TransferItem / WorkshopItem / MissingCase
+          |--< POItemAssetLink / InvoiceItemAssetLink / StockAuditItem / AdjustmentItem
+          |--< ManufacturingInput/Output --< AssetLineageLink >-- Asset
+          `--< CGPItemDisposition
+
+Product --< LegacyProductAssetMap >-- Asset    (compatibility only)
+StockMovement                              (historical read-only only)
+```
+
+**BB Domain service map.** `InventoryProfileRegistry` returns validators and strategy codes. `AssetIdentity/BarcodeService` owns permanent identity/sequence. `InventoryReceiptService` orchestrates source lock, Asset bundle and idempotent document posting. `WeightCalculationService`, `InventoryVatService` and `PricingStrategyService` are pure decimal-safe calculators. `PurchaseCostService` appends revisions; `CurrentValuationService` computes/caches current values. `AssetStateMachine` validates/locks/transitions and calls `AssetHistoryService`; `RFIDService`, `AssetTransferService`, `WorkshopManufacturingService`, `InventoryAuditService` and `InventoryAdjustmentService` own their normalized workflows. Each mutating service accepts authenticated Company/Branch/operator context and idempotency key, returns typed result/source IDs, runs one DB transaction, and never chooses financial accounts; existing posting services remain financial authority.
+
+**BC Idempotency/concurrency.** Supplier receipt has scoped request uniqueness plus PO-line lock; Barcode uses locked sequence and unique indexes; RFID uses company/RFID and current-Asset uniqueness; sale/reservation/transfer/workshop use `SELECT ... FOR UPDATE`, state/version checks and partial active-link uniqueness; return/exchange use original-document effect uniqueness; melt has one terminal transition/input link; adjustment has request/effect uniqueness. Same key/same body returns original, same key/different body conflicts, and a different key cannot repeat a durable source effect.
+
+**BD Index/performance design.** Required query-backed indexes are company+Barcode unique; company+RFID unique; `(company_id,branch_id,inventory_profile,operational_status,id)` for All Items; location/status; supplier/purchase-date; lower/search indexes for model/model-number/certificate where measured; AssetEvent and movement `(asset_id,occurred_at desc)`; source type/ID; active transfer/workshop/reservation partial indexes; audit `(company_id,branch_id,status,audit_date)`; saved-view owner/name. Trigram/full-text is added only after real smart-search plans justify it; rehearsal records `EXPLAIN` for the main list and lookup paths.
+
+**BE Security/validation.** Company/Branch, operator and accounting context are server-derived. Every input uses schema validation, profile whitelist and decimal strings; authoritative totals/state are recomputed server-side. Manual fields require explicit permission, reason and Audit. Manager approval is a durable server record, not a client flag. FKs/checks/unique constraints fail closed; no implicit Company fallback, client-selected protected account, transaction-time account creation or generic mutation bypass is introduced.
+
+**BF Migration sequence.** Follow the repository's timestamped transactional Sequelize convention; do not force all work into “migration 53.” Proposed future files, numbered only at implementation time to avoid collision: (1) `inventory-master-core-profile-foundation` adds nullable core/location/profile/cost/valuation/pricing structures; (2) `inventory-components-rfid-history-foundation`; (3) `inventory-source-document-asset-links`; (4) `inventory-movement-transfer-workshop-audit-normalization`; (5) `inventory-compatibility-backfill-support-indexes` adds only post-preflight constraints/indexes. Application dual-read/write slices follow. A later separate `inventory-legacy-product-cleanup` may run only after acceptance and is not part of the foundation rehearsal. Every `down` is rehearsed where safe; evidence tables use non-destructive rollback policy.
+
+**BG Disposable rehearsal.** Take a timestamped `pg_dump` of `darfus_erp`; restore into an explicitly named disposable DB; record source SHA/checkpoint; run migrations and backfill there only; classify every Asset/Product/CGP row; verify FKs/orphans, core constraints, Barcode permanent uniqueness, RFID uniqueness, component/cardinality, event/source counts, PO/invoice/reservation links and Product mappings; compare financial Journals/source keys/Account/Treasury totals; run API and frontend smoke against disposable endpoints; exercise same-key/conflict/concurrency negatives; rehearse rollback/forward recovery; run final fingerprints; disconnect and drop only the verified disposable target. Persistent local apply remains separately unauthorized.
+
+**BH Acceptance matrix.** Every row also requires one-piece receive/create; required/optional validation; immutable purchase/current valuation split; permanent Barcode; optional RFID lifecycle; state/history/Audit; list/search/detail; sell/return/transfer/audit; applicable reservation/workshop/missing/melt; server-derived totals; override permission/reason; and unchanged financial source/account effects.
+
+| Profile | Profile-specific mandatory proof |
+| --- | --- |
+| `GOLD_BY_WEIGHT_JEWELLERY` | Gross/stone/net/pure decimal formulas; embedded components; selling-making-per-gram and below-minimum approval. |
+| `GOLD_BAR_24K` | One bar per Asset; purity/weight; certificate charge/minimum; purchase/current/sale VAT base excludes gold and equals certificate only. |
+| `GOLD_BY_PIECE` | One piece; markup, max discount, minimum price, net/VAT/total/profit and approval thresholds. |
+| `DIAMOND_JEWELLERY` | Gold core plus ordered embedded diamonds and typed diamond details; diamond strategy without quantity stock. |
+| `LOOSE_DIAMOND` | One Asset and exactly one primary-subject diamond; ten independent stones produce ten Assets. |
+| `GEMSTONE_JEWELLERY` | Gold core plus typed ordered embedded gemstones and gemstone strategy. |
+| `LOOSE_GEMSTONE` | One Asset/primary gemstone, explicit unit and no aggregate-to-piece weight cloning. |
+| `PEARL_JEWELLERY` | Gold/shared core plus typed ordered embedded pearls and pearl strategy. |
+| `LOOSE_PEARL` | One Asset/primary pearl and full typed pearl fields; no stock quantity. |
+| `CGP_CUSTOMER_GOLD_PURCHASE` | Approved source document/item, disposition/pool-or-evidenced-Asset lineage, no duplicate accounting or automatic piece inference. |
+
+Negative tests reject Asset stock quantity >1, quantity sale/reservation/transfer without distinct Asset links, duplicate Barcode/RFID, double sale/reserve/transfer/melt, client totals/accounts and unauthorized overrides. Financial before/after source/amount/account equality is mandatory.
+
+**BI Requirement-open items.** (1) Returned→Available exact approval semantics is `STILL_OPEN`; foundation provides a disabled/dedicated transition with configurable approval and no automatic availability. (2) Exact component unit/precision is `STILL_OPEN`; foundation stores explicit unit plus `decimal(20,8)` without conversion, and registry rules can narrow later. (3) CGP line-versus-piece/material-pool identity is `STILL_OPEN`; disposition supports either source-lot/pool or evidenced Assets and forbids automatic cloning. These are reversible, nullable/configurable foundation choices and do not encode unresolved economics.
+
+**BJ Static validation.** Read-only model/migration/API/frontend/permission inspection confirmed existing string IDs, `decimal(20,8)` schema precision, timestamped transactional migrations, Barcode sequence/index contract, immutable v1 permission baseline and the legacy dependencies. `git diff --check` and exact-path diff inspection are required before commit; no mutating Product test is authorized.
+
+**BK Final DB/financial postcheck.** Design-owned DB writes are `0`. Required postcheck remains migrations `52/52/0`, Setup `READY`, Financial readiness `READY`; cash `13184.7730`, bank `-28.8650`, active precision mismatch `0`; one inherited session OPEN with opening `1.5000` and no close/adopt/edit. Inventory fingerprints remain Assets `50 / 05b87d94d28183c66dadab77b10b41fa`, AssetEvents `60 / 940a8d0164ac8d7541fc30ec22210c2e`, Products `3 / a41a93115d45fc8de2166e6fd9e36c99`, StockMovements `11 / 022b52105d167e88042fb0bb493a12dc`, PO items `53 / 2386602fc42aba2e96159a40975389fe`, Invoice items `12 / 23affc15d54600bfcbceb0122ac97ec8`, Reservations `2 / 19a50544009a9d06e3501384aabf0`, Reservation items `4 / 1a9a52d0c3689a9d06e3501384aabf78`, CGP docs `2 / a8591c4a236c6bf13256bc6ed6e7c225`, CGP items `4 / 384de4825d2f8b75dbc6731ce2c9e4ca`. Unbalanced Journals, orphan lines, duplicate source keys, unlinked posted Treasury, idle transactions, waiting locks and disposable DB residue are all `0`.
+
+**BL Documentation.** This A–BP section is the implementation-ready design authority. The six companion authorized docs record finding, roadmap, acceptance, release, runbook and handoff summaries. No other path is authorized or changed.
+
+**BM Documentation commit.** After final invariants pass, exact-path stage only the seven authorized docs and commit exactly `docs: design inventory master target architecture`. Do not push.
+
+**BN Final Git safety.** Required after commit: branch `main`; staged/untracked `0/0`; stashes `11`; remotes `0`; next-env hash unchanged; inherited protected files semantically equal; Product/frontend/backend/test/migration/package/lockfile/environment changes `0`; DB/Inventory/financial/session writes `0`; push/deployment `0`.
+
+**BO Final classification.** `OFFICIAL-LOCAL-INVENTORY-MASTER-TARGET-DESIGN-CONT1 = COMPLETE_WITH_REQUIREMENT_OPEN_ITEMS`; `TARGET_ARCHITECTURE = APPROVED_FOR_REHEARSAL`; `INVENTORY_TARGET_MODEL = PIECE_BASED_ASSET_ONLY`; `CANONICAL_ASSET_CORE = EXISTING_ASSETS_KEEP_AND_EXTEND`; `LEGACY_PRODUCT_STOCK_PATH = MIGRATE_THEN_DEPRECATE`; Inventory stock quantity `FORBIDDEN`; document quantity and one-Asset component metadata counts `PRESERVED`; strategies Weight/Bar/Piece are exactly `WEIGHT_BASED_MAKING_STRATEGY`, `BAR_CERTIFICATE_STRATEGY`, `PIECE_MARKUP_STRATEGY`; 24K VAT base `CERTIFICATE_ONLY`; VAT rate `MANUAL_WITH_OPTIONAL_SETTINGS_DEFAULT`; VAT amount `SYSTEM_CALCULATED`; purchase cost `IMMUTABLE_LAYER`; current valuation `SEPARATE_LAYER`; Barcode `PERMANENT_PRIMARY_IDENTITY`; RFID `OPTIONAL_HISTORY_RELATION`; Asset History `IMMUTABLE_APPEND_ONLY`; state model `OPERATIONAL_STATUS_PLUS_CONDITION_PLUS_TAG_STATE_PLUS_LIFECYCLE_EVENTS`. Blueprint, diagram, service map, legacy migration, API/frontend/financial/rehearsal/acceptance plans are `COMPLETE`. `RELEASE_READY=NO`; Staging/Production unauthorized.
+
+**BP Exact next marker.** `OFFICIAL-LOCAL-INVENTORY-MASTER-MIGRATION-REHEARSAL-CONT1` (do not start automatically).
+
+## OFFICIAL-LOCAL-INVENTORY-MASTER-MIGRATION-REHEARSAL-CONT1 — disposable checkpoint (2026-08-04)
+
+| Required report field(s) | Evidence / result |
+| --- | --- |
+| A. Executive decision; B. Authorization boundary | Additive Inventory Master V2 foundation rehearsed only on `darfus_erp_inventory_rehearsal_20260804_073138z`; persistent migration/backfill/financial writes remain forbidden and observed zero. |
+| C. Starting/final checkpoints; D. Git/protected preflight | Started `main@f309951b87a71ae714ec9896b1b45e6e4a526b2d`; code checkpoint `b0e5fa720eba4d02eaa2773e22654a9cb0b8cffa`. Staged `0`, stashes `11`, remotes `0`; three inherited CRLF-only files remained semantically equal. `next-env.d.ts` was owner-approved for the exact one-line repair and stayed at SHA-256 `7B550DDA9686C16F36A17BF9051D5DBF31E98555B30D114AC49FC49A1E712651`. |
+| E. Accepted target design; F. Mandatory design overrides; G. Requirement source verification | Piece-based Asset-only model retained. Location nullable, Branch required after safe backfill, Barcode global/immutable/non-reusable, Condition profile-controlled, and `component_count INTEGER` is non-stock metadata. Word/Word/Excel authority was rechecked without editing source artifacts. |
+| H. Persistent baseline; I. Pre-rehearsal backup; J. Restore rehearsal; K. Disposable DB identity | Persistent `darfus_erp` stayed at 52 applied migrations, Assets 50, Products 3, Cash `13184.7730`, Bank `-28.8650`, one open session. Backup `backend/backups/darfus_erp_development_2026-08-04T07-31-38-212Z.dump`, 441680 bytes, SHA-256 `CC0491439A500C68F0340272B58B9C7F04EA85B5136A2E5232EAC7D2B9C5A8AE`, restored repeatedly only to the exact disposable target. |
+| L. Migration sequence implemented; M. Assets extension; N. Location optional proof; O. Branch requirement proof | Five ordered migrations applied `52→57` from a fresh restore. All 50 Assets received deterministic profile/status/Branch; all 50 current locations mapped while `location_id` remains nullable. |
+| P. Global Barcode proof; Q. Profile-controlled condition proof; R. Component-count integer/non-stock proof | Global duplicate groups `0`; cross-scope collision, Barcode update and hard-delete fixtures rejected. Existing 50 conditions remain NULL/unknown, not `NEW`; required/N-A profile negatives passed. Zero/fraction policy/loose-primary multi-piece negatives passed. |
+| S. Weight engine; T. Purchase-cost revisions; U. Current valuation; V. VAT engine; W. 24K Certificate-only VAT; X. Pricing strategies | Decimal.js policy and decimal(20,8) schema passed `10.25-1.525=8.725` and pure 21K `7.634375`. Fifty immutable revision-1 rows were mapped; valuation is separate. Bar fixture `100000 + 1000`, rate 15%, produced VAT base `1000`, VAT `150`, gold VAT contribution `0`. Weight, Bar, Piece strategies passed and generic fallback rejected. |
+| Y. RFID; Z. Asset History; AA. Tag print history | Global RFID reuse and multiple-current constraints passed. Asset identity/history/cost/origin/scan/print/movement evidence is append-only by trigger; existing 60 event IDs are preserved. |
+| AB. Source-document Asset links; AC. Supplier receiving; AD. Sales; AE. Reservation; AF. Return; AG. Exchange | Backfill created 50 PO links and six proven invoice-Asset links; six Product-valued invoice rows remain explicitly `PRODUCT_LINK_LEGACY`. Legacy insert compatibility and one-piece source contract passed. Authenticated mutating endpoint smoke for receive/sale/reservation/return/exchange was not run and is not claimed PASS. |
+| AH. Transfer; AI. Workshop/Manufacturing; AJ. Melted/Missing; AK. Inventory Audit; AL. Inventory Adjustment; AM. CGP | Additive normalized tables, FK/check/index/state separation and lineage foundations migrated successfully. CGP four source items remain material-pool/pending-evidence dispositions; no piece or weight was invented. End-to-end mutating workflow smoke remains not run. |
+| AN. Legacy Product A-E classification; AO. Legacy Product mapping; AP. Asset movement ledger; AQ. All Items query | All three Products, including on-hand 100, are `D / PRESERVED_UNMAPPED`; zero Product-to-Asset mappings and zero Product deletions. Eleven evidenced Asset movements were backfilled. All Items counts Asset rows (50), never Product quantity. |
+| AR. API compatibility; AS. Frontend smoke; AT. Permissions/approvals | Existing legacy Asset insert shape is accepted on the migrated schema and barcode foundation verifier passed. Isolated backend process launch was blocked by the execution environment; frontend smoke was deliberately not attempted because Next dev previously regenerated protected `next-env.d.ts`. Permission/approval schema guards exist, but authenticated endpoint smoke remains not run. |
+| AU. Quantity negative tests; AV. Barcode negative tests; AW. Condition negative tests; AX. Component negative tests; AY. Constraint/index proof | Rehearsal verifier passed 24/24 focused gates, including stock-quantity rejection, global identity, condition registry, integer component policy, RFID uniqueness, immutable evidence, FK/orphan and constraint scans. |
+| AZ. Backfill report; BA. Orphan/integrity scan | Profiles: 50 `GOLD_BY_WEIGHT_JEWELLERY`. Branch/location/status/gold/cost/origin/PO link `50/50/50/50/50/50/50`; condition known/unknown `0/50`; components/RFID `0/0`; invoice Asset/Product classification `6/6`; all listed orphan/duplicate/invalid counters `0`. |
+| BB. Financial regression | Migration/backfill before/after invariant passed: Cash `13184.7730`, Bank `-28.8650`, mirror differences `0/0`, one unchanged open session, unbalanced posted Journals `0`, and no Journal/Treasury source mutation. Full authenticated purchase/sale/return/exchange transaction matrix remains not run and is not claimed. |
+| BC. Forward/rollback rehearsal; BD. Disposable cleanup | Fresh restore→migrate→validate was repeated. `db:migrate:undo` failed as designed with `NON_DESTRUCTIVE_FORWARD_ONLY`; all 57 entries remained. Recovery is exact backup restore. Disposable cleanup is pending final evidence handoff. |
+| BE. Persistent DB preservation; BF. Static validation | Persistent counts and row-by-row backup comparison passed; the five migrations are absent from `darfus_erp`. Typecheck, targeted ESLint, node syntax, barcode foundation and 24/24 verifier passed. Two older UI verifiers stopped only at stale phase scope guards that forbid any migration. |
+| BG. Product/migration commit; BH. Documentation; BI. Documentation commit; BJ. Final Git safety | Focused code commit `b0e5fa720eba4d02eaa2773e22654a9cb0b8cffa`. Seven authorized docs record this checkpoint. Docs commit and final safety follow this update; no push. |
+| BK. Final classification; BL. Exact next marker | `MIGRATION_FOUNDATION=PASS`, `BACKFILL_REHEARSAL=PASS`, `CONSTRAINT_SCAN=PASS`, `PERSISTENT_MUTATIONS=0`, but the official phase remains `IN_PROGRESS_WITH_AUTHENTICATED_WORKFLOW_SMOKE_NOT_RUN`. Resume the same marker `OFFICIAL-LOCAL-INVENTORY-MASTER-MIGRATION-REHEARSAL-CONT1`; do not start implementation. |
+
+## OFFICIAL-LOCAL-INVENTORY-MASTER-MIGRATION-REHEARSAL-CONT1 — authenticated workflow blocker (2026-08-04)
+
+An in-process authenticated HTTP harness was run only on fresh disposable `darfus_erp_inventory_rehearsal_20260804_120001z` after restore and migration `52→57`. It created an isolated legacy-admin User, issued a normal technical access session, supplied explicit Company/Branch headers, configured branch financial roles/mappings and barcode codes, and called `POST /purchase-orders/receive` with an idempotency key.
+
+The real route passed its legacy transaction: first request `201`, same-key replay `201`, altered-body same-key `409`; two distinct Asset IDs and global Barcodes were created, two `PURCHASE_RECEIVED` events were created, profile/status were `DIAMOND_JEWELLERY`/`AVAILABLE`, and purchase Journal `JE-1785832507522` is source-linked and balanced `200/200`. However V2 target evidence was absent for both Assets: `asset_origins=0`, `purchase_order_item_asset_links=0`, and `inventory_asset_movements=0`.
+
+Runtime source search finds these V2 structures only in migrations and the foundation verifier, not in application routes/services. The receive route also has no `perPiece` contract; it materializes repeated legacy quantity input. This is `BLOCKER=INVENTORY_REHEARSAL_PRODUCT_DEFECT`, not a harness or authentication failure. Wiring receive, sale, reservation, return and exchange to the V2 evidence model is cross-cutting implementation and is not started by this rehearsal. Preserve the disposable evidence; full mandatory workflow and transaction-financial closure cannot be claimed.

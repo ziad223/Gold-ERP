@@ -55,8 +55,8 @@ async function disposableDatabaseContract() {
 
       const cashInstallment = await Installment.findByPk(cashInstallmentId, { transaction });
       const bankInstallment = await Installment.findByPk(bankInstallmentId, { transaction });
-      const cashJournal = await posting.postInstallmentPayment(cashInstallment.toJSON(), 100, "Cash", "Verifier", { transaction, branchId });
-      const bankJournal = await posting.postInstallmentPayment(bankInstallment.toJSON(), 200, "Bank Transfer", "Verifier", { transaction, branchId });
+      const cashJournal = await posting.postInstallmentPayment(cashInstallment.toJSON(), 100, "Cash", "Verifier", { transaction, branchId, collectionEventId: `PAY-F001-C-${stamp}` });
+      const bankJournal = await posting.postInstallmentPayment(bankInstallment.toJSON(), 200, "Bank Transfer", "Verifier", { transaction, branchId, collectionEventId: `PAY-F001-B-${stamp}` });
       const journals = await JournalEntry.findAll({ where: { id: [cashJournal.id, bankJournal.id], companyId, branchId }, transaction });
       const lines = await JournalLine.findAll({ where: { journalEntryId: [cashJournal.id, bankJournal.id] }, transaction });
       const cashMapping = await BranchFinancialMapping.count({ where: { companyId, branchId, mappingType: "CASH_TREASURY", isActive: true }, transaction });
@@ -70,7 +70,7 @@ async function disposableDatabaseContract() {
         assert.equal(Number(journal.totalDebit), Number(journal.totalCredit), "installment journal is balanced");
       }
       await assert.rejects(
-        () => posting.postInstallmentPayment(cashInstallment.toJSON(), 1, "Cash", "Verifier", { transaction }),
+        () => posting.postInstallmentPayment(cashInstallment.toJSON(), 1, "Cash", "Verifier", { transaction, collectionEventId: `PAY-F001-MISSING-BRANCH-${stamp}` }),
         (error) => error && error.errorCode === "FINANCIAL_BRANCH_REQUIRED"
       );
       throw rollback;
@@ -95,7 +95,7 @@ try {
     "collection does not null a valid Product Branch ID with a legacy BR- prefix check"
   );
   assert.ok(
-    routes.includes("inst.toJSON(), amount, method, actor, { transaction: t, branchId }"),
+    routes.includes("branchId,") && routes.includes("collectionEventId: installmentPayment.id"),
     "collection passes the authoritative Branch ID to installment posting"
   );
   assert.ok(

@@ -1,5 +1,16 @@
 # v1.0.0 Release Plan
 
+## F003 continuation boundary — 2026-07-30
+
+No migration is required: existing decimal columns and PostgreSQL row locks suffice. Do not alter the retained overpayment directly. Next only: `OFFICIAL-LOCAL-FINANCIAL-FIX-CONT3`.
+
+## Financial acceptance continuation — 2026-07-30
+
+The F002 journal-identity repair is committed and its code-only upgrade path is
+verified. The release gate remains closed because F003 shows a retained
+installment can be over-collected by the accepted route tolerance. No reset,
+restore, deployment, or Staging authorization follows. Next authorized work is
+only `OFFICIAL-LOCAL-FINANCIAL-FIX-CONT3`.
 ## Persistent financial continuation boundary — 2026-07-30
 
 `FINANCIAL-ACCEPT-F001` is resolved: installment posting now receives the
@@ -863,3 +874,105 @@ coverage, direct-navigation/hard-refresh checks, and whole-database fingerprint
 comparison. No Product regression was found. This permits only the next local
 acceptance marker, `OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-CONT1`; Staging,
 Production, deployment, and push remain unauthorized.
+## Persistent installment-proof boundary — 2026-07-30
+
+The F003 guard is accepted through the official local Product API. Its
+successful persistent proof retained valid collection events and passed journal,
+treasury, idempotency, and concurrency reconciliation. It also established a
+new local data boundary: the proof customer is shared with the historical
+overpayment, so customer receivable isolation is not preserved. Do not restore
+or correct `darfus_erp` automatically. The next authorized work is
+`OFFICIAL-LOCAL-FINANCIAL-DATA-REMEDIATION-CONT1`; deployment remains blocked.
+
+The current open cash-register session was present in the pre-proof backup and
+must be handled only as part of the controlled data boundary.
+
+## Local historical-overpayment remediation complete — 2026-07-30
+
+The retained local boundary is now safe for the remaining financial acceptance
+matrix. The remediation is an auditable receivable-to-customer-credit liability
+reclassification only; Treasury remains unchanged and no original or later valid
+proof event was edited. Backups immediately before and after the operation were
+retained and independently restored to disposable databases. This is still local
+readiness work: release, Staging, Production, deployment, and push remain
+unauthorized. Exact next marker: `OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-CONT2`.
+
+## Financial acceptance continuation boundary — 2026-07-30
+
+Do not close or reuse the inherited cash-register session to force acceptance.
+The one-session-per-Branch Product invariant blocks the remaining cash matrix
+until an authorized harness/precondition resolution is available. Next only:
+`OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-HARNESS-CONT2`.
+
+## Cash-session baseline continuation — stable but invalid movement boundary — 2026-08-03
+
+The passive observation window is now proven stable. The `3798.3900 → 13184.7900` delta consists of eight later authenticated Product requests totaling `9386.4000`; no background writer or recomputation occurred. The current GL/session book balance is positive, but four historical installment Treasury rows differ from their cent-rounded journal cash legs by `0.0170`. Preserve the open session unchanged, do not close/adopt it, and route the precision data boundary to `OFFICIAL-LOCAL-FINANCIAL-DATA-AUDIT-CONT1`.
+
+## Cash-session baseline reconciliation boundary — 2026-07-31
+
+Maintain the inherited open cash-register session unchanged. The baseline audit
+observed an independently changing stored cash-account snapshot while verifying
+the earlier negative-balance assertion. Current service and posted-GL
+calculation reconcile at `13184.7900`, but the observation window is not stable
+enough to adopt, close, or financially classify the session. Next:
+`OFFICIAL-LOCAL-FINANCIAL-CASH-SESSION-BASELINE-AUDIT-CONT1`.
+
+## Cash deficit design hold — 2026-07-31
+
+The inherited session is economically negative because of a valid purchase cash
+outflow, not a technical session mismatch. Do not manufacture a balancing event
+or close with an unverified variance. Next only:
+`OFFICIAL-LOCAL-FINANCIAL-CASH-SESSION-REMEDIATION-DESIGN-CONT1`.
+
+## Cash-session investigation hold — 2026-07-31
+
+The existing session cannot be safely closed or adopted because its deterministic
+cash calculation is invalid despite structurally linked movements. Preserve the
+session and investigate through the normal Product owner workflow; do not create
+a replacement session. Next remains `OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-HARNESS-CONT2`.
+
+## Installment precision remediation gate — 2026-08-03
+
+The database-wide scope is one affected source class, `installment_collection`:
+five historical events with exact signed GL-over-Treasury delta `+0.0220`.
+Four cash events account for the current session's `+0.0170`; one bank event is
+`+0.0050`. Payment, Treasury, Invoice, Installment, customer-credit remediation,
+idempotency, and audit evidence remain intact; Journal representation and its
+Account mirror are wrong at cent precision.
+
+Release remains blocked. The next phase must deliver code, tests, and an
+idempotent `SOURCE_LINKED_ROUNDING_REMEDIATION`, with no schema migration,
+original-row rewrite, Treasury effect, session closure/adoption, or invented
+cash. Expected corrected cash is `13184.7730`; bank `-28.8650`. Re-audit and a
+physical cash count remain required. Exact next marker:
+`OFFICIAL-LOCAL-FINANCIAL-FIX-CONT4`.
+
+## Installment precision remediation completed — 2026-08-03
+
+CONT4 completed the approved local code/data boundary. Product commit `e9d7bbffed26d93346b1c201b5b4f4a5c46d5380` preserves four-decimal installment posting and register calculation; no schema/package/environment change was made. The pre-remediation dump was restored to and removed from a disposable target before official writes.
+
+Five source-linked correction Journals were posted through the Product route, one per affected Payment, totaling `0.0220` (`cash 0.0170`, `bank 0.0050`), with AR debit and original mapped cash/bank credit. Remediation Treasury rows are zero and original source rows remain immutable. Same-key replay returned the original response; same-key body conflict and a different-key duplicate effect were rejected. Exact postcheck is cash `13184.7730`, bank `-28.8650` across Account, reportable GL, Treasury summary, dashboard, and reconciliation; the movement difference is zero. The inherited register session remains open and untouched, so physical cash count and owner-led session acceptance remain required. Next only: `OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-HARNESS-CONT2`.
+
+## Post-CONT4 session reconciliation — owner action required — 2026-08-03
+
+CONT2 passed the accounting-only harness. The inherited open Main Branch session reconstructs exactly as opening `1.5000` plus valid posted cash movement `13183.2730` equals expected `13184.7730`. Session service, stored Account, reportable GL, Treasury summary, account ledger, trial balance, Balance Sheet, and dashboard agree; bank is `-28.8650`. All 29 session movements are source-linked and balanced, with zero unknown or invalid active amount.
+
+No owner physical count was available. No variance was calculated or inferred, and the session was not closed, adopted, opened, or edited. Financial acceptance remains `BLOCKED_BY_PHYSICAL_COUNT`; release, Staging, Production, deployment, and push remain unauthorized. Next only: `OFFICIAL-LOCAL-FINANCIAL-CASH-COUNT-CONFIRMATION-CONT1`.
+
+## Inventory Master V2 read-only audit boundary — 2026-08-03
+
+`OFFICIAL-LOCAL-INVENTORY-MASTER-CURRENT-SYSTEM-AUDIT-CONT1 = COMPLETE`. This is evidence/design preparation only: no Product, schema, data, migration, Inventory, financial, session, package, environment, deployment or push action occurred. Promotion remains unauthorized. The future order is requirements lock, target architecture/schema, compatibility/migration plan, backup and disposable rehearsal, coordinated backend/frontend/integration refactor, local backfill, Inventory acceptance, then financial regression. Next only when separately authorized: `OFFICIAL-LOCAL-INVENTORY-MASTER-TARGET-DESIGN-CONT1`.
+
+## Inventory Master target design — rehearsal is next, release remains blocked — 2026-08-03
+
+The approved target keeps and extends `assets` and migrates legacy Product stock to one evidenced Asset per physical piece. Additive, timestamped migrations are segmented into core/profile/cost/valuation, component/RFID/history, source/document links, custody/workshop/audit normalization, then validated constraints/indexes. Cleanup is a later migration only after zero-consumer and acceptance gates. API and frontend transition remain backward-compatible slices.
+
+The next phase may operate only on a backup-restored disposable database: apply proposed migrations/backfill, classify all Product rows, prove identity/FKs/uniqueness/history/document/financial invariants, run API/UI and concurrency negatives, rehearse rollback, and remove the disposable target. Persistent `darfus_erp`, release, Staging, Production and push remain unauthorized. Three reversible business semantics remain open. Next only: `OFFICIAL-LOCAL-INVENTORY-MASTER-MIGRATION-REHEARSAL-CONT1`.
+
+## Inventory Master rehearsal release hold — 2026-08-04
+
+The disposable migration, backfill, constraints, pricing/VAT policy, rollback guard and persistent-preservation gates passed. Source checkpoint is `b0e5fa720eba4d02eaa2773e22654a9cb0b8cffa`. Release remains blocked because authenticated target workflow/permission smoke and frontend smoke were not run; frontend was intentionally excluded to preserve the owner-locked `next-env.d.ts` hash. No persistent migration, release, Staging, Production, deploy, or push is authorized. Resume the same rehearsal marker.
+
+## Authenticated workflow hold — 2026-08-04
+
+The receive route was proven authenticated and financially balanced on disposable, but it does not persist the approved V2 origin, link, or movement evidence. This is a Product implementation gap, so release remains blocked and the marker cannot advance. Do not treat the legacy route result as target acceptance.

@@ -1,5 +1,19 @@
 # DARFUS Jewellery ERP — v1.0.0 Product Roadmap
 
+## Financial acceptance F003 continuation — 2026-07-30
+
+The committed code-only guard locks the installment and compares `DECIMAL(15,4)` units exactly. Persistent Product-API proof and a supported retained-data remediation decision remain outstanding. Next: `OFFICIAL-LOCAL-FINANCIAL-FIX-CONT3`.
+
+## Financial continuation boundary — 2026-07-30
+
+Completed: repeated installment collection journals are event-scoped without a
+migration. One Payment event has one journal; one installment may have several
+event journals; global singleton source uniqueness remains intact.
+
+Open next: reject every amount greater than the exact outstanding installment
+amount before any transaction write. The observed tolerance-accepted overage is
+`FINANCIAL-ACCEPT-F003`; do not resume financial acceptance until its narrow
+repair and retained-data reconciliation are complete.
 ## OFFICIAL-LOCAL-FINANCIAL-FIX-CONT1 partial — F001 resolved, F002 discovered — 2026-07-30
 
 The authoritative Branch-context repair for installment collection is complete:
@@ -1040,3 +1054,111 @@ Accounts showed `READY`, all `11/11` required mappings, and the canonical
 Product repair, migration, setup change, or business/configuration/financial
 mutation occurred. The next authorized marker is
 `OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-CONT1`; it is not started here.
+## OFFICIAL-LOCAL-FINANCIAL-FIX-CONT3 persistent proof — 2026-07-30
+
+`FINANCIAL-ACCEPT-F003` is resolved by code and persistent Product-API proof.
+No Product change is pending. Six user-created local installments passed
+read-only integrity checks; two supplied the permitted sequential/concurrent
+proofs. The retained historical overpayment shares the proof customer's
+receivable, so its customer balance legitimately changed even though the
+historical financial records themselves did not. This is a data-isolation
+remediation boundary, not a Product roadmap repair. Next only:
+`OFFICIAL-LOCAL-FINANCIAL-DATA-REMEDIATION-CONT1`.
+
+The one open cash-register session is pre-existing and unchanged by proof; it
+is a local data boundary, not a Product change request.
+
+## OFFICIAL-LOCAL-FINANCIAL-DATA-REMEDIATION-CONT1 — COMPLETE (2026-07-30)
+
+The shared-customer historical overpayment boundary is closed with a narrow
+Product-owned customer-credit reclassification. It uses immutable original
+collection linkage, server-authoritative four-decimal arithmetic, existing
+`CUSTOMER_DEPOSIT_LIABILITY` ownership, transaction locks, an audit record, and
+idempotent source identity. No migration or new permission was required; the
+existing `accounting.post` authorization remains within the canonical
+128-permission baseline. No direct SQL financial correction, account creation,
+cash refund, bank refund, or aggregate balance overwrite was used. Next only:
+`OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-CONT2`.
+
+## OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-CONT2 — BLOCKED (2026-07-30)
+
+Baseline reuse passed, but the single-Branch cash-register invariant prevents a
+dedicated cash acceptance session while an inherited user session remains open.
+No workflow was partially executed and no Product repair is authorized. Next:
+`OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-HARNESS-CONT2`.
+
+## Installment precision repair delivered — 2026-08-03
+
+CONT4 is complete locally at Product commit `e9d7bbffed26d93346b1c201b5b4f4a5c46d5380`. Installment posting carries validated four-decimal amounts into Journal lines and Account mirrors; register calculation remains four-decimal while display may stay two-decimal. Five historical mismatches received one source-linked correction Journal each, total `0.0220` (`cash 0.0170`, `bank 0.0050`), without Treasury or source-row rewrites. Focused/disposable tests, backup restore rehearsal, replay, and duplicate guards passed. Current mapped cash and bank stored/GL/Treasury/report values are `13184.7730` and `-28.8650`; movement difference is zero. The open session remains untouched and still needs a physical count and owner decision before adoption or closure. Next marker: `OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-HARNESS-CONT2`.
+
+## Cash-session baseline continuation — stable observation, precision blocker — 2026-08-03
+
+The repaired pre-flight gate passed and four repeatable-read read-only snapshots were stable. The historical `3798.3900 → 13184.7900` delta consists of eight later authenticated Product requests totaling `9386.4000`; no background writer or recomputation occurred. However, four older installment Treasury rows remain `0.0170` below their cent-rounded journal cash legs. The installment posting path still rounds before posting while accepting four-decimal input, so this is a Product precision defect and the session cannot be adopted or closed. No Product repair is authorized in this phase. Next only: `OFFICIAL-LOCAL-FINANCIAL-DATA-AUDIT-CONT1`.
+
+## Installment precision repair scope — 2026-08-03
+
+The read-only database-wide audit closes the diagnosis at one source class:
+`installment_collection`. Five of 18 events retain exact Payment/Treasury
+amounts but have cent-rounded Journal cash/bank and AR legs. Total historical
+GL-over-Treasury difference is `0.0220`; the four current-session cash rows are
+`0.0170`, and one bank row is `0.0050`. No other present source class mismatches.
+
+The next Product phase must implement `BUSINESS_4DP_POSTING_4DP_DISPLAY_2DP`,
+use the existing exact posting branch, preserve four decimals in cash-register
+calculation, and add exact cross-ledger/replay/report tests. Existing columns
+support the contract: `MIGRATION_REQUIRED = NO`.
+
+Historical correction is Product-owned and source-linked: five idempotent
+balanced correction Journals totaling `0.0220`, AR debit and original mapped
+cash/bank credit, no new Treasury effect, and no rewrite of Payment, Treasury,
+Invoice, Installment, Customer, or original Journal history. Expected corrected
+cash is `13184.7730`; bank `-28.8650`; re-audit first and physical-count before
+any close/adoption. Exact next marker: `OFFICIAL-LOCAL-FINANCIAL-FIX-CONT4`.
+
+## Cash-session baseline audit hold — 2026-07-31
+
+The historical temporary negative crossing remains proven, but current cash
+evidence changed during the read-only baseline audit. The current service and
+cash GL reconcile at `13184.7900`; a prior `3798.3900` stored-balance snapshot
+was no longer current before provenance could be completed. Preserve the open
+session and do not resume financial acceptance. Next only:
+`OFFICIAL-LOCAL-FINANCIAL-CASH-SESSION-BASELINE-AUDIT-CONT1`.
+
+## Cash-session root cause — design required (2026-07-31)
+
+The negative session reflects a real posted cash deficit beginning with a
+purchase-order outflow; it is not an opening/session/report formula error.
+Without an observed cash count or real authorized funding source, Product closure
+with a variance would not be economically truthful. Next only:
+`OFFICIAL-LOCAL-FINANCIAL-CASH-SESSION-REMEDIATION-DESIGN-CONT1`.
+
+## Cash-session harness — blocked (2026-07-31)
+
+The inherited session has financial activity and a non-deterministic safe closing
+boundary because its canonical current-cash calculation is invalid. It must not
+be adopted or closed automatically. No Product change is authorized; next remains
+`OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-HARNESS-CONT2`.
+
+## Post-CONT4 cash-session owner boundary — 2026-08-03
+
+The read-only CONT2 harness confirms exact accounting reconciliation: cash `13184.7730`, bank `-28.8650`, zero precision delta, and zero active mismatch. The inherited open session reconstructs from `1.5000` opening plus `13183.2730` valid net movement to `13184.7730`; movement integrity passes with no unknown or invalid active amount. F001/F002/F003, CONT4, and historical overpayment remediation remain preserved.
+
+No physical cash count was supplied. The session is `ACCOUNTING_RECONCILED_AWAITING_PHYSICAL_COUNT`, remains open and unadopted, and the remaining financial acceptance matrix cannot resume. Inventory Master V2 remains a parallel approved workstream but was not changed. Next marker: `OFFICIAL-LOCAL-FINANCIAL-CASH-COUNT-CONFIRMATION-CONT1`.
+
+## OFFICIAL-LOCAL-INVENTORY-MASTER-CURRENT-SYSTEM-AUDIT-CONT1 complete — 2026-08-03
+
+The read-only dependency map is complete from the exact updated requirement sources. Target is one piece = one unique Asset/Barcode with Product quantity stock removed only after every purchase/sales/reservation/return/exchange/transfer/workshop/audit/report/accounting consumer migrates. Target design must split historical purchase cost from current valuation, isolate weight/bar/piece pricing strategies, enforce 24K certificate-only VAT with manual/settings rate, normalize stone/pearl and RFID/history relations, and preserve financial/source identity. No implementation began. Next design marker: `OFFICIAL-LOCAL-INVENTORY-MASTER-TARGET-DESIGN-CONT1`.
+
+## Inventory Master target architecture approved for rehearsal — 2026-08-03
+
+The target design is complete enough for a disposable migration rehearsal. Existing `assets` remains canonical; additive foundations introduce typed profiles, state dimensions, location, components, immutable cost revisions, separate current valuation, pricing/VAT strategies, RFID/history, Asset document links, serialized custody, lineage, audits and adjustments. Legacy Product stock remains intact through dual-read compatibility and a row-by-row A–E migration decision; it is removed only after zero-consumer, data, financial and UI acceptance gates.
+
+Roadmap order is now: disposable backup/restore rehearsal and backfill proof; additive schema foundation; compatibility services/APIs; frontend slices; legacy reconciliation; local apply under separate authority; full Inventory and financial regression; only then cleanup. Open Returned approval, component-unit and CGP identity semantics stay disabled/reversible. No implementation or persistent DB change occurred. Next: `OFFICIAL-LOCAL-INVENTORY-MASTER-MIGRATION-REHEARSAL-CONT1`.
+
+## Inventory Master disposable rehearsal checkpoint — 2026-08-04
+
+Schema/backfill/constraint rehearsal is PASS on the disposable DB and committed at `b0e5fa720eba4d02eaa2773e22654a9cb0b8cffa`; persistent local state remains unchanged. The next roadmap action is still inside the same rehearsal marker: run isolated authenticated backend workflow/permission smoke and the remaining financial transaction matrix, then clean up the disposable target. Persistent application and `OFFICIAL-LOCAL-INVENTORY-MASTER-IMPLEMENTATION-CONT1` remain unauthorized.
+
+## Inventory Master workflow wiring blocker — 2026-08-04
+
+The authenticated receive smoke exposed that operational routes still persist only legacy Asset/PO/Event/Journal artifacts and do not write V2 origin/link/movement evidence. Completing this requires cross-cutting route and domain integration, not a small rehearsal-test correction. The current marker is blocked; preserve disposable evidence and obtain a separate implementation authority before wiring the five workflows.

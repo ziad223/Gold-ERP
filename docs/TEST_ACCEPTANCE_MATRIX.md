@@ -1,5 +1,29 @@
 # v1.0.0 Test and Acceptance Matrix
 
+## OFFICIAL-LOCAL-FINANCIAL-FIX-CONT3 — 2026-07-30
+
+| Check | Result |
+| --- | --- |
+| Exact guard / precision / concurrency | PASS — fresh migrated disposable HTTP proof |
+| F001 Branch / F002 event identity | PASS — focused regression coverage |
+| Persistent zero-write and concurrency | NOT_YET_RUN — new Product-owned installment required |
+| Retained-overpayment remediation | BLOCKED — no supported linked Product workflow |
+
+## OFFICIAL-LOCAL-FINANCIAL-FIX-CONT2 — 2026-07-30
+
+| Check | Result |
+|---|---|
+| Repeated collection event identity / F002 | PASS |
+| F001 Branch-aware installment posting | PASS |
+| Fresh disposable event-journal proof | PASS |
+| Upgrade restore rehearsal | PASS |
+| Pre-change backup restore rehearsal | PASS |
+| Second retained partial collection | PASS |
+| Replay same key / changed payload conflict | PASS / PASS |
+| Exact over-collection rejection | FAIL — F003 |
+| Persistent final collection acceptance | BLOCKED by F003 |
+
+Migration state remains `52/52/0`; no migration 53 was required.
 ## OFFICIAL-LOCAL-FINANCIAL-FIX-CONT1 — 2026-07-30
 
 | Contract | Result | Sanitized evidence boundary |
@@ -1064,3 +1088,148 @@ idempotency, rollback, isolation and zero residue.
 | Browser N5/N8 / NOTIF-ACCEPT | DEFERRED | No browser runtime counts claimed or authorization granted. |
 | PRE-RESET-BACKUP-RESTORE-REHEARSAL-CONT1 | PASS | Retained custom full and schema-only backups passed a real disposable restore. Public schema inventory, migration metadata, all table count/fingerprints, financial fingerprints, constraints, foreign-key orphan checks, sequence alignment, and read-only smoke checks passed. Source `darfus_erp/public` remained unchanged at `52/51/1`; restore residue was zero. |
 | MANUAL-LOCAL-SMOKE-CONT1 | PASS | Persistent `darfus_erp/public` `52/52/0`; setup/financial readiness READY; roles `12/12`; mappings `11/11`. Normal login/logout, 25 safe routes, Chart/mapping/readiness UI, six direct hard refreshes, and console review passed. One loading-only route passed controlled replay. BUSINESS/CONFIGURATION/FINANCIAL/SYSTEM fingerprints were unchanged; expected AUTH_SESSION delta only. Permission baseline, typecheck, diff check, and lint `0` errors/`18` inherited warnings passed. |
+## OFFICIAL-LOCAL-FINANCIAL-FIX-CONT3 — persistent guard proof boundary — 2026-07-30
+
+| Contract | Result |
+| --- | --- |
+| Six user-created open-installment integrity audit | PASS — provenance accepted; valid local linkage/reconciliation checks passed before use. |
+| Persistent over-limit, exact settlement, idempotency, concurrency | PASS — canonical 422/200/409/200+422 behavior through Product API. |
+| F001 trusted Branch / F002 durable collection event identity | PASS — static contracts retained. |
+| Historical original financial records | PASS — installment, payment, treasury, journal, lines, invoice, and audit fingerprints unchanged. |
+| Historical customer-receivable isolation | FAIL — selected valid proof customer matches the historical overpayment customer; valid Product collections changed that receivable. |
+| Post-proof backup and disposable restore | PASS — custom/schema boundary backup restored and disposable DB was dropped. |
+| Open cash-register session | PRE-EXISTING — count was one before and after proof; no proof-attributed delta. |
+
+No Product repair is authorized from this result. Next only:
+`OFFICIAL-LOCAL-FINANCIAL-DATA-REMEDIATION-CONT1`.
+
+## OFFICIAL-LOCAL-FINANCIAL-DATA-REMEDIATION-CONT1 — acceptance
+
+| Contract | Result |
+| --- | --- |
+| Historical source isolation / shared-customer proof separation | PASS — source event is deterministic; later proof data is not authority for the overage. |
+| Customer-credit reclassification | PASS — one server-calculated customer-credit event and balanced receivable/liability Journal. |
+| Treasury / original and proof immutability | PASS — zero remediation Treasury effect; original and proof financial fingerprints unchanged. |
+| Derived installment source state | PASS — collectible applied amount is exact after Product-owned replay reconciliation. |
+| Idempotency and F001/F002/F003 focused contracts | PASS — one effect only; boundary rehearsal and focused verifiers pass. |
+| Pre/post backup and disposable restore | PASS — custom/schema archives restored and all disposable databases dropped. |
+
+| CONT2 post-remediation baseline reuse | PASS — accepted boundary fingerprints, migrations, remediation Journal, permissions, and integrity match. |
+| CONT2 cash-dependent workflow matrix | BLOCKED_BY_VALID_PRECONDITION — a pre-existing open session occupies the sole Branch; a second session is correctly rejected by Product policy. |
+
+| CONT2 harness session reconciliation | BLOCKED — movement linkage/Journals are structurally valid, but opening plus canonical cash-ledger movement crosses the invalid negative boundary; no session action was taken. |
+| CONT2 root-cause/economic-truth gate | BLOCKED — first crossing is a valid purchase-order cash outflow and Treasury/GL cash is also negative; no truthful resolution event was authorized. |
+
+| CASH-SESSION-BASELINE-AUDIT-CONT1 | BLOCKED — a read-only timeline confirmed the historical temporary negative purchase crossing, but the persistent stored cash snapshot changed during the audit. Current Product-service and cash-GL values reconcile at `13184.7900`; no stable baseline or financial conclusion is yet available. |
+
+| CASH-SESSION-BASELINE-AUDIT-CONT1 continuation | STABLE WINDOW PASS — Snapshot A/B/C/D fingerprints and balances identical; `9386.4000` explained by eight authenticated Product requests. BLOCKED — raw Treasury movements are `0.0170` below cent-rounded installment journal legs, proving a four-decimal precision-accounting defect. Session adoption/closure not safe; next `OFFICIAL-LOCAL-FINANCIAL-DATA-AUDIT-CONT1`. |
+
+## OFFICIAL-LOCAL-FINANCIAL-DATA-AUDIT-CONT1 — read-only precision scope
+
+| Contract | Result |
+| --- | --- |
+| Git/protected gate | PASS — `main` / `aba826fd90ba8b742afcb6e316fe376d003b635f`, staged/untracked `0/0`, stashes `11`, remotes `0`, required next-env hash; only three inherited semantic-equal CRLF artifacts. |
+| Runtime/database baseline | PASS — ports `3000/8000/5432`; `darfus_erp/public`; `52/52/0`; setup/financial `READY`; `12/11/128`; one open Main Branch session. |
+| Monetary schema | PASS — source/Treasury/Installment/session money supports four decimals and Journal/Account supports eight; no migration required. |
+| Precision scope | FAIL / blocker — only `installment_collection`; five events; exact source/Treasury `3934.6580`, Journal `3934.6800`, signed delta `+0.0220`, max row `0.0050`. |
+| Current-session composition | PASS — `5.3750→5.3800`, `4.4150→4.4200`, `4.4150→4.4200`, `5.2980→5.3000`; exact `0.0170`. |
+| Economic/source integrity | PASS — Payment equals Treasury, Journal legs match and balance, durable identity/idempotency/audit linkage present. |
+| Account/report authority | PASS structurally / MIXED impact — Account mirrors Journal; ledger surfaces follow GL, raw Treasury/source surfaces follow exact operational data; Income Statement unaffected. |
+| F001/F002/F003 and overpayment boundary | PASS — trusted Branch, durable event identity, locked exact guard, prior `0.0100` credit/reclassification and zero Treasury effect. |
+| Typecheck, targeted lint, diff check | PASS / PASS / PASS. |
+| Static F001/F002/F003 and overpayment contracts | PASS / PASS / PASS / PASS. |
+| Permission/migration inventory | PASS — canonical `128`; source/applied `52/52`. |
+| Final integrity and write boundary | PASS — all unbalanced/orphan/duplicate/unlinked/transaction-time-account/idle/waiting/disposable counts zero; audit writes zero. |
+
+Product repair and historical remediation were not run. Financial acceptance
+remains blocked. Next: `OFFICIAL-LOCAL-FINANCIAL-FIX-CONT4`.
+
+## OFFICIAL-LOCAL-FINANCIAL-FIX-CONT4 — acceptance matrix
+
+| Contract | Result |
+| --- | --- |
+| Product exact-posting repair | PASS — installment Journal/Account posting and register calculation preserve four decimals; presentation may remain 2dp. |
+| Focused regressions | PASS — precision/remediation verifier plus F001/F002/F003 and overpayment guards; typecheck and targeted lint pass. |
+| Disposable DB and cleanup | PASS — exact posting, five correction fixtures, duplicate guard, zero Treasury effect, rollback sentinel, and database cleanup. |
+| Backup and restore rehearsal | PASS — pre-write custom dump restored into disposable target; target removed. |
+| Persistent five-event remediation | PASS — exactly five Product correction Journals, total `0.0220` (`cash 0.0170`, `bank 0.0050`), zero remediation Treasury rows. |
+| Replay/duplicate contract | PASS — same-key same-body replay returned stored result; same-key body conflict and different-key duplicate effect returned `409`. |
+| Cash/bank/report reconciliation | PASS — stored/GL/Treasury/report cash `13184.7730`, bank `-28.8650`; movement difference `0`. |
+| Original/history integrity | PASS — immutable source scopes unchanged; prior `0.0100` overpayment correction preserved with zero Treasury. |
+| Session boundary | BLOCKED BY OWNER FACT — inherited open session was not opened/closed/adopted/edited; physical count required before acceptance. |
+| Deployment boundary | BLOCKED — no migration 53, package/lock/env semantic change, Inventory work, deployment, push, or next-phase automation. |
+
+Product commit: `e9d7bbffed26d93346b1c201b5b4f4a5c46d5380`. Documentation commit subject: `docs: accept installment precision remediation`. Next marker: `OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-HARNESS-CONT2`.
+
+## OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-HARNESS-CONT2 — read-only result
+
+| Contract | Result |
+| --- | --- |
+| Exact checkpoint and protected gate | PASS — `main` / `ea8213ac99d6d3190b65211aa99ba431ef7edc6f`, staged/untracked `0/0`, stashes `11`, remotes `0`, protected semantic equality and next-env hash. |
+| CONT4 preservation | PASS — five correction Journals, zero Treasury rows, total `0.0220`, zero active mismatch. |
+| Cash/bank reconciliation | PASS — cash `13184.7730`; bank `-28.8650` across stored, GL, Treasury, session/report surfaces. |
+| Session ownership/book balance | PASS — inherited pre-CONT2; opening `1.5000` plus net movements `13183.2730` equals `13184.7730`. |
+| Movement integrity | PASS — 29 safe-fingerprinted posted movements; unknown amount `0`, invalid active amount `0`. |
+| Report/database/static integrity | PASS — report surfaces agree; zero unbalanced/orphan/duplicate/unlinked/idle/waiting/disposable findings; typecheck, targeted lint, permission and precision/F001/F002/F003 guards pass. |
+| Physical cash verification | NOT TESTED — owner supplied no physical count; no variance inferred. |
+| Session action | BLOCKED — session remains open, unadopted, and unedited. |
+| Remaining financial acceptance | BLOCKED_BY_PHYSICAL_COUNT — matrix not resumed. |
+| Inventory Master V2 | UNCHANGED — parallel requirements preserved; no Inventory mutation. |
+
+Next marker: `OFFICIAL-LOCAL-FINANCIAL-CASH-COUNT-CONFIRMATION-CONT1`.
+
+## OFFICIAL-LOCAL-INVENTORY-MASTER-CURRENT-SYSTEM-AUDIT-CONT1 — read-only acceptance — 2026-08-03
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Exact Word/Word/Excel access and complete read | PASS | 1161/481 Word paragraphs and all 10 populated Excel sheets inspected |
+| Authority and owner overrides normalized | PASS | Piece-only target; 24K certificate-only VAT; manual/settings VAT rate |
+| DB/quantity/API/frontend/financial dependency maps | PASS | Detailed A–BA map in `docs/RELEASE_GAP_AUDIT.md` |
+| Product/database/Inventory/financial/session writes | PASS | `0/0/0/0/0` |
+| Current Product compatible with target | FAIL (expected gap) | Hybrid Assets + Product quantities; missing profile/state/component/RFID/history layers |
+| Release/Staging/Production | NOT AUTHORIZED | Design and migration rehearsal remain future phases |
+
+Classification: `OFFICIAL-LOCAL-INVENTORY-MASTER-CURRENT-SYSTEM-AUDIT-CONT1 = COMPLETE`. Next marker: `OFFICIAL-LOCAL-INVENTORY-MASTER-TARGET-DESIGN-CONT1`.
+
+## OFFICIAL-LOCAL-INVENTORY-MASTER-TARGET-DESIGN-CONT1 — design acceptance — 2026-08-03
+
+| Gate | Result | Future rehearsal proof |
+| --- | --- | --- |
+| Canonical architecture/table/relationship/service design | PASS | `EXISTING_ASSETS_KEEP_AND_EXTEND`; detailed A–BP blueprint in `docs/RELEASE_GAP_AUDIT.md`. |
+| Quantity boundary | PASS | Stock quantity forbidden; document quantity and embedded component count only; loose pieces each require an Asset. |
+| Identity/state/history | PASS | Permanent Asset/Barcode; optional historical RFID; normalized operational/condition/tag state; append-only history. |
+| Cost/valuation/VAT/pricing | PASS | Immutable purchase revisions, separate valuation, profile strategies, 24K certificate-only VAT, server-calculated amount. |
+| Compatibility/migration/rehearsal plan | PASS | Segmented additive migrations, dual-read/write, A–E Product classification, disposable-only first execution. |
+| All ten profile acceptance design | PASS | Per-profile receipt, validation, formula, override, VAT, price, identity, workflow, audit and report coverage defined. |
+| Quantity/concurrency/security negatives | PASS (designed) | Reject quantity-only sale/reserve/transfer, duplicates/double effects, client totals/accounts and unauthorized overrides. |
+| Requirement-open isolation | PASS | Returned approval, component units and CGP identity remain reversible/disabled rather than guessed. |
+| Design-owned Product/database/financial/session writes | PASS | `0/0/0/0`; persistent state and financial baseline unchanged. |
+| Release/Staging/Production | NOT AUTHORIZED | Rehearsal and later explicit implementation/acceptance phases are still required. |
+
+Classification: `COMPLETE_WITH_REQUIREMENT_OPEN_ITEMS`; `TARGET_ARCHITECTURE = APPROVED_FOR_REHEARSAL`. Next marker: `OFFICIAL-LOCAL-INVENTORY-MASTER-MIGRATION-REHEARSAL-CONT1`.
+
+## OFFICIAL-LOCAL-INVENTORY-MASTER-MIGRATION-REHEARSAL-CONT1 — checkpoint — 2026-08-04
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Backup restore and disposable identity | PASS | Exact dump hash retained; explicit disposable restored and migrated twice. |
+| Five migrations/backfill | PASS | `52→57`; profiles 50, Branch 50, Location 50 nullable, condition unknown 50, cost/origin/PO 50, invoice Asset links 6. |
+| Product/source preservation | PASS | Products D-preserved 3; no expansion of on-hand 100; invoice Product legacy 6. |
+| Constraint/orphan/quantity/Barcode/RFID/condition/component | PASS | Focused verifier 24/24; all integrity counters zero. |
+| Decimal weight / VAT / pricing | PASS | 21K weight fixture and certificate-only 24K VAT fixture; three strategies; no generic fallback. |
+| Financial/persistent invariant | PASS | Cash `13184.7730`, bank `-28.8650`, mirror zero, one session, 52 persistent migrations, five new absent. |
+| Forward-only rollback | PASS | Destructive down rejected; restore-from-backup recovery proven. |
+| Typecheck / targeted ESLint / barcode foundation | PASS | Exit 0. |
+| Authenticated API workflow and permissions smoke | NOT RUN | Isolated background service launch blocked by environment. |
+| Frontend smoke | NOT RUN WITH REASON | Avoided known protected `next-env.d.ts` regeneration; hash remains exact. |
+| Full phase classification | IN PROGRESS | Do not advance to implementation until the two smoke boundaries pass. |
+
+## Authenticated continuation result — 2026-08-04
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Authenticated Supplier Receive legacy route | PASS | In-process HTTP, normal technical session, explicit Company/Branch; `201` then replay `201`, altered same-key `409`; two Assets and balanced purchase Journal `200/200`. |
+| Supplier Receive V2 target evidence | FAIL — Product defect | Two Assets but origins `0`, PO-item Asset links `0`, movements `0`; no explicit `perPiece` API contract. |
+| Sale / Reservation / Return / Exchange target paths | NOT RUN — blocked | Runtime does not consume V2 document/origin/movement tables, so a passing legacy route would not prove the approved target. |
+| Transaction-level financial regression | NOT RUN — blocked | Receive legacy Journal is balanced, but mandatory target workflow sources are not persisted. |
+| Final classification | BLOCKED | `INVENTORY_REHEARSAL_PRODUCT_DEFECT`; no persistent mutation. |

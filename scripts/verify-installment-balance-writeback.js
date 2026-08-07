@@ -57,16 +57,16 @@ function writeback() {
   assert.ok(installmentRoute.includes("lock: { level: t.LOCK.UPDATE, of: models.Customer }"), "customer row is locked");
 
   assert.ok(
-    /remainingAmount:\s*Math\.max\(0,\s*round4\(Number\(invoice\.remainingAmount \|\| 0\) - amount\)\)/.test(installmentRoute),
-    "Invoice.remainingAmount is reduced and clamped",
+    installmentRoute.includes("remainingAmount: moneyFromTenThousandths(invoiceRemainingUnits > requestedAmountUnits ? invoiceRemainingUnits - requestedAmountUnits : 0n)"),
+    "Invoice.remainingAmount is reduced and clamped in canonical decimal units",
   );
   assert.ok(
-    /paidAmount:\s*round4\(Number\(invoice\.paidAmount \|\| 0\) \+ amount\)/.test(installmentRoute),
-    "Invoice.paidAmount is increased",
+    installmentRoute.includes("paidAmount: moneyFromTenThousandths(invoicePaidUnits + requestedAmountUnits)"),
+    "Invoice.paidAmount is increased in canonical decimal units",
   );
   assert.ok(
-    /balance:\s*Math\.max\(0,\s*round4\(Number\(customer\.balance \|\| 0\) - amount\)\)/.test(installmentRoute),
-    "Customer.balance is reduced and clamped",
+    installmentRoute.includes("balance: moneyFromTenThousandths(customerBalanceUnits > requestedAmountUnits ? customerBalanceUnits - requestedAmountUnits : 0n)"),
+    "Customer.balance is reduced and clamped in canonical decimal units",
   );
 }
 

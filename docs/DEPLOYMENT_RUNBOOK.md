@@ -1,5 +1,17 @@
 # Deployment Runbook — Parameterized and Tag-Gated
 
+## Local financial F003 boundary — 2026-07-30
+
+No deployment authorization follows the committed guard. A pre-F003 backup and disposable restore rehearsal passed; the retained overpayment remains untouched pending an explicit supported data-remediation workflow.
+
+## Local financial gate — 2026-07-30
+
+Do not promote the current build. The local code-only F002 repair preserves the
+global journal uniqueness index and passed fresh/upgrade restore proofs, but
+F003 remains open: exact outstanding validation must reject all over-collection
+before financial writes. Retained local data must not be reset or restored
+automatically; use the retained pre-F002 backup only for an explicitly
+authorized disposable rehearsal.
 ## Persistent financial repair boundary — 2026-07-30
 
 Deployment remains prohibited. `FINANCIAL-ACCEPT-F001` has a focused code and
@@ -134,6 +146,15 @@ Do not deploy or apply migration 52. Run
 `FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT2` next to complete independent
 posting/report acceptance, then proceed only under a later explicit release
 marker.
+
+## Cash-session baseline audit hold — 2026-07-31
+
+No deployment, promotion, session action, or financial remediation is permitted
+while the cash baseline is unstable. The read-only audit confirmed the earlier
+temporary purchase-order crossing, then observed the persistent stored
+cash-account snapshot change before provenance was complete; current service and
+cash-GL figures reconcile at `13184.7900`. Resume only the baseline-audit
+marker after the unrecorded delta is explained.
 
 ## FINANCIAL-ACCOUNT-RUNTIME-ACCEPT-CONT1 — deployment remains prohibited — 2026-07-30
 
@@ -809,3 +830,97 @@ only the Product-owned technical-session lifecycle; BUSINESS, CONFIGURATION,
 FINANCIAL, and SYSTEM fingerprints stayed unchanged. No deployment, push,
 setup-token action, migration, backup restore, or source change was performed.
 This local smoke result is not a Staging or Production authorization.
+## Local persistent financial-proof hold — 2026-07-30
+
+Do not promote or reset from the current local database. The Product guard
+passed persistent API proof, but a valid proof collection shares the historical
+overpayment customer's receivable. Original historical payment, treasury,
+journal, invoice, and audit records are unchanged; the customer-receivable
+boundary requires controlled data remediation. A post-proof custom/schema
+backup and disposable restore are available. Next only:
+`OFFICIAL-LOCAL-FINANCIAL-DATA-REMEDIATION-CONT1`.
+
+One open cash-register session is inherited from the pre-proof boundary; do not
+close or modify it in this phase.
+
+## Local remediation boundary — 2026-07-30
+
+`LOCAL-FINANCIAL-DATA-F001` was resolved on the local development database by a
+normal authenticated Product API workflow after a verified pre-remediation
+backup. The workflow recorded a customer-credit reclassification with a balanced
+Journal and zero Treasury delta, retained all source/proof events, and passed
+post-remediation restore verification. The pre-existing cash-register session was
+not used or changed. This does not authorize deployment; continue only with
+`OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-CONT2` when separately directed.
+
+## Cash-session acceptance hold — 2026-07-30
+
+The post-remediation local baseline remains intact. Do not alter the inherited
+open cash-register session: it blocks a dedicated acceptance session on the
+sole Branch and therefore blocks cash workflow acceptance. No deployment or
+promotion is authorized. Next: `OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-HARNESS-CONT2`.
+
+## Cash-register integrity hold — 2026-07-31
+
+Do not close or repurpose the inherited open session. Its linked records are
+structurally sound, but the calculated current-cash boundary is invalid and no
+safe declared closing amount is available. Resolve that owner-led local session
+boundary before resuming the financial acceptance harness.
+
+## Cash-session baseline continuation — stable window, precision defect — 2026-08-03
+
+Snapshot A/B/C/D are stable and the prior persistent cash change is explained by eight normal Product requests (`9386.4000`). No deployment, login, session action, financial write, or service operation occurred. GL/session cash is `13184.7900`, while raw Treasury movement totals are `13184.7730` because four historical installment journal legs were cent-rounded. Product defect is proven; release, Staging, Production, adoption, and closure remain unauthorized. Next only: `OFFICIAL-LOCAL-FINANCIAL-DATA-AUDIT-CONT1`.
+
+## Economic cash-deficit hold — 2026-07-31
+
+The session root cause is a real posted purchase cash outflow and a negative
+Treasury/GL cash state. No automated session closure or balancing action is safe
+without a real counted-cash/funding decision. Continue only with the dedicated
+cash-session remediation design marker.
+
+## Installment precision repair hold — 2026-08-03
+
+Do not deploy or manually correct the five affected rows. The proven scope is
+`installment_collection` only, totaling `+0.0220` Journal-over-Treasury
+(`+0.0170` cash, `+0.0050` bank). Existing Payment/Treasury/source records and
+the prior `0.0100` customer-credit reclassification are immutable inputs.
+
+The authorized future Product workflow must post collections at exact four
+decimals, preserve four-decimal register calculation, and create at most one
+audited correction Journal per durable Payment (AR debit / original mapped
+cash-or-bank credit). It must create no CashTransaction, customer/supplier
+effect, or invented event, and must prove idempotency, exact cross-ledger
+equality, Account mirror equality, report reconciliation, and unchanged
+F001/F002/F003/overpayment evidence. No migration is required.
+
+After implementation/remediation require a read-only zero-mismatch scan, cash
+`13184.7730`, bank `-28.8650`, one unchanged open session, and zero integrity
+failures before re-audit. A physical count remains mandatory before close or
+adoption. Release, Staging, Production, push, and session action remain
+unauthorized. Next only: `OFFICIAL-LOCAL-FINANCIAL-FIX-CONT4`.
+
+## Installment precision repair — local-only completion — 2026-08-03
+
+CONT4 passed locally after Product commit `e9d7bbffed26d93346b1c201b5b4f4a5c46d5380`. The exact four-decimal posting/register repair and source-linked remediation workflow passed focused, disposable, replay, and duplicate-effect checks. The pre-remediation dump was restored into a disposable target and cleaned up. Five correction Journals total `0.0220` (`cash 0.0170`, `bank 0.0050`) with no Treasury remediation rows. Ledger-derived dashboard, Treasury summary, and cash reconciliation agree at cash `13184.7730`, bank `-28.8650`, and zero movement difference. The sole open inherited session remains unchanged; physical count and owner decision are required before closure/adoption. Do not deploy, push, alter the session, or begin the next acceptance phase automatically. Next: `OFFICIAL-LOCAL-FINANCIAL-ACCEPTANCE-HARNESS-CONT2`.
+
+## Physical cash-count deployment hold — 2026-08-03
+
+The read-only CONT2 harness confirms the inherited session is accounting-reconciled at `13184.7730`; bank is `-28.8650`, report consistency passes, and there is no active precision mismatch. A physical count was not supplied. Do not close/adopt/edit the session, infer a count, post a variance, deploy, push, or resume the financial acceptance matrix. Required owner action is an exact physical cash count. Next: `OFFICIAL-LOCAL-FINANCIAL-CASH-COUNT-CONFIRMATION-CONT1`.
+
+## Inventory Master V2 migration safety boundary — 2026-08-03
+
+The current-system audit is complete and strictly read-only. Do not remove Product quantity fields, rename Asset/schema fields, rewrite Barcodes, backfill component JSON, alter CGP disposition, or apply a migration from this marker. A future implementation requires a fresh preflight, backup, disposable restore/rehearsal, FK/orphan and barcode-uniqueness proof, identity/financial-reference preservation, API/UI regression, rollback rehearsal, then explicit local-apply authorization. The open cash session and `13184.7730`/`-28.8650` financial baseline remain out of scope. Next design marker: `OFFICIAL-LOCAL-INVENTORY-MASTER-TARGET-DESIGN-CONT1`.
+
+## Inventory Master target-design rehearsal boundary — 2026-08-03
+
+The architecture is approved for rehearsal, not deployment. Use a fresh exact-checkpoint preflight, create a timestamped backup, restore to an explicitly named disposable DB, and point all migration/backfill/API smoke work only at that target. Prove `52/52` source migration baseline, additive migration ordering, rollback/forward recovery, Asset/Product classification, FK/orphan and Barcode/RFID uniqueness, append-only history, document/source links, profile formulas, state/concurrency negatives and unchanged Journal/Treasury/Account effects. Verify the target name before cleanup and leave persistent `darfus_erp` untouched.
+
+Do not reassign Asset IDs/Barcodes, clone Product averages into pieces, enable unresolved Returned/CGP behavior, drop legacy columns/tables, change finance/account mappings, touch the cash session, deploy or push. Cleanup/deprecation is excluded from the foundation rehearsal. Next only: `OFFICIAL-LOCAL-INVENTORY-MASTER-MIGRATION-REHEARSAL-CONT1`.
+
+## Inventory Master rehearsal recovery evidence — 2026-08-04
+
+Verified dump: `backend/backups/darfus_erp_development_2026-08-04T07-31-38-212Z.dump`, SHA-256 `CC0491439A500C68F0340272B58B9C7F04EA85B5136A2E5232EAC7D2B9C5A8AE`. The five migrations are intentionally `NON_DESTRUCTIVE_FORWARD_ONLY`; never force a down or delete evidence tables. Recovery is: prove target has the disposable prefix and is not `darfus_erp`, drop only that exact disposable, create it, restore this verified dump, then reapply and rerun `backend/scripts/verify-inventory-master-rehearsal.js` with both DB environment guards set. Do not apply these migrations to persistent local DB under this marker.
+
+## Authenticated workflow evidence preservation — 2026-08-04
+
+Keep `darfus_erp_inventory_rehearsal_20260804_120001z` intact: it contains the isolated authenticated receive proof and the missing V2 persistence evidence. Do not clean it while `INVENTORY_REHEARSAL_PRODUCT_DEFECT` is open. It is never a deployment target and must not be confused with persistent `darfus_erp`.
