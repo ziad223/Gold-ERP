@@ -669,20 +669,18 @@ export default function SettingsPage() {
     } else {
       const loadingToast = toast.loading(rtl ? "جاري رفع الشعار..." : "Uploading logo...");
       try {
-        const token = localStorage.getItem("darfus-token-v1") || sessionStorage.getItem("darfus-token-v1");
-        const headers: Record<string, string> = {};
-        if (token) {
-          headers["Authorization"] = `Bearer ${token}`;
-        }
         const fd = new FormData();
         fd.append("logo", file);
-        const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
-        const response = await fetch(`${apiBaseUrl}/uploads/logo`, {
+        const resJson = await apiClient<{
+          success?: boolean;
+          url?: string;
+          message?: string;
+          data?: { company?: Record<string, unknown> };
+        }>("/uploads/logo", {
           method: "POST",
-          headers,
-          body: fd
+          body: fd,
+          locale,
         });
-        const resJson = await response.json();
         toast.dismiss(loadingToast);
 
         if (resJson.success && resJson.url) {
