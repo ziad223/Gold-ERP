@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useLocale } from "next-intl";
+import { useParams } from "next/navigation";
 import { ArrowLeft, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import { apiClient } from "@/lib/api/client";
+import { depositReceiptByIdPath } from "@/lib/api/reservation-deposit-receipt-contract";
 
 type Receipt = {
   id: string;
@@ -20,16 +22,28 @@ const value = (input: unknown, fallback = "—") => input === null || input === 
 
 export default function ReservationDepositReceiptPage() {
   const locale = useLocale();
+  const params = useParams<{ receiptId?: string }>();
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const receiptId = typeof window === "undefined" ? "" : window.location.pathname.split("/").filter(Boolean).at(-1) || "";
+  const receiptId = typeof params.receiptId === "string" ? params.receiptId : "";
   const rtl = locale === "ar";
 
   useEffect(() => {
+    let active = true;
+    setReceipt(null);
+    setError(null);
     if (!receiptId) return;
-    apiClient<{ data?: Receipt }>(`/reservation-deposit-receipts/${encodeURIComponent(receiptId)}`, { locale })
-      .then((response) => setReceipt(response.data || null))
-      .catch(() => setError(text(locale, "تعذر تحميل الإيصال الثابت.", "The immutable receipt could not be loaded.")));
+    let path: string;
+    try {
+      path = depositReceiptByIdPath(receiptId);
+    } catch {
+      if (active) setError(text(locale, "معرف الإيصال غير صالح.", "The receipt identifier is invalid."));
+      return () => { active = false; };
+    }
+    apiClient<{ data?: Receipt }>(path, { locale })
+      .then((response) => { if (active) setReceipt(response.data || null); })
+      .catch(() => { if (active) setError(text(locale, "تعذر تحميل الإيصال الثابت.", "The immutable receipt could not be loaded.")); });
+    return () => { active = false; };
   }, [locale, receiptId]);
 
   if (error) return <main className="p-6 text-destructive">{error}</main>;
@@ -46,7 +60,7 @@ export default function ReservationDepositReceiptPage() {
   const currency = payment.currency || "AED";
 
   return (
-    <main dir={rtl ? "rtl" : "ltr"} className="mx-auto max-w-4xl space-y-4 p-4 print:max-w-none print:p-0">
+    <main data-print-page="true" dir={rtl ? "rtl" : "ltr"} className="mx-auto max-w-4xl space-y-4 p-4 print:max-w-none print:p-0">
       <div className="flex items-center justify-between print:hidden">
         <Link href="/sales/reservations" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className={rtl ? "rotate-180" : ""} size={16} />
@@ -55,7 +69,7 @@ export default function ReservationDepositReceiptPage() {
         <Button onClick={() => window.print()} className="gap-2"><Printer size={16} />{text(locale, "طباعة", "Print")}</Button>
       </div>
 
-      <article className="space-y-6 rounded-xl border bg-background p-6 shadow-sm print:border-0 print:shadow-none">
+      <article data-print-root="true" className="space-y-6 rounded-xl border bg-background p-6 shadow-sm print:border-0 print:shadow-none">
         <header className="flex flex-wrap justify-between gap-6 border-b pb-5">
           <div>
             <h1 className="text-2xl font-bold">{value(company.name, text(locale, "شركة دارفوس للمجوهرات", "DARFUS Jewellery"))}</h1>

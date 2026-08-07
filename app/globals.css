@@ -289,6 +289,29 @@ select option:disabled {
     display: block !important;
   }
 
+  /* Receipt pages live inside AppShell.  Keep that ancestor in the print tree
+     only when it contains an explicit printable root, then suppress every
+     dashboard surface except the marked receipt. */
+  [data-app-shell="true"]:has([data-print-root="true"]) {
+    display: block !important;
+    min-height: 0 !important;
+    background: #fff !important;
+  }
+
+  [data-app-shell="true"]:has([data-print-root="true"]) > div {
+    min-height: 0 !important;
+    margin: 0 !important;
+  }
+
+  [data-app-shell="true"]:has([data-print-root="true"]) [data-print-page="true"] {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  [data-app-shell="true"]:has([data-print-root="true"]) [data-print-page="true"] > :not([data-print-root="true"]) {
+    display: none !important;
+  }
+
   [data-print-root="true"],
   [data-print-root="true"] * {
     color-adjust: exact;

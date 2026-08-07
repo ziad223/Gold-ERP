@@ -16,6 +16,7 @@ import { useAppSettings } from "@/contexts/settings-context";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Link } from "@/i18n/navigation";
 import { apiClient, generateUUID } from "@/lib/api/client";
+import { reservationDepositReceiptHistoryPagePath } from "@/lib/api/reservation-deposit-receipt-contract";
 import { DATA_SOURCE } from "@/lib/data-source";
 import { formatCurrency } from "@/lib/utils";
 import { queryKeys } from "@/lib/query-keys";
@@ -948,7 +949,7 @@ export default function ReservationsPage() {
 
             <Section title={rtl ? "دفعات الحجز" : "Payment history"}>
               {canViewReceipts && selectedReservation.id && (
-                <Link href={`/sales/reservations/${selectedReservation.id}/receipt-history`} className="mb-2 inline-block text-xs font-bold text-brand-700 underline">
+                <Link href={reservationDepositReceiptHistoryPagePath(selectedReservation.id)} className="mb-2 inline-block text-xs font-bold text-brand-700 underline">
                   {rtl ? "سجل إيصالات العربون" : "Deposit receipt history"}
                 </Link>
               )}
@@ -956,7 +957,7 @@ export default function ReservationsPage() {
                 <div key={payment.id} className="rounded-2xl border border-border p-3 text-xs flex justify-between items-center">
                   <span>{payment.receiptNumber || payment.id} · {payment.status} · {payment.paymentMethod || "cash"} · {money(payment.amount)} · {payment.receivedAt || "—"}</span>
                   {payment.status === "posted" && canViewReceipts && (
-                    <Link href={`/sales/reservations/${selectedReservation.id}/receipt-history`} className="text-[10px] font-bold text-brand-700 underline ml-2">
+                    <Link href={reservationDepositReceiptHistoryPagePath(selectedReservation.id)} className="text-[10px] font-bold text-brand-700 underline ml-2">
                       {rtl ? "عرض الإيصالات" : "View receipts"}
                     </Link>
                   )}
