@@ -46,6 +46,8 @@ function sourceContract() {
   const models = read("backend/src/models/index.js");
   const printPage = read("app/[locale]/(dashboard)/sales/reservations/receipts/[receiptId]/page.tsx");
   const historyPage = read("app/[locale]/(dashboard)/sales/reservations/[id]/receipt-history/page.tsx");
+  const receiptContract = read("lib/api/reservation-deposit-receipt-contract.ts");
+  const globalStyles = read("app/globals.css");
 
   assert(service.includes("ON CONFLICT (company_id, branch_id, sequence_year) DO NOTHING"), "allocator initializes one branch/year row safely");
   assert(service.includes("SET next_value = next_value + 1") && service.includes("RETURNING next_value - 1 AS value"), "allocator increments atomically");
@@ -59,9 +61,23 @@ function sourceContract() {
   assert(routes.includes('"/reservation-deposit-receipts/number/:receiptNumber"') && routes.includes('"/reservation-deposit-receipts/:receiptId"'), "receipt lookup routes exist");
   assert(routes.includes('"/reservation-payments/:paymentId/deposit-receipt"') && routes.includes('"/reservations/:id/deposit-receipts"'), "payment lookup and history routes exist");
   assert(routes.includes("requireBusinessPermission(reservationPerms.viewReceipts)"), "receipt reads require the dedicated permission");
+  assert.match(routes, /router\.get\("\/reservation-deposit-receipts\/number\/:receiptNumber", authMiddleware, requireBusinessPermission\(reservationPerms\.viewReceipts\), async \(req, res, next\) => \{[\s\S]{0,600}resolveAuthorizedBranchId\(/, "receipt-number reads retain authenticated branch authorization");
+  assert.match(routes, /router\.get\("\/reservations\/:id\/deposit-receipts", authMiddleware, requireBusinessPermission\(reservationPerms\.viewReceipts\), async \(req, res, next\) => \{[\s\S]{0,600}resolveAuthorizedBranchId\(/, "receipt-history reads retain authenticated branch authorization");
+  assert(service.includes("where: { companyId, ...where }") && service.includes("String(receipt.branchId) !== String(branchId)"), "receipt detail lookups remain company and branch scoped");
+  assert(service.includes("where: { companyId, branchId, reservationId }") && service.includes("Reservation not found"), "receipt history remains company, branch, and reservation scoped");
   assert(models.includes("ReservationPayment.hasOne(ReservationDepositReceiptDocument") && models.includes("ReservationDepositReceiptDocument.belongsTo(Employee"), "receipt associations are registered");
+  assert(receiptContract.includes("export function depositReceiptByIdPath") && receiptContract.includes("/reservation-deposit-receipts/${encodeURIComponent(depositReceiptIdFromRouteParam(receiptId))}"), "immutable RDR IDs have one explicit detail route");
+  assert(receiptContract.includes("export function depositReceiptByNumberPath") && receiptContract.includes("/reservation-deposit-receipts/number/${encodeURIComponent(requiredIdentifier(receiptNumber, \"Deposit receipt number\", RECEIPT_NUMBER))}"), "DEP numbers have one explicit number route");
+  assert(receiptContract.includes("export function reservationDepositReceiptHistoryPath") && receiptContract.includes("/reservations/${encodeURIComponent(reservationIdFromRouteParam(reservationId))}/deposit-receipts?limit=${safeLimit}"), "receipt history is explicitly reservation-owned");
+  assert(!receiptContract.includes("reservations/sales/deposit-receipts") && !receiptContract.includes("reservation-deposit-receipts/receipt-history"), "stale static receipt paths are absent from the contract");
+  assert(receiptContract.includes("depositReceiptIdFromRouteParam") && receiptContract.includes("reservationIdFromRouteParam") && receiptContract.includes("RDR_ID") && receiptContract.includes("RESERVATION_ID"), "route identifiers are fail-closed by canonical prefix");
+  assert(historyPage.includes("useParams") && historyPage.includes("reservationDepositReceiptHistoryPath(reservationId)") && historyPage.includes("depositReceiptDetailPagePath(row.id)") && !historyPage.includes("window.location.pathname"), "history UI gets a Reservation route param and links only RDR receipt IDs");
+  assert(printPage.includes("useParams") && printPage.includes("depositReceiptByIdPath(receiptId)") && !printPage.includes("window.location.pathname") && printPage.includes('data-print-root="true"') && printPage.includes('data-print-page="true"'), "detail UI gets an RDR route param, resets stale state, and marks its printable root");
+  assert(historyPage.includes("let active = true") && printPage.includes("let active = true") && historyPage.includes("setError(null)") && printPage.includes("setReceipt(null)"), "navigation changes clear stale state and ignore late responses");
   assert(printPage.includes("window.print()") && printPage.includes("receipt.snapshot"), "print UI reads the immutable snapshot only");
-  assert(historyPage.includes("/deposit-receipts?limit=50"), "history UI uses the receipt-history endpoint");
+  assert(globalStyles.includes('[data-app-shell="true"]:has([data-print-root="true"])') && globalStyles.includes('[data-print-page="true"] > :not([data-print-root="true"])'), "print CSS preserves only the marked receipt under AppShell");
+  assert(globalStyles.includes('[data-app-sidebar="true"]') && globalStyles.includes('[data-app-header="true"]'), "print CSS continues to hide navigation chrome");
+  assert(globalStyles.lastIndexOf('[data-app-shell="true"]:has([data-print-root="true"])') > globalStyles.indexOf('[data-app-shell="true"]'), "receipt print override follows the generic AppShell hide rule");
 }
 
 function resourceContract() {
