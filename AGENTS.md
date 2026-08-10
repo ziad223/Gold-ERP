@@ -1,6 +1,12 @@
 # DARFUS ERP acceptance guardrails
 
 - Never write to `darfus_erp` during rehearsal or acceptance work.
+- **PERSISTENT PRODUCTION PROMOTION EXCEPTION**
+  - The default rule above remains binding for rehearsal, acceptance, ordinary verification, fixtures, destructive testing, and normal Codex work.
+  - A Persistent write is allowed only for a named, explicit Owner-authorized promotion batch whose exact database, start/end baselines, and migration sequence are stated, and only after a fresh verified backup, restorable disposable rehearsal, exact-sequence rehearsal, business-integrity/data-preservation pass, and an active-business-write check immediately before apply.
+  - Historical authorization `AUTHORIZE_PROD_PROMOTION_01_PERSISTENT_WRITE_EXCEPTION` was solely for the now-closed `PROD-PROMOTION-01`: target `darfus_erp`; `61 -> 77`; `EXACT_TESTED_62_TO_77_SEQUENCE_ONLY`. It permitted only approved migration schema metadata and migration-defined system configuration (tables/columns/indexes/constraints/SequelizeMeta, permission definitions, semantic account-role definitions, integration outbox/inbox schema, deterministic backfills, and canonical mappings).
+  - It never permits fixtures, fake business transactions, acceptance-data copy/restore, database replacement, truncate/broad cleanup, manual SQL business writes, automatic restore, server work, deployment, or migrations outside that exact sequence. It is not a global Persistent-write authorization.
+  - `PROD-PROMOTION-01` ended and this exception is expired. Every later Persistent write, smoke verification, repair, restore, or migration requires a new explicit Owner authorization.
 - Current acceptance database: `darfus_erp_inventory_rehearsal_20260804_160500z`.
 - Before every mutation, run `SELECT current_database()` and require that exact acceptance DB.
 - `ONE_PHYSICAL_PIECE = ONE_ASSET` and `NO_QUANTITY_BASED_INVENTORY = YES`.

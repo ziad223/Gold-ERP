@@ -155,3 +155,65 @@ CONT49 confirmed manual-test defects safe repair:
 - `D01_FINANCIAL_READINESS = INSUFFICIENT_EVIDENCE`; `D02_COMPANY_CONTEXT = EXPECTED_BEHAVIOR`; `D03_AUTH_SESSION = INSUFFICIENT_EVIDENCE`; `D08_DUPLICATE_REQUESTS = INSUFFICIENT_EVIDENCE`. The only locally running UI was a Next dev instance, so it was not used for runtime tracing. No speculative readiness, authentication, retry, or company-context change was made.
 - Persistent `darfus_erp` was SELECT-only: migrations `61`, Assets `52`, Products `3`, signed Cash `13184.7730`, Bank `-28.8650`, one open session, and zero unbalanced/orphan/unlinked/duplicate financial or Asset-integrity rows. `PERSISTENT_DB_MUTATIONS_THIS_ROUND = 0`; `CONT38_CGP = PAUSED`.
 - `NEXT_TASK = OWNER_MANUAL_REAL_DATA_RETEST_WITH_RUNTIME_TRACE`; do not start CGP automatically.
+
+CONT53 D01 + D11 confirmed safe repair:
+- `PERSISTENT_MIGRATIONS = 61`; `PERSISTENT_ASSETS = 52`. `darfus_erp` was SELECT-only throughout; canonical signed-ledger Cash is `18368.7730`, Bank is `-28.8650`, one `OPEN` cash session exists, and unbalanced Journals, orphan Journal lines, unlinked Treasury, duplicate Journal sources/Treasury links, duplicate/blank Barcode, orphan RFID/profile/lineage/movement rows are all zero.
+- `D01_FINANCIAL_READY_RECONCILE_MISMATCH = FIXED_AND_VERIFIED`. `D01_CURRENT_MAPPING_AUTHORITY = ACTIVE_ROWS_ONLY`: reconciliation now ignores inactive historical BranchFinancialMapping rows when identifying current authority, preserves those rows for audit, fails closed for historical-only authority, and still fails closed for more than one active authority. The existing partial unique index also blocks a second active row before runtime.
+- Acceptance proof ran only against `darfus_erp_inventory_rehearsal_20260804_160500z` (migrations=61): one transactional inactive historical mapping left readiness and reconcile `READY`; all deliberately created rows and service updates were rolled back; journal/treasury counts were unchanged. A true second active authority was rejected by the canonical partial unique index.
+- `D11_SETTINGS_LOGO_COMPANY_CONTEXT = FIXED_AND_VERIFIED`. Settings logo upload now uses the canonical `apiClient` with native `FormData`; it therefore receives Authorization and canonical `X-Company-ID`/`X-Branch-ID` context without manually setting multipart Content-Type. The backend fail-closed Company-context and `settings.update` permission protections are unchanged. `D02_SUPER_ADMIN_COMPANY_CONTEXT_PROTECTION = EXPECTED_BEHAVIOR`.
+- Focused contract tests and existing financial bootstrap tests passed (18/18); this includes an in-process multipart client test proving Authorization and canonical Company/Branch headers are sent without a manually forced Content-Type. `npx tsc --noEmit` passed; no migration was run; `NEXT_ENV_HASH_PRESERVED=YES`.
+- `PERSISTENT_DB_MUTATIONS_THIS_ROUND = 0`; `PERSISTENT_LOGO_MUTATIONS_THIS_ROUND = 0`; `CONT38_CGP = PAUSED`. `NEXT_TASK = OWNER_MANUAL_D01_D11_RETEST_AFTER_CONT53`; do not start CGP automatically.
+
+CGP end-to-end final acceptance and handoff:
+- `CGP_END_TO_END_STATUS = PASS_CONFIRMED`; `CGP_END_TO_END_GATE = PASS_CONFIRMED`; `CGP_PROJECT_STATUS = BACKEND_END_TO_END_COMPLETE_FOR_IMPLEMENTED_CGP_SCOPE`.
+- Original acceptance `darfus_erp_inventory_rehearsal_20260804_160500z` remains at migrations `77` and received zero new fixtures or business writes. Its canonical witness `CGPD-000071` remains `REVERSED / COMPLETED / REVERSED`, with exactly one final Reversed event, one balanced Accounting compensation Journal, one Gold compensation event, and zero Treasury reversal effects.
+- One disposable E2E clone proved `DRAFT → VALIDATED → POSTED → Posted event → Inventory → Accounting → Gold Center → CRM → mixed settlement → Hold → Accounting/Gold compensation → atomic REVERSED finalizer → CRM reversal projection`; it was deleted after proof. Global dispatcher remains OFF and no historical backlog was processed.
+- Canonical reversal financial rule is retained: debit Customer Creditor for outstanding amount, debit Accounts Receivable only for executed paid amount, credit Inventory Asset; no automatic Treasury recovery. CRM remains a soft idempotent projection.
+- Persistent `darfus_erp` stayed untouched: migrations `61`, Assets `52`, Products `3`, no unbalanced/orphan/unlinked financial rows. `next-env.d.ts` remains inherited SHA `7AD303E40D4FDDF44F156129E397511953A71481C5CFD86B1862649AAAF240CC`.
+- `NEXT_BATCH_REQUIRES_EXPLICIT_OWNER_SELECTION = YES`; do not start a next CGP requirement automatically.
+
+## PROD-PROMOTION-00 — Persistent Promotion Policy Authorization
+
+- The prior `PROD-PROMOTION-01` attempt stopped safely before any database action because the standing AGENTS.md rule prohibited Persistent writes during rehearsal/acceptance. Database connections, reads, writes, backups, migrations, and restores in that stopped attempt were all `0`.
+- `PERSISTENT_DB_DRIFT_OWNER_DECISION = AUTHORIZE_PROD_PROMOTION_01_PERSISTENT_WRITE_EXCEPTION`. This is a narrow future-batch exception only, not a global relaxation of the Persistent read-only rule.
+- The only authorized future promotion is `PROD-PROMOTION-01`, target `darfus_erp`, baseline `61 -> 77`, and `EXACT_TESTED_62_TO_77_SEQUENCE_ONLY`.
+- It may proceed only after: a fresh verified backup; a restorable disposable rehearsal; exact migration rehearsal; business-integrity and data-preservation passes; an immediate active-business-write check; and confirmation that only approved migration schema metadata/system configuration effects will be applied.
+- System configuration is restricted to migration-defined tables, columns, indexes, constraints, SequelizeMeta, permission definitions, semantic account-role definitions, integration outbox/inbox schema, deterministic backfills, and canonical mappings. It does not authorize fake customer, CGP, Asset, Barcode, Journal, settlement, Gold, CRM, or reversal data.
+- Fixtures, fake transactions, acceptance copy/restore, database replacement, truncate, cleanup, manual SQL business writes, automatic destructive restore, server work, deployment, smoke verification, migrations `78+`, or future repairs remain forbidden. No rollback or restore is automatic.
+- The exception expires at the end of `PROD-PROMOTION-01`, whether PASS or FAIL. A new explicit Owner authorization is required for any later Persistent write.
+- `NEXT_ALLOWED_ACTION = RERUN_PROD-PROMOTION-01_ONLY_ON_EXPLICIT_OWNER_REQUEST`. Do not start it automatically.
+
+## PROD-PROMOTION-01 — Persistent 61 → 77 closure
+
+- `PROD-PROMOTION-01 = PASS_CONFIRMED`. Local Persistent `darfus_erp` is now at migrations `77`; real business data was preserved and Acceptance fixtures copied = `0`.
+- Fresh backups: `backend/backups/darfus_erp_pre_prod_promotion_61_to_77_20260810t100011z.dump` SHA-256 `1483ACE518989BEEEB1F3730DE5DA17FCE2E50667C488D58F92975FF9ED3AF15`; final pre-apply `backend/backups/darfus_erp_final_pre_prod_promotion_61_to_77_20260810t100411z.dump` SHA-256 `C1A947BB6F61313AE791284FFA87ECA110B03FB77D3AD9C8AA58EEE3745CADB4`.
+- Restore rehearsal from the fresh Persistent backup passed, exact rehearsal migration `61 -> 77` passed, business-data preservation and financial/treasury/inventory/gold/CRM/audit integrity passed, then the exact temporary rehearsal DB was dropped.
+- Persistent exact migration `61 -> 77` passed through the fail-closed `persistent-promotion-migration-guard.js`; global dispatcher remains OFF and server was untouched. No fake CGP, Asset, Barcode, Journal, settlement, Gold, CRM, or reversal data was created.
+- `INVENTORY_ASSET`, `CUSTOMER_CREDITOR`, and `ACCOUNTS_RECEIVABLE` now resolve. Gold-price approval schema/permission is ready, but no approved Persistent `gold_prices` business configuration exists; no value was invented. CGP economic operation remains blocked pending a separately authorized business-configuration decision.
+- The `PROD-PROMOTION-01` Persistent-write exception has expired. `NEXT_STAGE = LOCAL-PRODUCTION-SMOKE-VERIFICATION` only after explicit Owner authorization and, if it writes or requires a price, a separate exact authorization/configuration decision.
+
+GOLD-LIVE-FEED-02 first provider adapter and centralized refresh closure:
+- `GOLD-LIVE-FEED-02 = PASS_CONFIRMED`; GoldAPI.io adapter implemented from official documentation, with server-only secret loading via `GOLD_MARKET_PROVIDER_GOLDAPI_IO_API_KEY`.
+- Centralized BullMQ-compatible `gold-market-refresh` queue/worker pipeline, deterministic overlap key, bounded retry/backoff, rate-limit/auth classification, normalized quote persistence, freshness, deduplication, and in-memory provider health foundation implemented. Redis was not configured, so no polling worker was activated.
+- `LIVE_PROVIDER_CONNECTIVITY_GATE = BLOCKED_BY_MISSING_PROVIDER_SECRET`; no external HTTP request was made. GoldAPI is not activated as a financial authority.
+- No Migration 79 was required. Acceptance remains migration `78`; Persistent `darfus_erp` remains migration `77` and read-only. `gold_market_quotes` and `gold_market_settings` remain empty in Acceptance and absent from Persistent.
+- `CURRENT_CGP_PRICE_AUTHORITY = MANUAL_APPROVED`; CGP Posting, pricing snapshots, reversal, settlement, Gold Center UI, Metals API networking, and global dispatcher were unchanged/off.
+- Rehearsal DB-backed quote insert/replay/latest/freshness tests passed and the disposable database was dropped safely. Foundation, adapter, health, queue, TypeScript, CGP regression, and diff checks passed.
+- `NEXT_TASK = GOLD-LIVE-FEED-03_CGP_PRICING_POLICY_ENGINE`; do not start automatically.
+
+GOLD-LIVE-FEED-01 Provider abstraction and normalized market quote foundation:
+- `GOLD_LIVE_FEED_01 = PASS_CONFIRMED`.
+- Migration `20260810010000-gold-live-feed-foundation.js` was rehearsed on a disposable guarded database and applied exactly once to `darfus_erp_inventory_rehearsal_20260804_160500z`, which is now migration `78`. Persistent `darfus_erp` remains migration `77` and read-only.
+- Added provider-neutral quote contract/registry for `GOLDAPI_IO` and `METALS_API`, normalized `XAU/PER_GRAM` quote validation, freshness primitives, deterministic latest-quote repository, Company-scoped `gold_market_quotes`, and non-secret `gold_market_settings` foundation.
+- No fixtures, no destructive business writes, no `gold_prices` changes, no external HTTP adapter, no API key, no polling worker, no CGP live-price integration, no pricing policy, and no Gold Center UI were activated.
+- Acceptance business counts were preserved; new quote/settings tables contain zero rows. The acceptance pre-78 backup is `backend/backups/gold_live_feed_01_acceptance_before_78_20260810_120000z.dump` (SHA-256 `CC12B7E6CF9FA6DE08F3302607557CFAEA6376D9BBF23FBEFD60713934091399`).
+- Guard tests, foundation tests, TypeScript, CGP IMP-01/02/03 contract regressions, manual approved-price authority verifier, and `git diff --check` passed. `next-env.d.ts` stayed at inherited SHA `7AD303E40D4FDDF44F156129E397511953A71481C5CFD86B1862649AAAF240CC`.
+- `CURRENT_CGP_POSTING_AUTHORITY = MANUAL_APPROVED_UNCHANGED`; `LIVE_PROVIDER_CGP_INTEGRATION = NOT_YET_ACTIVE`; `GLOBAL_DISPATCHER = OFF`; `SERVER_MUTATIONS = 0`.
+- `NEXT_TASK = GOLD-LIVE-FEED-02_FIRST_PROVIDER_ADAPTER_AND_REFRESH_PIPELINE_IF_PASS_CONFIRMED`; do not start automatically.
+
+GOLD-LIVE-FEED-03 CGP Pricing Policy Engine:
+- `GOLD-LIVE-FEED-03 = PASS_CONFIRMED`. A company-scoped, CGP-only, versioned pricing-policy engine now resolves an active per-karat override before the active global default, supports `MANUAL_APPROVED`/`LIVE_PROVIDER`, `BID`/`SPOT`/`ASK`, and `NONE`/`FIXED_PER_GRAM`/`PERCENTAGE`, with Decimal arithmetic, HALF_UP four-decimal final rates, effective windows, overlap protection, immutable history, audit lineage, and privileged `gold.manage_pricing_policy` enforcement.
+- Acceptance migration `20260810020000-gold-cgp-pricing-policies.js` was applied exactly once through the guarded `--gold-live-feed-03` path: Acceptance is migration `79`, `gold_pricing_policies` has `0` rows, and the new permission has no role assignments. Acceptance business counts were preserved. Persistent `darfus_erp` remained migration `77`, read-only, with no policy table or production policy row.
+- `CURRENT_CGP_PRICE_AUTHORITY = MANUAL_APPROVED`; `CGP_LIVE_PRICE_INTEGRATION_ACTIVE = NO`; Posting, reversal, settlement, Gold Center, CRM, and the global dispatcher remain unchanged/off. No GoldAPI secret, real spread, external HTTP, server connection, or deployment was used.
+- Focused policy/feed/CGP regressions, permission/company isolation, overlap/concurrency rehearsal, TypeScript, and diff checks passed. `next-env.d.ts` remained the inherited known-drift SHA and was not regenerated.
+- `NEXT_TASK = GOLD-LIVE-FEED-04_CGP_POSTING_LIVE_PRICE_INTEGRATION`; do not start automatically.
