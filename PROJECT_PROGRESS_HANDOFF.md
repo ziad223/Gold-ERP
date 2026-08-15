@@ -1,5 +1,66 @@
 # DARFUS ERP - PROJECT PROGRESS HANDOFF
 
+## FINAL LOCAL HANDOFF AUTHORITY — PROJECT-HANDOFF-FINAL-CLOSURE-01
+
+This block is the current authoritative local project status. Earlier batch sections below are preserved historical evidence; any older status, baseline, next-task, or blocker token that conflicts with this block is superseded and must not be treated as current truth.
+
+PROJECT = DARFUS_ERP
+LOCAL_PROJECT_SCOPE_STATUS = CURRENT_APPROVED_SCOPE_COMPLETE
+LOCAL_INTEGRATED_ACCEPTANCE_STATUS = PASS
+CURRENT_LOCAL_PRODUCT_BLOCKER_COUNT = 0
+CURRENT_SECURITY_BLOCKER = NO
+CURRENT_FINANCIAL_BLOCKER = NO
+CURRENT_DATA_INTEGRITY_BLOCKER = NO
+CURRENT_MIGRATION_BLOCKER = NO
+CURRENT_SOURCE_PROVENANCE_BLOCKER = NO
+
+SOURCE_FREEZE_MODEL = WORKTREE_CONTENT_PLUS_APPROVED_MANIFEST
+SOURCE_FREEZE_MANIFEST_VERSION = LOCAL_ACCEPTED_SOURCE_FREEZE_V1
+SOURCE_FREEZE_MANIFEST_SHA256 = DF1F9651466240296B282C14B6C62532A2EBC74719C0AE8B93CCA8FD9B1838F7
+LOCAL_ACCEPTED_RELEASE_SOURCE_ID = DARFUS-LOCAL-ACCEPTED-SOURCE-V1-DF1F9651
+HEAD_ALONE_IS_RELEASE_SOURCE = NO
+RESET_TO_HEAD_SAFE = NO
+SOURCE_FREEZE_DEPENDS_ON_DIRTY_WORKTREE_CONTENT = YES
+
+FINAL_PRODUCT_RUNTIME_SOURCE_COUNT = 508
+FINAL_CONFIG_SOURCE_COUNT = 14
+FINAL_MIGRATION_SOURCE_COUNT = 81
+FINAL_VALIDATION_TEST_SOURCE_COUNT = 70
+FINAL_VALIDATION_VERIFIER_SOURCE_COUNT = 261
+FINAL_DOCUMENTATION_SOURCE_COUNT = 74
+MIGRATION_DRIFT_STATUS = NONE
+
+PERSISTENT_DB = darfus_erp
+PERSISTENT_MIGRATIONS = 81
+ACCEPTANCE_DB = darfus_erp_inventory_rehearsal_20260804_160500z
+ACCEPTANCE_MIGRATIONS = 80
+MIGRATION_81 = backend/migrations/20260814010000-customer-invoice-contact-snapshots.js
+
+NOTIFICATION_PRODUCT_FIX_STATUS = CLOSED_CONFIRMED
+NOTIFICATION_RUNTIME_ACCEPTANCE_STATUS = OPEN_ACCEPTANCE_ONLY_NON_BLOCKING
+NOTIFICATION_UX_ACCEPTANCE_STATUS = OPEN_ACCEPTANCE_ONLY_NON_BLOCKING
+UAE_EINVOICING_STATUS = DEFERRED_OWNER_DECISION
+GOVERNMENT_INTEGRATION_STATUS = DEFERRED_OWNER_DECISION
+SERVER_STATUS = DEFERRED_OWNER_DECISION
+DEPLOYMENT_STATUS = DEFERRED_OWNER_DECISION
+DEPLOYMENT_AUTHORIZED = NO
+
+BACKUP_READINESS_STATUS = PASS
+RESET_TO_HEAD_SAFE = NO
+BROAD_GIT_CLEANUP_AUTHORIZED = NO
+STASH_MUTATION_AUTHORIZED = NO
+CURRENT_STASH_COUNT = 11
+
+CURRENT_NEXT_TASK = LOCAL-PROJECT-FINAL-CLOSURE-01
+HANDOFF_CHANGED_THIS_BATCH = YES
+HANDOFF_INTERNAL_CONSISTENCY = PASS
+HANDOFF_STALE_CONTRADICTIONS = 0
+HANDOFF_POST_WRITE_VALIDATION = PASS
+UNEXPECTED_BATCH_FILE_CHANGES = 0
+PROJECT_HANDOFF_FINAL_CLOSURE_01_GATE = PASS_HANDOFF_FINALIZED_LOCAL_CLOSURE_READY
+
+Do not reopen closed Product streams without new current regression evidence or an explicit Owner scope change. Do not start server/deployment work, UAE/Government integration, or the next closure batch automatically.
+
 CLIENT_REQUIREMENTS_BATCH_1 = COMPLETE
 CLIENT_REQUIREMENTS_BATCH_2A = COMPLETE
 CLIENT_REQUIREMENTS_BATCH_2B = COMPLETE
@@ -944,3 +1005,42 @@ GOLD-LIVE-FEED-06A — Full live GoldAPI acceptance rerun:
 - `OWNER_REVIEW_CHECKLIST = COMPLETE` و`NEXT_BATCH_ALLOWED = NO_AUTOMATIC_START`.
 - الخطوة التالية بعد موافقة Owner البصرية فقط:
   `POS-REDESIGN-IMPLEMENTATION-PHASE-02-UNIVERSAL-SEARCH-AND-CUSTOMER`.
+
+## UAE-DEFERRED-AND-PROTECTED-PRINT-VERIFIER-SURGICAL-REFRESH-01 — PASS_CONFIRMED
+
+- Owner policy remains explicit: UAE E-Invoicing is deferred and future-facing;
+  this entry does not claim UAE legal compliance or production readiness.
+- The Invoice Search & Print verifier was corrected to scan only bounded,
+  authoritative Product source (`app`, `components`, `features`, `lib`, and
+  `backend/src|migrations|config`). Reports, evidence, backups, prompts,
+  generated output, coverage, dist/build, and node_modules are not Product
+  implementation evidence. The deferred guard remains active and fails on a
+  real source token; it is not unconditionally bypassed.
+- The barcode/tag verifier now validates the current approved Asset-only
+  inventory architecture: `useInventoryV2List`/`useInventoryV2Detail`, stored
+  Asset barcode identity, permission-gated barcode print capability, generic
+  and client tag templates, and the Asset-to-label/tag contracts. It no longer
+  requires removed Product/quantity wiring on the inventory page. One physical
+  piece remains one Asset and one barcode; Product quantity is not inventory
+  authority.
+- Temporary negative controls proved both verifiers fail for a representative
+  real source violation, while a report containing UAE/ASP/Peppol/UBL wording
+  is ignored. Both corrected verifiers passed current source deterministically.
+- Invoice Snapshot, print templates, POS, Customer, Supplier, Accounting,
+  Inventory, Payment, VAT, Gold, and runtime API contracts were not changed.
+  Persistent `darfus_erp` remained at migrations=81 and Acceptance remained at
+  migrations=80; no database writes, migrations, restarts, deploys, or Git
+  writes occurred.
+- `UAE_EINVOICING_CURRENT_IMPLEMENTATION = DEFERRED`.
+- `UAE_EINVOICING_CURRENT_SCOPE = FUTURE_UPDATE`.
+- `UAE_EINVOICING_RELEASE_BLOCKER = NO_FOR_CURRENT_APPROVED_SCOPE`.
+- `UAE_PRODUCTION_INTEGRATION = NOT_IMPLEMENTED`.
+- `ASP_INTEGRATION = FUTURE`.
+- `PEPPOL_UBL_INTEGRATION = FUTURE`.
+- `REGISTRATION_CERTIFICATION_SANDBOX = FUTURE`.
+- `PROTECTED_PRINT_PRODUCT_DEFECT = NO`.
+- `STALE_UAE_INVOICE_SEARCH_PRINT_VERIFIER = CLOSED`.
+- `STALE_BARCODE_TAG_PRINT_VERIFIER = CLOSED`.
+- `VERIFIER_REFRESH_GATE = PASS_CONFIRMED`.
+- Evidence: `backend/reports/uae-deferred-and-protected-print-verifier-surgical-refresh-01-20260815T115141+0300.md`.
+- Next step only: `PROJECT-REMAINING-WORK-STATUS-RECONCILIATION-01`; do not start automatically.

@@ -273,8 +273,14 @@ export function buildInvoicePrintViewModel(
   if (!logoUrl) addWarning(warnings, "company_logo_missing");
   if (!trn) addWarning(warnings, "company_trn_missing");
 
-  addWarning(warnings, "customer_phone_missing");
-  addWarning(warnings, "customer_address_missing");
+  const customerPhone = asString((invoice as Invoice & { customerPhoneSnapshot?: unknown }).customerPhoneSnapshot);
+  const customerAddressSnapshot = asRecord((invoice as Invoice & { customerAddressSnapshot?: unknown }).customerAddressSnapshot);
+  const customerAddress = ["line1", "line2", "city", "country", "postalCode"]
+    .map((key) => asString(customerAddressSnapshot[key]))
+    .filter((part): part is string => Boolean(part))
+    .join(", ") || undefined;
+  if (!customerPhone) addWarning(warnings, "customer_phone_missing");
+  if (!customerAddress) addWarning(warnings, "customer_address_missing");
   addWarning(warnings, "customer_trn_missing");
 
   const items = (Array.isArray(invoice.items) ? invoice.items : []).map((item, index) =>
@@ -313,6 +319,8 @@ export function buildInvoicePrintViewModel(
     },
     customer: {
       name: invoice.customerName,
+      phone: customerPhone,
+      address: customerAddress,
     },
     invoiceDetails: buildInvoiceDetails(invoice),
     items,

@@ -18,10 +18,11 @@ import { apiClient, generateUUID } from "@/lib/api/client";
 import { Link } from "@/i18n/navigation";
 import { usePermissions } from "@/hooks/use-permissions";
 import { filterData } from "@/hooks/use-data-filters";
-import type { Asset, AssetType, Invoice, Product } from "@/lib/types";
+import type { Asset, AssetType, Invoice, PosCustomerSummary, Product } from "@/lib/types";
 import { useCoreErpData } from "@/hooks/use-core-erp-data";
 import { formatCurrency } from "@/lib/utils";
 import { formatEnglishNumber, normalizeNumberInput, toEnglishDigits } from "@/lib/formatters/numbers";
+import { formatCustomerAddress } from "@/lib/customers/address-ui";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { NumericToken } from "@/components/ui/numeric-token";
 import { formatDateTime, formatTime } from "@/lib/dates/dates";
@@ -55,6 +56,16 @@ const POS_PRINT_DEFAULTS = {
   documentMode: "auto",
   languageMode: "bilingual",
 } satisfies Pick<InvoicePrintOptions, "documentMode" | "languageMode">;
+
+// The bounded POS search projection exposes the canonical Asset lifecycle in
+// rawItem.operationalStatus (for example, AVAILABLE).  The existing cart and
+// pre-submit guard intentionally consume the lower-case `status` contract.
+// Normalize once at the search-selection boundary; unknown/missing values stay
+// undefined and therefore remain fail-closed in completeSale.
+function normalizePosAssetStatus(value: unknown): string | undefined {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return normalized || undefined;
+}
 
 export default function PosPage() {
   const t = useTranslations("POS");
@@ -94,6 +105,10 @@ export default function PosPage() {
   const searchGenerationRef = useRef(0);
   const [cart, setCart] = useState<any[]>([]);
   const [customerId, setCustomerId] = useState("");
+  const [customerSummary, setCustomerSummary] = useState<PosCustomerSummary | null>(null);
+  const [customerSummaryLoading, setCustomerSummaryLoading] = useState(false);
+  const [customerSummaryError, setCustomerSummaryError] = useState<string | null>(null);
+  const customerSummaryGenerationRef = useRef(0);
   const [method, setMethod] = useState("card");
   const [completed, setCompleted] = useState<string | null>(null);
   const [completedInvoice, setCompletedInvoice] = useState<Invoice | null>(null);
@@ -690,12 +705,42 @@ export default function PosPage() {
   const currency = company?.currency ?? "AED";
   const money = (value: number | string) => `\u2068${formatCurrency(Number(value), currency, locale)}\u2069`;
   const numericText = (value: number | string | null | undefined) => formatEnglishNumber(value, { maximumFractionDigits: 8 });
-  const selectedCustomer = useMemo(() => customers.find((customer) => customer.id === customerId) ?? null, [customerId, customers]);
-  const selectedCustomerAddress = useMemo(() => {
-    const address = selectedCustomer?.addresses?.find((item) => item && (item.line1 || item.city || item.country));
-    if (!address) return "";
-    return [address.line1, address.line2, address.city, address.country, address.postalCode].filter(Boolean).join("، ");
-  }, [selectedCustomer]);
+  // Fetch exactly one read-only projection after Customer selection. Resetting
+  // before the request prevents old Customer data being painted for a new one;
+  // generation and cancellation make the latest selection authoritative.
+  useEffect(() => {
+    const generation = ++customerSummaryGenerationRef.current;
+    if (!customerId || !isApi) {
+      setCustomerSummary(null);
+      setCustomerSummaryLoading(false);
+      setCustomerSummaryError(null);
+      return;
+    }
+    const controller = new AbortController();
+    setCustomerSummary(null);
+    setCustomerSummaryLoading(true);
+    setCustomerSummaryError(null);
+    apiClient<{ data?: PosCustomerSummary }>(`/customers/${encodeURIComponent(customerId)}/pos-summary`, {
+      locale,
+      signal: controller.signal,
+    })
+      .then((response) => {
+        if (generation !== customerSummaryGenerationRef.current) return;
+        const summary = response?.data;
+        if (!summary || summary.id !== customerId) {
+          throw new Error(rtl ? "تعذر تحميل ملخص العميل" : "Unable to load customer summary");
+        }
+        setCustomerSummary(summary);
+      })
+      .catch((error: any) => {
+        if (controller.signal.aborted || generation !== customerSummaryGenerationRef.current) return;
+        setCustomerSummaryError(error?.message || (rtl ? "تعذر تحميل ملخص العميل" : "Unable to load customer summary"));
+      })
+      .finally(() => {
+        if (generation === customerSummaryGenerationRef.current) setCustomerSummaryLoading(false);
+      });
+    return () => controller.abort();
+  }, [customerId, isApi, locale, rtl]);
   
   const provisionalCost = useMemo(
     () => cart.reduce((sum, item) => sum + item.cost * (item.isProduct ? item.quantity : 1), 0),
@@ -791,7 +836,7 @@ export default function PosPage() {
               stoneValue: 0,
               rawItem: asset,
               branchId: asset.branchId,
-              status: asset.status
+              status: normalizePosAssetStatus(asset.operationalStatus ?? asset.status)
             }
           ];
         }
@@ -1181,25 +1226,48 @@ export default function PosPage() {
                 </option>
               ))}
             </select>
-            {selectedCustomer && (
-              <div className="mt-3 rounded-xl border border-brand-100 bg-brand-50/50 p-3 text-xs dark:border-brand-500/20 dark:bg-brand-500/5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="line-clamp-2 break-words font-black text-navy-950 dark:text-white">{selectedCustomer.name}</p>
-                    <p className="mt-1 numeric-token truncate text-slate-600 dark:text-slate-300" dir="ltr">
-                      {selectedCustomer.phone || "—"}
-                    </p>
-                  </div>
-                  <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-bold text-brand-700 dark:bg-slate-900 dark:text-brand-300">
-                    {selectedCustomer.tier || "—"}
+            {!customerId && (
+              <p className="mt-3 rounded-xl border border-dashed border-slate-200 px-3 py-4 text-center text-[11px] text-slate-500 dark:border-slate-700">
+                {rtl ? "اختر عميلًا لعرض ملخصه" : "Select a customer to view the summary"}
+              </p>
+            )}
+            {customerId && customerSummaryLoading && (
+              <div className="mt-3 animate-pulse rounded-xl border border-brand-100 bg-brand-50/50 p-3 text-[11px] text-slate-500 dark:border-brand-500/20 dark:bg-brand-500/5">
+                {rtl ? "جارٍ تحميل ملخص العميل…" : "Loading customer summary…"}
+              </div>
+            )}
+            {customerId && customerSummaryError && !customerSummaryLoading && (
+              <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                {rtl ? "تعذر تحميل ملخص العميل الآن. بيانات الفاتورة لم تتغير." : "Customer summary could not be loaded. Invoice data was not changed."}
+              </p>
+            )}
+            {customerSummary && !customerSummaryLoading && (
+              <div className="mt-3 min-w-0 space-y-1.5" dir={rtl ? "rtl" : "ltr"}>
+                <div className="flex min-h-9 w-full min-w-0 items-center justify-between gap-3 rounded-lg border border-brand-100 bg-brand-50/50 px-3 py-2 text-[11px] dark:border-brand-500/20 dark:bg-brand-500/5">
+                  <span className="shrink-0 font-bold text-slate-500">{rtl ? "الاسم" : "Name"}:</span>
+                  <span className="min-w-0 break-words text-end font-black text-navy-950 dark:text-white">{customerSummary.name || (rtl ? "غير مسجل" : "Not registered")}</span>
+                </div>
+                <div className="flex min-h-9 w-full min-w-0 items-start justify-between gap-3 rounded-lg border border-brand-100 bg-brand-50/50 px-3 py-2 text-[11px] dark:border-brand-500/20 dark:bg-brand-500/5">
+                  <span className="shrink-0 pt-0.5 font-bold text-slate-500">{rtl ? "العنوان" : "Address"}:</span>
+                  <span className="min-w-0 break-words text-end leading-4 text-slate-700 dark:text-slate-200" title={formatCustomerAddress(customerSummary.primaryAddress) || undefined}>
+                    {formatCustomerAddress(customerSummary.primaryAddress) || (rtl ? "العنوان غير مسجل" : "Address not registered")}
                   </span>
                 </div>
-                <p className="mt-2 line-clamp-2 min-h-8 text-[11px] leading-4 text-slate-600 dark:text-slate-300" title={selectedCustomerAddress || undefined}>
-                  {selectedCustomerAddress || (rtl ? "العنوان غير مسجل" : "Address not registered")}
-                </p>
-                <div className="mt-2 grid grid-cols-2 gap-2 text-[10px] text-slate-500">
-                  <span>{rtl ? "النقاط" : "Points"}: <b className="numeric-token text-slate-800 dark:text-slate-100" dir="ltr">{numericText(selectedCustomer.loyaltyPoints ?? 0)}</b></span>
-                  <span>{rtl ? "الرصيد" : "Balance"}: <b className="numeric-token text-slate-800 dark:text-slate-100" dir="ltr">{money(selectedCustomer.balance ?? 0)}</b></span>
+                <div className="flex min-h-9 w-full min-w-0 items-center justify-between gap-3 rounded-lg border border-brand-100 bg-brand-50/50 px-3 py-2 text-[11px] dark:border-brand-500/20 dark:bg-brand-500/5">
+                  <span className="shrink-0 font-bold text-slate-500">{rtl ? "الهاتف" : "Phone"}:</span>
+                  <span className="numeric-token min-w-0 break-words text-end text-slate-700 dark:text-slate-200" dir="ltr">{customerSummary.phone || (rtl ? "غير مسجل" : "Not registered")}</span>
+                </div>
+                <div className="flex min-h-9 w-full min-w-0 items-center justify-between gap-3 rounded-lg border border-brand-100 bg-brand-50/50 px-3 py-2 text-[11px] dark:border-brand-500/20 dark:bg-brand-500/5">
+                  <span className="shrink-0 font-bold text-slate-500">{rtl ? "التصنيف" : "Tier"}:</span>
+                  <span className="min-w-0 break-words text-end font-semibold text-slate-700 dark:text-slate-200">{customerSummary.tier || (rtl ? "غير محدد" : "Not specified")}</span>
+                </div>
+                <div className="flex min-h-9 w-full min-w-0 items-center justify-between gap-3 rounded-lg border border-brand-100 bg-brand-50/50 px-3 py-2 text-[11px] dark:border-brand-500/20 dark:bg-brand-500/5">
+                  <span className="shrink-0 font-bold text-slate-500">{rtl ? "النقاط" : "Points"}:</span>
+                  <span className="numeric-token min-w-0 text-end font-semibold text-slate-700 dark:text-slate-200" dir="ltr">{numericText(customerSummary.loyaltyPoints ?? 0)}</span>
+                </div>
+                <div className="flex min-h-9 w-full min-w-0 items-center justify-between gap-3 rounded-lg border border-brand-100 bg-brand-50/50 px-3 py-2 text-[11px] dark:border-brand-500/20 dark:bg-brand-500/5">
+                  <span className="shrink-0 font-bold text-slate-500">{rtl ? "إجمالي المشتريات" : "Total purchases"}:</span>
+                  <span className="numeric-token min-w-0 text-end font-semibold text-slate-700 dark:text-slate-200" dir="ltr">{money(customerSummary.totalPurchases ?? 0)}</span>
                 </div>
               </div>
             )}

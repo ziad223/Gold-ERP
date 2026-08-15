@@ -143,12 +143,8 @@ export default function CustomersPage() {
       return;
     }
     const addressValidation = validateCustomerAddressDraft(addressDraft);
-    if (!isEdit && includeAddress && !addressValidation.valid) {
-      toast.error(locale === "ar"
-        ? "عند إدخال عنوان يجب استكمال العنوان والمدينة والدولة."
-        : "Address, city, and country are required when an address is started.");
-      return;
-    }
+    // Every address text field is optional. A fully blank block is deliberately
+    // omitted from the create payload; a meaningful partial address is valid.
 
     try {
       if (isEdit) {

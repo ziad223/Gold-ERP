@@ -23,6 +23,15 @@ const HOOK = "features/sales/hooks/use-invoice-search-print.ts";
 const DETAIL = "components/sales/InvoiceReadOnlyDetail.tsx";
 const ROUTES = "backend/src/routes/erp.routes.js";
 const CUSTOMER_PAGE = "app/[locale]/(dashboard)/customers/[id]/page.tsx";
+// Only authoritative Product source is scanned for the deferred-feature guard.
+// Reports, evidence, backups, prompts, generated output and dependencies are
+// deliberately outside this scope: they may quote policy words without
+// representing an implemented runtime feature.
+const AUTHORITATIVE_SOURCE_ROOTS = [
+  /^(app|components|features|lib)\//,
+  /^backend\/(src|migrations|config)\//,
+];
+const SOURCE_EXTENSIONS = /\.(?:ts|tsx|js|jsx|cjs|mjs)$/i;
 const read = (relativePath) => fs.readFileSync(path.resolve(ROOT, relativePath), "utf8");
 const exists = (relativePath) => fs.existsSync(path.resolve(ROOT, relativePath));
 
@@ -38,6 +47,19 @@ function assertValidGitRef(ref) {
   } catch (_) {
     throw new Error(`Invalid ${HISTORICAL_SCOPE_ENV} Git ref: ${ref}`);
   }
+}
+
+function isAuthoritativeProductSource(file) {
+  return SOURCE_EXTENSIONS.test(file) && AUTHORITATIVE_SOURCE_ROOTS.some((pattern) => pattern.test(file));
+}
+
+function scanDeferredUaeTokens(files, sourceRoot = ROOT) {
+  return files
+    .filter((file) => isAuthoritativeProductSource(file) && fs.existsSync(path.resolve(sourceRoot, file)))
+    .flatMap((file) => {
+      const source = fs.readFileSync(path.resolve(sourceRoot, file), "utf8");
+      return /UAE\s+(?:Government\s+)?E-Invoicing|\bUBL\b/i.test(source) ? [file] : [];
+    });
 }
 
 function pageAndFilters() {
@@ -177,10 +199,13 @@ function hiddenAndScopeGuards() {
   const deleted = nameStatus.filter((line) => line.startsWith("D\t")).map((line) => line.slice(2).replace(/\\/g, "/"));
   assert.deepEqual(deleted, [], `no file or print template was deleted (found: ${deleted.join(", ")})`);
 
-  // No UAE E-Invoicing / event-sourcing may be introduced in any changed code file.
-  const codeFiles = allChanged.filter((file) => /^(app|components|features|lib|backend)\//.test(file) && exists(file));
+  // Deferred UAE eInvoicing and event-sourcing guards inspect only bounded,
+  // authoritative Product source. Evidence reports and other non-source
+  // artifacts are not implementation evidence and must not cause a false
+  // failure. The guard remains fail-closed for a real source introduction.
+  const codeFiles = allChanged.filter((file) => isAuthoritativeProductSource(file) && exists(file));
   const code = codeFiles.map((file) => read(file)).join("\n");
-  assert.ok(!/UAE\s+(?:Government\s+)?E-Invoicing|\bUBL\b/i.test(code), "no UAE E-Invoicing code added");
+  assert.deepEqual(scanDeferredUaeTokens(codeFiles), [], "no UAE E-Invoicing code added");
   assert.ok(!/event[- ]sourcing|projection architecture/i.test(code), "no event-sourcing/projection architecture added");
 }
 
@@ -195,11 +220,15 @@ function docsAndPackage() {
   }
 }
 
-(function main() {
+function main() {
   pageAndFilters();
   resultsAndPrintReuse();
   readOnlyEndpointAndFrontend();
   hiddenAndScopeGuards();
   docsAndPackage();
   console.log("verify-invoices-search-print: ok");
-})();
+}
+
+if (require.main === module) main();
+
+module.exports = { isAuthoritativeProductSource, scanDeferredUaeTokens };

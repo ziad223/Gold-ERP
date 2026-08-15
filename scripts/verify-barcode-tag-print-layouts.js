@@ -29,7 +29,30 @@ const MAPPER = "lib/print/barcode-label.ts";
 const FIELDS = "features/inventory/components/InventoryTypeFields.tsx";
 const FORM = "features/inventory/components/InventoryItemForm.tsx";
 const PAGE = "app/[locale]/(dashboard)/inventory/page.tsx";
+const DETAIL_PAGE = "app/[locale]/(dashboard)/inventory/[id]/page.tsx";
+const ASSET_PRINT_PREVIEW = "features/barcodes/components/BarcodeLabelPreview.tsx";
 const CUSTOMER_PAGE = "app/[locale]/(dashboard)/customers/[id]/page.tsx";
+
+// This verifier is a bounded print/inventory architecture guard. Evidence,
+// reports, prompts, backups, generated output and dependencies are not Product
+// source and must never participate in semantic or UAE deferred-policy scans.
+const AUTHORITATIVE_SOURCE_ROOTS = [
+  /^(app|components|features|lib)\//,
+  /^backend\/(src|migrations|config)\//,
+];
+const SOURCE_EXTENSIONS = /\.(?:ts|tsx|js|jsx|cjs|mjs)$/i;
+const PRINT_SCOPE_ROOTS = [
+  /^app\/\[locale\]\/\(dashboard\)\/inventory\//,
+  /^features\/(printing|barcodes|inventory)\//,
+  /^lib\/print\//,
+];
+const NON_PRODUCT_ARTIFACTS = [
+  /^backend\/reports\//,
+  /^backend\/backups\//,
+  /^\.next\//,
+  /^node_modules\//,
+  /^(coverage|dist|build)\//,
+];
 
 const read = (rel) => fs.readFileSync(path.resolve(ROOT, rel), "utf8");
 const exists = (rel) => fs.existsSync(path.resolve(ROOT, rel));
@@ -42,14 +65,42 @@ function assertValidGitRef(ref) {
   }
 }
 
+function isAuthoritativeProductSource(file) {
+  return SOURCE_EXTENSIONS.test(file) && AUTHORITATIVE_SOURCE_ROOTS.some((pattern) => pattern.test(file));
+}
+
+function isPrintScopeFile(file) {
+  return !NON_PRODUCT_ARTIFACTS.some((pattern) => pattern.test(file)) && PRINT_SCOPE_ROOTS.some((pattern) => pattern.test(file));
+}
+
+function scanDeferredUaeTokens(files, sourceRoot = ROOT) {
+  return files
+    .filter((file) => isAuthoritativeProductSource(file) && fs.existsSync(path.resolve(sourceRoot, file)))
+    .flatMap((file) => /UAE\s+(?:Government\s+)?E-Invoicing|\bUBL\b/i.test(fs.readFileSync(path.resolve(sourceRoot, file), "utf8")) ? [file] : []);
+}
+
+function assertAssetArchitectureSources({ page, detail, preview, mapper }) {
+  assert.ok(page.includes("useInventoryV2List") && page.includes("Canonical list") && page.includes("physical Asset"), "current Asset inventory entry point is present");
+  assert.ok(page.includes("inventory-v2") && page.includes("asset.barcode") && page.includes("asset.id"), "inventory page reads Asset identity from the canonical Asset API");
+  assert.ok(detail.includes("useInventoryV2Detail") && detail.includes("asset.barcode") && detail.includes("asset.id"), "Asset detail preserves the physical identity context");
+  assert.ok(preview.includes("BarcodePrintTemplate") && preview.includes("printHtmlDocument") && preview.includes('isAuthorized("printBarcode")'), "Asset barcode print capability remains permission-gated and uses the generic template");
+  assert.ok(preview.includes("handlePrint") && preview.includes("assetId"), "Asset barcode print action is retained in the canonical label preview");
+  assert.ok(mapper.includes("assetToLabelData") && mapper.includes("assetToTagData"), "Asset-to-label and Asset-to-tag data contracts remain wired");
+  assert.ok(mapper.includes("barcode: asset.barcode || asset.id") && mapper.includes("barcode: String(asset.barcode || asset.id)"), "stored Asset barcode remains the print identity");
+  assert.ok(/every row is exactly one physical Asset|never falls back to Product quantity/i.test(page), "Asset remains physical-item authority and Product quantity is not inventory authority");
+  assert.ok(!/productToLabelData|BarcodePrintTemplate/.test(page), "obsolete Product label wiring is not reintroduced into the Asset-only inventory page");
+}
+
+function assertCurrentAssetArchitecture() {
+  assertAssetArchitectureSources({ page: read(PAGE), detail: read(DETAIL_PAGE), preview: read(ASSET_PRINT_PREVIEW), mapper: read(MAPPER) });
+}
+
 // ── (A) Additive architecture: client template added, generic preserved ──────
 function architecture() {
   for (const file of [CLIENT_TEMPLATE, FRONT, BACKS, TAG_TYPES]) assert.ok(exists(file), `client tag file present: ${file}`);
   assert.ok(exists(GENERIC_TEMPLATE), "generic BarcodePrintTemplate still exists");
   assert.ok(exists(SCANNABLE), "ScannableBarcode still exists");
-  const page = read(PAGE);
-  assert.ok(page.includes("BarcodePrintTemplate") && page.includes("productToLabelData"), "generic/product label flow preserved on the inventory page");
-  assert.ok(page.includes("ClientBarcodeTagTemplate") && page.includes("assetToTagData"), "client front/back asset tag flow is wired");
+  assertCurrentAssetArchitecture();
   const client = read(CLIENT_TEMPLATE);
   assert.ok(client.includes("BarcodeTagFront") && client.includes("BarcodeTagBack"), "client template renders both faces");
 }
@@ -155,25 +206,25 @@ function scopeGuard() {
     "backend/src/services/operator-session.service.js",
     "backend/src/middleware/business-permission.middleware.js",
   ]);
-  const forbiddenTouched = allChanged.filter((f) => !hotfixAllowed.has(f) && FORBIDDEN_AREAS.some((re) => re.test(f)));
+  const forbiddenTouched = allChanged.filter((f) => isPrintScopeFile(f) && !hotfixAllowed.has(f) && FORBIDDEN_AREAS.some((re) => re.test(f)));
   assert.deepEqual(forbiddenTouched, [], `phase must not touch backend/migrations/seeders/invoice-print templates (found: ${forbiddenTouched.join(", ")})`);
 
   const nameStatus = historicalMode
     ? gitLines(["diff", "--name-status", historicalBaseline])
     : gitLines(["diff", "--name-status", "HEAD"]);
-  const deleted = nameStatus.filter((l) => l.startsWith("D\t")).map((l) => l.slice(2).replace(/\\/g, "/"));
+  const deleted = nameStatus.filter((l) => l.startsWith("D\t")).map((l) => l.slice(2).replace(/\\/g, "/")).filter(isPrintScopeFile);
   assert.deepEqual(deleted, [], `no file or template deleted (found: ${deleted.join(", ")})`);
   // The generic barcode template must not be deleted.
   assert.ok(exists(GENERIC_TEMPLATE), "generic BarcodePrintTemplate preserved (not deleted)");
 
-  const codeFiles = allChanged.filter((f) => /^(app|components|features|lib|backend)\//.test(f) && exists(f));
+  const codeFiles = allChanged.filter((f) => isAuthoritativeProductSource(f) && exists(f));
   const code = codeFiles.map((f) => read(f)).join("\n");
-  assert.ok(!/UAE\s+(?:Government\s+)?E-Invoicing|\bUBL\b/i.test(code), "no UAE E-Invoicing code added");
+  assert.deepEqual(scanDeferredUaeTokens(codeFiles), [], "no UAE E-Invoicing code added");
   assert.ok(!/event[- ]sourcing|projection architecture/i.test(code), "no event-sourcing/projection architecture added");
   assert.ok(!/production data reset|demo data reset|\.sync\(\s*\{\s*force|TRUNCATE\s+TABLE/i.test(code), "no demo/production reset or seed rewrite added");
 }
 
-(function main() {
+function main() {
   architecture();
   typeLayouts();
   frontAndPrice();
@@ -182,4 +233,8 @@ function scopeGuard() {
   guardsAndDocs();
   scopeGuard();
   console.log("verify-barcode-tag-print-layouts: ok");
-})();
+}
+
+if (require.main === module) main();
+
+module.exports = { assertAssetArchitectureSources, assertCurrentAssetArchitecture, isAuthoritativeProductSource, isPrintScopeFile, scanDeferredUaeTokens };

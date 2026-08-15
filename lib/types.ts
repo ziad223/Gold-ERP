@@ -189,10 +189,10 @@ export type KYCStatus = "verified" | "pending" | "flagged" | "not-started";
 export type AMLStatus = "clear" | "review" | "flagged";
 
 export interface CustomerAddress {
-  line1: string;
+  line1?: string;
   line2?: string;
-  city: string;
-  country: string;
+  city?: string;
+  country?: string;
   postalCode?: string;
   /** Optional on legacy rows; canonical new writes always emit a boolean. */
   isPrimary?: boolean;
@@ -218,7 +218,7 @@ export interface CustomerKycDetails {
   idType?: string;
   idNumber?: string;
   idExpiry?: string;
-  nationality?: string;
+  nationality?: string | null;
   dateOfBirth?: string;
   lastCheckedAt?: string;
 }
@@ -237,7 +237,7 @@ export interface Customer {
   kycDetails?: CustomerKycDetails;
   // Legacy top-level fields for demo compatibility
   dateOfBirth?: string;
-  nationality?: string;
+  nationality?: string | null;
   idType?: string;
   idNumber?: string;
   idExpiry?: string;
@@ -252,12 +252,34 @@ export interface Customer {
   updatedAt?: string;
 }
 
+/** Read-only selected-customer projection used by POS only. */
+export interface PosCustomerSummary {
+  id: string;
+  name: string;
+  status?: "active" | "inactive";
+  tier: CustomerTier;
+  phone?: string | null;
+  primaryAddress: CustomerAddress | null;
+  loyaltyPoints: number;
+  availableCredit: number;
+  totalPurchases: number;
+  currency?: string;
+  meta?: {
+    source: string;
+    primaryAddressSource: "EXPLICIT_PRIMARY" | "SINGLE_ADDRESS" | "LEGACY_FALLBACK" | "NONE";
+    availableCreditSource: "customer_credit_ledger";
+    totalPurchasesSource: "customers.purchases";
+    readOnly: true;
+  };
+}
+
 export type CustomerCreatePayload = Pick<Customer, "name" | "phone"> & Partial<Pick<
   Customer,
   "email" | "tier" | "notes" | "addresses"
 >>;
 
-export type CustomerUpdatePayload = Partial<Customer> & {
+export type CustomerUpdatePayload = Omit<Partial<Customer>, "nationality"> & {
+  nationality?: string | null;
   expectedUpdatedAt?: string;
 };
 
@@ -299,6 +321,14 @@ export interface Invoice {
   type?: InvoiceType;
   customerId: string;
   customerName: string;
+  customerPhoneSnapshot?: string | null;
+  customerAddressSnapshot?: {
+    line1?: string;
+    line2?: string;
+    city?: string;
+    country?: string;
+    postalCode?: string;
+  } | null;
   date: string;
   total: number;
   tax: number;

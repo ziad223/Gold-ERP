@@ -55,6 +55,7 @@ import {
   customerAddressToDraft,
   editCustomerAddress,
   emptyCustomerAddressDraft,
+  formatCustomerAddress,
   removeCustomerAddress,
   setPrimaryCustomerAddress,
   validateCustomerAddressDraft,
@@ -91,6 +92,7 @@ type CustomerProfileFormState = {
   email: string;
   tier: CustomerTier;
   notes: string;
+  nationality: string;
 };
 
 const emptyCustomerProfileForm = (): CustomerProfileFormState => ({
@@ -99,6 +101,7 @@ const emptyCustomerProfileForm = (): CustomerProfileFormState => ({
   email: "",
   tier: "Standard",
   notes: "",
+  nationality: "",
 });
 
 // Phase 31.1 — accounting-sensitive diagnostics are hidden from normal users
@@ -269,6 +272,7 @@ export default function CustomerProfilePage({ params }: PageProps) {
       email: customer.email || "",
       tier: customer.tier,
       notes: customer.notes || "",
+      nationality: customer.nationality || "",
     });
     setProfileEditOpen(true);
   };
@@ -289,6 +293,7 @@ export default function CustomerProfilePage({ params }: PageProps) {
         email: profileForm.email.trim(),
         tier: profileForm.tier,
         notes: profileForm.notes.trim(),
+        nationality: profileForm.nationality.trim() || null,
         expectedUpdatedAt,
       });
       if (!result.success) {
@@ -345,8 +350,8 @@ export default function CustomerProfilePage({ params }: PageProps) {
     const validation = validateCustomerAddressDraft(addressDraft);
     if (!validation.started || !validation.valid) {
       toast.error(locale === "ar"
-        ? "العنوان والمدينة والدولة حقول مطلوبة."
-        : "Address, city, and country are required.");
+        ? "اكتب جزءًا من العنوان أو استخدم الحذف بدلًا من حفظ عنوان فارغ."
+        : "Enter at least one address value, or use Remove instead of saving an empty address.");
       return;
     }
     const nextAddresses = editingAddressIndex === null
@@ -653,6 +658,15 @@ export default function CustomerProfilePage({ params }: PageProps) {
               onChange={(event) => setProfileForm((current) => ({ ...current, notes: event.target.value }))}
             />
           </label>
+          <label>
+            <span className="label-base">{locale === "ar" ? "الجنسية" : "Nationality"}</span>
+            <input
+              className="input-base"
+              data-testid="customer-profile-nationality"
+              value={profileForm.nationality}
+              onChange={(event) => setProfileForm((current) => ({ ...current, nationality: event.target.value }))}
+            />
+          </label>
           <div className="flex justify-end gap-2 sm:col-span-2">
             <Button type="button" variant="secondary" onClick={() => setProfileEditOpen(false)}>
               {common("cancel")}
@@ -749,7 +763,7 @@ export default function CustomerProfilePage({ params }: PageProps) {
               </div>
               <div>
                 <p className="text-slate-400">{locale === "ar" ? "الجنسية" : "Nationality"}</p>
-                <p className="mt-1 font-bold text-navy-900 dark:text-slate-200">{customer.kycDetails?.nationality || "—"}</p>
+                <p className="mt-1 font-bold text-navy-900 dark:text-slate-200">{customer.nationality || customer.kycDetails?.nationality || "—"}</p>
               </div>
               <div className="sm:col-span-2">
                 <p className="text-slate-400">{locale === "ar" ? "ملاحظات" : "Notes"}</p>
@@ -780,7 +794,7 @@ export default function CustomerProfilePage({ params }: PageProps) {
                         <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
-                              <p className="break-words font-bold text-navy-950 dark:text-white">{addr.line1 || "—"}</p>
+                              <p className="break-words font-bold text-navy-950 dark:text-white">{formatCustomerAddress(addr) || "—"}</p>
                               {marker === "PRIMARY" && (
                                 <Badge tone="green">{locale === "ar" ? "العنوان الأساسي" : "Primary"}</Badge>
                               )}
@@ -788,11 +802,6 @@ export default function CustomerProfilePage({ params }: PageProps) {
                                 <Badge tone="amber">{locale === "ar" ? "العنوان المستخدم حاليًا" : "Currently used address"}</Badge>
                               )}
                             </div>
-                            {addr.line2 && <p className="mt-1 break-words text-slate-500">{addr.line2}</p>}
-                            <p className="mt-1 break-words text-slate-500">
-                              {[addr.city, addr.country].filter(Boolean).join("، ")}
-                              {addr.postalCode ? ` · ${addr.postalCode}` : ""}
-                            </p>
                           </div>
                           {canUpdateCustomer && (
                             <div className="flex flex-wrap items-center justify-end gap-1">
