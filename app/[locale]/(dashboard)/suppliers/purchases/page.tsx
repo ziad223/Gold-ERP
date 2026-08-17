@@ -118,6 +118,16 @@ const PROFILE_PRESENTATION: Record<string, { label: string; labelAr: string }> =
   CGP_CUSTOMER_GOLD_PURCHASE: { label: "CGP — Customer Gold Purchase", labelAr: "شراء ذهب العميل CGP" },
 };
 
+// This is only a presentation guard. The backend remains authoritative and
+// rejects a final-profile quantity/Product receive even when the UI is
+// bypassed.
+const FINAL_CLIENT_PROFILE_KEYS = new Set([
+  "GOLD_BY_WEIGHT_JEWELLERY", "GOLD_BAR_24K", "GOLD_BY_PIECE",
+  "DIAMOND_JEWELLERY", "LOOSE_DIAMOND",
+  "GEMSTONE_JEWELLERY", "LOOSE_GEMSTONE",
+  "PEARL_JEWELLERY", "LOOSE_PEARL",
+]);
+
 // Presentation only: category ownership, allowed values and validation come
 // from the server-owned Profile Master Data registry.
 const LOOSE_MASTER_FIELDS: Record<string, Array<{ field: string; category: string; label: string; labelAr: string; required?: boolean }>> = {
@@ -235,6 +245,8 @@ export default function SupplierPurchasesPage() {
   const [paymentMethod, setPaymentMethod] = useState("credit");
   const [purchaseDate, setPurchaseDate] = useState(() => getBranchCurrentDate());
   const [notes, setNotes] = useState("");
+
+  const isFinalClientProfile = FINAL_CLIENT_PROFILE_KEYS.has(inventoryProfile);
 
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
@@ -706,6 +718,11 @@ export default function SupplierPurchasesPage() {
     const nextContract = profileContracts.find((profile) => profile.key === nextProfile);
     if (nextContract) setAssetType(nextContract.assetType);
     setPieceDrafts((current) => current.map(resetProfileOwnedFields));
+    if (FINAL_CLIENT_PROFILE_KEYS.has(nextProfile)) {
+      setIsQuantityBased(false);
+      setProductCode("");
+      setMatchingProduct(null);
+    }
     setInventoryProfile(nextProfile);
   };
 
@@ -721,6 +738,11 @@ export default function SupplierPurchasesPage() {
 
     if (!activeBranchId) {
       setErrorMsg(rtl ? "اختر فرعًا تشغيليًا قبل الاستلام." : "Select an operational Branch before receiving.");
+      return;
+    }
+
+    if (isFinalClientProfile && isQuantityBased) {
+      setErrorMsg(rtl ? "Profiles النهائية يجب أن تستلم كأصول فعلية منفصلة عبر مسار V2." : "Final client profiles must be received as serialized Assets through the V2 path.");
       return;
     }
 
@@ -1111,6 +1133,7 @@ export default function SupplierPurchasesPage() {
                     <input
                       type="radio"
                       checked={isQuantityBased}
+                      disabled={isFinalClientProfile || isPosting}
                       onChange={() => {
                         setIsQuantityBased(true);
                         setProductCode("");
@@ -1138,6 +1161,11 @@ export default function SupplierPurchasesPage() {
                     </span>
                   </label>
                 </div>
+                {isFinalClientProfile && (
+                  <p className="mt-2 text-[11px] font-bold text-amber-700 dark:text-amber-300">
+                    {rtl ? "هذا الـProfile النهائي يستخدم أصولًا وباركودًا لكل قطعة؛ مسار Product/الكمية غير متاح." : "This final profile uses one Asset and barcode per physical piece; Product/quantity receive is unavailable."}
+                  </p>
+                )}
               </div>
 
               <label className="block">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Barcode, ChevronLeft, ChevronRight, Filter, Search, SlidersHorizontal } from "lucide-react";
+import { Barcode, ChevronLeft, ChevronRight, Filter, Plus, Search, SlidersHorizontal } from "lucide-react";
 import { useLocale } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,10 +10,14 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { InventoryIntakeChooser } from "@/components/inventory/inventory-intake-chooser";
 import { Link } from "@/i18n/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { apiClient } from "@/lib/api/client";
 import { useBranchContext } from "@/contexts/branch-context";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useInventoryV2List } from "@/features/inventory/hooks/use-inventory-v2";
+import { useSearchParams } from "next/navigation";
 
 const STATUS_LABELS: Record<string, string> = {
   AVAILABLE: "متاحة", RESERVED: "محجوزة", SOLD: "مباعة", PENDING_TRANSFER: "بانتظار النقل",
@@ -33,6 +37,9 @@ export default function InventoryPage() {
   const locale = useLocale();
   const rtl = locale === "ar";
   const { branchId } = useBranchContext();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { hasPermission } = usePermissions();
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [profile, setProfile] = useState("all");
@@ -41,8 +48,10 @@ export default function InventoryPage() {
   const [tagState, setTagState] = useState("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [intakeOpen, setIntakeOpen] = useState(false);
   const list = useInventoryV2List({ search, profile, status, condition, tagState, page, pageSize, sort: "createdAt", direction: "DESC" });
   const [profiles, setProfiles] = useState<string[]>(Object.keys(PROFILE_LABELS));
+  const supplierHint = searchParams.get("supplierId") || undefined;
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearch(searchInput.trim()), 250);
@@ -56,14 +65,26 @@ export default function InventoryPage() {
       if (Array.isArray(items) && items.length) setProfiles(items.map((item) => item.key));
     }).catch(() => undefined);
   }, [branchId, locale]);
+  useEffect(() => {
+    setIntakeOpen(searchParams.get("openIntake") === "1");
+  }, [searchParams]);
 
   const total = list.data?.total || 0;
   const totalPages = list.data?.totalPages || 1;
   const range = useMemo(() => total ? `${(page - 1) * pageSize + 1}–${Math.min(total, page * pageSize)} / ${total}` : "0", [page, pageSize, total]);
   const clearFilters = () => { setSearchInput(""); setSearch(""); setProfile("all"); setStatus("all"); setCondition("all"); setTagState("all"); };
+  const closeIntake = () => {
+    setIntakeOpen(false);
+    if (searchParams.get("openIntake") === "1") router.replace("/inventory");
+  };
 
   return <div className="space-y-6 text-xs">
-    <PageHeader title={rtl ? "كل القطع" : "All Items"} description={rtl ? "قائمة قانونية موحّدة: كل صف يمثل أصلًا ماديًا واحدًا فقط." : "Canonical list: every row is exactly one physical Asset."} />
+    <PageHeader
+      title={rtl ? "كل القطع" : "All Items"}
+      description={rtl ? "قائمة قانونية موحّدة: كل صف يمثل أصلًا ماديًا واحدًا فقط." : "Canonical list: every row is exactly one physical Asset."}
+      actions={hasPermission("inventory.view") && <Button onClick={() => setIntakeOpen(true)} data-inventory-intake-action><Plus className="h-4 w-4" />{rtl ? "إضافة / استلام مخزون" : "Add / Receive Inventory"}</Button>}
+    />
+    <InventoryIntakeChooser open={intakeOpen} onClose={closeIntake} supplierId={supplierHint} />
     <Card className="space-y-4 p-4">
       <div className="flex flex-col gap-3 lg:flex-row">
         <label className="relative flex-1"><Search className="absolute start-3 top-3 h-4 w-4 text-slate-400" /><input className="input-base ps-9" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder={rtl ? "بحث: باركود، RFID، رقم الأصل، الوصف، المورد، الشهادة…" : "Search barcode, RFID, Asset number, description, supplier, certificate…"} /></label>
