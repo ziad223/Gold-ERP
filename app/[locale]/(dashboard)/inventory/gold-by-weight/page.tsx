@@ -147,10 +147,11 @@ export default function GoldByWeightProfilePage() {
 
   const inventoryCode = useMemo(() => contract?.barcode?.inventoryCodes?.find((item: any) => item.assetType === "gold-weight" && item.isActive)?.code, [contract]);
   const resolvedItemCode = useMemo(() => draft.itemCode || contract?.barcode?.itemCodes?.find((item: any) => item.isActive && item.isClientApproved !== false && (!inventoryCode || !item.allowedInventoryCodes?.length || item.allowedInventoryCodes.includes(inventoryCode)))?.code || "", [contract, draft.itemCode, inventoryCode]);
+  const resolvedPurchaseGoldRate = draft.purchaseGoldRate ? number(draft.purchaseGoldRate) : number(preview?.gold?.purchaseRate);
   const receiveItem = useMemo(() => {
     const unitCost = number(preview?.purchase?.totalPurchaseCost);
     const piece = { ...itemPayload, profile: draft.strategy, inventoryProfile: draft.strategy, type: "gold-weight", category: "Gold By Weight", inventoryCode, itemCode: resolvedItemCode, weightPerUnit: number(draft.grossWeight), unitCost, cost: unitCost, goldValuation: {
-      purchaseGoldRate: draft.purchaseGoldRate ? number(draft.purchaseGoldRate) : undefined,
+      purchaseGoldRate: resolvedPurchaseGoldRate || undefined,
       currentGoldRate: preview?.gold?.currentRate,
       makingPerGram: draft.strategy === "GOLD_BAR_24K" ? undefined : number(draft.makingPerGram),
       currentMakingPerGram: draft.strategy === "GOLD_BAR_24K" ? undefined : number(draft.currentMakingPerGram || draft.makingPerGram),
@@ -160,7 +161,7 @@ export default function GoldByWeightProfilePage() {
       currentVatRate: contract?.vat.enabled === false ? 0 : contract?.vat.rate,
     } };
     return { ...piece, name: draft.description, description: draft.description, quantity: 1, grossWeight: number(draft.grossWeight), perPiece: [piece] };
-  }, [draft.description, draft.grossWeight, draft.strategy, inventoryCode, itemPayload, preview, resolvedItemCode]);
+  }, [draft.description, draft.grossWeight, draft.strategy, inventoryCode, itemPayload, preview, resolvedItemCode, resolvedPurchaseGoldRate]);
 
   useEffect(() => {
     const treatment = receive.taxTreatment;
@@ -199,7 +200,7 @@ export default function GoldByWeightProfilePage() {
     try {
        const unitCost = number(preview.purchase?.totalPurchaseCost);
        const piece = { ...itemPayload, profile: draft.strategy, inventoryProfile: draft.strategy, type: "gold-weight", category: "Gold By Weight", inventoryCode, itemCode: resolvedItemCode, weightPerUnit: number(draft.grossWeight), unitCost, cost: unitCost, goldValuation: {
-        purchaseGoldRate: draft.purchaseGoldRate ? number(draft.purchaseGoldRate) : undefined,
+        purchaseGoldRate: resolvedPurchaseGoldRate || undefined,
         currentGoldRate: preview.gold?.currentRate,
         makingPerGram: draft.strategy === "GOLD_BAR_24K" ? undefined : number(draft.makingPerGram),
         currentMakingPerGram: draft.strategy === "GOLD_BAR_24K" ? undefined : number(draft.currentMakingPerGram || draft.makingPerGram),

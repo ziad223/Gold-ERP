@@ -2566,6 +2566,23 @@ export default function SettingsPage() {
           </Card>
         </Link>
 
+        <Link href="/settings/onboarding" data-testid="settings-onboarding-entry">
+          <Card className="p-5 transition hover:border-brand-300 hover:shadow-soft flex items-center justify-between group">
+            <div className="flex gap-4 items-center">
+              <div className="grid h-10 w-10 place-items-center rounded-2xl bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
+                <Settings2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-black text-xs text-navy-950 dark:text-white group-hover:text-brand-600 transition">
+                  {rtl ? "إعداد الشركة وجاهزية التشغيل" : "Company Setup & Operational Readiness"}
+                </h3>
+                <p className="text-[10px] text-slate-500 mt-0.5">{rtl ? "راجع خطوات إعداد الشركة والجاهزية قبل الاستلام." : "Review company setup and readiness before receiving."}</p>
+              </div>
+            </div>
+            <span className="text-slate-400 group-hover:translate-x-1 rtl:group-hover:-translate-x-1 transition-transform">→</span>
+          </Card>
+        </Link>
+
         <Card className="p-5 flex items-center justify-between">
           <div className="flex gap-4 items-center">
             <div className="grid h-10 w-10 place-items-center rounded-2xl bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">

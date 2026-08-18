@@ -123,7 +123,28 @@ export default function GoldByPieceProfilePage() {
   const resolvedItemCode = useMemo(() => draft.itemCode || contract?.barcode?.itemCodes?.find((entry: any) => entry.isActive && entry.isClientApproved !== false && (!inventoryCode || !entry.allowedInventoryCodes?.length || entry.allowedInventoryCodes.includes(inventoryCode)))?.code || "", [contract, draft.itemCode, inventoryCode]);
   const receiveItem = useMemo(() => {
     const unitCost = num(preview?.purchase?.totalPurchaseCost);
-    const piece = { ...item, type: "gold-piece", category: "Gold By Piece", inventoryCode, itemCode: resolvedItemCode, locationId: receive.locationId || undefined, rfid: draft.rfid || undefined, notes: receive.notes || undefined, pricing: { markupPercent: num(draft.markupPercent), maximumDiscountPercent: draft.maximumDiscountPercent === "" ? undefined : num(draft.maximumDiscountPercent) } };
+    // The profile preview is server-derived economic evidence. Carry its
+    // purchase/tax components into the read-only shared preview so that the
+    // shared Supplier V2 preview consumes the same inputs as the canonical
+    // receive route. The final receive still re-resolves GBP server-side.
+    const piece = {
+      ...item,
+      type: "gold-piece",
+      category: "Gold By Piece",
+      inventoryCode,
+      itemCode: resolvedItemCode,
+      locationId: receive.locationId || undefined,
+      rfid: draft.rfid || undefined,
+      notes: receive.notes || undefined,
+      unitCost,
+      cost: unitCost,
+      purchaseCost: unitCost,
+      goldValue: preview?.purchase?.goldValue,
+      makingTotal: preview?.purchase?.makingTotal,
+      vatBase: preview?.purchase?.vatBase,
+      vatAmount: preview?.purchase?.vatAmount,
+      pricing: { markupPercent: num(draft.markupPercent), maximumDiscountPercent: draft.maximumDiscountPercent === "" ? undefined : num(draft.maximumDiscountPercent) },
+    };
     return { ...piece, name: draft.description, description: draft.description, quantity: 1, weightPerUnit: num(draft.grossWeight), grossWeight: num(draft.grossWeight), unitCost, perPiece: [piece] };
   }, [draft.description, draft.grossWeight, draft.markupPercent, draft.maximumDiscountPercent, draft.rfid, inventoryCode, item, preview, receive.locationId, receive.notes, resolvedItemCode]);
 
