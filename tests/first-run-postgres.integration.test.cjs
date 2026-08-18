@@ -24,6 +24,10 @@ if (!database) {
     };
   };
   const count = (model, where = {}) => model.count({ where });
+  const tableCount = async (table) => {
+    const [rows] = await models.sequelize.query(`SELECT COUNT(*)::int AS count FROM ${table}`);
+    return Number(rows[0]?.count || 0);
+  };
 
   test.after(async () => { await models.sequelize.close(); });
 
@@ -41,6 +45,9 @@ if (!database) {
     assert.equal(await count(models.Company), 0);
     assert.equal(await count(models.Branch), 0);
     assert.equal(await count(models.FirstRunSetupState), 0);
+    for (const table of ["profile_master_data", "pearl_size_master_data", "barcode_inventory_codes", "barcode_item_codes", "barcode_sequences", "inventory_master_data_bootstrap_states"]) {
+      assert.equal(await tableCount(table), 0, `rollback must remove ${table}`);
+    }
     assert.equal((await state.resolveSetupState(models)).state, state.STATES.SETUP_REQUIRED);
 
     const attempts = ["a", "b"].map((suffix) => ({ payload: makePayload(suffix), key: crypto.randomUUID().replaceAll("-", "") }));
@@ -63,6 +70,58 @@ if (!database) {
     assert.equal(await count(models.Branch, { isActive: true }), 1);
     assert.equal(await count(models.SystemAccountRole), Object.keys(financialCatalog.ACCOUNT_ROLE_CATALOG).length);
     assert.equal(await count(models.BranchFinancialMapping, { isActive: true }), Object.keys(financialCatalog.BRANCH_MAPPING_CATALOG).length);
+    assert.equal(await tableCount("profile_master_data"), 659);
+    assert.equal(await tableCount("pearl_size_master_data"), 39);
+    assert.equal(await tableCount("barcode_inventory_codes"), 5);
+    assert.equal(await tableCount("barcode_item_codes"), 20);
+    assert.equal(await tableCount("barcode_sequences"), 0);
+    assert.equal(await tableCount("inventory_master_data_bootstrap_states"), 1);
+    const [bootstrapStates] = await models.sequelize.query("SELECT dataset_id,current_version,state,manifest_hash FROM inventory_master_data_bootstrap_states");
+    assert.deepEqual(bootstrapStates, [{
+      dataset_id: "INVENTORY_REFERENCE_MASTER_DATA",
+      current_version: 2,
+      state: "READY",
+      manifest_hash: "d3114cd90653b7aea5c1aa582b294fced65db073be3320e60e8c2b75b2d69f6c",
+    }]);
+    const [categoryRows] = await models.sequelize.query("SELECT category_key,count(*)::int AS count FROM profile_master_data GROUP BY category_key");
+    assert.deepEqual(Object.fromEntries(categoryRows.map((row) => [row.category_key, Number(row.count)])), {
+      DIAMOND_CLARITY: 11,
+      DIAMOND_COLOR: 30,
+      DIAMOND_CUT: 5,
+      DIAMOND_ORIGIN: 15,
+      DIAMOND_POSITION: 7,
+      DIAMOND_SATURATION: 10,
+      DIAMOND_SETTING: 47,
+      DIAMOND_SHAPE: 29,
+      DIAMOND_TONE: 14,
+      DIAMOND_TONE_LEVEL: 9,
+      DIAMOND_TREATMENT: 9,
+      DIAMOND_TYPE: 3,
+      GEMSTONE_COLOR: 45,
+      GEMSTONE_NAME: 67,
+      GEMSTONE_OPTICAL_EFFECT: 11,
+      GEMSTONE_ORIGIN: 25,
+      GEMSTONE_POSITION: 7,
+      GEMSTONE_SATURATION: 10,
+      GEMSTONE_SETTING: 47,
+      GEMSTONE_SHAPE: 19,
+      GEMSTONE_TONE: 14,
+      GEMSTONE_TONE_LEVEL: 9,
+      GEMSTONE_TYPE: 6,
+      GOLD_COLOR: 4,
+      GOLD_ITEM_DESCRIPTION: 19,
+      PEARL_COLOR: 17,
+      PEARL_ITEM_DESCRIPTION: 18,
+      PEARL_LUSTER: 26,
+      PEARL_NACRE_QUALITY: 27,
+      PEARL_ORIENT: 6,
+      PEARL_ORIGIN: 20,
+      PEARL_OVERTONE: 19,
+      PEARL_SHAPE: 10,
+      PEARL_SURFACE_QUALITY: 18,
+      PEARL_TYPE: 10,
+      CERTIFICATE_AUTHORITY: 16,
+    });
     const [locks] = await models.sequelize.query("SELECT COUNT(*)::int AS count FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'");
     assert.equal(Number(locks[0].count), 0);
   });

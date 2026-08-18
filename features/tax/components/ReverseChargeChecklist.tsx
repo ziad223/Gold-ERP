@@ -5,15 +5,21 @@ import { CheckSquare, Square, ShieldCheck, AlertCircle, FileText } from "lucide-
 
 interface ReverseChargeChecklistProps {
   supplierName: string;
-  trn: string;
+  trn?: string;
   onVerifyStatusChange: (verified: boolean) => void;
+  onEvidenceChange?: (evidence: {
+    supplierVatRegistrationVerified: boolean;
+    requiredRecipientDeclarationObtained: boolean;
+    supplierRetainedRequiredEvidence: boolean;
+  }) => void;
   locale?: string;
 }
 
 export function ReverseChargeChecklist({
   supplierName,
-  trn,
+  trn = "",
   onVerifyStatusChange,
+  onEvidenceChange,
   locale = "ar"
 }: ReverseChargeChecklistProps) {
   const rtl = locale === "ar";
@@ -22,22 +28,31 @@ export function ReverseChargeChecklist({
   const [checkedDeclaration, setCheckedDeclaration] = useState(false);
   const [checkedInvoice, setCheckedInvoice] = useState(false);
 
+  const notify = (nextTrn: boolean, nextDeclaration: boolean, nextInvoice: boolean) => {
+    onVerifyStatusChange(nextTrn && nextDeclaration && nextInvoice);
+    onEvidenceChange?.({
+      supplierVatRegistrationVerified: nextTrn,
+      requiredRecipientDeclarationObtained: nextDeclaration,
+      supplierRetainedRequiredEvidence: nextInvoice,
+    });
+  };
+
   const toggleTrn = () => {
     const nextVal = !checkedTrn;
     setCheckedTrn(nextVal);
-    onVerifyStatusChange(nextVal && checkedDeclaration && checkedInvoice);
+    notify(nextVal, checkedDeclaration, checkedInvoice);
   };
 
   const toggleDeclaration = () => {
     const nextVal = !checkedDeclaration;
     setCheckedDeclaration(nextVal);
-    onVerifyStatusChange(checkedTrn && nextVal && checkedInvoice);
+    notify(checkedTrn, nextVal, checkedInvoice);
   };
 
   const toggleInvoice = () => {
     const nextVal = !checkedInvoice;
     setCheckedInvoice(nextVal);
-    onVerifyStatusChange(checkedTrn && checkedDeclaration && nextVal);
+    notify(checkedTrn, checkedDeclaration, nextVal);
   };
 
   const isVerified = checkedTrn && checkedDeclaration && checkedInvoice;

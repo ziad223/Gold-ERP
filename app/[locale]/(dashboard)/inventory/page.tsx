@@ -84,6 +84,7 @@ export default function InventoryPage() {
       description={rtl ? "قائمة قانونية موحّدة: كل صف يمثل أصلًا ماديًا واحدًا فقط." : "Canonical list: every row is exactly one physical Asset."}
       actions={hasPermission("inventory.view") && <Button onClick={() => setIntakeOpen(true)} data-inventory-intake-action><Plus className="h-4 w-4" />{rtl ? "إضافة / استلام مخزون" : "Add / Receive Inventory"}</Button>}
     />
+    {hasPermission("inventory.view") && <div className="flex justify-end"><Link href="/inventory/locations" className="text-xs font-semibold text-brand-700 hover:underline">{rtl ? "إدارة مواقع المخزون" : "Manage inventory locations"}</Link></div>}
     <InventoryIntakeChooser open={intakeOpen} onClose={closeIntake} supplierId={supplierHint} />
     <Card className="space-y-4 p-4">
       <div className="flex flex-col gap-3 lg:flex-row">

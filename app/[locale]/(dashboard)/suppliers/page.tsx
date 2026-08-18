@@ -343,11 +343,6 @@ export default function SuppliersPage() {
             <Button variant="secondary" onClick={handleExport} disabled={isExporting}>
               <Download className="h-4 w-4" /> {common("export")}
             </Button>
-            <Link href="/suppliers/purchases">
-              <Button variant="secondary">
-                {rtl ? "طلبات الشراء والاستلام" : "Purchase Orders"}
-              </Button>
-            </Link>
             <Link href="/suppliers/investment-gold">
               <Button variant="secondary">{rtl ? "مسودات الذهب الاستثماري" : "Investment Gold Drafts"}</Button>
             </Link>

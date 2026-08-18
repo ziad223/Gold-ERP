@@ -426,11 +426,6 @@ export default function SupplierProfilePage({ params }: PageProps) {
           <h1 className="text-xl font-black text-navy-950 dark:text-white">{supplier.name}</h1>
         </div>
         <div className="ml-auto flex gap-2 rtl:mr-auto rtl:ml-0">
-          {hasPermission("suppliers.view") && (
-            <Link href={`/inventory?openIntake=1&supplierId=${encodeURIComponent(supplier.id)}`}>
-              <Button size="sm" data-supplier-intake-shortcut><Truck className="h-4 w-4" />{rtl ? "استلام مخزون من هذا المورد" : "Receive Inventory From Supplier"}</Button>
-            </Link>
-          )}
           <Badge tone={supplier.status === "inactive" ? "rose" : "green"}>
             {supplier.status === "inactive" ? common("inactive") : common("active")}
           </Badge>

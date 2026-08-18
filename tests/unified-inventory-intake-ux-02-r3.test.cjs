@@ -33,14 +33,10 @@ test("02-R3 provides one Inventory action and exactly five profile choices", () 
   assert.match(chooser, /supplierId\)\}/);
 });
 
-test("02-R3 wires the Supplier shortcut to the same chooser with a safe hint", () => {
-  assert.match(supplier, /data-supplier-intake-shortcut/);
-  assert.match(supplier, /استلام مخزون من هذا المورد/);
-  assert.match(supplier, /Receive Inventory From Supplier/);
-  assert.match(supplier, /openIntake=1&supplierId=\$\{encodeURIComponent\(supplier\.id\)\}/);
-  assert.match(supplier, /hasPermission\("suppliers\.view"\)/);
-  assert.match(inventory, /searchParams\.get\("openIntake"\) === "1"/);
-  assert.match(inventory, /supplierHint = searchParams\.get\("supplierId"\)/);
+test("G2C correction removes the Supplier receive shortcut while Inventory remains canonical", () => {
+  assert.doesNotMatch(supplier, /data-supplier-intake-shortcut|Receive Inventory From Supplier|استلام مخزون من هذا المورد/);
+  assert.match(inventory, /data-inventory-intake-action/);
+  assert.match(inventory, /InventoryIntakeChooser/);
 });
 
 test("02-R3 keeps GBW as the single form and validates supplier preselection from contract data", () => {
