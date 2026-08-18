@@ -25,7 +25,7 @@ type ReadinessResponse = { success: boolean; data: Readiness };
 
 const steps = [
   { key: "companyIdentity", ar: "بيانات الشركة", en: "Company identity", href: "/settings" },
-  { key: "taxPolicy", ar: "الضرائب", en: "UAE tax policy", href: "/settings" },
+  { key: "taxPolicy", ar: "الضرائب", en: "UAE tax policy", href: "/settings/tax" },
   { key: "activeBranch", ar: "الفروع", en: "Branches", href: "/settings" },
   { key: "activeInventoryLocation", ar: "مواقع المخزون", en: "Inventory locations", href: "/inventory/locations" },
   { key: "financialFoundation", ar: "الجاهزية المالية", en: "Financial readiness", href: "/accounting" },

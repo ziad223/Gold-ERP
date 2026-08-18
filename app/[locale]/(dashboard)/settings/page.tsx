@@ -192,7 +192,6 @@ export default function SettingsPage() {
   const [savingCompany, setSavingCompany] = useState(false);
 
   // --- System Settings State ---
-  const [vatRate, setVatRate] = useState("5");
   const [decimalPrecision, setDecimalPrecision] = useState("2");
   const [lowStockThreshold, setLowStockThreshold] = useState("3");
   const [invoicePrefix, setInvoicePrefix] = useState("INV-2026");
@@ -506,7 +505,6 @@ export default function SettingsPage() {
       setAddress2(company?.address2 || "");
       setPostalCode(toEnglishDigits(company?.postalCode || ""));
       setCommercialRegister(toEnglishDigits(company?.commercialRegister || ""));
-      setVatRate(toEnglishDigits(settings.vatRate ?? 5));
       setDecimalPrecision(toEnglishDigits(settings.decimalPrecision ?? 2));
       setLowStockThreshold(toEnglishDigits(settings.lowStockThreshold ?? 3));
       setInvoicePrefix(toEnglishDigits(settings.invoicePrefix || "INV-2026"));
@@ -801,7 +799,6 @@ export default function SettingsPage() {
     setSavingSystem(true);
     try {
       const success = await updateSettings({
-        vatRate: Number(toEnglishDigits(vatRate)),
         decimalPrecision: Number(toEnglishDigits(decimalPrecision)),
         lowStockThreshold: Number(toEnglishDigits(lowStockThreshold)),
         invoicePrefix: toEnglishDigits(invoicePrefix.trim()),
@@ -2194,17 +2191,10 @@ export default function SettingsPage() {
           </div>
 
           {canUpdateAllSettings && <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block">
-              <span className="label-base">{rtl ? "نسبة ضريبة القيمة المضافة (%)" : "VAT Rate (%)"}</span>
-              <input
-                type="text"
-                inputMode="decimal"
-                dir="ltr"
-                className="input-base mt-1"
-                value={toEnglishDigits(vatRate)}
-                onChange={(e) => setVatRate(normalizeNumberInput(e.target.value))}
-              />
-            </label>
+            <div className="sm:col-span-2 rounded-xl border border-brand-100 bg-brand-50/50 p-4 text-sm dark:border-brand-500/20 dark:bg-brand-500/5">
+              <p className="font-semibold text-navy-950 dark:text-white">{rtl ? "إعدادات الضرائب تُدار من الصفحة الموحدة" : "Tax policy is managed from the canonical page"}</p>
+              <p className="mt-1 text-xs text-slate-500">{rtl ? "تتضمن الصفحة حالة التسجيل والمعالجات المفعلة والافتراضية وقدرة الاحتساب العكسي. لا يتم حفظ نسبة الضريبة من إعدادات النظام العامة." : "The canonical page contains registration, enabled/default treatments, and reverse-charge capability. VAT policy is not saved from general system settings."}</p>
+            </div>
 
             <label className="block">
               <span className="label-base">{rtl ? "دقة الأرقام العشرية (Decimal Precision)" : "Decimal Precision"}</span>
@@ -2560,6 +2550,21 @@ export default function SettingsPage() {
                   {t("usersManagement")}
                 </h3>
                 <p className="text-[10px] text-slate-500 mt-0.5">{t("usersManagementDesc")}</p>
+              </div>
+            </div>
+            <span className="text-slate-400 group-hover:translate-x-1 rtl:group-hover:-translate-x-1 transition-transform">→</span>
+          </Card>
+        </Link>
+
+        <Link href="/settings/tax" data-testid="settings-tax-entry">
+          <Card className="p-5 transition hover:border-brand-300 hover:shadow-soft flex items-center justify-between group">
+            <div className="flex gap-4 items-center">
+              <div className="grid h-10 w-10 place-items-center rounded-2xl bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
+                <Percent className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-black text-xs text-navy-950 dark:text-white group-hover:text-brand-600 transition">{rtl ? "إعدادات الضرائب وضريبة القيمة المضافة" : "Tax & VAT Settings"}</h3>
+                <p className="text-[10px] text-slate-500 mt-0.5">{rtl ? "إدارة سياسة الضريبة للشركة من المصدر المعتمد." : "Manage the company tax policy from its canonical authority."}</p>
               </div>
             </div>
             <span className="text-slate-400 group-hover:translate-x-1 rtl:group-hover:-translate-x-1 transition-transform">→</span>
