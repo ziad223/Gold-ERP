@@ -33,16 +33,17 @@ test("inventory list is server-backed, Asset-authoritative, filterable and pagin
   assert.match(inventory, /Barcode is the permanent primary identity/);
 });
 
-test("chooser enables GBW, GBP, and Diamond Jewellery while keeping future profiles disabled", () => {
+test("chooser enables GBW, GBP, Diamond Jewellery, and Loose Diamond while keeping Gem/Pearl disabled", () => {
   assert.deepEqual([...chooser.matchAll(/key: "([A-Z_]+)", icon:/g)].map((match) => match[1]), [
-    "GOLD_BY_WEIGHT", "GOLD_BY_PIECE", "DIAMOND", "GEM_STONE", "PEARL",
+    "GOLD_BY_WEIGHT", "GOLD_BY_PIECE", "DIAMOND", "DIAMOND_LOOSE", "GEM_STONE", "PEARL",
   ]);
-  assert.equal((chooser.match(/enabled: true/g) || []).length, 3);
+  assert.equal((chooser.match(/enabled: true/g) || []).length, 4);
   assert.equal((chooser.match(/enabled: false/g) || []).length, 2);
   assert.match(chooser, /key: "DIAMOND", icon:[\s\S]*?enabled: true/);
+  assert.match(chooser, /key: "DIAMOND_LOOSE", icon:[\s\S]*?enabled: true/);
   assert.match(chooser, /key: "GEM_STONE", icon:[\s\S]*?enabled: false/);
   assert.match(chooser, /key: "PEARL", icon:[\s\S]*?enabled: false/);
-  assert.match(chooser, /href=\{key === "GOLD_BY_PIECE" \? gbpHref : key === "DIAMOND" \? diamondHref : gbwHref\}/);
+  assert.match(chooser, /href=\{key === "GOLD_BY_PIECE" \? gbpHref : key === "DIAMOND" \? diamondHref : key === "DIAMOND_LOOSE" \? looseDiamondHref : gbwHref\}/);
 });
 
 test("shared receive section keeps supplier, DB location, date, tax, notes, RCM evidence and server summary", () => {

@@ -19,20 +19,21 @@ test("02-R3 removes the dedicated GBW daily Sidebar entry without removing the r
   assert.match(inventory, /href=\{`\/inventory\/\$\{encodeURIComponent\(asset\.id\)\}`\}/);
 });
 
-test("02-R3 provides one Inventory action and exactly five profile choices", () => {
+test("02-R3 provides one Inventory action and the approved active profile choices", () => {
   assert.match(inventory, /data-inventory-intake-action/);
   assert.match(inventory, /إضافة \/ استلام مخزون/);
   assert.match(inventory, /Add \/ Receive Inventory/);
   assert.match(inventory, /InventoryIntakeChooser/);
   assert.deepEqual([...chooser.matchAll(/key: "([A-Z_]+)", icon:/g)].map((match) => match[1]), [
-    "GOLD_BY_WEIGHT", "GOLD_BY_PIECE", "DIAMOND", "GEM_STONE", "PEARL",
+    "GOLD_BY_WEIGHT", "GOLD_BY_PIECE", "DIAMOND", "DIAMOND_LOOSE", "GEM_STONE", "PEARL",
   ]);
-  assert.equal((chooser.match(/enabled: true/g) || []).length, 3);
+  assert.equal((chooser.match(/enabled: true/g) || []).length, 4);
   assert.equal((chooser.match(/enabled: false/g) || []).length, 2);
   assert.match(chooser, /key: "DIAMOND", icon:[\s\S]*?enabled: true/);
+  assert.match(chooser, /key: "DIAMOND_LOOSE", icon:[\s\S]*?enabled: true/);
   assert.match(chooser, /key: "GEM_STONE", icon:[\s\S]*?enabled: false/);
   assert.match(chooser, /key: "PEARL", icon:[\s\S]*?enabled: false/);
-  assert.match(chooser, /href=\{key === "GOLD_BY_PIECE" \? gbpHref : key === "DIAMOND" \? diamondHref : gbwHref\}/);
+  assert.match(chooser, /href=\{key === "GOLD_BY_PIECE" \? gbpHref : key === "DIAMOND" \? diamondHref : key === "DIAMOND_LOOSE" \? looseDiamondHref : gbwHref\}/);
   assert.match(chooser, /supplierId\)\}/);
 });
 
