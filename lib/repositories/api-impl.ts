@@ -30,6 +30,7 @@ import type {
   SupplierStatement,
   SupplierStatementQuery,
   SupplierPaymentInput,
+  SupplierPaymentReversalInput,
   SupplierPaymentResult,
 } from "./interfaces";
 import type {
@@ -550,6 +551,18 @@ export class ApiAccountingRepository implements AccountingRepository {
   ): Promise<SupplierPaymentResult> {
     return apiClient<SupplierPaymentResult>(
       `/purchase-orders/${encodeURIComponent(purchaseOrderId)}/pay`,
+      { method: "POST", body: JSON.stringify(input), idempotencyKey, ...auth() },
+    );
+  }
+
+  async reverseSupplierPayment(
+    purchaseOrderId: string,
+    paymentId: string,
+    input: SupplierPaymentReversalInput,
+    idempotencyKey: string,
+  ): Promise<SupplierPaymentResult> {
+    return apiClient<SupplierPaymentResult>(
+      `/purchase-orders/${encodeURIComponent(purchaseOrderId)}/payments/${encodeURIComponent(paymentId)}/reverse`,
       { method: "POST", body: JSON.stringify(input), idempotencyKey, ...auth() },
     );
   }

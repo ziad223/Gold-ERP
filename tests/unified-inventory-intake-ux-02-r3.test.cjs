@@ -27,9 +27,12 @@ test("02-R3 provides one Inventory action and exactly five profile choices", () 
   assert.deepEqual([...chooser.matchAll(/key: "([A-Z_]+)", icon:/g)].map((match) => match[1]), [
     "GOLD_BY_WEIGHT", "GOLD_BY_PIECE", "DIAMOND", "GEM_STONE", "PEARL",
   ]);
-  assert.equal((chooser.match(/enabled: true/g) || []).length, 2);
-  assert.equal((chooser.match(/enabled: false/g) || []).length, 3);
-  assert.match(chooser, /href=\{key === "GOLD_BY_PIECE" \? gbpHref : gbwHref\}/);
+  assert.equal((chooser.match(/enabled: true/g) || []).length, 3);
+  assert.equal((chooser.match(/enabled: false/g) || []).length, 2);
+  assert.match(chooser, /key: "DIAMOND", icon:[\s\S]*?enabled: true/);
+  assert.match(chooser, /key: "GEM_STONE", icon:[\s\S]*?enabled: false/);
+  assert.match(chooser, /key: "PEARL", icon:[\s\S]*?enabled: false/);
+  assert.match(chooser, /href=\{key === "GOLD_BY_PIECE" \? gbpHref : key === "DIAMOND" \? diamondHref : gbwHref\}/);
   assert.match(chooser, /supplierId\)\}/);
 });
 

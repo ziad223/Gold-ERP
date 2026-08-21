@@ -26,6 +26,9 @@ const initialForm = {
   category: "",
   phone: "",
   email: "",
+  taxNumber: "",
+  commercialRegister: "",
+  paymentTerms: "",
   due: "",
   rating: "4.5",
   address: "",
@@ -119,6 +122,9 @@ export default function SuppliersPage() {
       category: sup.category,
       phone: sup.phone,
       email: sup.email || "",
+      taxNumber: sup.taxNumber || "",
+      commercialRegister: sup.commercialRegister || "",
+      paymentTerms: sup.paymentTerms || "",
       due: String(sup.due),
       rating: String(sup.rating),
       address: sup.address || "",
@@ -143,6 +149,9 @@ export default function SuppliersPage() {
           category: form.category.trim(),
           phone: form.phone.trim(),
           email: form.email.trim(),
+          taxNumber: form.taxNumber.trim(),
+          commercialRegister: form.commercialRegister.trim(),
+          paymentTerms: form.paymentTerms.trim(),
           // Phase 10H: `due` is a reference balance and is NOT manually editable
           // from the UI — omitted so the stored value is never overwritten here.
           rating: Math.min(5, Math.max(1, Number(form.rating) || 4.5)),
@@ -163,6 +172,9 @@ export default function SuppliersPage() {
           category: form.category.trim(),
           phone: form.phone.trim(),
           email: form.email.trim(),
+          taxNumber: form.taxNumber.trim(),
+          commercialRegister: form.commercialRegister.trim(),
+          paymentTerms: form.paymentTerms.trim(),
           due: 0, // new suppliers start at 0; due is maintained by the system, not the UI
           lastOrder: new Date().toISOString().slice(0, 10),
           rating: Math.min(5, Math.max(1, Number(form.rating) || 4.5)),
@@ -629,6 +641,30 @@ export default function SuppliersPage() {
               className="input-base"
               value={form.email}
               onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+            />
+          </label>
+          <label>
+            <span className="label-base">{rtl ? "الرقم الضريبي" : "Tax Number"}</span>
+            <input
+              className="input-base"
+              value={form.taxNumber}
+              onChange={(event) => setForm((current) => ({ ...current, taxNumber: event.target.value }))}
+            />
+          </label>
+          <label>
+            <span className="label-base">{rtl ? "السجل التجاري" : "Commercial Register"}</span>
+            <input
+              className="input-base"
+              value={form.commercialRegister}
+              onChange={(event) => setForm((current) => ({ ...current, commercialRegister: event.target.value }))}
+            />
+          </label>
+          <label>
+            <span className="label-base">{rtl ? "شروط الدفع" : "Payment Terms"}</span>
+            <input
+              className="input-base"
+              value={form.paymentTerms}
+              onChange={(event) => setForm((current) => ({ ...current, paymentTerms: event.target.value }))}
             />
           </label>
           <label>

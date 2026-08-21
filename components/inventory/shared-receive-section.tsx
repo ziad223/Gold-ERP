@@ -3,6 +3,7 @@
 import { ExternalLink } from "lucide-react";
 import { useLocale } from "next-intl";
 import { ReverseChargeChecklist } from "@/features/tax/components/ReverseChargeChecklist";
+import { Link } from "@/i18n/navigation";
 
 export type SharedReceiveSupplier = {
   id: string;
@@ -124,7 +125,7 @@ export function SharedReceiveSection({
         <label className="space-y-1">
           <span className="block text-[11px] font-bold text-slate-500">{rtl ? "المورد" : "Supplier"} *</span>
           <select className="input-base w-full" value={state.supplierId} required disabled={disabled} onChange={(event) => onChange("supplierId", event.target.value)}>
-            <option value="">{rtl ? "اختر موردًا من DB" : "Select a DB Supplier"}</option>
+            <option key="empty-supplier" value="">{rtl ? "اختر موردًا من DB" : "Select a DB Supplier"}</option>
             {suppliers.filter((supplier) => supplier.status !== "inactive").map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
           </select>
         </label>
@@ -132,10 +133,10 @@ export function SharedReceiveSection({
         <label className="space-y-1">
           <span className="block text-[11px] font-bold text-slate-500">{rtl ? "الموقع" : "Location"} *</span>
           <select className="input-base w-full" value={state.locationId} required disabled={disabled || !hasLocations} onChange={(event) => onChange("locationId", event.target.value)}>
-            <option value="">{hasLocations ? (rtl ? "اختر موقعًا نشطًا" : "Select an active Location") : (rtl ? "لا توجد مواقع نشطة" : "No active Locations")}</option>
+            <option key="empty-location" value="">{hasLocations ? (rtl ? "اختر موقعًا نشطًا" : "Select an active Location") : (rtl ? "لا توجد مواقع نشطة" : "No active Locations")}</option>
             {locations.filter((location) => location.isActive !== false).map((location) => <option key={location.id} value={location.id}>{location.code} — {location.name}</option>)}
           </select>
-          {!hasLocations && <span className="block text-[10px] text-amber-700 dark:text-amber-300"><ExternalLink className="me-1 inline h-3 w-3" /><a className="underline" href="/inventory/locations">{rtl ? "إدارة المواقع" : "Manage Locations"}</a></span>}
+          {!hasLocations && <span className="block text-[10px] text-amber-700 dark:text-amber-300"><ExternalLink className="me-1 inline h-3 w-3" /><Link className="underline" href="/inventory/locations">{rtl ? "إدارة المواقع" : "Manage Locations"}</Link></span>}
           <span className="block text-[10px] text-slate-500">{rtl ? "الموقع من DB داخل الشركة والفرع الحالي فقط." : "Location is DB-backed and scoped to the current company and branch."}</span>
         </label>
 
@@ -147,7 +148,7 @@ export function SharedReceiveSection({
         <label className="space-y-1">
           <span className="block text-[11px] font-bold text-slate-500">{rtl ? "المعاملة الضريبية" : "Tax Treatment"} *</span>
           <select className="input-base w-full" value={state.taxTreatment} required disabled={disabled || enabledTreatments.length === 0} onChange={(event) => onChange("taxTreatment", event.target.value)}>
-            <option value="">{rtl ? "اختر من سياسة الشركة" : "Select from company policy"}</option>
+            <option key="empty-tax-treatment" value="">{rtl ? "اختر من سياسة الشركة" : "Select from company policy"}</option>
             {enabledTreatments.map((treatment) => <option key={treatment} value={treatment}>{treatment}</option>)}
           </select>
           <span className="block text-[10px] text-slate-500">{rtl ? "لا يوجد افتراض ضريبي على الواجهة." : "No frontend tax default is used."}</span>

@@ -1081,6 +1081,12 @@ export class LocalAccountingRepository implements AccountingRepository {
       error: { code: "not-supported", message: "Supplier payments are only available in API mode." },
     };
   }
+  async reverseSupplierPayment(): Promise<SupplierPaymentResult> {
+    return {
+      success: false,
+      error: { code: "not-supported", message: "Supplier payment reversals are only available in API mode." },
+    };
+  }
   async listJournalEntries(query: ListQuery): Promise<PaginatedResult<JournalEntry>> {
     return { items: [], page: 1, pageSize: 10, total: 0, totalPages: 0 };
   }

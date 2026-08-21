@@ -494,6 +494,10 @@ export interface SupplierPaymentInput {
   note?: string;
 }
 
+export interface SupplierPaymentReversalInput {
+  reason: string;
+}
+
 export interface SupplierPaymentResult {
   success: boolean;
   data?: any;
@@ -527,6 +531,9 @@ export interface AccountingRepository {
   // /purchase-orders/:id/pay with an Idempotency-Key. Mock/local does not
   // support it. Never touches Supplier.due.
   payPurchaseOrder(purchaseOrderId: string, input: SupplierPaymentInput, idempotencyKey: string): Promise<SupplierPaymentResult>;
+  // Append-only reversal of one posted supplier payment. Mock/local does not
+  // support financial mutations.
+  reverseSupplierPayment(purchaseOrderId: string, paymentId: string, input: SupplierPaymentReversalInput, idempotencyKey: string): Promise<SupplierPaymentResult>;
   listJournalEntries(query: ListQuery): Promise<PaginatedResult<JournalEntry>>;
   createJournalEntry(entry: JournalEntry): Promise<MutationResult<JournalEntry>>;
   // Phase 8D3 — create a balanced manual journal entry as a DRAFT only.

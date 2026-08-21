@@ -22,6 +22,7 @@ import {
   File,
   Loader2,
   RefreshCw,
+  RotateCcw,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -82,6 +83,11 @@ export default function SupplierProfilePage({ params }: PageProps) {
   const [payNote, setPayNote] = useState("");
   const [payKey, setPayKey] = useState("");
   const [paying, setPaying] = useState(false);
+  const [reversePayment, setReversePayment] = useState<any>(null);
+  const [reversePo, setReversePo] = useState<any>(null);
+  const [reverseReason, setReverseReason] = useState("");
+  const [reverseKey, setReverseKey] = useState("");
+  const [reversing, setReversing] = useState(false);
 
   const newIdemKey = () => {
     try {
@@ -115,6 +121,51 @@ export default function SupplierProfilePage({ params }: PageProps) {
     setPayKey(newIdemKey()); // one key per payment session (reused on retry)
   };
   const closePay = () => setPayPo(null);
+
+  const openReverse = (po: any, payment: any) => {
+    if (!isApiMode || payment?.reversible !== true) return;
+    setReversePo(po);
+    setReversePayment(payment);
+    setReverseReason("");
+    setReverseKey(newIdemKey());
+  };
+  const closeReverse = () => {
+    if (reversing) return;
+    setReversePo(null);
+    setReversePayment(null);
+  };
+
+  const submitReverse = async () => {
+    if (!reversePo || !reversePayment || !reverseReason.trim()) {
+      toast.error(rtl ? "سبب العكس مطلوب" : "A reversal reason is required");
+      return;
+    }
+    setReversing(true);
+    try {
+      const res = await accountingRepository.reverseSupplierPayment(
+        reversePo.id,
+        reversePayment.id,
+        { reason: reverseReason.trim() },
+        reverseKey,
+      );
+      if (res.success) {
+        toast.success(rtl ? "تم عكس سداد المورد" : "Supplier payment reversed");
+        closeReverse();
+        await refresh();
+        queryClient.invalidateQueries({ queryKey: ["supplier-statement"] });
+        queryClient.invalidateQueries({ queryKey: ["supplier-statement-rcm"] });
+      } else {
+        toast.error(res.error?.message || (rtl ? "تعذّر عكس السداد" : "Failed to reverse payment"));
+      }
+    } catch (err: any) {
+      const status = err?.status;
+      toast.error(status === 409
+        ? (rtl ? "تم عكس السداد مسبقاً أو حدث تعارض" : "The payment was already reversed or a conflict occurred")
+        : (err?.message || (rtl ? "تعذّر عكس السداد" : "Failed to reverse payment")));
+    } finally {
+      setReversing(false);
+    }
+  };
 
   // Phase 17C — gate on the backend-computed canPay (fully-paid POs are excluded).
   const canPayPo = (po: any) => isApiMode && !!po && poState(po).canPay;
@@ -553,28 +604,45 @@ export default function SupplierProfilePage({ params }: PageProps) {
                         </Badge>
                       </td>
                       <td className="px-4 py-3">
-                        {canPayPo(po) ? (
-                          <Button type="button" size="sm" variant="secondary" onClick={() => openPay(po)}>
-                            {rtl ? "سداد" : "Pay"}
-                          </Button>
-                        ) : (
-                          <span
-                            className="text-slate-400"
-                            title={
-                              !isApiMode
-                                ? (rtl ? "سداد الموردين متاح في وضع API فقط." : "Supplier payments are available in API mode only.")
-                                : po.isConsignment
-                                  ? (rtl ? "لا يمكن سداد بضاعة الأمانة." : "Consignment cannot be paid.")
-                                  : st.remaining <= 0.01 && po.status === "received"
-                                    ? (rtl ? "مدفوع بالكامل" : "Fully paid")
-                                    : (rtl ? "يتاح السداد فقط للأوامر المستلمة." : "Only received orders can be paid.")
-                            }
-                          >
-                            {st.remaining <= 0.01 && po.status === "received" && po.isConsignment !== true
-                              ? (rtl ? "مدفوع بالكامل" : "Paid")
-                              : "—"}
-                          </span>
-                        )}
+                        <div className="flex flex-col items-start gap-2">
+                          {canPayPo(po) ? (
+                            <Button type="button" size="sm" variant="secondary" onClick={() => openPay(po)}>
+                              {rtl ? "سداد" : "Pay"}
+                            </Button>
+                          ) : (
+                            <span
+                              className="text-slate-400"
+                              title={
+                                !isApiMode
+                                  ? (rtl ? "سداد الموردين متاح في وضع API فقط." : "Supplier payments are available in API mode only.")
+                                  : po.isConsignment
+                                    ? (rtl ? "لا يمكن سداد بضاعة الأمانة." : "Consignment cannot be paid.")
+                                    : st.remaining <= 0 && po.status === "received"
+                                      ? (rtl ? "مدفوع بالكامل" : "Fully paid")
+                                      : (rtl ? "يتاح السداد فقط للأوامر المستلمة." : "Only received orders can be paid.")
+                              }
+                            >
+                              {st.remaining <= 0 && po.status === "received" && po.isConsignment !== true
+                                ? (rtl ? "مدفوع بالكامل" : "Paid")
+                                : "—"}
+                            </span>
+                          )}
+                          {Array.isArray((po as any).paymentHistory) && (po as any).paymentHistory.length > 0 && (
+                            <div className="space-y-1 text-[10px]">
+                              {(po as any).paymentHistory.map((payment: any) => (
+                                <div key={payment.id} className="flex items-center gap-2 text-slate-500">
+                                  <span>{payment.type === "supplier_payment_reversal" ? (rtl ? "عكس" : "Reversal") : (rtl ? "دفعة" : "Payment")}: {money(payment.amount)}</span>
+                                  {payment.reversible === true && (
+                                    <Button type="button" size="sm" variant="ghost" className="h-6 px-1 text-rose-600" onClick={() => openReverse(po, payment)}>
+                                      <RotateCcw className="h-3 w-3" />
+                                      {rtl ? "عكس" : "Reverse"}
+                                    </Button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </td>
                     </tr>
                     );
@@ -1241,6 +1309,34 @@ export default function SupplierProfilePage({ params }: PageProps) {
           </div>
         </div>
       )}
+
+      {reversePo && reversePayment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={closeReverse}>
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl dark:bg-navy-900" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
+              <h3 className="font-black text-navy-950 dark:text-white">{rtl ? "عكس سداد المورد" : "Reverse supplier payment"}</h3>
+              <button onClick={closeReverse} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-navy-950" aria-label="close">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="mt-4 space-y-1 rounded-2xl bg-slate-50 p-3 text-xs dark:bg-navy-950">
+              <div className="flex justify-between"><span className="text-slate-400">{rtl ? "أمر الشراء" : "PO"}</span><span className="font-mono font-bold text-brand-600">{reversePo.id}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">{rtl ? "معرّف السداد" : "Payment"}</span><span className="font-mono">{reversePayment.id}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">{rtl ? "المبلغ" : "Amount"}</span><span className="font-bold">{money(reversePayment.amount)}</span></div>
+            </div>
+            <label className="mt-4 block text-xs font-bold text-slate-600 dark:text-slate-300">
+              <span className="mb-1 block">{rtl ? "سبب العكس (مطلوب)" : "Reversal reason (required)"}</span>
+              <textarea className="input-base min-h-24" value={reverseReason} onChange={(e) => setReverseReason(e.target.value)} />
+            </label>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={closeReverse} disabled={reversing}>{rtl ? "إلغاء" : "Cancel"}</Button>
+              <Button type="button" onClick={submitReverse} disabled={reversing || !reverseReason.trim()}>
+                {reversing ? (rtl ? "جارٍ العكس..." : "Reversing...") : (rtl ? "تأكيد العكس" : "Confirm reversal")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1297,6 +1393,7 @@ function SupplierStatementPanel({ supplierId, money }: { supplierId: string; mon
   const typeLabel = (type: string) => {
     if (type === "purchase_order") return rtl ? "أمر شراء (استلام)" : "Purchase order (received)";
     if (type === "supplier_payment") return rtl ? "سداد للمورد" : "Supplier payment";
+    if (type === "supplier_payment_reversal") return rtl ? "عكس سداد المورد" : "Supplier payment reversal";
     return type;
   };
 
