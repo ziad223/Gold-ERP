@@ -33,24 +33,24 @@ test("inventory list is server-backed, Asset-authoritative, filterable and pagin
   assert.match(inventory, /Barcode is the permanent primary identity/);
 });
 
-test("chooser enables GBW, GBP, Diamond Jewellery, and Loose Diamond while keeping Gem/Pearl disabled", () => {
+test("chooser enables the approved Gem Stone profile while keeping Pearl disabled", () => {
   assert.deepEqual([...chooser.matchAll(/key: "([A-Z_]+)", icon:/g)].map((match) => match[1]), [
     "GOLD_BY_WEIGHT", "GOLD_BY_PIECE", "DIAMOND", "DIAMOND_LOOSE", "GEM_STONE", "PEARL",
   ]);
-  assert.equal((chooser.match(/enabled: true/g) || []).length, 4);
-  assert.equal((chooser.match(/enabled: false/g) || []).length, 2);
+  assert.equal((chooser.match(/enabled: true/g) || []).length, 5);
+  assert.equal((chooser.match(/enabled: false/g) || []).length, 1);
   assert.match(chooser, /key: "DIAMOND", icon:[\s\S]*?enabled: true/);
   assert.match(chooser, /key: "DIAMOND_LOOSE", icon:[\s\S]*?enabled: true/);
-  assert.match(chooser, /key: "GEM_STONE", icon:[\s\S]*?enabled: false/);
+  assert.match(chooser, /key: "GEM_STONE", icon:[\s\S]*?enabled: true/);
   assert.match(chooser, /key: "PEARL", icon:[\s\S]*?enabled: false/);
-  assert.match(chooser, /href=\{key === "GOLD_BY_PIECE" \? gbpHref : key === "DIAMOND" \? diamondHref : key === "DIAMOND_LOOSE" \? looseDiamondHref : gbwHref\}/);
+  assert.match(chooser, /key === "GEM_STONE" \? gemStoneHref/);
 });
 
-test("shared receive section keeps supplier, DB location, date, tax, notes, RCM evidence and server summary", () => {
-  for (const required of ["Supplier", "Location", "Purchase Date", "Tax Treatment", "Notes", "Server Tax Summary", "ReverseChargeChecklist"]) {
+test("shared receive section keeps supplier, DB location, date, tax, notes, RCM evidence and tax summary", () => {
+  for (const required of ["Supplier", "Location", "Purchase Date", "Tax Treatment", "Notes", "Tax Summary", "ReverseChargeChecklist"]) {
     assert.match(shared, new RegExp(required));
   }
-  assert.match(shared, /Location is DB-backed and scoped to the current company and branch/);
+  assert.match(shared, /Location for the current company and branch/);
   assert.match(shared, /No frontend tax default is used/);
   assert.match(shared, /buildSharedTaxRequest/);
   assert.match(shared, /Link className=\"underline\" href=\"\/inventory\/locations\"/);

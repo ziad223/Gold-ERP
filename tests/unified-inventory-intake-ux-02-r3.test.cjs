@@ -27,13 +27,13 @@ test("02-R3 provides one Inventory action and the approved active profile choice
   assert.deepEqual([...chooser.matchAll(/key: "([A-Z_]+)", icon:/g)].map((match) => match[1]), [
     "GOLD_BY_WEIGHT", "GOLD_BY_PIECE", "DIAMOND", "DIAMOND_LOOSE", "GEM_STONE", "PEARL",
   ]);
-  assert.equal((chooser.match(/enabled: true/g) || []).length, 4);
-  assert.equal((chooser.match(/enabled: false/g) || []).length, 2);
+  assert.equal((chooser.match(/enabled: true/g) || []).length, 5);
+  assert.equal((chooser.match(/enabled: false/g) || []).length, 1);
   assert.match(chooser, /key: "DIAMOND", icon:[\s\S]*?enabled: true/);
   assert.match(chooser, /key: "DIAMOND_LOOSE", icon:[\s\S]*?enabled: true/);
-  assert.match(chooser, /key: "GEM_STONE", icon:[\s\S]*?enabled: false/);
+  assert.match(chooser, /key: "GEM_STONE", icon:[\s\S]*?enabled: true/);
   assert.match(chooser, /key: "PEARL", icon:[\s\S]*?enabled: false/);
-  assert.match(chooser, /href=\{key === "GOLD_BY_PIECE" \? gbpHref : key === "DIAMOND" \? diamondHref : key === "DIAMOND_LOOSE" \? looseDiamondHref : gbwHref\}/);
+  assert.match(chooser, /key === "GEM_STONE" \? gemStoneHref/);
   assert.match(chooser, /supplierId\)\}/);
 });
 

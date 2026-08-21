@@ -16,7 +16,7 @@ const profiles = [
   { key: "GOLD_BY_PIECE", icon: Coins, enabled: true },
   { key: "DIAMOND", icon: Diamond, enabled: true },
   { key: "DIAMOND_LOOSE", icon: Diamond, enabled: true },
-  { key: "GEM_STONE", icon: Sparkles, enabled: false },
+  { key: "GEM_STONE", icon: Sparkles, enabled: true },
   { key: "PEARL", icon: CircleDot, enabled: false },
 ] as const;
 
@@ -35,6 +35,9 @@ export function InventoryIntakeChooser({ open, onClose, supplierId }: InventoryI
   const looseDiamondHref = supplierId
     ? `/inventory/loose-diamond?supplierId=${encodeURIComponent(supplierId)}`
     : "/inventory/loose-diamond";
+  const gemStoneHref = supplierId
+    ? `/inventory/gem-stone?supplierId=${encodeURIComponent(supplierId)}`
+    : "/inventory/gem-stone";
 
   const labels = {
     title: rtl ? "إضافة / استلام مخزون" : "Add / Receive Inventory",
@@ -58,7 +61,7 @@ export function InventoryIntakeChooser({ open, onClose, supplierId }: InventoryI
           enabled ? (
             <Link
               key={key}
-              href={key === "GOLD_BY_PIECE" ? gbpHref : key === "DIAMOND" ? diamondHref : key === "DIAMOND_LOOSE" ? looseDiamondHref : gbwHref}
+              href={key === "GOLD_BY_PIECE" ? gbpHref : key === "DIAMOND" ? diamondHref : key === "DIAMOND_LOOSE" ? looseDiamondHref : key === "GEM_STONE" ? gemStoneHref : gbwHref}
               onClick={onClose}
               data-intake-profile={key}
               className="group rounded-2xl border border-brand-200 bg-brand-50/70 p-4 text-start transition hover:border-brand-400 hover:bg-brand-50 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-brand-900 dark:bg-brand-950/20 dark:hover:border-brand-700"

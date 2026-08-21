@@ -4,6 +4,7 @@ import { ExternalLink } from "lucide-react";
 import { useLocale } from "next-intl";
 import { ReverseChargeChecklist } from "@/features/tax/components/ReverseChargeChecklist";
 import { Link } from "@/i18n/navigation";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 export type SharedReceiveSupplier = {
   id: string;
@@ -117,15 +118,13 @@ export function SharedReceiveSection({
       <h2 className="text-sm font-black text-navy-950 dark:text-white">
         {rtl ? "بيانات الاستلام المشتركة" : "Shared Receive Details"}
       </h2>
-      <p className="mt-1 text-[10px] text-slate-500">
-        {rtl ? "هذه البيانات مشتركة لكل ملفات الاستلام، ومصدرها الخادم وسياسة الشركة." : "These fields are shared by every receive profile and remain server-backed."}
-      </p>
+      <InfoTooltip label={rtl ? "مساعدة بيانات الاستلام" : "Receipt details help"} text={rtl ? "هذه البيانات مطلوبة لكل عمليات الاستلام." : "These details are required for every receipt."} />
 
       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <label className="space-y-1">
           <span className="block text-[11px] font-bold text-slate-500">{rtl ? "المورد" : "Supplier"} *</span>
           <select className="input-base w-full" value={state.supplierId} required disabled={disabled} onChange={(event) => onChange("supplierId", event.target.value)}>
-            <option key="empty-supplier" value="">{rtl ? "اختر موردًا من DB" : "Select a DB Supplier"}</option>
+            <option key="empty-supplier" value="">{rtl ? "اختر موردًا" : "Select a supplier"}</option>
             {suppliers.filter((supplier) => supplier.status !== "inactive").map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
           </select>
         </label>
@@ -137,7 +136,7 @@ export function SharedReceiveSection({
             {locations.filter((location) => location.isActive !== false).map((location) => <option key={location.id} value={location.id}>{location.code} — {location.name}</option>)}
           </select>
           {!hasLocations && <span className="block text-[10px] text-amber-700 dark:text-amber-300"><ExternalLink className="me-1 inline h-3 w-3" /><Link className="underline" href="/inventory/locations">{rtl ? "إدارة المواقع" : "Manage Locations"}</Link></span>}
-          <span className="block text-[10px] text-slate-500">{rtl ? "الموقع من DB داخل الشركة والفرع الحالي فقط." : "Location is DB-backed and scoped to the current company and branch."}</span>
+          <span className="block text-[10px] text-slate-500">{rtl ? "الموقع داخل الشركة والفرع الحالي." : "Location for the current company and branch."}</span>
         </label>
 
         <label className="space-y-1">
@@ -161,14 +160,14 @@ export function SharedReceiveSection({
       </label>
 
       <div className="mt-4 rounded-2xl border border-border bg-background/70 p-4">
-        <h3 className="text-xs font-black text-foreground">{rtl ? "ملخص الضريبة من معاينة الخادم" : "Server Tax Summary"}</h3>
+        <h3 className="flex items-center gap-1 text-xs font-black text-foreground">{rtl ? "ملخص الضريبة" : "Tax Summary"}<InfoTooltip label={rtl ? "مساعدة ملخص الضريبة" : "Tax summary help"} text={rtl ? "تُعرض الضريبة وفق المعاملة وإعدادات الشركة." : "Tax is shown according to the selected treatment and company settings."} /></h3>
         <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
           <div><p className="text-[10px] text-slate-500">{rtl ? "الأساس الخاضع" : "Taxable Base"}</p><p className="font-black">{money(taxSummary?.taxBase ?? taxSummary?.taxableBase, locale)}</p></div>
           <div><p className="text-[10px] text-slate-500">{rtl ? "نسبة الضريبة" : "VAT Rate"}</p><p className="font-black">{display(taxSummary?.vatRate ?? taxSummary?.rcmRate)}%</p></div>
           <div><p className="text-[10px] text-slate-500">{isRcm ? (rtl ? "ضريبة RCM" : "RCM VAT") : (rtl ? "ضريبة المدخلات" : "Input VAT")}</p><p className="font-black">{money(isRcm ? taxSummary?.rcmVatAmount : (taxSummary?.inputVatAmount ?? taxSummary?.vatAmount), locale)}</p></div>
           <div><p className="text-[10px] text-slate-500">{rtl ? "المعاملة" : "Treatment"}</p><p className="font-black">{display(taxSummary?.taxTreatment ?? state.taxTreatment)}</p></div>
         </div>
-        {!taxSummary && <p className="mt-3 text-[10px] font-bold text-amber-700 dark:text-amber-300">{rtl ? "أدخل البيانات المطلوبة لعرض ملخص الخادم." : "Complete the required fields to load the server summary."}</p>}
+        {!taxSummary && <p className="mt-3 text-[10px] font-bold text-amber-700 dark:text-amber-300">{rtl ? "أدخل البيانات المطلوبة لعرض ملخص الضريبة." : "Complete the required fields to view the tax summary."}</p>}
       </div>
 
       {isRcm && selectedSupplier && <div className="mt-4"><ReverseChargeChecklist supplierName={selectedSupplier.name} trn={selectedSupplier.taxNumber || ""} locale={locale} onVerifyStatusChange={onRcmVerified} onEvidenceChange={onRcmEvidenceChange} /></div>}

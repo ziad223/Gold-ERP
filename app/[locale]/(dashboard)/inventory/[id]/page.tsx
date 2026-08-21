@@ -46,6 +46,12 @@ export default function AssetDetailsPage() {
   const [metadataError, setMetadataError] = useState("");
   const [metadataSaved, setMetadataSaved] = useState(false);
   const [metadataDraft, setMetadataDraft] = useState({ name: "", description: "", category: "", brand: "", location: "", notes: "" });
+  const [sellingPriceOpen, setSellingPriceOpen] = useState(false);
+  const [sellingPriceDraft, setSellingPriceDraft] = useState("");
+  const [sellingPriceReason, setSellingPriceReason] = useState("");
+  const [sellingPriceBusy, setSellingPriceBusy] = useState(false);
+  const [sellingPriceError, setSellingPriceError] = useState("");
+  const [sellingPriceSaved, setSellingPriceSaved] = useState(false);
   const [rfidNumber, setRfidNumber] = useState("");
   const [rfidReason, setRfidReason] = useState("");
   const [rfidBusy, setRfidBusy] = useState(false);
@@ -54,6 +60,7 @@ export default function AssetDetailsPage() {
   const asset = data?.asset;
   const canApproveRestock = hasPermission("inventory.returns.approve_restock");
   const canEditMetadata = hasPermission("inventory.adjust");
+  const canEditSellingPrice = hasPermission("inventory.adjust");
   const latestReview = data?.returnReviews?.[0] || null;
   const profile = asset?.inventoryProfile || "";
   const BackIcon = rtl ? ArrowRight : ArrowLeft;
@@ -108,6 +115,28 @@ export default function AssetDetailsPage() {
     } finally { setMetadataBusy(false); }
   };
 
+  const saveSellingPrice = async () => {
+    if (!asset || !canEditSellingPrice) return;
+    if (!sellingPriceDraft.trim() || !sellingPriceReason.trim()) {
+      setSellingPriceError(rtl ? "السعر الجديد والسبب مطلوبان." : "New selling price and reason are required.");
+      return;
+    }
+    setSellingPriceBusy(true); setSellingPriceError(""); setSellingPriceSaved(false);
+    try {
+      await apiClient(`/inventory-v2/assets/${encodeURIComponent(assetId)}/selling-price`, {
+        method: "PATCH",
+        body: JSON.stringify({ newSellingPrice: sellingPriceDraft.trim(), reason: sellingPriceReason.trim(), expectedUpdatedAt: asset.updatedAt }),
+        idempotencyKey: generateUUID(),
+        locale,
+        branchId: branchId || undefined,
+      });
+      await detail.refetch();
+      setSellingPriceSaved(true); setSellingPriceOpen(false); setSellingPriceReason("");
+    } catch (error: any) {
+      setSellingPriceError(error?.message || (rtl ? "تعذر تعديل سعر البيع." : "Could not update selling price."));
+    } finally { setSellingPriceBusy(false); }
+  };
+
   const submitRfid = async (mode: "assign" | "replace" | "unassign") => {
     const value = rfidNumber.trim();
     const reason = rfidReason.trim();
@@ -159,6 +188,17 @@ export default function AssetDetailsPage() {
     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div><Link href="/inventory" className="mb-3 inline-flex items-center gap-1 font-bold text-slate-400 hover:text-brand-700"><BackIcon className="h-4 w-4" />{rtl ? "كل القطع" : "All Items"}</Link><div className="flex flex-wrap items-center gap-2"><h1 className="text-2xl font-black text-navy-950 dark:text-white">{asset.description || asset.name}</h1><Badge tone={STATUS_TONES[asset.operationalStatus] || "slate"}>{rtl ? (STATUS_LABELS[asset.operationalStatus] || asset.operationalStatus) : asset.operationalStatus}</Badge></div><p className="mt-2 font-mono text-[11px] text-slate-400">{asset.id} · {asset.barcode}</p></div><Badge tone="violet">{PROFILE_LABELS[profile]?.[rtl ? "ar" : "en"] || profile}</Badge></div>
 
     <Section title={rtl ? "حالة المخزون" : "Stock Status"}><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Field label={rtl ? "الحالة التشغيلية" : "Operational status"} value={asset.operationalStatus} /><Field label={rtl ? "الفرع" : "Branch"} value={asset.branch || asset.branchId} /><Field label={rtl ? "الموقع" : "Location"} value={asset.location || asset.locationId} /><Field label={rtl ? "تاريخ الحالة/آخر حدث" : "Status date / latest event"} value={dateTime(timeline[0]?.occurredAt, locale)} /></div><p className="mt-3 text-[10px] text-slate-500">{rtl ? "الحالة للعرض فقط؛ تغييرها لا يتم من حقول الإدخال، بل من المسار القانوني للحركة." : "Status is read-only here; canonical business actions, not intake fields, change it."}</p></Section>
+
+    <Section title={rtl ? "إدارة سعر البيع" : "Selling Price Management"}>
+      {canEditSellingPrice ? <div className="space-y-3">
+        <div className="grid gap-3 sm:grid-cols-3"><Field label={rtl ? "سعر البيع الحالي" : "Current Selling Price"} value={asset.price} /><Field label={rtl ? "الحد الأدنى لسعر البيع" : "Minimum Selling Price"} value={data.pricingPolicy?.minimum_selling_price ?? data.pricingPolicy?.minimumSellingPrice} /><Field label={rtl ? "التكلفة التاريخية" : "Historical Purchase Cost"} value={purchase?.purchase_cost ?? purchase?.purchaseCost ?? asset.cost} /></div>
+        {!sellingPriceOpen ? <div className="flex items-center gap-3"><Button variant="secondary" onClick={() => { setSellingPriceDraft(String(asset.price ?? "")); setSellingPriceReason(""); setSellingPriceError(""); setSellingPriceSaved(false); setSellingPriceOpen(true); }}>{rtl ? "تعديل سعر البيع" : "Edit Selling Price"}</Button>{sellingPriceSaved && <span className="text-emerald-700">{rtl ? "تم الحفظ" : "Saved"}</span>}</div> : <div className="grid gap-3 sm:grid-cols-2">
+          <label className="space-y-1"><span className="text-[10px] font-bold text-slate-500">{rtl ? "سعر البيع الجديد" : "New Selling Price"}</span><input className="input-base w-full" type="number" min="0.0001" step="0.0001" required value={sellingPriceDraft} onChange={(event) => setSellingPriceDraft(event.target.value)} disabled={sellingPriceBusy} /></label>
+          <label className="space-y-1"><span className="text-[10px] font-bold text-slate-500">{rtl ? "سبب التعديل" : "Reason"}</span><input className="input-base w-full" maxLength={500} required value={sellingPriceReason} onChange={(event) => setSellingPriceReason(event.target.value)} disabled={sellingPriceBusy} /></label>
+          <div className="flex flex-wrap items-center gap-2 sm:col-span-2"><Button onClick={() => void saveSellingPrice()} disabled={sellingPriceBusy}>{rtl ? "حفظ سعر البيع" : "Save Selling Price"}</Button><Button variant="secondary" onClick={() => setSellingPriceOpen(false)} disabled={sellingPriceBusy}>{rtl ? "إلغاء" : "Cancel"}</Button>{sellingPriceError && <span className="text-rose-600">{sellingPriceError}</span>}</div>
+        </div>}
+      </div> : <p className="text-slate-500">{rtl ? "تعديل سعر البيع غير متاح لصلاحيتك." : "Selling-price editing is not available for your permission."}</p>}
+    </Section>
 
     <Section title={rtl ? "بيانات تشغيلية قابلة للتعديل" : "Editable Operational Metadata"}>
       {canEditMetadata ? <div className="space-y-3">
