@@ -35,15 +35,17 @@ test("inventory list is server-backed, Asset-authoritative, filterable and pagin
 
 test("chooser enables the approved Gem Stone profile while keeping Pearl disabled", () => {
   assert.deepEqual([...chooser.matchAll(/key: "([A-Z_]+)", icon:/g)].map((match) => match[1]), [
-    "GOLD_BY_WEIGHT", "GOLD_BY_PIECE", "DIAMOND", "DIAMOND_LOOSE", "GEM_STONE", "PEARL",
+    "GOLD_BY_WEIGHT", "GOLD_BY_PIECE", "DIAMOND", "DIAMOND_LOOSE", "GEM_STONE", "GEM_STONE_LOOSE", "PEARL",
   ]);
-  assert.equal((chooser.match(/enabled: true/g) || []).length, 5);
+  assert.equal((chooser.match(/enabled: true/g) || []).length, 6);
   assert.equal((chooser.match(/enabled: false/g) || []).length, 1);
   assert.match(chooser, /key: "DIAMOND", icon:[\s\S]*?enabled: true/);
   assert.match(chooser, /key: "DIAMOND_LOOSE", icon:[\s\S]*?enabled: true/);
   assert.match(chooser, /key: "GEM_STONE", icon:[\s\S]*?enabled: true/);
+  assert.match(chooser, /key: "GEM_STONE_LOOSE", icon:[\s\S]*?enabled: true/);
   assert.match(chooser, /key: "PEARL", icon:[\s\S]*?enabled: false/);
   assert.match(chooser, /key === "GEM_STONE" \? gemStoneHref/);
+  assert.match(chooser, /key === "GEM_STONE_LOOSE" \? looseGemStoneHref/);
 });
 
 test("shared receive section keeps supplier, DB location, date, tax, notes, RCM evidence and tax summary", () => {
