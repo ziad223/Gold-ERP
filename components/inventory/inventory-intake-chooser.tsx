@@ -18,7 +18,8 @@ const profiles = [
   { key: "DIAMOND_LOOSE", icon: Diamond, enabled: true },
   { key: "GEM_STONE", icon: Sparkles, enabled: true },
   { key: "GEM_STONE_LOOSE", icon: Sparkles, enabled: true },
-  { key: "PEARL", icon: CircleDot, enabled: false },
+  { key: "PEARL", icon: CircleDot, enabled: true },
+  { key: "LOOSE_PEARL", icon: CircleDot, enabled: true },
 ] as const;
 
 export function InventoryIntakeChooser({ open, onClose, supplierId }: InventoryIntakeChooserProps) {
@@ -42,6 +43,12 @@ export function InventoryIntakeChooser({ open, onClose, supplierId }: InventoryI
   const looseGemStoneHref = supplierId
     ? `/inventory/loose-gem-stone?supplierId=${encodeURIComponent(supplierId)}`
     : "/inventory/loose-gem-stone";
+  const pearlHref = supplierId
+    ? `/inventory/pearl?supplierId=${encodeURIComponent(supplierId)}`
+    : "/inventory/pearl";
+  const loosePearlHref = supplierId
+    ? `/inventory/loose-pearl?supplierId=${encodeURIComponent(supplierId)}`
+    : "/inventory/loose-pearl";
 
   const labels = {
     title: rtl ? "إضافة / استلام مخزون" : "Add / Receive Inventory",
@@ -55,7 +62,8 @@ export function InventoryIntakeChooser({ open, onClose, supplierId }: InventoryI
       DIAMOND_LOOSE: rtl ? "ألماس حر" : "Loose Diamond",
       GEM_STONE: rtl ? "أحجار كريمة" : "Gem Stone",
       GEM_STONE_LOOSE: rtl ? "حجر كريم حر" : "Loose Gem Stone",
-      PEARL: rtl ? "لؤلؤ" : "Pearl",
+      PEARL: rtl ? "مجوهرات اللؤلؤ" : "Pearl Jewellery",
+      LOOSE_PEARL: rtl ? "لؤلؤ منفرد" : "Loose Pearl",
     },
   };
 
@@ -66,7 +74,7 @@ export function InventoryIntakeChooser({ open, onClose, supplierId }: InventoryI
           enabled ? (
             <Link
               key={key}
-              href={key === "GOLD_BY_PIECE" ? gbpHref : key === "DIAMOND" ? diamondHref : key === "DIAMOND_LOOSE" ? looseDiamondHref : key === "GEM_STONE" ? gemStoneHref : key === "GEM_STONE_LOOSE" ? looseGemStoneHref : gbwHref}
+              href={key === "GOLD_BY_PIECE" ? gbpHref : key === "DIAMOND" ? diamondHref : key === "DIAMOND_LOOSE" ? looseDiamondHref : key === "GEM_STONE" ? gemStoneHref : key === "GEM_STONE_LOOSE" ? looseGemStoneHref : key === "PEARL" ? pearlHref : key === "LOOSE_PEARL" ? loosePearlHref : gbwHref}
               onClick={onClose}
               data-intake-profile={key}
               className="group rounded-2xl border border-brand-200 bg-brand-50/70 p-4 text-start transition hover:border-brand-400 hover:bg-brand-50 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-brand-900 dark:bg-brand-950/20 dark:hover:border-brand-700"

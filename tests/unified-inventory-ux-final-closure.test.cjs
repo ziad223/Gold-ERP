@@ -33,17 +33,20 @@ test("inventory list is server-backed, Asset-authoritative, filterable and pagin
   assert.match(inventory, /Barcode is the permanent primary identity/);
 });
 
-test("chooser enables the approved Gem Stone profile while keeping Pearl disabled", () => {
+test("chooser enables the approved Gem Stone and Pearl profiles while keeping Loose Pearl separate", () => {
   assert.deepEqual([...chooser.matchAll(/key: "([A-Z_]+)", icon:/g)].map((match) => match[1]), [
-    "GOLD_BY_WEIGHT", "GOLD_BY_PIECE", "DIAMOND", "DIAMOND_LOOSE", "GEM_STONE", "GEM_STONE_LOOSE", "PEARL",
+    "GOLD_BY_WEIGHT", "GOLD_BY_PIECE", "DIAMOND", "DIAMOND_LOOSE", "GEM_STONE", "GEM_STONE_LOOSE", "PEARL", "LOOSE_PEARL",
   ]);
-  assert.equal((chooser.match(/enabled: true/g) || []).length, 6);
-  assert.equal((chooser.match(/enabled: false/g) || []).length, 1);
+  assert.equal((chooser.match(/enabled: true/g) || []).length, 8);
+  assert.equal((chooser.match(/enabled: false/g) || []).length, 0);
   assert.match(chooser, /key: "DIAMOND", icon:[\s\S]*?enabled: true/);
   assert.match(chooser, /key: "DIAMOND_LOOSE", icon:[\s\S]*?enabled: true/);
   assert.match(chooser, /key: "GEM_STONE", icon:[\s\S]*?enabled: true/);
   assert.match(chooser, /key: "GEM_STONE_LOOSE", icon:[\s\S]*?enabled: true/);
-  assert.match(chooser, /key: "PEARL", icon:[\s\S]*?enabled: false/);
+  assert.match(chooser, /key: "PEARL", icon:[\s\S]*?enabled: true/);
+  assert.match(chooser, /key === "PEARL" \? pearlHref/);
+  assert.match(chooser, /key: "LOOSE_PEARL"/);
+  assert.match(chooser, /key === "LOOSE_PEARL" \? loosePearlHref/);
   assert.match(chooser, /key === "GEM_STONE" \? gemStoneHref/);
   assert.match(chooser, /key === "GEM_STONE_LOOSE" \? looseGemStoneHref/);
 });

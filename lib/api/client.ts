@@ -1,4 +1,7 @@
 import { getDataSourceMode, assertProductionDataSource } from "@/lib/data-source";
+import { ensureAuthFreshness, type AuthFreshnessResult } from "@/lib/api/auth-freshness";
+import { canonicalBusinessHash } from "@/lib/api/canonical-business-hash";
+import { isPearlConfirmInterceptionActive, recordPearlConfirmDiagnostic } from "@/lib/debug/pearl-confirm-dispatch";
 
 export interface ApiErrorPayload {
   success?: boolean;
@@ -168,6 +171,10 @@ export interface ApiClientOptions extends RequestInit {
   skipBranch?: boolean;
   /** Explicitly suppresses the selected Company for context-free endpoints. */
   companyScope?: "auto" | "none";
+  /** Development-only redacted diagnostics for the Pearl confirm dispatch path. */
+  pearlConfirmDiagnostic?: { correlationId: string };
+  /** Local acceptance-only response status observation; never carries auth material. */
+  onResponseStatus?: (status: number) => void;
 }
 
 // Token storage key — must match auth-context.tsx
@@ -194,6 +201,9 @@ function readStoredToken(): string | undefined {
 export function getStoredAccessToken(): string | undefined {
   return readStoredToken();
 }
+
+/** Mirrors the server's purchase.receive request hash without exposing auth material. */
+export { canonicalBusinessHash };
 
 function readStoredRefreshToken(): string | undefined {
   if (typeof window === "undefined") return undefined;
@@ -281,6 +291,21 @@ export function resolvedBranchIdForRequest(options: Pick<ApiClientOptions, "bran
   if (options.skipBranch) return undefined;
   if (options.branchId) return options.branchId;
   return branchContextAccessor?.()?.branchId;
+}
+
+export function requestContextSnapshot(path: string, options: Pick<ApiClientOptions, "companyId" | "companyScope" | "branchId" | "skipBranch"> = {}): { companyId?: string; branchId?: string } {
+  return {
+    companyId: resolvedCompanyIdForRequest(path, options),
+    branchId: resolvedBranchIdForRequest(options),
+  };
+}
+
+export async function preConfirmAuthFreshness(locale = "ar"): Promise<AuthFreshnessResult> {
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
+  return ensureAuthFreshness({
+    readToken: readStoredToken,
+    refresh: () => refreshAccessToken(apiBaseUrl, locale),
+  });
 }
 
 export function getOrCreateDeviceSessionId(): string | undefined {
@@ -372,12 +397,60 @@ export async function apiClient<T>(path: string, options: ApiClientOptions = {})
 
   try {
     let requestUsedAuth = false;
-    const execute = () => {
+    const execute = async () => {
       const latestToken = readStoredToken() ?? options.token;
       const requestHeaders: Record<string, string> = { ...(mergedHeaders as Record<string, string>) };
       requestUsedAuth = Boolean(latestToken);
       if (latestToken) requestHeaders.Authorization = `Bearer ${latestToken}`;
-      return fetch(`${apiBaseUrl}${path}`, { ...options, headers: requestHeaders });
+      if (options.pearlConfirmDiagnostic && path === "/purchase-orders/receive" && String(options.method || "GET").toUpperCase() === "POST") {
+        recordPearlConfirmDiagnostic({
+          correlationId: options.pearlConfirmDiagnostic.correlationId,
+          eventName: "PEARL_CONFIRM_FETCH_ATTEMPT",
+          method: "POST",
+          path: "/purchase-orders/receive",
+          fetchAttempted: true,
+        });
+      }
+      if (options.pearlConfirmDiagnostic && isPearlConfirmInterceptionActive() && path === "/purchase-orders/receive" && String(options.method || "GET").toUpperCase() === "POST") {
+        recordPearlConfirmDiagnostic({
+          correlationId: options.pearlConfirmDiagnostic.correlationId,
+          eventName: "PEARL_CONFIRM_BROWSER_NETWORK_INTERCEPTED",
+          method: "POST",
+          path: "/purchase-orders/receive",
+          browserRequestObserved: true,
+          outcome: "RETURNED",
+          status: 200,
+        });
+        return new Response(JSON.stringify({ success: true, data: { diagnosticIntercepted: true } }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      try {
+        const fetched = await fetch(`${apiBaseUrl}${path}`, { ...options, headers: requestHeaders });
+        options.onResponseStatus?.(fetched.status);
+        if (options.pearlConfirmDiagnostic && path === "/purchase-orders/receive" && String(options.method || "GET").toUpperCase() === "POST") {
+          recordPearlConfirmDiagnostic({
+            correlationId: options.pearlConfirmDiagnostic.correlationId,
+            eventName: "PEARL_CONFIRM_FETCH_RETURNED_OR_REJECTED",
+            method: "POST",
+            path: "/purchase-orders/receive",
+            fetchAttempted: true,
+            outcome: "RETURNED",
+            status: fetched.status,
+          });
+        }
+        return fetched;
+      } catch (error) {
+        if (options.pearlConfirmDiagnostic && path === "/purchase-orders/receive" && String(options.method || "GET").toUpperCase() === "POST") {
+          recordPearlConfirmDiagnostic({
+            correlationId: options.pearlConfirmDiagnostic.correlationId,
+            eventName: "PEARL_CONFIRM_FETCH_RETURNED_OR_REJECTED",
+            method: "POST",
+            path: "/purchase-orders/receive",
+            fetchAttempted: true,
+            outcome: "REJECTED",
+          });
+        }
+        throw error;
+      }
     };
     let response = await execute();
 

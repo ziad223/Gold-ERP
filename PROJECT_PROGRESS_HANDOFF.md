@@ -1,5 +1,52 @@
 # DARFUS ERP - PROJECT PROGRESS HANDOFF
 
+## CURRENT AUTHORITATIVE OWNER SCOPE — LOOSE PEARL
+
+This block is the current authoritative project status. Earlier batch sections below are preserved as historical evidence. Any older next-task, status, or blocker token that conflicts with this block is superseded for current Loose Pearl scope.
+
+PROJECT = DARFUS_ERP
+
+CURRENT_ACTIVE_OWNER_SCOPE = LOOSE_PEARL
+
+CURRENT_ACTIVE_OWNER_SCOPE_STATUS =
+CONTRACT_FROZEN_READY_FOR_MINIMUM_SAFE_IMPLEMENTATION
+
+CURRENT_LOOSE_PEARL_GATE =
+PASS_LOOSE_PEARL_AUTHORITY_RESOLUTION_AND_IMPLEMENTATION_CONTRACT_FREEZE
+
+LP_OD_001 =
+RESOLVED_ONE_PHYSICAL_PEARL_ONE_ASSET
+
+LP_OD_002 =
+RESOLVED_PURCHASE_REQUIRES_CANONICAL_SUPPLIER
+
+TRUE_OWNER_DECISIONS_REMAINING =
+0
+
+LL018 =
+FROZEN_CONTROLLED_RETRY_AFTER_PROVEN_FAILURE
+
+CURRENT_NEXT_TASK =
+LOOSE_PEARL_MINIMUM_SAFE_IMPLEMENTATION
+
+NEXT_BATCH_ALLOWED =
+NO_AUTOMATIC_START
+
+ONE_PHYSICAL_LOOSE_PEARL = ONE_ASSET
+PURCHASED_LOOSE_PEARL_SUPPLIER = REQUIRED
+CANONICAL_RECEIVE = SUPPLIER_RECEIVE_V2
+EXPECTED_BARCODE = PLLOS00XXXXXX
+SELLING_PRICE_AUTHORITY = ASSET_PRICE
+MIGRATION_AUTHORIZED = NO
+IMPLEMENTATION_EXECUTED = NO
+BUSINESS_WRITES = 0
+
+FAILED_RECEIVE != AUTOMATIC_RETRY
+FAILED_RECEIVE != PERMANENT_NO_RETRY
+RETRY_REQUIRES = EVIDENCE_PRESERVATION + DB_DELTA_PROOF + FIRST_BROKEN_BOUNDARY + ROOT_CAUSE + MINIMUM_SAFE_FIX + FOCUSED_REGRESSION + IMPACT_ANALYSIS + OWNER_REVIEW
+MAX_CONTROLLED_RETRY_CLICKS_PER_AUTHORIZATION = 1
+THIRD_ATTEMPT = BLOCKED_IF_SAME_CAUSE
+
 ## FINAL LOCAL HANDOFF AUTHORITY — PROJECT-HANDOFF-FINAL-CLOSURE-01
 
 This block is the current authoritative local project status. Earlier batch sections below are preserved historical evidence; any older status, baseline, next-task, or blocker token that conflicts with this block is superseded and must not be treated as current truth.
@@ -1046,3 +1093,13 @@ GOLD-LIVE-FEED-06A — Full live GoldAPI acceptance rerun:
 - `VERIFIER_REFRESH_GATE = PASS_CONFIRMED`.
 - Evidence: `backend/reports/uae-deferred-and-protected-print-verifier-surgical-refresh-01-20260815T115141+0300.md`.
 - Next step only: `PROJECT-REMAINING-WORK-STATUS-RECONCILIATION-01`; do not start automatically.
+
+## DARFUS-LOOSE-PEARL-AUTHORITY-RESOLUTION-AND-CONTRACT-FREEZE — PASS_CONTRACT_FROZEN
+
+- Owner resolution closed `LP-OD-001`: one physical Loose Pearl is one Asset and one active Barcode; UI bulk Quantity is entry convenience only, with no quantity-based physical authority and no silent total weight/cost allocation.
+- Owner resolution closed `LP-OD-002`: purchased Loose Pearl requires a canonical company-scoped Supplier through Supplier Receive V2. Unknown/Default/Fake Supplier and free-text substitution are forbidden. Non-purchase acquisition remains deferred and unauthorized.
+- `LL-018` is frozen: failed critical Receive is neither automatically retried nor permanently banned. Retry requires evidence preservation, DB delta reconciliation, proven first broken boundary/root cause, minimum safe fix, tests, impact analysis, Owner review, and at most one controlled retry. Same-cause failure blocks a third attempt.
+- No Product Source, DB, migration, seed, master-data, Receive, Confirm, Replay, or POS changes occurred in this Control. Official `darfus_erp` business writes remain `0`.
+- Frozen contract: `docs/DARFUS_LOOSE_PEARL_NORMALIZED_IMPLEMENTATION_CONTRACT.md`; report: `docs/DARFUS_LOOSE_PEARL_AUTHORITY_RESOLUTION_AND_CONTRACT_FREEZE_REPORT.md`.
+- `DARFUS_LOOSE_PEARL_AUTHORITY_RESOLUTION_AND_CONTRACT_FREEZE_GATE = PASS_LOOSE_PEARL_AUTHORITY_RESOLUTION_AND_IMPLEMENTATION_CONTRACT_FREEZE`.
+- Next step only after explicit Owner authorization: `LOOSE_PEARL_MINIMUM_SAFE_IMPLEMENTATION`; no automatic start.
