@@ -136,6 +136,7 @@ export const KNOWN_PERMISSION_CODES = [
   "sales.returns.execute", "sales.exchanges.execute", "sales.installments.collect",
   "pos.view", "pos.sell", "pos.discount.approve",
   "inventory.view", "inventory.create", "inventory.update", "inventory.delete", "inventory.adjust", "inventory.export", "inventory.print",
+  "inventory.transfer.read", "inventory.transfer.create", "inventory.transfer.approve", "inventory.transfer.dispatch", "inventory.transfer.receive", "inventory.transfer.cancel",
   "inventory.returns.approve_restock",
   "suppliers.view", "suppliers.create", "suppliers.update", "suppliers.delete", "suppliers.export",
   "accounting.view", "accounting.post", "accounting.export", "accounting.lock.manage", "accounting.reconciliation.view",

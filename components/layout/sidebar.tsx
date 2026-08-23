@@ -1,12 +1,14 @@
 "use client";
 
 import {
+  ArrowRightLeft,
   BarChart3,
   BookOpenCheck,
   Boxes,
   ChevronLeft,
   ChevronRight,
   CircleDollarSign,
+  ClipboardCheck,
   Coins,
   ContactRound,
   Gem,
@@ -24,6 +26,7 @@ import {
   UsersRound,
   X,
   FileCheck,
+  Hammer,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Link, usePathname } from "@/i18n/navigation";
@@ -53,6 +56,9 @@ const groups = [
     label: "assetsInventory",
     items: [
       { href: "/inventory", label: "inventory", icon: Boxes, permission: "inventory.view", branchBusiness: true },
+      { href: "/inventory/transfers", label: "transfers", icon: ArrowRightLeft, permission: "inventory.transfer.read", branchBusiness: true },
+      { href: "/inventory/workshop", label: "workshop", icon: Hammer, permission: "inventory.workshop.read", branchBusiness: true },
+      { href: "/inventory/stock-audit", label: "inventoryCount", icon: ClipboardCheck, permission: "inventory.count.read", branchBusiness: true },
       { href: "/gold-center", label: "goldCenter", icon: Gem, permission: "gold.view", branchBusiness: true },
       { href: "/suppliers", label: "suppliers", icon: Truck, permission: "suppliers.view", branchBusiness: true },
     ],

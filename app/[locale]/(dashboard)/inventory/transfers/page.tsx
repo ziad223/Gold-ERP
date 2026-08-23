@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 import { ArrowRightLeft, Plus, CheckCircle2, Truck, Inbox, XCircle, AlertCircle, Calendar } from "lucide-react";
@@ -12,12 +12,15 @@ import { useErp } from "@/contexts/erp-context";
 import { useAuth } from "@/contexts/auth-context";
 import { useAppSettings } from "@/contexts/settings-context";
 import { useCoreErpData } from "@/hooks/use-core-erp-data";
-import { apiClient } from "@/lib/api/client";
+import { apiClient, generateUUID } from "@/lib/api/client";
 import { DATA_SOURCE } from "@/lib/data-source";
 import type { Transfer, TransferStatus } from "@/lib/types";
 import { formatBranchDateTime } from "@/lib/dates/dates";
 import { invalidateAffectedQueries } from "@/lib/realtime/invalidate-affected-queries";
 import { toEnglishDigits } from "@/lib/formatters/numbers";
+import { usePermissions } from "@/hooks/use-permissions";
+
+type InventoryLocation = { id: string; code: string; name: string; branchId: string; isActive: boolean };
 
 export default function TransfersPage() {
   const locale = useLocale();
@@ -29,15 +32,47 @@ export default function TransfersPage() {
   const { transfers, assets } = useCoreErpData();
   const { branches } = useAppSettings();
   const { activeBranch, activeBranchId, user } = useAuth();
+  const { hasPermission } = usePermissions();
   const isApi = DATA_SOURCE === "api";
 
   const [showAdd, setShowAdd] = useState(false);
   const [targetBranch, setTargetBranch] = useState("");
+  const [sourceLocation, setSourceLocation] = useState("");
+  const [targetLocation, setTargetLocation] = useState("");
+  const [sourceLocations, setSourceLocations] = useState<InventoryLocation[]>([]);
+  const [targetLocations, setTargetLocations] = useState<InventoryLocation[]>([]);
+  const [locationError, setLocationError] = useState("");
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
+  const createKeyRef = useRef<string | undefined>(undefined);
+  const actionKeysRef = useRef<Record<string, string>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!activeBranchId || !isApi) return () => undefined;
+    void apiClient<{ success: boolean; data: { items: InventoryLocation[] } }>("/inventory/locations", { locale, branchId: activeBranchId })
+      .then((response) => {
+        if (cancelled) return;
+        setSourceLocations(response.data?.items || []);
+        setSourceLocation((current) => response.data?.items?.some((item) => item.id === current) ? current : "");
+      })
+      .catch((error) => { if (!cancelled) setLocationError(error instanceof Error ? error.message : "Unable to load source locations."); });
+    return () => { cancelled = true; };
+  }, [activeBranchId, isApi, locale]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setTargetLocation("");
+    setTargetLocations([]);
+    if (!targetBranch || !isApi) return () => undefined;
+    void apiClient<{ success: boolean; data: { items: InventoryLocation[] } }>("/inventory/locations", { locale, branchId: targetBranch })
+      .then((response) => { if (!cancelled) setTargetLocations(response.data?.items || []); })
+      .catch((error) => { if (!cancelled) setLocationError(error instanceof Error ? error.message : "Unable to load destination locations."); });
+    return () => { cancelled = true; };
+  }, [isApi, locale, targetBranch]);
 
   const availableAssets = assets.filter(
-    (asset) => (asset.branchId === activeBranchId || asset.branch === activeBranch) && asset.status === "available"
+    (asset) => asset.branchId === activeBranchId && asset.locationId === sourceLocation && asset.status === "available"
   );
 
   const createTransferMutation = useMutation({
@@ -48,12 +83,16 @@ export default function TransfersPage() {
           assetIds: selectedAssetIds,
           fromBranchId: activeBranchId,
           toBranchId: targetBranch,
+          fromLocationId: sourceLocation,
+          toLocationId: targetLocation,
           notes,
         }),
         locale,
+        idempotencyKey: createKeyRef.current || (createKeyRef.current = generateUUID()),
       });
     },
     onSuccess: () => {
+      createKeyRef.current = undefined;
       invalidateAffectedQueries(queryClient, {
         entity: "Transfer",
         action: "create",
@@ -69,6 +108,7 @@ export default function TransfersPage() {
         method: "PATCH",
         body: JSON.stringify({ status }),
         locale,
+        idempotencyKey: actionKeysRef.current[`${id}:${status}`] || (actionKeysRef.current[`${id}:${status}`] = generateUUID()),
       });
     },
     onSuccess: (data, variables) => {
@@ -86,7 +126,7 @@ export default function TransfersPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!targetBranch || selectedAssetIds.length === 0) return;
+    if (!targetBranch || !sourceLocation || !targetLocation || selectedAssetIds.length === 0) return;
 
     if (isApi) {
       await createTransferMutation.mutateAsync();
@@ -105,6 +145,10 @@ export default function TransfersPage() {
       assetIds: selectedAssetIds,
       fromBranch: activeBranch,
       toBranch: targetBranchName,
+      fromBranchId: activeBranchId,
+      toBranchId: targetBranch,
+      fromLocationId: sourceLocation,
+      toLocationId: targetLocation,
       requestedBy: user?.firstName || "System",
       requestedAt: new Date().toISOString().slice(0, 16).replace("T", " "),
       status: "pending",
@@ -113,12 +157,14 @@ export default function TransfersPage() {
 
     addTransfer(newTransfer);
 
-    // Lock asset status to transferred
+    // Keep the local compatibility path aligned with the canonical status.
     selectedAssetIds.forEach((id) => {
-      updateAsset(id, { status: "transferred" });
+      updateAsset(id, { status: "pending_transfer" });
     });
 
     setTargetBranch("");
+    setSourceLocation("");
+    setTargetLocation("");
     setSelectedAssetIds([]);
     setNotes("");
     setShowAdd(false);
@@ -147,13 +193,13 @@ export default function TransfersPage() {
 
       // Update actual location/branch of the assets
       transfer.assetIds.forEach((assetId) => {
-        updateAsset(assetId, { branch: transfer.toBranch, status: "available" });
+        updateAsset(assetId, { branch: transfer.toBranch, branchId: transfer.toBranchId, locationId: transfer.toLocationId || undefined, status: "available" });
       });
     } else if (status === "cancelled") {
       updates.cancelReason = "Cancelled by user";
       // Restore assets to available at fromBranch
       transfer.assetIds.forEach((assetId) => {
-        updateAsset(assetId, { status: "available" });
+        updateAsset(assetId, { branch: transfer.fromBranch, branchId: transfer.fromBranchId, locationId: transfer.fromLocationId || undefined, status: "available" });
       });
     }
 
@@ -189,7 +235,7 @@ export default function TransfersPage() {
               : "Track and manage jewelry transfers between showrooms and warehouses."}
           </p>
         </div>
-        <Button onClick={() => setShowAdd(!showAdd)} disabled={createTransferMutation.isPending || updateTransferMutation.isPending}>
+        <Button onClick={() => setShowAdd(!showAdd)} disabled={!hasPermission("inventory.transfer.create") || createTransferMutation.isPending || updateTransferMutation.isPending}>
           <Plus className="h-4 w-4" />
           {rtl ? "طلب نقل جديد" : "Request New Transfer"}
         </Button>
@@ -236,15 +282,15 @@ export default function TransfersPage() {
                         <td className="px-4 py-3 text-end space-x-1.5 rtl:space-x-reverse">
                           {item.status === "pending" && (
                             <>
-                              <Button
+                              {hasPermission("inventory.transfer.approve") && <Button
                                 size="sm"
                                 className="bg-violet-600 hover:bg-violet-700 text-white"
                                 disabled={updateTransferMutation.isPending}
                                 onClick={() => handleUpdateStatus(item.id, "approved")}
                               >
                                 {rtl ? "اعتماد" : "Approve"}
-                              </Button>
-                              <Button
+                              </Button>}
+                              {hasPermission("inventory.transfer.cancel") && <Button
                                 size="sm"
                                 variant="secondary"
                                 className="text-rose-600 hover:bg-rose-50"
@@ -252,10 +298,10 @@ export default function TransfersPage() {
                                 onClick={() => handleUpdateStatus(item.id, "cancelled")}
                               >
                                 {rtl ? "إلغاء" : "Cancel"}
-                              </Button>
+                              </Button>}
                             </>
                           )}
-                          {item.status === "approved" && (
+                          {item.status === "approved" && hasPermission("inventory.transfer.dispatch") && (
                             <Button
                               size="sm"
                               className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -266,7 +312,7 @@ export default function TransfersPage() {
                               {rtl ? "شحن" : "Ship"}
                             </Button>
                           )}
-                          {item.status === "in-transit" && (
+                          {item.status === "in-transit" && hasPermission("inventory.transfer.receive") && (
                             <Button
                               size="sm"
                               className="bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -295,12 +341,24 @@ export default function TransfersPage() {
               </h3>
 
               <form onSubmit={handleCreate} className="space-y-4">
+                {locationError && <p className="rounded-lg bg-rose-50 px-3 py-2 text-[10px] text-rose-700">{locationError}</p>}
+                <div>
+                  <label className="block label-base mb-1 font-bold">{rtl ? "فرع المصدر" : "Source Branch"}</label>
+                  <input className="input-base" value={activeBranch} readOnly aria-readonly="true" />
+                </div>
+                <div>
+                  <label className="block label-base mb-1 font-bold">{rtl ? "موقع المصدر" : "Source Location"}</label>
+                  <NativeSelect required value={sourceLocation} onChange={(e) => { setSourceLocation(e.target.value); setSelectedAssetIds([]); }}>
+                    <option value="">{rtl ? "اختر موقع المصدر..." : "Select source location..."}</option>
+                    {sourceLocations.filter((item) => item.isActive).map((item) => <option key={item.id} value={item.id}>{item.name} ({item.code})</option>)}
+                  </NativeSelect>
+                </div>
                 <div>
                   <label className="block label-base mb-1 font-bold">{rtl ? "الفرع المستهدف" : "Target Branch"}</label>
                   <NativeSelect
                     required
                     value={targetBranch}
-                    onChange={(e) => setTargetBranch(e.target.value)}
+                    onChange={(e) => { setTargetBranch(e.target.value); setSelectedAssetIds([]); }}
                   >
                     <option value="">{rtl ? "اختر فرع..." : "Select branch..."}</option>
                     {branches
@@ -310,6 +368,13 @@ export default function TransfersPage() {
                           {branch.name}
                         </option>
                       ))}
+                  </NativeSelect>
+                </div>
+                <div>
+                  <label className="block label-base mb-1 font-bold">{rtl ? "موقع الوجهة" : "Destination Location"}</label>
+                  <NativeSelect required value={targetLocation} onChange={(e) => setTargetLocation(e.target.value)} disabled={!targetBranch}>
+                    <option value="">{rtl ? "اختر موقع الوجهة..." : "Select destination location..."}</option>
+                    {targetLocations.filter((item) => item.isActive).map((item) => <option key={item.id} value={item.id}>{item.name} ({item.code})</option>)}
                   </NativeSelect>
                 </div>
 
@@ -358,7 +423,7 @@ export default function TransfersPage() {
                   <Button type="button" variant="secondary" onClick={() => setShowAdd(false)}>
                     {tCommon("cancel")}
                   </Button>
-                  <Button type="submit" disabled={!targetBranch || selectedAssetIds.length === 0 || createTransferMutation.isPending}>
+                  <Button type="submit" disabled={!hasPermission("inventory.transfer.create") || !targetBranch || !sourceLocation || !targetLocation || selectedAssetIds.length === 0 || createTransferMutation.isPending}>
                     {createTransferMutation.isPending ? (rtl ? "جار الإرسال..." : "Posting...") : (rtl ? "تأكيد طلب النقل" : "Post Transfer Request")}
                   </Button>
                 </div>

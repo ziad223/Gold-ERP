@@ -162,6 +162,7 @@
     "customerGold": "Customer Gold Purchase (CGP)",
     "assetsInventory": "Assets & inventory",
     "inventory": "Assets & inventory",
+    "inventoryCount": "Inventory Count",
     "suppliers": "Suppliers & purchases",
     "finance": "Finance management",
     "accounting": "Accounting",
@@ -179,7 +180,9 @@
     "help": "Help center",
     "helpText": "Asset lifecycle guide and keyboard shortcuts.",
     "treasury": "Treasury",
-    "goldCenter": "Gold Center"
+    "goldCenter": "Gold Center",
+    "transfers": "Branch transfers",
+    "workshop": "Workshop"
   },
   "Header": {
     "search": "Search assets, invoices, customers or barcodes...",

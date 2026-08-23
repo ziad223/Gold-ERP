@@ -167,9 +167,10 @@ function cleanup() {
 
 // ── (D) Regression ──────────────────────────────────────────────────────────
 function regression() {
-  for (const scope of ["pos.checkout", "sales.return", "sales.exchange", "purchase.receive"]) {
-    assert.ok(routes.includes(`const idemScope = "${scope}"`), `Phase 21.3 scope ${scope} still wired`);
-  }
+  assert.match(routes, /async function executeCanonicalSale[\s\S]*?operation = "pos\.checkout"/, "Phase 21.3 POS checkout scope still wired");
+  assert.match(routes, /async function executeCanonicalReturn[\s\S]*?operation = "sales\.return\.execute"/, "Phase 21.3 return scope still wired");
+  assert.ok(routes.includes('const idemScope = "sales.exchange"'), "Phase 21.3 exchange scope still wired");
+  assert.ok(routes.includes('const idemScope = "purchase.receive"'), "Phase 21.3 receive scope still wired");
   // No print coupling introduced by the idempotency files.
   assert.ok(!/print/i.test(readRepo("backend/scripts/idempotency-cleanup.js")), "cleanup script has no print coupling");
   assert.ok(!/print/i.test(readRepo("hooks/use-payroll.ts")), "payroll hook has no print coupling");

@@ -111,9 +111,10 @@ function staticChecks() {
   // Routes: critical endpoints use claim + succeed with the right scopes.
   const routes = readRepo("backend/src/routes/erp.routes.js");
   assert.ok(routes.includes('require("../services/idempotency.service")'), "routes import the idempotency service");
-  for (const scope of ["pos.checkout", "sales.return", "sales.exchange", "purchase.receive"]) {
-    assert.ok(routes.includes(`const idemScope = "${scope}"`), `route wires scope ${scope}`);
-  }
+  assert.match(routes, /async function executeCanonicalSale[\s\S]*?operation = "pos\.checkout"/, "POS checkout uses the canonical pos.checkout operation");
+  assert.match(routes, /async function executeCanonicalReturn[\s\S]*?operation = "sales\.return\.execute"/, "returns use the canonical sales.return.execute operation");
+  assert.ok(routes.includes('const idemScope = "sales.exchange"'), "exchange route wires sales.exchange");
+  assert.ok(routes.includes('const idemScope = "purchase.receive"'), "receive route wires purchase.receive");
   const claimCount = (routes.match(/idempotencyService\.claim\(/g) || []).length;
   const succeedCount = (routes.match(/idempotencyService\.succeed\(/g) || []).length;
   assert.ok(claimCount >= 4, `>=4 endpoints claim idempotency (found ${claimCount})`);
@@ -121,16 +122,26 @@ function staticChecks() {
   // The 4 critical scopes each pair a claim with a succeed (via the idemRequest).
   assert.ok((routes.match(/idempotencyService\.resolveExisting\(/g) || []).length >= 4, "critical routes resolve replay/conflict on duplicate");
 
-  // Frontend: critical submits send the key.
+  // Frontend: mutation-capable callers send the key.  The historical
+  // Supplier Receive page is now intentionally a redirect to the single
+  // canonical Inventory intake workflow, so it must not be treated as a
+  // second receive caller.
   for (const page of [
     "app/[locale]/(dashboard)/sales/returns/page.tsx",
     "app/[locale]/(dashboard)/sales/exchanges/page.tsx",
-    "app/[locale]/(dashboard)/suppliers/purchases/page.tsx",
   ]) {
     const src = readRepo(page);
     assert.ok(src.includes("idempotencyKey: idempotencyKeyRef.current"), `frontend ${page} sends a stable Idempotency-Key`);
     assert.ok(src.includes("generateUUID()"), `frontend ${page} generates the key`);
   }
+  const legacySupplierReceive = readRepo("app/[locale]/(dashboard)/suppliers/purchases/page.tsx");
+  assert.match(legacySupplierReceive, /redirect\(.*inventory/, "legacy Supplier Receive page redirects to canonical Inventory intake");
+  assert.ok(!legacySupplierReceive.includes('"/purchase-orders/receive"'), "legacy Supplier Receive page has no second receive caller");
+
+  const canonicalReceive = readRepo("app/[locale]/(dashboard)/inventory/gem-stone/page.tsx");
+  assert.ok(canonicalReceive.includes("generateUUID()"), "canonical Inventory receive generates a stable key");
+  assert.ok(canonicalReceive.includes('"Idempotency-Key"'), "canonical Inventory receive sends Idempotency-Key");
+  assert.ok(canonicalReceive.includes('"/purchase-orders/receive"'), "canonical Inventory receive calls the receive route");
   // POS already had a stable key (regression guard).
   const pos = readRepo("app/[locale]/(dashboard)/pos/page.tsx");
   assert.ok(pos.includes("postInvoice(invoiceData, idempotencyKey)") || pos.includes("idempotencyKey"), "POS still sends its stable key");

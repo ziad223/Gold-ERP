@@ -12,6 +12,7 @@ import { generateUUID } from "@/lib/api/client";
 import type { Customer, Invoice, Asset } from "@/lib/types";
 import { queryKeys } from "@/lib/query-keys";
 import { invalidateAffectedQueries } from "@/lib/realtime/invalidate-affected-queries";
+import type { ServerJournalPreview } from "@/features/accounting/components/JournalPreview";
 
 interface PricingPreviewPayload {
   customerId: string;
@@ -28,6 +29,7 @@ interface PricingPreviewResult {
   makingCharge?: string;
   totalMakingCharge?: string;
   items: Array<{ assetId: string; price: string }>;
+  journalPreview?: ServerJournalPreview | null;
 }
 
 export function usePos() {

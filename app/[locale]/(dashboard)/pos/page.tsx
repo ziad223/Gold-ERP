@@ -26,7 +26,7 @@ import { formatCustomerAddress } from "@/lib/customers/address-ui";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { NumericToken } from "@/components/ui/numeric-token";
 import { formatDateTime, formatTime } from "@/lib/dates/dates";
-import { JournalPreview } from "@/features/accounting/components/JournalPreview";
+import { JournalPreview, type ServerJournalPreview } from "@/features/accounting/components/JournalPreview";
 import { toast } from "sonner";
 import { InvoiceDocument } from "@/features/printing/components/InvoiceDocument";
 import { InvoicePrintOptionsDialog } from "@/features/printing/components/InvoicePrintOptionsDialog";
@@ -105,6 +105,11 @@ export default function PosPage() {
   const searchGenerationRef = useRef(0);
   const [cart, setCart] = useState<any[]>([]);
   const [customerId, setCustomerId] = useState("");
+  const [customerPhoneQuery, setCustomerPhoneQuery] = useState("");
+  const [customerLookupLoading, setCustomerLookupLoading] = useState(false);
+  const [customerLookupResult, setCustomerLookupResult] = useState<any | null>(null);
+  const [customerLookupAttempted, setCustomerLookupAttempted] = useState(false);
+  const [customerLookupError, setCustomerLookupError] = useState<string | null>(null);
   const [customerSummary, setCustomerSummary] = useState<PosCustomerSummary | null>(null);
   const [customerSummaryLoading, setCustomerSummaryLoading] = useState(false);
   const [customerSummaryError, setCustomerSummaryError] = useState<string | null>(null);
@@ -205,6 +210,7 @@ export default function PosPage() {
   const [provisionalMakingCharge, setProvisionalMakingCharge] = useState("0");
   const [pricingError, setPricingError] = useState<string | null>(null);
   const [showJournal, setShowJournal] = useState(false);
+  const [journalPreview, setJournalPreview] = useState<ServerJournalPreview | null>(null);
   const lastPricingPayloadKeyRef = useRef<string | null>(null);
 
   // New Pricing Fields
@@ -467,6 +473,34 @@ export default function PosPage() {
     }
   }, [customers, customerId]);
 
+  const lookupCustomerByPhone = async () => {
+    const phone = customerPhoneQuery.trim();
+    if (!phone) {
+      setCustomerLookupError(rtl ? "أدخل رقم هاتف العميل أولًا." : "Enter the customer phone number first.");
+      setCustomerLookupResult(null);
+      return;
+    }
+    setCustomerLookupLoading(true);
+    setCustomerLookupAttempted(true);
+    setCustomerLookupError(null);
+    setCustomerLookupResult(null);
+    try {
+      const response = await apiClient<{ data?: { found?: boolean; customer?: any | null } }>(
+        `/pos/customer-lookup?phone=${encodeURIComponent(phone)}`,
+        { locale },
+      );
+      const customer = response?.data?.customer || null;
+      setCustomerLookupResult(customer);
+      if (customer) {
+        setCustomerId(customer.id);
+      }
+    } catch (error: any) {
+      setCustomerLookupError(error?.message || (rtl ? "تعذر البحث عن العميل." : "Customer lookup failed."));
+    } finally {
+      setCustomerLookupLoading(false);
+    }
+  };
+
   // Compute active payment methods based on settings
   const paymentOptions = useMemo(() => {
     const opts = [
@@ -514,6 +548,7 @@ export default function PosPage() {
       setProvisionalTax("0");
       setProvisionalTotal("0");
       setProvisionalMakingCharge("0");
+      setJournalPreview(null);
       setPricingError(null);
       return;
     }
@@ -550,9 +585,11 @@ export default function PosPage() {
         setProvisionalTax(res.tax);
         setProvisionalTotal(res.total);
         setProvisionalMakingCharge(res.totalMakingCharge ?? res.makingCharge ?? "0");
+        setJournalPreview(res.journalPreview ?? null);
         setPricingError(null);
       })
       .catch((err) => {
+        setJournalPreview(null);
         setPricingError(err.message || "Failed to retrieve pricing preview.");
       });
   }, [cart, customerId, discount, makingChargePerGram, stoneValue, calculatePricing]);
@@ -1217,7 +1254,11 @@ export default function PosPage() {
             <label className="mb-2 block text-xs font-bold">{t("customer")}</label>
             <select
               value={customerId}
-              onChange={(event) => setCustomerId(event.target.value)}
+              onChange={(event) => {
+                setCustomerId(event.target.value);
+                setCustomerLookupResult(null);
+                setCustomerLookupError(null);
+              }}
               className="input-base w-full bg-input text-foreground border-border"
             >
               {customers.filter(c => c.status !== "inactive").map((customer) => (
@@ -1226,6 +1267,47 @@ export default function PosPage() {
                 </option>
               ))}
             </select>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row" dir={rtl ? "rtl" : "ltr"}>
+              <label className="sr-only" htmlFor="pos-customer-phone-lookup">
+                {rtl ? "البحث عن العميل برقم الهاتف" : "Find customer by phone"}
+              </label>
+              <input
+                id="pos-customer-phone-lookup"
+                type="tel"
+                inputMode="tel"
+                value={customerPhoneQuery}
+                onChange={(event) => {
+                  setCustomerPhoneQuery(event.target.value);
+                  setCustomerLookupAttempted(false);
+                  setCustomerLookupResult(null);
+                  setCustomerLookupError(null);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void lookupCustomerByPhone();
+                  }
+                }}
+                placeholder={rtl ? "رقم هاتف العميل" : "Customer phone"}
+                className="input-base min-w-0 flex-1 bg-input text-foreground border-border"
+              />
+              <Button type="button" variant="secondary" onClick={() => void lookupCustomerByPhone()} disabled={customerLookupLoading || !isApi}>
+                {customerLookupLoading ? (rtl ? "جارٍ البحث…" : "Searching…") : (rtl ? "بحث" : "Find")}
+              </Button>
+            </div>
+            {customerLookupError && (
+              <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                {customerLookupError}
+              </p>
+            )}
+            {customerLookupAttempted && customerPhoneQuery.trim() && !customerLookupLoading && !customerLookupError && customerLookupResult === null && (
+              <div className="mt-2 rounded-xl border border-dashed border-slate-200 px-3 py-3 text-[11px] text-slate-500 dark:border-slate-700">
+                <span>{rtl ? "لم يتم العثور على عميل بهذا الرقم." : "No customer was found for this phone number."}</span>{" "}
+                <Link href="/customers" className="font-bold text-brand-700 underline dark:text-brand-300">
+                  {rtl ? "إنشاء عميل من شاشة العملاء" : "Create the customer from Customers"}
+                </Link>
+              </div>
+            )}
             {!customerId && (
               <p className="mt-3 rounded-xl border border-dashed border-slate-200 px-3 py-4 text-center text-[11px] text-slate-500 dark:border-slate-700">
                 {rtl ? "اختر عميلًا لعرض ملخصه" : "Select a customer to view the summary"}
@@ -1677,10 +1759,7 @@ export default function PosPage() {
                 {showJournal && (
                   <div className="mt-2 text-start">
                     <JournalPreview
-                      total={Number(provisionalTotal)}
-                      tax={Number(provisionalTax)}
-                      cost={provisionalCost}
-                      paymentMethod={method}
+                      preview={journalPreview}
                       currency={currency}
                       locale={locale}
                     />

@@ -98,10 +98,14 @@ async function verifyRefreshReplayContract() {
   const sessionStorage = storage();
   global.window = { localStorage, sessionStorage, crypto: { randomUUID: () => "qa-correlation-id" } };
   try {
+    const aliases = {
+      "@/lib/data-source": { getDataSourceMode: () => "api", assertProductionDataSource: () => undefined },
+      "@/lib/api/auth-freshness": path.join(ROOT, "lib/api/auth-freshness.ts"),
+      "@/lib/api/canonical-business-hash": path.join(ROOT, "lib/api/canonical-business-hash.ts"),
+      "@/lib/debug/pearl-confirm-dispatch": path.join(ROOT, "lib/debug/pearl-confirm-dispatch.ts"),
+    };
     new Function("require", "module", "exports", compiled)(
-      (name) => name === "@/lib/data-source"
-        ? { getDataSourceMode: () => "api", assertProductionDataSource: () => undefined }
-        : require(name),
+      (name) => aliases[name] || require(name),
       compiledModule,
       compiledModule.exports,
     );

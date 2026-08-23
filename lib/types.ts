@@ -79,6 +79,7 @@ export interface Asset {
   cost: number;
   branch: string;
   branchId?: string;
+  locationId?: string;
   location: string;
   status: AssetStatus;
   barcode: string;
@@ -856,7 +857,12 @@ export interface Transfer {
   id: string;
   assetIds: string[];
   fromBranch: string;
+  fromBranchId?: string;
   toBranch: string;
+  toBranchId?: string;
+  fromLocationId?: string | null;
+  toLocationId?: string | null;
+  items?: TransferItem[];
   requestedBy: string;
   requestedAt: string;
   approvedBy?: string;
@@ -866,6 +872,22 @@ export interface Transfer {
   status: TransferStatus;
   notes?: string;
   cancelReason?: string;
+}
+
+export interface TransferItem {
+  id: string;
+  transferId: string;
+  assetId: string;
+  companyId: string;
+  fromBranchId: string;
+  toBranchId: string;
+  fromLocationId: string;
+  toLocationId: string;
+  status: "PENDING" | "APPROVED" | "IN_TRANSIT" | "RECEIVED" | "CANCELLED";
+  dispatchedAt?: string | null;
+  dispatchedBy?: string | null;
+  receivedAt?: string | null;
+  receivedBy?: string | null;
 }
 
 // ─── Adjustment Domain ────────────────────────────────────────────────────────

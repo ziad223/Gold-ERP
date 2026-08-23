@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const profile = require("../backend/src/services/loose-pearl-profile.service");
+const inventoryPolicy = require("../backend/src/services/inventory-master-policy.service");
 
 const masters = [
   ["PEARL_ITEM_DESCRIPTION", "desc-1", "Loose Pearl"], ["PEARL_TYPE", "type-1", "Akoya"],
@@ -52,6 +53,32 @@ test("Supplier V2 receive-shaped piece preserves explicit current valuation inpu
   assert.equal(preview.loosePurchase.purchaseBaseCost, "100.00000000");
   assert.equal(preview.pieceIndex, 0);
   assert.equal(preview.currentValuation.componentValue, "120.00000000");
+});
+
+test("canonical Loose Pearl pearlColor survives normalization without fallback", () => {
+  const normalized = inventoryPolicy.normalizeLooseDetails("LOOSE_PEARL", {
+    totalPearlWeight: "1.25",
+    pearlColor: "Black",
+  });
+  assert.equal(normalized.pearlColor, "Black");
+  assert.equal(normalized.color.length, 0);
+  assert.equal(inventoryPolicy.normalizeLooseDetails("LOOSE_PEARL", { totalPearlWeight: "1.25" }).pearlColor, null);
+});
+
+test("shared non-Pearl color behavior and canonical label boundary remain unchanged", () => {
+  const normalized = inventoryPolicy.normalizeLooseDetails("LOOSE_DIAMOND", {
+    stoneName: "Loose Diamond",
+    diamondType: "Round",
+    carat: "1.250",
+    color: ["D", "F"],
+    clarity: "VS1",
+    shape: "Round",
+  });
+  assert.deepEqual(normalized.color, ["D", "F"]);
+  assert.equal(normalized.pearlColor, null);
+  const piece = profile.calculateReceiptPiece({ input: sample(), masters, pearlSizes: sizes, taxPolicy });
+  assert.equal(piece.looseDetails.pearlColor, "White");
+  assert.notEqual(piece.looseDetails.pearlColor, "color-1");
 });
 
 test("source wires the single Loose Pearl contract to canonical intake and receive", () => {
