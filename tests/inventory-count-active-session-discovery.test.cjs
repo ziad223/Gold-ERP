@@ -37,6 +37,20 @@ test("active totals preserve unscanned evidence when result is still null", () =
   assert.doesNotMatch(pageSource, /item\.status === "missing" \|\| item\.result === "MISSING"/);
 });
 
+test("Observe revalidates the active Count summary without manual refresh", () => {
+  const observeBlock = pageSource.slice(
+    pageSource.indexOf("const scanBarcode"),
+    pageSource.indexOf("const lifecycleLabel"),
+  );
+  assert.match(observeBlock, /await loadCount\(count\.id\);\s*await loadActiveCounts\(\);/);
+});
+
+test("Start refreshes the detail so initialized items are available immediately", () => {
+  const startBlock = pageSource.slice(pageSource.indexOf("const startCount"), pageSource.indexOf("const scanBarcode"));
+  assert.match(startBlock, /const startedCount = await loadCount\(started\.data\.id\)/);
+  assert.match(startBlock, /setCount\(startedCount\)/);
+});
+
 test("Open/Resume is read-first and does not call Start", () => {
   const openBlock = pageSource.slice(pageSource.indexOf("const openCount"), pageSource.indexOf("const startCount"));
   assert.match(openBlock, /loadCount\(candidate\.id\)/);
@@ -49,10 +63,9 @@ test("STATE_CONFLICT recovery refreshes active Counts without an automatic secon
   assert.match(pageSource, /const refreshed = await loadActiveCounts\(\)/);
   assert.match(pageSource, /يوجد جرد نشط بالفعل لهذا الموقع/);
   assert.match(pageSource, /An active inventory count already exists for this location/);
-  const conflictBlock = pageSource.slice(
-    pageSource.indexOf("cause.status === 409"),
-    pageSource.indexOf("finally { setBusy(false); }", pageSource.indexOf("cause.status === 409")),
-  );
+  const conflictStart = pageSource.indexOf("cause.status === 409");
+  const conflictEnd = pageSource.indexOf("      } else {", conflictStart);
+  const conflictBlock = pageSource.slice(conflictStart, conflictEnd);
   assert.doesNotMatch(conflictBlock, /method:\s*"POST"/);
 });
 

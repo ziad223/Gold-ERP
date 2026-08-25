@@ -221,7 +221,8 @@ export default function StockAuditPage() {
           body: JSON.stringify({}),
         },
       );
-      setCount(started.data);
+      const startedCount = await loadCount(started.data.id);
+      setCount(startedCount);
       setMessage(rtl ? "بدأ جرد الموقع المحدد." : "Count started for the selected location.");
     } catch (cause) {
       if (cause instanceof DarfusApiError && cause.status === 409 && cause.errorCode === "STATE_CONFLICT") {
@@ -268,6 +269,7 @@ export default function StockAuditPage() {
         body: JSON.stringify({ barcodes: [value], method: "BARCODE_SCAN" }),
       });
       await loadCount(count.id);
+      await loadActiveCounts();
       setBarcode("");
       setMessage(rtl ? "تم تسجيل الباركود." : "Barcode counted.");
     } catch (cause) {
