@@ -63,8 +63,9 @@ services:
       ADMIN_LAST_NAME: ${ADMIN_LAST_NAME:-Admin}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
-    # Run migrations (and seed on first boot) before starting the API.
-    command: sh -c "npm run db:migrate && npm start"
+    # Normal startup must never mutate schema. Run the guarded migration
+    # command explicitly against an approved target when a schema change is needed.
+    command: npm start
     volumes:
       - ./backend:/app
       - /app/node_modules

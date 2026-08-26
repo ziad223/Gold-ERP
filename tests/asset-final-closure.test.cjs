@@ -77,7 +77,7 @@ test("origin, cost revision, movement, and barcode relations are preserved", () 
 
 test("historically used Assets cannot be hard-deleted and metadata edits stay scoped", () => {
   assert.match(immutabilityMigration, /assets_hard_delete_forbidden_trg/);
-  assert.match(detailPage, /inventory-v2\/assets\/[\s\S]*\/metadata/);
+  assert.match(detailPage, /apiClient\(`\/inventory-v2\/assets\/\$\{encodeURIComponent\(assetId\)\}\/revisions`/);
   assert.match(detailPage, /expectedUpdatedAt/);
   assert.match(metadataService, /expectedUpdatedAt/);
 });

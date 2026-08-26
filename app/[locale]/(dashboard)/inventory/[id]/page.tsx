@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Barcode, Building2, FileText, Gem, GitBranch, History, MapPin, RadioTower, Scale, ShieldCheck } from "lucide-react";
 import { useLocale } from "next-intl";
 import { useParams } from "next/navigation";
@@ -9,12 +9,16 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ErrorState } from "@/components/ui/error-state";
 import { LoadingState } from "@/components/ui/loading-state";
+import { Modal } from "@/components/ui/modal";
+import { AssetRevisionPanel } from "@/components/inventory/asset-revision-panel";
+import { ClientAssetTagPreview } from "@/features/inventory/components/ClientAssetTagPreview";
 import { useBranchContext } from "@/contexts/branch-context";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Link } from "@/i18n/navigation";
-import { apiClient, generateUUID } from "@/lib/api/client";
+import { apiClient, DarfusApiError, generateUUID } from "@/lib/api/client";
 import { useInventoryV2Detail } from "@/features/inventory/hooks/use-inventory-v2";
 import { formatDateTime } from "@/lib/dates/dates";
+import { effectiveRevisionChanges, revisionDiffEntries, revisionErrorMessage } from "@/lib/inventory/revision-ui";
 
 const PROFILE_LABELS: Record<string, { ar: string; en: string }> = {
   GOLD_BY_WEIGHT_JEWELLERY: { ar: "ذهب بالوزن – مجوهرات", en: "Gold By Weight Jewellery" }, GOLD_BAR_24K: { ar: "سبيكة 24K", en: "24K Gold Bar" }, GOLD_BY_PIECE: { ar: "ذهب بالقطعة", en: "Gold By Piece" },
@@ -78,7 +82,11 @@ export default function AssetDetailsPage() {
   const [metadataBusy, setMetadataBusy] = useState(false);
   const [metadataError, setMetadataError] = useState("");
   const [metadataSaved, setMetadataSaved] = useState(false);
-  const [metadataDraft, setMetadataDraft] = useState({ name: "", description: "", category: "", brand: "", location: "", notes: "" });
+  const [metadataConfirmOpen, setMetadataConfirmOpen] = useState(false);
+  const [metadataReason, setMetadataReason] = useState("");
+  const [metadataDraft, setMetadataDraft] = useState({ name: "", description: "", category: "", brand: "", notes: "" });
+  const [revisionRefreshToken, setRevisionRefreshToken] = useState(0);
+  const revisionIdempotencyKeyRef = useRef<string | null>(null);
   const [sellingPriceOpen, setSellingPriceOpen] = useState(false);
   const [sellingPriceDraft, setSellingPriceDraft] = useState("");
   const [sellingPriceReason, setSellingPriceReason] = useState("");
@@ -92,7 +100,9 @@ export default function AssetDetailsPage() {
   const data = detail.data;
   const asset = data?.asset;
   const canApproveRestock = hasPermission("inventory.returns.approve_restock");
-  const canEditMetadata = hasPermission("inventory.adjust");
+  const canEditMetadata = hasPermission("inventory.revision.create");
+  const canViewRevisions = hasPermission("inventory.revision.view");
+  const canAdjustInventory = hasPermission("inventory.adjust");
   const canEditSellingPrice = hasPermission("inventory.adjust");
   const latestReview = data?.returnReviews?.[0] || null;
   const profile = asset?.inventoryProfile || "";
@@ -107,7 +117,6 @@ export default function AssetDetailsPage() {
       description: editable.description || "",
       category: editable.category || "",
       brand: editable.brand || "",
-      location: editable.location || "",
       notes: editable.notes || "",
     });
   }, [asset?.id, asset?.updatedAt]);
@@ -131,20 +140,43 @@ export default function AssetDetailsPage() {
 
   const saveMetadata = async () => {
     if (!asset || !canEditMetadata) return;
+    if (metadataBusy) return;
+    const changes = effectiveRevisionChanges(asset, metadataDraft);
+    if (!Object.keys(changes).length) {
+      setMetadataError(rtl ? "لم يتم اكتشاف تغيير فعلي." : "No effective change was detected.");
+      return;
+    }
+    if (!metadataReason.trim()) {
+      setMetadataError(rtl ? "سبب التعديل مطلوب." : "A reason is required for the Revision.");
+      return;
+    }
     setMetadataBusy(true); setMetadataError(""); setMetadataSaved(false);
     try {
-      await apiClient(`/inventory-v2/assets/${encodeURIComponent(assetId)}/metadata`, {
-        method: "PATCH",
-        body: JSON.stringify({ ...metadataDraft, expectedUpdatedAt: asset.updatedAt }),
-        idempotencyKey: generateUUID(),
+      const exactRequest = {
+        changes,
+        reason: metadataReason.trim(),
+        sourceOperation: "asset_detail_revision_ui",
+        sourceReference: assetId,
+        expectedUpdatedAt: asset.updatedAt,
+      };
+      if (!revisionIdempotencyKeyRef.current) revisionIdempotencyKeyRef.current = generateUUID();
+      await apiClient(`/inventory-v2/assets/${encodeURIComponent(assetId)}/revisions`, {
+        method: "POST",
+        body: JSON.stringify(exactRequest),
+        idempotencyKey: revisionIdempotencyKeyRef.current,
         locale,
         branchId: branchId || undefined,
       });
       await detail.refetch();
       setMetadataSaved(true);
       setMetadataOpen(false);
+      setMetadataConfirmOpen(false);
+      setMetadataReason("");
+      revisionIdempotencyKeyRef.current = null;
+      setRevisionRefreshToken((current) => current + 1);
     } catch (error: any) {
-      setMetadataError(error?.message || (rtl ? "تعذر حفظ البيانات التشغيلية." : "Could not save operational metadata."));
+      const code = error instanceof DarfusApiError ? error.errorCode : undefined;
+      setMetadataError(revisionErrorMessage(code, rtl ? "ar" : "en") || error?.message || (rtl ? "تعذر حفظ Revision." : "Could not save the Revision."));
     } finally { setMetadataBusy(false); }
   };
 
@@ -234,15 +266,29 @@ export default function AssetDetailsPage() {
       </div> : <p className="text-slate-500">{rtl ? "تعديل سعر البيع غير متاح لصلاحيتك." : "Selling-price editing is not available for your permission."}</p>}
     </Section>
 
-    <Section title={rtl ? "بيانات تشغيلية قابلة للتعديل" : "Editable Operational Metadata"}>
+    <Section title={rtl ? "Revision البيانات الوصفية" : "Descriptive Asset Revision"}>
       {canEditMetadata ? <div className="space-y-3">
-        <p className="text-[10px] text-slate-500">{rtl ? "هذه الحقول الوصفية فقط. السعر والتكلفة والباركود والوزن والعيار والحالة التشغيلية محمية ولا يمكن تعديلها هنا." : "Only descriptive fields are editable. Price, cost, barcode, weights, karat, and operational status remain protected."}</p>
-        {!metadataOpen ? <div className="flex items-center gap-3"><Button variant="secondary" onClick={() => { setMetadataSaved(false); setMetadataError(""); setMetadataOpen(true); }}>{rtl ? "تعديل البيانات" : "Edit metadata"}</Button>{metadataSaved && <span className="text-emerald-700">{rtl ? "تم الحفظ" : "Saved"}</span>}</div> : <div className="grid gap-3 sm:grid-cols-2">
-          {([ ["name", rtl ? "اسم الأصل" : "Asset name"], ["description", rtl ? "الوصف" : "Description"], ["category", rtl ? "الفئة" : "Category"], ["brand", rtl ? "الماركة" : "Brand"], ["location", rtl ? "الموقع" : "Location"], ["notes", rtl ? "ملاحظات" : "Notes"] ] as const).map(([key, label]) => <label key={key} className="space-y-1"><span className="text-[10px] font-bold text-slate-500">{label}</span><input className="input-base w-full" value={metadataDraft[key]} onChange={(event) => setMetadataDraft((current) => ({ ...current, [key]: event.target.value }))} disabled={metadataBusy} /></label>)}
-          <div className="flex flex-wrap items-center gap-2 sm:col-span-2"><Button onClick={() => void saveMetadata()} disabled={metadataBusy}>{rtl ? "حفظ" : "Save"}</Button><Button variant="secondary" onClick={() => setMetadataOpen(false)} disabled={metadataBusy}>{rtl ? "إلغاء" : "Cancel"}</Button>{metadataError && <span className="text-rose-600">{metadataError}</span>}</div>
+        <p className="text-[10px] text-slate-500">{rtl ? "تُحفظ التغييرات الوصفية فقط كـRevision. السعر والتكلفة والباركود والوزن والعيار والحالة والفرع والموقع لها مسارات مستقلة." : "Only descriptive changes are saved as a Revision. Price, cost, barcode, weights, karat, status, branch and location remain protected by dedicated workflows."}</p>
+        {!metadataOpen ? <div className="flex items-center gap-3"><Button variant="secondary" onClick={() => { setMetadataSaved(false); setMetadataError(""); setMetadataReason(""); setMetadataConfirmOpen(false); setMetadataOpen(true); }}>{rtl ? "تعديل البيانات الوصفية" : "Edit descriptive data"}</Button>{metadataSaved && <span className="text-emerald-700">{rtl ? "تم حفظ Revision" : "Revision saved"}</span>}</div> : <div className="grid gap-3 sm:grid-cols-2">
+          {([ ["name", rtl ? "اسم الأصل" : "Asset name"], ["description", rtl ? "الوصف" : "Description"], ["category", rtl ? "الفئة" : "Category"], ["brand", rtl ? "الماركة" : "Brand"], ["notes", rtl ? "ملاحظات" : "Notes"] ] as const).map(([key, label]) => <label key={key} className="space-y-1"><span className="text-[10px] font-bold text-slate-500">{label}</span><input className="input-base w-full" value={metadataDraft[key]} onChange={(event) => { revisionIdempotencyKeyRef.current = null; setMetadataError(""); setMetadataDraft((current) => ({ ...current, [key]: event.target.value })); }} disabled={metadataBusy} /></label>)}
+          <div className="flex flex-wrap items-center gap-2 sm:col-span-2"><Button onClick={() => { const entries = asset ? revisionDiffEntries(asset, metadataDraft, rtl ? "ar" : "en") : []; if (!entries.length) { setMetadataError(rtl ? "لم يتم اكتشاف تغيير فعلي." : "No effective change was detected."); return; } setMetadataError(""); setMetadataConfirmOpen(true); }} disabled={metadataBusy}>{rtl ? "مراجعة التغييرات" : "Review changes"}</Button><Button variant="secondary" onClick={() => setMetadataOpen(false)} disabled={metadataBusy}>{rtl ? "إلغاء" : "Cancel"}</Button>{metadataError && <span className="text-rose-600">{metadataError}</span>}</div>
         </div>}
-      </div> : <p className="text-slate-500">{rtl ? "لا تملك صلاحية تعديل البيانات التشغيلية." : "You do not have permission to edit operational metadata."}</p>}
+      </div> : <p className="text-slate-500">{rtl ? "لا تملك صلاحية إنشاء Revision للبيانات الوصفية." : "You do not have permission to create Asset Revisions."}</p>}
     </Section>
+
+    <Modal open={metadataConfirmOpen} onClose={() => { if (!metadataBusy) setMetadataConfirmOpen(false); }} title={rtl ? "مراجعة Revision" : "Review Revision"} description={rtl ? "راجع القيم قبل إرسال العملية. لن يتم تعديل السعر أو الهوية أو الحالة من هذا المسار." : "Review the values before submitting. Price, identity and status are not changed by this flow."}>
+      <div className="space-y-4">
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <table className="min-w-full text-start text-xs">
+            <thead className="bg-slate-50 dark:bg-navy-950"><tr><th className="px-3 py-2">{rtl ? "الحقل" : "Field"}</th><th className="px-3 py-2">{rtl ? "القيمة السابقة" : "Previous value"}</th><th className="px-3 py-2">{rtl ? "القيمة الجديدة" : "New value"}</th></tr></thead>
+            <tbody>{asset && revisionDiffEntries(asset, metadataDraft, rtl ? "ar" : "en").map((entry) => <tr key={entry.field} className="border-t border-border"><td className="px-3 py-3 font-semibold">{entry.label}</td><td className="px-3 py-3" dir="ltr">{entry.oldValue}</td><td className="px-3 py-3" dir="ltr">{entry.newValue}</td></tr>)}</tbody>
+          </table>
+        </div>
+        <label className="block space-y-1"><span className="text-[10px] font-bold text-slate-500">{rtl ? "سبب التعديل (مطلوب)" : "Revision reason (required)"}</span><textarea className="input-base min-h-24 w-full" maxLength={2000} required value={metadataReason} onChange={(event) => setMetadataReason(event.target.value)} disabled={metadataBusy} placeholder={rtl ? "اكتب سببًا واضحًا للتعديل" : "Enter a meaningful reason for this change"} /></label>
+        {metadataError && <p className="text-xs text-rose-600">{metadataError}</p>}
+        <div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setMetadataConfirmOpen(false)} disabled={metadataBusy}>{rtl ? "رجوع" : "Back"}</Button><Button onClick={() => void saveMetadata()} disabled={metadataBusy || !metadataReason.trim()}>{metadataBusy ? (rtl ? "جارٍ الإرسال..." : "Submitting...") : (rtl ? "إرسال Revision" : "Submit Revision")}</Button></div>
+      </div>
+    </Modal>
 
     {asset.operationalStatus === "RETURNED" && <Section title={rtl ? "مراجعة القطعة المرتجعة" : "Returned Asset Review"}>{canApproveRestock ? <div className="space-y-3"><p className="text-slate-600 dark:text-slate-300">{rtl ? "لا تعود القطعة متاحة تلقائيًا. يلزم توثيق نتيجة المراجعة ثم اعتمادها بصلاحية مستقلة." : "This Asset never returns to Available automatically. Record the review and then approve through the permission-gated canonical action."}</p>{!latestReview ? <div className="flex flex-col gap-2 sm:flex-row"><select className="input-base" value={outcome} onChange={(event) => setOutcome(event.target.value)} disabled={busy}><option value="GOOD">Good</option><option value="NEEDS_INSPECTION">Needs Inspection</option><option value="DAMAGED">Damaged</option><option value="BROKEN">Broken</option><option value="NEEDS_REPAIR">Needs Repair</option></select><input className="input-base flex-1" value={note} onChange={(event) => setNote(event.target.value)} placeholder={rtl ? "ملاحظة المراجعة" : "Review note"} disabled={busy} /><Button onClick={() => void recordReview()} disabled={busy}>{rtl ? "تسجيل المراجعة" : "Record review"}</Button></div> : <div className="flex flex-wrap items-center gap-3"><Badge tone={latestReview.conditionOutcome === "GOOD" ? "green" : "amber"}>{latestReview.conditionOutcome}</Badge><span>{rtl ? "تم تسجيل المراجعة" : "Review recorded"}</span>{latestReview.conditionOutcome === "GOOD" && !latestReview.approvedAt ? <Button onClick={() => void approveRestock()} disabled={busy}>{rtl ? "اعتماد العودة إلى المتاح" : "Approve restock"}</Button> : <span className="text-slate-500">{latestReview.approvedAt ? (rtl ? "تم الاعتماد" : "Approved") : (rtl ? "تبقى القطعة غير متاحة" : "Asset remains non-available")}</span>}</div>}{actionError && <p className="text-rose-600">{actionError}</p>}</div> : <p className="text-slate-500">{rtl ? "المراجعة والاعتماد غير متاحين لك؛ المنع من الخادم وليس من الواجهة فقط." : "You are not authorized to review or restock; the server enforces this permission."}</p>}</Section>}
 
@@ -260,7 +306,7 @@ export default function AssetDetailsPage() {
              <Field label={rtl ? "حالة RFID" : "RFID state"} value={rfid?.status || "—"} />
              <Field label={rtl ? "تاريخ الإسناد" : "Assigned at"} value={dateTime(rfid?.assigned_at || rfid?.assignedAt, locale)} />
            </div>
-           {canEditMetadata ? (
+           {canAdjustInventory ? (
              <div className="mt-4 space-y-3">
                <div className="grid gap-3 sm:grid-cols-2">
                  <input className="input-base" value={rfidNumber} onChange={(event) => setRfidNumber(event.target.value)} placeholder={rtl ? "قيمة RFID الخارجية" : "Opaque RFID value"} disabled={rfidBusy} />
@@ -298,6 +344,9 @@ export default function AssetDetailsPage() {
 
     <Section title={rtl ? "سجل القطعة الموحد" : "Unified Item History"}><p className="mb-4 text-[10px] text-slate-500">{rtl ? "سجل الأحداث غير قابل للحذف هو السلطة الزمنية؛ وتعرض تحته حركات الأصل المربوطة كأدلة مادية." : "Immutable AssetEvents are the chronological authority; linked movement records are shown as physical evidence."}</p><div className="space-y-3">{timeline.length ? timeline.map((entry: any) => <div key={`${entry.kind}-${entry.id}`} className="rounded-xl border border-border p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><Badge tone={entry.kind === "EVENT" ? "violet" : "blue"}>{entry.kind === "EVENT" ? (rtl ? "حدث" : "Event") : (rtl ? "حركة" : "Movement")}</Badge><p className="font-bold">{eventLabel(entry.eventType, rtl)}</p></div><span className="text-[10px] text-slate-400">{dateTime(entry.occurredAt, locale)}</span></div>{entry.note && <p className="mt-2 text-slate-600 dark:text-slate-300">{entry.note}</p>}<div className="mt-2 grid gap-1 text-[10px] text-slate-500 sm:grid-cols-3"><span>{rtl ? "المصدر" : "Source"}: {text(entry.sourceType)} / {text(entry.sourceId)}</span>{entry.actor && <span>{rtl ? "المستخدم" : "Actor"}: {entry.actor}</span>}{entry.oldStatus || entry.newStatus ? <span>{lifecycleState(entry.oldStatus, rtl)} → {lifecycleState(entry.newStatus, rtl)}</span> : null}</div></div>) : <p className="text-slate-500">{rtl ? "لا توجد أحداث بعد." : "No history events yet."}</p>}</div>{data.returnReviews.length ? <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50/40 p-4 dark:border-amber-900 dark:bg-amber-950/20"><p className="font-black">{rtl ? "أدلة مراجعة المرتجع R38" : "R38 returned-review evidence"}</p>{data.returnReviews.map((review: any) => <p key={review.id} className="mt-2 text-slate-600 dark:text-slate-300">{review.conditionOutcome} · {dateTime(review.reviewedAt, locale)} · {review.approvedAt ? (rtl ? "تم اعتماد العودة للمتاح" : "Restock approved") : (rtl ? "لم يُعتمد" : "Not approved")}</p>)}</div> : null}</Section>
 
+    <AssetRevisionPanel assetId={assetId} branchId={branchId} canView={canViewRevisions} refreshToken={revisionRefreshToken} />
+
     <Section title={rtl ? "الروابط والسجل النظامي" : "Relations and System Audit"}><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><Field label={rtl ? "الوثائق المرتبطة" : "Document links"} value={data.documentLinks.map((link) => `${link.type}: ${link.id}`).join(" · ")} /><Field label={rtl ? "أنشئ في" : "Created at"} value={dateTime(asset.createdAt, locale)} /><div className="rounded-xl bg-slate-50 p-3 dark:bg-navy-950"><p className="text-[10px] text-slate-400">{rtl ? "مسارات دورة الحياة" : "Lifecycle paths"}</p>{lifecyclePaths.length ? <div className="mt-2 flex flex-wrap gap-2">{lifecyclePaths.map((path) => <span key={`${path.en}-${path.ownerEn}`} className="rounded-full border border-border bg-white px-2 py-1 text-[10px] font-bold dark:bg-navy-900">{rtl ? path.ar : path.en}<span className="ms-1 font-normal text-slate-400">· {rtl ? path.ownerAr : path.ownerEn}</span></span>)}</div> : <p className="mt-1 text-xs font-bold">{rtl ? "لا يوجد مسار متاح للعرض." : "No lifecycle path is available for display."}</p>}<p className="mt-2 text-[10px] text-slate-500">{rtl ? "تغيير الحالة يتم فقط من المسار المالك لها؛ هذه الصفحة لا تنفذ تغييرًا عامًا للحالة." : "Status changes are owned by the canonical workflow; this page does not perform generic status changes."}</p></div></div></Section>
+    <ClientAssetTagPreview asset={{ ...asset, supplierName: asset.supplierName || data.origin?.supplierName }} />
   </div>;
 }

@@ -80,7 +80,7 @@ test("Asset details expose protected identity, origin, cost, valuation, movement
   }
   assert.match(detail, /Gold By Piece/);
   assert.match(detail, /ذهب بالقطعة/);
-  assert.match(detail, /Price, cost, barcode, weights, karat, and operational status remain protected/);
+  assert.match(detail, /Price, cost, barcode, weights, karat, status, branch and location remain protected/);
   assert.match(detail, /Status is read-only here/);
 });
 

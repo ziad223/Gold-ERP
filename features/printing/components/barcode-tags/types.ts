@@ -29,21 +29,47 @@ export interface ClientTagConfig {
   showWatchPrice: boolean;
 }
 
-// Conservative defaults. Physical dimensions match the existing 62mm × 28mm tag;
-// the physical duplex method is left to the printer and is pending client
-// confirmation (see docs).
+export type ClientTagProfile = "gold-weight" | "gold-piece" | "diamond" | "gemstone" | "pearl";
+
+export const CLIENT_TAG_PROFILE_FIELDS: Readonly<Record<ClientTagProfile, readonly string[]>> = {
+  "gold-weight": ["barcode", "title", "GW", "ST", "NT", "MC"],
+  "gold-piece": ["barcode", "price", "title", "brand", "WT", "DIS"],
+  diamond: ["barcode", "price", "title", "carat", "CC", "DIS"],
+  gemstone: ["barcode", "price", "title", "ST", "DIS"],
+  pearl: ["barcode", "price", "title", "type", "DIS"],
+};
+
+const PROFILE_TO_TAG_TYPE: Record<string, ClientTagProfile> = {
+  GOLD_BY_WEIGHT_JEWELLERY: "gold-weight",
+  GOLD_BAR_24K: "gold-weight",
+  GOLD_BY_PIECE: "gold-piece",
+  DIAMOND_JEWELLERY: "diamond",
+  LOOSE_DIAMOND: "diamond",
+  GEMSTONE_JEWELLERY: "gemstone",
+  LOOSE_GEMSTONE: "gemstone",
+  PEARL_JEWELLERY: "pearl",
+  LOOSE_PEARL: "pearl",
+};
+
+export function resolveClientTagProfile(inventoryProfile: unknown): ClientTagProfile | null {
+  return PROFILE_TO_TAG_TYPE[String(inventoryProfile || "").trim().toUpperCase()] || null;
+}
+
+// Conservative dimensions match the existing accepted app print contract.
+// The exact client profile contract does not include a company/logo/RFID row,
+// so those generic presentation extras are hidden by default.
 export const DEFAULT_CLIENT_TAG_CONFIG: ClientTagConfig = {
   widthMm: 62,
   heightMm: 28,
   direction: "LTR",
   fontSizePx: 8,
   columns: 2,
-  showCompanyName: true,
+  showCompanyName: false,
   showLogo: false,
   showBorder: true,
   showQrCode: false,
   obfuscateMakingCharge: false,
-  rfidMode: "indicator",
+  rfidMode: "hidden",
   showProvisionalWatchMarker: true,
   showWatchPrice: true,
 };

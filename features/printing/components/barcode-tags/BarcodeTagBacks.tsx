@@ -1,8 +1,8 @@
 /**
- * Phase 32.3-Fix — client tag BACK faces, one per inventory type. Missing
- * optional rows are HIDDEN (never printed as fake zeros). No purchase/internal
- * cost is ever rendered. Watch is owner-approved provisional (not from client
- * docs).
+ * C4 — client tag BACK faces, one per accepted inventory family. Missing
+ * optional rows are HIDDEN (never printed as fake zeros). Only fields proven by
+ * the client Barcode tag contract are rendered; no purchase/internal cost is
+ * rendered.
  */
 
 import type { AssetTagData } from "@/lib/print/barcode-label";
@@ -66,7 +66,8 @@ export function GoldPieceTagBack({ item }: BackProps) {
   );
 }
 
-// 3/4) Diamond (jewellery + loose). Loose never invents a gold karat.
+// 3/4) Diamond (jewellery + loose). Loose never invents a gold karat. The
+// client tag contract is Carat + CC + DIS; Cut and Cert remain detail fields.
 export function DiamondTagBack({ item }: BackProps) {
   const meta = item.metadata || {};
   const loose = /loose/i.test(item.inventorySubtype || "");
@@ -75,15 +76,14 @@ export function DiamondTagBack({ item }: BackProps) {
     <BackShell title={title}>
       <Row label="Carat" value={meta.carat !== undefined && meta.carat !== "" ? String(meta.carat) : null} />
       <Row label="CC" value={fmtColorClarity(meta.color, meta.clarity)} />
-      <Row label="Cut" value={meta.cut ? String(meta.cut) : (meta.shape ? String(meta.shape) : null)} />
       <Row label="DIS" value={fmtDiscount(meta.discount)} />
-      <Row label="Cert" value={meta.certificateNumber ? String(meta.certificateNumber) : null} />
     </BackShell>
   );
 }
 
 // 5/6) Gem Stone (jewellery + loose). Multiple ST rows via metadata.stones with
-// single-stone fallback. Loose never invents a gold karat.
+// single-stone fallback. Loose never invents a gold karat. Certificate remains
+// an Asset detail field and is not a client tag row.
 export function GemstoneTagBack({ item }: BackProps) {
   const meta = item.metadata || {};
   const loose = /loose/i.test(item.inventorySubtype || "");
@@ -99,12 +99,12 @@ export function GemstoneTagBack({ item }: BackProps) {
         />
       ))}
       <Row label="DIS" value={fmtDiscount(meta.discount)} />
-      <Row label="Cert" value={meta.certificateNumber ? String(meta.certificateNumber) : null} />
     </BackShell>
   );
 }
 
-// 7/8) Pearl (jewellery + loose). Loose never invents a gold karat.
+// 7/8) Pearl (jewellery + loose). Loose never invents a gold karat. The exact
+// client tag contract contains Type and DIS; Size/Quality stay in detail data.
 export function PearlTagBack({ item }: BackProps) {
   const meta = item.metadata || {};
   const loose = /loose/i.test(item.inventorySubtype || "");
@@ -112,8 +112,6 @@ export function PearlTagBack({ item }: BackProps) {
   return (
     <BackShell title={title}>
       <Row label="Type" value={meta.pearlType ? String(meta.pearlType) : null} />
-      <Row label="Size" value={meta.pearlSize ? String(meta.pearlSize) : null} />
-      <Row label="Quality" value={meta.pearlQuality ? String(meta.pearlQuality) : null} />
       <Row label="DIS" value={fmtDiscount(meta.discount)} />
     </BackShell>
   );

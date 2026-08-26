@@ -1,5 +1,16 @@
 # Market Release Findings Register
 
+## ROUTE-PERMISSION-CATALOG-COVERAGE-001 — RESOLVED_BY_SOURCE_AND_TEST — 2026-08-26
+
+| Field | Evidence |
+| --- | --- |
+| Root cause | A protected generic Branch read route derived `branches.view`, but that permission was not registered in the canonical source. Several legacy guard alternatives were also not assignable catalog permissions. |
+| What allowed it | Permission reconciliation compared source rows with DB rows, but did not inspect permission consumers in routes, middleware, services, or generic CRUD mappings. |
+| Minimum fix | Branch list/detail reuse existing `settings.view`; unsupported guard aliases are removed in favor of their existing canonical owner permissions; a focused system-wide consumer-coverage test now fails on any unregistered direct consumer or generic CRUD candidate. |
+| Prevention gate | No protected route/guard may be accepted until all direct permission consumers and generic CRUD guard candidates resolve to the canonical source catalog. |
+| Regression test | `backend/tests/route-permission-catalog-coverage.test.cjs` |
+| Modules affected | Branch read context, generic CRUD guard mapping, legacy attachment/document guard aliases, permission catalog coverage. |
+
 ## FINANCIAL-ACCEPT-F003 — OPEN — CONT3 boundary (2026-07-30)
 
 Locked exact four-decimal validation is implemented and fresh disposable HTTP proof passes. Persistent Product-API evidence remains pending a new minimal valid installment; the retained overpayment is immutable and has no supported linked remediation workflow. Next: `OFFICIAL-LOCAL-FINANCIAL-FIX-CONT3`.
