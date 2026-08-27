@@ -473,9 +473,26 @@ function buildSpecialSections(
   }
 
   if (type === "customerGoldPurchase") {
-    addWarning(warnings, "customer_gold_purchase_fields_missing");
+    const projectionDetail = (invoice as Invoice & {
+      projectionDetail?: {
+        goldPurchaseDetails?: Array<{
+          netWeight?: unknown;
+          karat?: unknown;
+          rate?: { value?: unknown } | null;
+          proposedRate?: unknown;
+        }>;
+      };
+    }).projectionDetail;
+    const gold = projectionDetail?.goldPurchaseDetails?.[0] || {};
+    const goldWeight = asNumber(gold.netWeight);
+    const purchaseRate = asNumber(gold.rate?.value ?? gold.proposedRate);
+    const hasProjectionEvidence = goldWeight !== undefined || Boolean(gold.karat) || purchaseRate !== undefined;
+    if (!hasProjectionEvidence) addWarning(warnings, "customer_gold_purchase_fields_missing");
     return {
       customerGoldPurchase: {
+        goldWeight,
+        karat: gold.karat == null ? undefined : String(gold.karat),
+        purchaseRate,
         reversePurchaseNoteAr: "شراء ذهب من العميل: النظام هو المشتري.",
         reversePurchaseNoteEn: "Customer gold purchase: the system is the buyer.",
       },

@@ -132,7 +132,13 @@ export function usePos() {
     ) => {
       if (dataSource === "mock") {
         const basePrice = assets.reduce((sum, item) => sum + item.price, 0);
-        const totalMakingCharge = assets.reduce((sum, item) => sum + (Number(item.grossWeight) || 0) * makingChargePerGram, 0);
+        const totalMakingCharge = assets.reduce((sum, item) => {
+          const profile = (item as any).inventoryProfile || (item as any).profile;
+          const eligibleWeight = profile === "GOLD_BY_WEIGHT_JEWELLERY"
+            ? Number((item as any).netGoldWeight ?? (item as any).netWeight ?? item.grossWeight) || 0
+            : Number(item.grossWeight) || 0;
+          return sum + eligibleWeight * makingChargePerGram;
+        }, 0);
         const subtotal = Math.max(0, basePrice + totalMakingCharge + stoneValue - discount);
         // VAT rate comes from Settings (single source of truth), not a hardcoded value.
         const vatRate = Number(settings?.vatRate) || 0;

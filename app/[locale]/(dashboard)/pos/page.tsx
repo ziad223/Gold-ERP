@@ -641,7 +641,10 @@ export default function PosPage() {
     const making = profile === "GOLD_BY_WEIGHT_JEWELLERY" || profile === "CGP_CUSTOMER_GOLD_PURCHASE"
       ? Number(makingChargePerGram) || 0
       : 0;
-    return net * rate + Math.max(0, gross) * making;
+    // GBW sale making is based on the server-defined eligible net-gold weight;
+    // gross weight remains display/audit data and must not change money.
+    const makingWeight = profile === "GOLD_BY_WEIGHT_JEWELLERY" ? net : gross;
+    return net * rate + Math.max(0, makingWeight) * making;
   };
 
   const posItems = useMemo(() => {
@@ -781,6 +784,14 @@ export default function PosPage() {
   
   const provisionalCost = useMemo(
     () => cart.reduce((sum, item) => sum + item.cost * (item.isProduct ? item.quantity : 1), 0),
+    [cart],
+  );
+  const eligibleGoldWeight = useMemo(
+    () => cart.reduce((sum, item) => {
+      const profile = item.rawItem?.inventoryProfile || item.rawItem?.profile;
+      if (profile !== "GOLD_BY_WEIGHT_JEWELLERY") return sum;
+      return sum + (Number(item.rawItem?.netGoldWeight ?? item.rawItem?.netWeight ?? item.totalWeight) || 0);
+    }, 0),
     [cart],
   );
 
@@ -1660,6 +1671,12 @@ export default function PosPage() {
             )}
 
             {/* Price breakdown and notes inputs */}
+            {eligibleGoldWeight > 0 && (
+              <div className="mb-3 flex items-center justify-between rounded-xl bg-brand-50/60 px-3 py-2 text-[11px] dark:bg-brand-500/10">
+                <span className="font-bold text-slate-500">{rtl ? "وزن الذهب المؤهل للمصنعية" : "Eligible gold weight for making"}</span>
+                <bdi dir="ltr" className="numeric-token font-black text-brand-700 dark:text-brand-300">{numericText(eligibleGoldWeight)} {t("gram")}</bdi>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div>
                 <label className="mb-1 block text-[10px] font-bold text-slate-500">

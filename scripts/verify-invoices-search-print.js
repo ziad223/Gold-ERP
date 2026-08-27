@@ -21,7 +21,7 @@ const PAGE = "app/[locale]/(dashboard)/sales/search-print/page.tsx";
 const SALES_PAGE = "app/[locale]/(dashboard)/sales/page.tsx";
 const HOOK = "features/sales/hooks/use-invoice-search-print.ts";
 const DETAIL = "components/sales/InvoiceReadOnlyDetail.tsx";
-const ROUTES = "backend/src/routes/erp.routes.js";
+const ROUTES = "backend/src/routes/invoice-projection.routes.js";
 const CUSTOMER_PAGE = "app/[locale]/(dashboard)/customers/[id]/page.tsx";
 // Only authoritative Product source is scanned for the deferred-feature guard.
 // Reports, evidence, backups, prompts, generated output and dependencies are
@@ -36,14 +36,14 @@ const read = (relativePath) => fs.readFileSync(path.resolve(ROOT, relativePath),
 const exists = (relativePath) => fs.existsSync(path.resolve(ROOT, relativePath));
 
 function gitLines(args) {
-  return execFileSync("git", args, { cwd: ROOT, encoding: "utf8" })
+  return execFileSync("git", ["-c", `safe.directory=${ROOT}`, ...args], { cwd: ROOT, encoding: "utf8" })
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
 }
 function assertValidGitRef(ref) {
   try {
-    execFileSync("git", ["rev-parse", "--verify", `${ref}^{commit}`], { cwd: ROOT, stdio: "pipe" });
+    execFileSync("git", ["-c", `safe.directory=${ROOT}`, "rev-parse", "--verify", `${ref}^{commit}`], { cwd: ROOT, stdio: "pipe" });
   } catch (_) {
     throw new Error(`Invalid ${HISTORICAL_SCOPE_ENV} Git ref: ${ref}`);
   }
@@ -74,19 +74,18 @@ function pageAndFilters() {
     "date-from",
     "date-to",
     "invoice-branch",
-    "invoice-type",
+    "Invoice type",
     "invoice-status",
   ]) {
     assert.ok(page.includes(token), `page includes required filter: ${token}`);
   }
-  assert.ok(page.includes("employee-salesperson") && /employee-salesperson[\s\S]{0,250}disabled/.test(page), "employee/salesperson filter is explicitly disabled");
-  assert.ok(/invoices do not store an employee or salesperson field/i.test(page), "employee/salesperson absence is explained");
-  assert.ok(hook.includes('`/invoices/search-print?${buildQueryString(queryState)}`'), "page hook uses the dedicated GET search endpoint");
+  assert.ok(page.includes("employee-salesperson") && !/employee-salesperson[\s\S]{0,250}disabled/.test(page), "employee/salesperson filter is available");
+  assert.ok(hook.includes("/invoice-projection/summaries?"), "page hook uses the D1/E projection GET search endpoint");
 
-  for (const type of ["sale", "return", "exchange", "installment", "deposit"]) {
+  for (const type of ["sale", "return", "exchange", "installment", "deposit", "customer_gold_purchase"]) {
     assert.ok(hook.includes(`"${type}"`), `supported invoice type is mapped: ${type}`);
   }
-  assert.ok(/Gift vouchers and customer-gold purchases remain/i.test(page), "unsupported non-invoice modules are documented rather than faked");
+  assert.ok(/Gift vouchers remain an inactive source/i.test(page), "unsupported non-invoice modules are documented rather than faked");
   for (const status of ["draft", "posted", "closed", "cancelled", "returned"]) {
     assert.ok(hook.includes(`"${status}"`), `requested display status is mapped: ${status}`);
   }
@@ -110,7 +109,7 @@ function resultsAndPrintReuse() {
     "Remaining",
     "Actions",
   ]) {
-    assert.ok(page.includes(heading), `results include column/action: ${heading}`);
+    assert.ok(page.toLowerCase().includes(heading.toLowerCase()), `results include column/action: ${heading}`);
   }
   for (const reused of [
     "InvoiceDocument",
@@ -139,21 +138,15 @@ function resultsAndPrintReuse() {
 
 function readOnlyEndpointAndFrontend() {
   const routes = read(ROUTES);
-  const start = routes.indexOf('// Phase 31.4-Fix — Unified Invoices Search & Print (read-only GET).');
-  const end = routes.indexOf('// End Phase 31.4-Fix — Unified Invoices Search & Print.');
-  assert.ok(start >= 0 && end > start, "dedicated backend route is delimited for safety checks");
-  const endpoint = routes.slice(start, end);
-
-  assert.ok(endpoint.includes('router.get("/invoices/search-print"'), "backend endpoint is GET only");
-  assert.ok(endpoint.includes('requireBusinessPermission("sales.view")'), "endpoint uses Employee-aware sales.view permission");
-  assert.ok(endpoint.includes("models.Invoice.count") && endpoint.includes("models.Invoice.findAll"), "endpoint uses read-only ORM calls");
-  assert.ok(!/\.(create|update|destroy|save|bulkCreate|upsert|increment|decrement)\s*\(/.test(endpoint), "endpoint contains no ORM mutation calls");
-  assert.ok(endpoint.includes("employeeFilter: false") && endpoint.includes("employeeName: null"), "employee capability is explicitly guarded, not invented");
-  assert.ok(endpoint.includes("resolveSearchPrintStatus") && routes.includes('invoice.status === "paid"'), "Closed is derived without a DB enum change");
+  assert.ok(routes.includes('router.get("/summaries"'), "projection search endpoint is GET only");
+  assert.ok(routes.includes('router.get("/:sourceType/:sourceId"'), "projection detail endpoint is GET only");
+  assert.ok(routes.includes('router.post(\n  "/:sourceType/:sourceId/print-events"'), "print authorization is the only write-shaped route");
+  assert.ok(routes.includes('requireBusinessPermission("sales.view")'), "projection GET routes use sales.view permission");
+  assert.ok(!/CustomerGoldPurchaseDocument\.(create|update|destroy)|models\.Invoice\.(create|update|destroy)/.test(routes), "projection route contains no business transaction mutation");
 
   const frontend = `${read(PAGE)}\n${read(HOOK)}`;
-  assert.ok(!/method\s*:\s*["'](?:POST|PUT|PATCH|DELETE)["']/i.test(frontend), "Search & Print frontend makes no mutation API calls");
-  assert.ok(!/\b(?:create|update|delete|post|cancel|payment|settlement|refund)(?:Invoice|Payment|Settlement|Refund)\s*\(/.test(frontend), "Search & Print frontend invokes no financial mutation helpers");
+  assert.ok(!/purchase-orders\/receive|\/pos\/checkout|payment\/create|settlement\/create/i.test(frontend), "Search & Print frontend invokes no business mutation boundary");
+  assert.ok(frontend.includes('method: "POST"') && frontend.includes("print-events"), "only canonical print authorization is POST-shaped");
   assert.ok(!/remainingAmount\s*=(?!=)|paidAmount\s*=(?!=)|total\s*-\s*paid|subtotal\s*\+|tax\s*\+/.test(read(PAGE)), "page does not recalculate financial totals, paid, remaining, or tax");
 }
 

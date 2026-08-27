@@ -291,6 +291,7 @@ export interface InvoiceItem {
    *  same product appears on more than one line. May be absent in mock/local. */
   id?: number;
   assetId: string;
+  barcode?: string;
   name: string;
   quantity: number;
   price: number;
@@ -315,7 +316,9 @@ export type InvoiceType =
   | "deposit"
   | "repair"
   | "installment"
-  | "giftVoucher";
+  | "giftVoucher"
+  | "customerGoldPurchase"
+  | "customer_gold_purchase";
 
 export interface Invoice {
   id: string;

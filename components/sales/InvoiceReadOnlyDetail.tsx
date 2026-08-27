@@ -64,7 +64,10 @@ export function InvoiceReadOnlyDetail({
           >
             <div>
               <p className="text-xs font-extrabold">{item.name}</p>
-              <p className="mt-1 text-[10px] text-slate-400">{item.assetId}</p>
+              <p className="mt-1 text-[10px] text-slate-400" dir="ltr">
+                {item.barcode ? `Barcode: ${item.barcode}` : item.assetId}
+                {item.barcode && item.assetId ? ` · ${item.assetId}` : ""}
+              </p>
             </div>
             <p className="text-sm font-black">{money(item.price)}</p>
           </div>
