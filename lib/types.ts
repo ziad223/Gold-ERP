@@ -439,7 +439,7 @@ export interface ExchangeLegacyFallback {
 export interface ExchangeDisplayResponse {
   invoiceId: string;
   originalInvoiceId?: string;
-  customerId?: string;
+  customerId?: string | null;
   currency: string;
   policyStatus: ExchangePolicyStatus;
   policyVersion: string | null;
@@ -472,14 +472,22 @@ export interface Installment {
 
 export interface GiftVoucher {
   id: string;
-  code: string;
-  value: number;
-  balance: number;
+  voucherCode: string;
+  voucherNumber: string;
+  faceValue: number | string;
+  currency: string;
+  voucherType: "PURCHASED_GIFT_VOUCHER";
+  fundingSource: "PURCHASED";
   customerId?: string;
-  customerName?: string;
-  status: "active" | "redeemed" | "expired";
-  issueDate: string;
-  expiryDate?: string;
+  status: "issued" | "active" | "distributed" | "redeemed" | "expired" | "cancelled";
+  branchEligibilityMode: "ALL_BRANCHES" | "SELECTED_BRANCHES";
+  issueBranchId: string;
+  issuedAt: string;
+  activatedAt?: string | null;
+  redeemedAt?: string | null;
+  redemptionInvoiceId?: string | null;
+  redemptionPaymentId?: string | null;
+  branchEligibilities?: Array<{ branchId: string }>;
 }
 
 export interface Reservation {

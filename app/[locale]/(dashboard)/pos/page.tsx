@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect, useRef } from "react";
 import { isApiDataSource } from "@/lib/data-source";
-import { Barcode, CheckCircle2, CreditCard, Gem, ListChecks, Trash2, UserRound, RefreshCw, AlertTriangle, Printer, FolderOpen, Save } from "lucide-react";
+import { Barcode, CheckCircle2, CreditCard, Gem, ListChecks, Trash2, UserRound, RefreshCw, AlertTriangle, Printer, FolderOpen, Save, Ticket } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -18,7 +18,7 @@ import { apiClient, generateUUID } from "@/lib/api/client";
 import { Link } from "@/i18n/navigation";
 import { usePermissions } from "@/hooks/use-permissions";
 import { filterData } from "@/hooks/use-data-filters";
-import type { Asset, AssetType, Invoice, PosCustomerSummary, Product } from "@/lib/types";
+import type { Asset, AssetType, GiftVoucher, Invoice, PosCustomerSummary, Product } from "@/lib/types";
 import { useCoreErpData } from "@/hooks/use-core-erp-data";
 import { formatCurrency } from "@/lib/utils";
 import { formatEnglishNumber, normalizeNumberInput, toEnglishDigits } from "@/lib/formatters/numbers";
@@ -241,6 +241,12 @@ export default function PosPage() {
   const [splitCash, setSplitCash] = useState("0");
   const [splitCard, setSplitCard] = useState("0");
   const [splitTransfer, setSplitTransfer] = useState("0");
+  // A Gift Voucher is intentionally not a generic payment method. It is an
+  // explicitly verified, full-value leg inside canonical split settlement.
+  const [splitGiftVoucherCode, setSplitGiftVoucherCode] = useState("");
+  const [splitGiftVoucher, setSplitGiftVoucher] = useState<GiftVoucher | null>(null);
+  const [splitGiftVoucherLoading, setSplitGiftVoucherLoading] = useState(false);
+  const [splitGiftVoucherError, setSplitGiftVoucherError] = useState<string | null>(null);
 
   // Installment fields
   const [downPayment, setDownPayment] = useState("0");
@@ -295,6 +301,9 @@ export default function PosPage() {
     setMakingChargePerGram("0");
     setStoneValue("0");
     setNotes("");
+    setSplitGiftVoucherCode("");
+    setSplitGiftVoucher(null);
+    setSplitGiftVoucherError(null);
   };
 
   // Load DRAFT invoices: API-backed in api mode (source of truth), localStorage
@@ -517,8 +526,10 @@ export default function PosPage() {
       // Hide installment when the feature is disabled in Settings.
       if (opt.value === "installment" && !installmentEnabled) return false;
       if (opt.value === "split") {
-        const baseMethods = ["cash", "card", "transfer"];
-        return baseMethods.filter(bm => activeMethods.includes(bm)).length > 1;
+        // Gift Voucher can be the whole settlement or one leg with an enabled
+        // cash/card/transfer leg. It is still validated server-side as a
+        // strict adapter, so this does not make it a generic payment setting.
+        return true;
       }
       return activeMethods.includes(opt.value);
     });
@@ -922,6 +933,38 @@ export default function PosPage() {
     setCart(current => current.filter(item => item.id !== id));
   };
 
+  const verifyGiftVoucher = async () => {
+    const code = splitGiftVoucherCode.trim().toUpperCase();
+    if (!code) {
+      setSplitGiftVoucher(null);
+      setSplitGiftVoucherError(rtl ? "أدخل كود قسيمة الهدية أولاً." : "Enter a Gift Voucher code first.");
+      return;
+    }
+    setSplitGiftVoucherLoading(true);
+    setSplitGiftVoucherError(null);
+    try {
+      const response = await apiClient<{ data?: GiftVoucher } & GiftVoucher>(`/gift-vouchers/${encodeURIComponent(code)}`, { locale });
+      const voucher = response.data ?? response;
+      if (voucher.status !== "active") {
+        setSplitGiftVoucher(null);
+        setSplitGiftVoucherError(rtl ? "القسيمة غير فعّالة للاسترداد." : "The Gift Voucher is not active for redemption.");
+        return;
+      }
+      if (String(voucher.currency || "").toUpperCase() !== String(company?.currency || settings?.currency || "").toUpperCase()) {
+        setSplitGiftVoucher(null);
+        setSplitGiftVoucherError(rtl ? "عملة القسيمة لا تطابق عملة الشركة." : "Gift Voucher currency does not match the Company currency.");
+        return;
+      }
+      setSplitGiftVoucher(voucher);
+      setSplitGiftVoucherCode(voucher.voucherCode);
+    } catch (error: any) {
+      setSplitGiftVoucher(null);
+      setSplitGiftVoucherError(error?.message || (rtl ? "تعذر التحقق من القسيمة." : "Gift Voucher verification failed."));
+    } finally {
+      setSplitGiftVoucherLoading(false);
+    }
+  };
+
   const completeSale = async () => {
     // While editing a draft, the immediate-post path is disabled to avoid
     // creating a duplicate invoice — the cart must be posted via the draft.
@@ -1009,7 +1052,12 @@ export default function PosPage() {
     }
 
     if (method === "split") {
-      const splitSum = (Number(splitCash) || 0) + (Number(splitCard) || 0) + (Number(splitTransfer) || 0);
+      const voucherAmount = splitGiftVoucherCode.trim() ? Number(splitGiftVoucher?.faceValue || 0) : 0;
+      if (splitGiftVoucherCode.trim() && !splitGiftVoucher) {
+        setPricingError(rtl ? "تحقق من قسيمة الهدية قبل إتمام البيع." : "Verify the Gift Voucher before completing the sale.");
+        return;
+      }
+      const splitSum = (Number(splitCash) || 0) + (Number(splitCard) || 0) + (Number(splitTransfer) || 0) + voucherAmount;
       if (Math.abs(splitSum - Number(provisionalTotal)) > 0.01) {
         setPricingError(rtl ? "مجموع المبالغ في الدفع المجزأ يجب أن يساوي الإجمالي" : "Total of split payments must equal invoice total");
         return;
@@ -1080,7 +1128,8 @@ export default function PosPage() {
         paymentSplits: method === "split" ? [
           { method: "cash", amount: Number(splitCash) || 0 },
           { method: "card", amount: Number(splitCard) || 0 },
-          { method: "transfer", amount: Number(splitTransfer) || 0 }
+          { method: "transfer", amount: Number(splitTransfer) || 0 },
+          ...(splitGiftVoucher ? [{ method: "gift_voucher", amount: Number(splitGiftVoucher.faceValue), voucherCode: splitGiftVoucher.voucherCode }] : []),
         ].filter(s => s.amount > 0) : [],
         downPayment: method === "installment" ? Number(downPayment) || 0 : 0,
         installmentCount: method === "installment" ? Number(installmentCount) || 0 : 0,
@@ -1099,6 +1148,9 @@ export default function PosPage() {
       setSplitCash("0");
       setSplitCard("0");
       setSplitTransfer("0");
+      setSplitGiftVoucherCode("");
+      setSplitGiftVoucher(null);
+      setSplitGiftVoucherError(null);
       setDownPayment("0");
       setGuarantorName("");
       setGuarantorPhone("");
@@ -1553,7 +1605,7 @@ export default function PosPage() {
             {method === "split" && (
               <div className="mb-4 rounded-2xl border border-slate-200 p-4 space-y-3 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
                 <p className="text-xs font-bold text-slate-600 dark:text-slate-400">توزيع الدفع / Split Allocation</p>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
                   <div>
                     <label className="text-[10px] text-slate-400">نقدي / Cash</label>
                     <NumericInput
@@ -1581,11 +1633,36 @@ export default function PosPage() {
                       placeholder="0"
                     />
                   </div>
+                  <div className="col-span-2 xl:col-span-1">
+                    <label className="text-[10px] text-slate-400">قسيمة هدية / Gift Voucher</label>
+                    <div className="flex gap-1">
+                      <input
+                        value={splitGiftVoucherCode}
+                        onChange={(event) => {
+                          setSplitGiftVoucherCode(event.target.value.toUpperCase());
+                          setSplitGiftVoucher(null);
+                          setSplitGiftVoucherError(null);
+                        }}
+                        className="input-base h-8 min-w-0 flex-1 font-mono text-xs"
+                        placeholder="GV-…"
+                        aria-label={rtl ? "كود قسيمة الهدية" : "Gift Voucher code"}
+                      />
+                      <Button type="button" size="sm" variant="secondary" onClick={verifyGiftVoucher} disabled={splitGiftVoucherLoading}>
+                        <Ticket className="h-3.5 w-3.5" />{rtl ? "تحقق" : "Verify"}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
+                {splitGiftVoucher ? (
+                  <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-[10px] font-bold text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200">
+                    {rtl ? "قسيمة فعّالة بالقيمة الكاملة:" : "Active voucher — full face value:"} {money(splitGiftVoucher.faceValue)}
+                  </p>
+                ) : null}
+                {splitGiftVoucherError ? <p className="text-[10px] font-bold text-rose-600">{splitGiftVoucherError}</p> : null}
                 <div className="text-[11px] font-bold text-slate-500 flex justify-between">
                   <span>المجموع المدفوع:</span>
-                  <span className={Math.abs((Number(splitCash)||0) + (Number(splitCard)||0) + (Number(splitTransfer)||0) - Number(provisionalTotal)) > 0.01 ? "text-rose-600 font-extrabold" : "text-emerald-600 font-extrabold"}>
-                    {money((Number(splitCash)||0) + (Number(splitCard)||0) + (Number(splitTransfer)||0))} / {money(provisionalTotal)}
+                  <span className={Math.abs((Number(splitCash)||0) + (Number(splitCard)||0) + (Number(splitTransfer)||0) + (Number(splitGiftVoucher?.faceValue)||0) - Number(provisionalTotal)) > 0.01 ? "text-rose-600 font-extrabold" : "text-emerald-600 font-extrabold"}>
+                    {money((Number(splitCash)||0) + (Number(splitCard)||0) + (Number(splitTransfer)||0) + (Number(splitGiftVoucher?.faceValue)||0))} / {money(provisionalTotal)}
                   </span>
                 </div>
               </div>

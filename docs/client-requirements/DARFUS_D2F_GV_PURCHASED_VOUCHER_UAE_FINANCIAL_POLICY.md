@@ -51,11 +51,10 @@ The existing idempotency authority must be reused. A second voucher-specific has
 
 Promotional, Loyalty, Compensation, Corporate, and Manual vouchers have no approved cash, liability, VAT, revenue, expiry, cancellation, breakage, refund, or write-off policy in this control. They require separate Owner decisions and must fail closed.
 
-Expiry, cancellation, breakage, refund, write-off, partial-redemption rounding, and non-purchased funding/tax treatment are unresolved. No automatic income, refund, reversal, or write-off may be inferred.
+Expiry, cancellation, breakage, refund, write-off, and non-purchased funding/tax treatment are unresolved. The specialized Gift Voucher contract is full-redemption-only; therefore partial-redemption allocation/rounding is not an authorized business path, not a deferred partial feature, and must fail closed. No automatic income, refund, reversal, or write-off may be inferred.
 
 ## Gate
 
 FINANCIAL_AUTHORITY_GATE = PASS_PURCHASED_GIFT_VOUCHER_UAE_FINANCIAL_POLICY
 GIFT_VOUCHER_IMPLEMENTATION = NOT_CLOSED_BY_THIS_POLICY
 GIFT_VOUCHER_RUNTIME_ACCEPTANCE = NOT_AUTHORIZED
-

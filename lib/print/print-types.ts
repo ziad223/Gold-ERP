@@ -1,4 +1,4 @@
-export type PrintDocumentType = "invoice" | "receipt" | "barcode" | "report";
+export type PrintDocumentType = "invoice" | "receipt" | "barcode" | "gift-voucher" | "report";
 
 export type PrintPaperSize = "A4" | "A5" | "80mm" | "58mm" | "barcode-label";
 

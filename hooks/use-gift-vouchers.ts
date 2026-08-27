@@ -2,21 +2,22 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useLocale } from "next-intl";
-import { apiClient } from "@/lib/api/client";
+import { apiClient, generateUUID } from "@/lib/api/client";
 import { DATA_SOURCE } from "@/lib/data-source";
 import type { GiftVoucher } from "@/lib/types";
 
 export interface NewVoucher {
-  value: number;
-  customerName?: string;
+  faceValue: number;
   customerId?: string;
-  paymentMethod?: string;
-  expiryDate?: string;
-  code?: string;
+  paymentMethod: "cash" | "card" | "transfer" | "bank";
+  branchId?: string;
+  branchEligibilityMode: "ALL_BRANCHES" | "SELECTED_BRANCHES";
+  eligibleBranchIds?: string[];
 }
 
 /**
- * Gift vouchers hook — issue, list and redeem vouchers (API mode).
+ * Gift vouchers hook — purchased issuance, activation and print-audit commands.
+ * Redemption intentionally remains inside canonical POS checkout.
  */
 export function useGiftVouchers() {
   const locale = useLocale();
@@ -49,6 +50,7 @@ export function useGiftVouchers() {
         method: "POST",
         body: JSON.stringify(payload),
         locale,
+        idempotencyKey: generateUUID(),
       });
       await refresh();
       return res;
@@ -56,12 +58,14 @@ export function useGiftVouchers() {
     [locale, refresh],
   );
 
-  const redeemVoucher = useCallback(
-    async (code: string, amount?: number) => {
-      const res = await apiClient<GiftVoucher>("/gift-vouchers/redeem", {
+  const activateVoucher = useCallback(
+    async (voucherCode: string, branchId?: string) => {
+      const res = await apiClient<GiftVoucher>(`/gift-vouchers/${encodeURIComponent(voucherCode)}/activate`, {
         method: "POST",
-        body: JSON.stringify({ code, ...(amount ? { amount } : {}) }),
+        body: JSON.stringify({ branchId }),
         locale,
+        branchId,
+        idempotencyKey: generateUUID(),
       });
       await refresh();
       return res;
@@ -69,5 +73,20 @@ export function useGiftVouchers() {
     [locale, refresh],
   );
 
-  return { items, loading, error, refresh, issueVoucher, redeemVoucher };
+  const recordPrintEvent = useCallback(
+    async (voucherCode: string, branchId?: string) => {
+      const res = await apiClient<{ voucher: GiftVoucher }>(`/gift-vouchers/${encodeURIComponent(voucherCode)}/print-events`, {
+        method: "POST",
+        body: JSON.stringify({ branchId }),
+        locale,
+        branchId,
+        idempotencyKey: generateUUID(),
+      });
+      await refresh();
+      return res;
+    },
+    [locale, refresh],
+  );
+
+  return { items, loading, error, refresh, issueVoucher, activateVoucher, recordPrintEvent };
 }
