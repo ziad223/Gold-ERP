@@ -1093,6 +1093,32 @@
     "rate": "Rate",
     "payment": "Payment",
     "terms": "Terms & Conditions: Sold items are eligible for refund/exchange within 3 days in original condition."
+    ,"giftVoucher": {
+      "title": "Gift Voucher",
+      "description": "Settlement for the remaining amount, not a discount",
+      "code": "Voucher code or scan",
+      "placeholder": "Enter voucher code",
+      "validate": "Validate",
+      "validating": "Validating…",
+      "remove": "Remove voucher",
+      "active": "Active voucher — full face value",
+      "faceValue": "Face value",
+      "applied": "Applied amount",
+      "remaining": "Remaining after voucher",
+      "unavailable": "Gift Voucher is not available with the selected payment method."
+    },
+    "giftVoucherErrors": {
+      "notFound": "Gift voucher not found",
+      "notRedeemable": "Gift voucher is not available for redemption",
+      "branchIneligible": "Gift voucher is not eligible in the current Branch",
+      "currencyMismatch": "Gift Voucher currency does not match the Company currency",
+      "fullValueRequired": "The Gift Voucher must be applied for its exact full face value",
+      "unsupportedPaymentMethod": "Gift Voucher is not available with the selected payment method.",
+      "missingCode": "Enter a Gift Voucher code first.",
+      "verifyBeforeCheckout": "Verify the Gift Voucher before completing checkout.",
+      "valueExceedsInvoice": "The voucher face value exceeds the invoice total.",
+      "generic": "Gift Voucher verification failed."
+    }
   },
   "Treasury": {
     "title": "Treasury",
