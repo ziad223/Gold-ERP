@@ -23,3 +23,11 @@
 | POS-GV-VISUAL-001 | Post-fix AR/EN desktop screenshots: input width, typed text, focus, button alignment, Installment/Deposit visible disabled | PASS desktop; narrow pending |
 
 | POS-GV-I18N-NARROW-001 | Stable locale-neutral Gift Voucher error mapping plus internal-browser AR/EN desktop and 768x800 visual proof | PASS; `VISUAL_VERIFICATION=COMPLETE`, focused tests 17/17, typecheck PASS |
+
+| GV-S-OFFICIAL-RETRY-01-PREFLIGHT | Owner-authorized retry preflight, official DB identity, health, backup, Asset, and current pricing | PASS preflight; issue later blocked before persistence |
+| GV-S-OFFICIAL-RETRY-01-ZERO-DELTA | One authorized issue attempt returned 422 before persistence; official counts and Asset unchanged | PASS; zero business/financial/inventory delta |
+| GV-S-FINANCIAL-MAPPING-READ-01 | Resolver, Treasury, liability, Tax, clone isolation, and official zero-delta evidence documented without replay | PASS for forensic evidence; financial recovery gate remains blocked by unresolved Tax Authority | `DARFUS_GV_FINANCIAL_MAPPING_AUTHORITY_RECOVERY_01_REPORT.md` |
+| GV-S-FINANCIAL-MAPPING-FIX-01 | Owner Tax authority, fresh backup/clone, exact two-row mapping, resolver readiness, clone financial/idempotency/rollback proof, and official zero transaction delta | PASS | `DARFUS_GIFT_VOUCHER_FINANCIAL_MAPPING_MINIMUM_SAFE_FIX_01_REPORT.md` |
+| GV-S-FINANCIAL-MAPPING-PROMOTION-CHECKPOINT-01 | Exact two-row official mapping promotion and immediate checkpoint delta | PASS at checkpoint only; later unapproved official business mutation invalidates final control closure | `DARFUS_GV_MAPPING_OFFICIAL_PROMOTION.md`; `DARFUS_GV_MAPPING_OFFICIAL_DELTA.md` |
+| GV-S-OFFICIAL-1000-E2E-01 | Owner-authorized AED 1000 issue, activation, one POS full redemption, accounting/tax/treasury/inventory/audit proof, and exact issue/checkout replay | PASS; one new voucher and one checkout, replay produced no duplicates | `DARFUS_GIFT_VOUCHER_OFFICIAL_END_TO_END_ACCEPTANCE_1000_01_REPORT.md` |
+| AUTO-STARTUP-MIGRATION-CONTRACT-RESTORE-001 | Restored original automatic migration startup contract with Disposable-clone proof | PASS; one pending migration applied, second start pending=0, failure blocked app start, official DB unchanged | `DARFUS_MIGRATION_STARTUP_CONTRACT_RESTORATION_01_REPORT.md` |

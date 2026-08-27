@@ -58,3 +58,23 @@ not authorize or close the official financial Gift Voucher acceptance retry.
 | POS Gift Voucher I18N screenshot review | `DARFUS_POS_GIFT_VOUCHER_I18N_SCREENSHOT_REVIEW.md` |
 | POS Gift Voucher I18N narrow zero delta | `DARFUS_POS_GIFT_VOUCHER_I18N_NARROW_ZERO_DB_DELTA.md` |
 | POS Gift Voucher I18N narrow visual closeout | `DARFUS_POS_GIFT_VOUCHER_I18N_NARROW_VISUAL_CLOSEOUT_01_REPORT.md` |
+
+| Official retry preflight | `DARFUS_GIFT_VOUCHER_OFFICIAL_RETRY_PREFLIGHT.md` |
+| Official retry backup | `DARFUS_GIFT_VOUCHER_OFFICIAL_RETRY_BACKUP.md` |
+| Official retry Asset/pricing | `DARFUS_GIFT_VOUCHER_OFFICIAL_RETRY_ASSET_AND_PRICING.md` |
+| Official retry Owner confirmation | `DARFUS_GIFT_VOUCHER_OFFICIAL_RETRY_OWNER_CONFIRMATION.md` |
+| Official retry issue proof | `DARFUS_GIFT_VOUCHER_OFFICIAL_RETRY_ISSUE_PROOF.md` |
+| Official retry redemption stop | `DARFUS_GIFT_VOUCHER_OFFICIAL_RETRY_REDEMPTION_PROOF.md` |
+| Official retry browser/network | `DARFUS_GIFT_VOUCHER_OFFICIAL_RETRY_BROWSER_NETWORK.md` |
+| Official retry accounting/tax/treasury | `DARFUS_GIFT_VOUCHER_OFFICIAL_RETRY_ACCOUNTING_TAX_TREASURY.md` |
+| Official retry inventory/audit | `DARFUS_GIFT_VOUCHER_OFFICIAL_RETRY_INVENTORY_AUDIT.md` |
+| Official retry DB delta | `DARFUS_GIFT_VOUCHER_OFFICIAL_RETRY_DB_DELTA.md` |
+| Official retry report | `DARFUS_GIFT_VOUCHER_OFFICIAL_RUNTIME_BUSINESS_ACCEPTANCE_RETRY_01_REPORT.md` |
+| GV-FINANCIAL-MAPPING-001 | Financial mapping authority recovery forensic | `DARFUS_GV_FINANCIAL_MAPPING_ROOT_CAUSE.md`; official DB read-only evidence; HTTP 422 request `ded2e4a2-4e74-4abf-a3fa-dc59d5becc50` | OPEN/BLOCKED pending role and tax policy authority |
+| FINANCIAL-MAPPING-PREFLIGHT-001 | Preflight before any future mapping proof | `DARFUS_GV_FINANCIAL_MAPPING_MINIMUM_SAFE_FIX.md`; disposable-clone-only design | REQUIRED BEFORE FUTURE MUTATION |
+| TAX-RATE-AUTHORITY-VERIFY-001 | Tax rate authority trace | `DARFUS_GV_TAX_RATE_AUTHORITY.md`; official settings and source trace | OWNER DECISION REQUIRED |
+| GV-FINANCIAL-MAPPING-FIX-01 | Minimum mapping fix and official readiness | `DARFUS_GIFT_VOUCHER_FINANCIAL_MAPPING_MINIMUM_SAFE_FIX_01_REPORT.md`; clone proof; official delta | CLOSED / MAPPING READY; Voucher acceptance not authorized |
+| TAX-RATE-AUTHORITY-VERIFY-001-CLOSURE | Owner Tax policy freeze | `DARFUS_GV_TAX_OWNER_AUTHORITY_DECISION.md` | CLOSED_BY_OWNER_POLICY |
+| GV-UNAUTHORIZED-OFFICIAL-MUTATION-001 | Post-promotion unexpected Voucher/Journal/Cash/Print evidence | `DARFUS_GIFT_VOUCHER_FINANCIAL_MAPPING_MINIMUM_SAFE_FIX_01_REPORT.md`; backend request log IDs | OPEN / OWNER REVIEW; not closed |
+| GV-S-OFFICIAL-1000-E2E-01 | Owner-authorized AED 1000 official issue, activation, full POS redemption, accounting/tax/treasury/inventory/idempotency proof | `DARFUS_GIFT_VOUCHER_OFFICIAL_END_TO_END_ACCEPTANCE_1000_01_REPORT.md` and companion evidence artifacts | CLOSED FOR THIS CONTROL; external AED 500 delta separately attributed |
+| AUTO-STARTUP-MIGRATION-CONTRACT-RESTORE-001 | Original startup runner restoration and Clone proof | `DARFUS_MIGRATION_STARTUP_CONTRACT_RESTORATION_01_REPORT.md`; companion current/git/clone/boot/schema/failure artifacts; focused tests and typecheck | CLOSED / PASS |
