@@ -10,6 +10,26 @@
 | Official Gift Voucher business acceptance | Not authorized by this schema-promotion control |
 | Next batch | No automatic start |
 
+## UX-9
+
+| Decision | State |
+|---|---|
+| UX9 financial authority | FROZEN; presentation-only scope applied |
+| Accounting/Treasury routes | Existing routes preserved; no new workflow |
+| Gift Voucher financial mapping prevention | OPEN; not modified by UX9 |
+| UX9 closure | CLOSED pending Owner review; no automatic UX10 start |
+
+## UX-8 Gold Center (2026-08-28)
+
+| Decision | State |
+|---|---|
+| Gold provider/source/currency/quote semantics | FROZEN/PRESERVED; presentation only |
+| Gold write handlers and permission `gold.manage_pricing_policy` | FROZEN/PRESERVED |
+| UX8 scope | APPLIED; shared panel styling, responsive data frames, localized headings, and existing rate-input labels only |
+| Official DB | READ-ONLY; no UX8 business writes |
+| Rollback | READY; before/after hashes and isolated copy rehearsal |
+| Next batch | UX-9 only after Owner review; no automatic start |
+
 # UX-7 Owner Tablet Evidence Waiver (2026-08-28)
 
 | Decision | Frozen result |

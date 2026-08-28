@@ -2,6 +2,7 @@
 
 import { Scale, AlertTriangle, Landmark } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import ux9 from "./AccountingTreasuryUx9.module.css";
 
 export interface ServerJournalPreviewLine {
   account?: { code?: string; name?: string | null } | null;
@@ -34,7 +35,7 @@ export function JournalPreview({
   const unavailable = rtl ? "غير متاح" : "Unavailable";
 
   return (
-    <div className="rounded-3xl border border-border bg-panel p-5 space-y-4">
+    <div className={`${ux9.surface} rounded-3xl border border-border bg-panel p-5 space-y-4`}>
       <div className="flex items-center justify-between border-b border-border pb-3">
         <h4 className="text-xs font-black text-foreground flex items-center gap-2">
           <Landmark className="h-4.5 w-4.5 text-brand-600" />

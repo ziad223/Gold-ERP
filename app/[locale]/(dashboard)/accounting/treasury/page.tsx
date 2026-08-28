@@ -23,6 +23,7 @@ import { LoadingState } from "@/components/ui/loading-state";
 import { useAuth } from "@/contexts/auth-context";
 import { useTreasury, type NewCashTransaction } from "@/hooks/use-treasury";
 import { formatCurrency } from "@/lib/utils";
+import ux9 from "@/features/accounting/components/AccountingTreasuryUx9.module.css";
 
 type TxType = "cash_in" | "cash_out" | "transfer";
 
@@ -184,7 +185,7 @@ export default function TreasuryPage() {
 
   if (loading && transactions.length === 0) {
     return (
-      <div className="space-y-6">
+<div className={`${ux9.surface} space-y-6`}>
         <PageHeader title={t("title")} description={t("description")} />
         <LoadingState variant="skeleton" />
       </div>
@@ -192,7 +193,7 @@ export default function TreasuryPage() {
   }
 
   return (
-    <div className="space-y-6">
+<div className={`${ux9.surface} space-y-6`}>
       <PageHeader
         title={t("title")}
         description={t("description")}

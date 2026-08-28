@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { DateInput } from "@/components/ui/date-input";
 import { apiClient } from "@/lib/api/client";
+import ux9 from "@/features/accounting/components/AccountingTreasuryUx9.module.css";
 
 type ReportResponse = { success: true; data: Record<string, any> };
 const today = () => new Date().toISOString().slice(0, 10);
@@ -37,7 +38,7 @@ export default function FinancialStatementsPage() {
   };
 
   return (
-    <div className="space-y-6">
+<div className={`${ux9.surface} space-y-6`}>
       <PageHeader
         title={ar ? "القوائم المالية" : "Financial Statements"}
         description={ar ? "قائمة الدخل والميزانية العمومية من القيود المرحلة فقط." : "Income statement and balance sheet derived only from posted ledger lines."}

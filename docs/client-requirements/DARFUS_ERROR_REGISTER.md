@@ -113,3 +113,11 @@ Recovery evidence: `DARFUS_GIFT_VOUCHER_MAIN_RUNTIME_PARITY_RECOVERY_01_REPORT.m
 # UX7C direct Chrome/Playwright Tablet evidence (2026-08-28)
 
 - Direct Chrome/Playwright measured the required 840×1180 viewport and authenticated, but the isolated session stopped at `Branch readiness required`; populated Customer/Supplier proof could not be reached without a context change. No product defect or mutation was introduced.
+
+# UX-8 Gold Center (2026-08-28)
+
+- No UX8 product error was observed. A pre-existing `next dev` process was visible during process inspection but did not own port 3000; it was not started or modified by UX8. Main port 3000 was owned by the existing `next start` listener.
+
+# UX-9 Accounting / Treasury (2026-08-28)
+
+- No UX9 product error was observed. Mobile dense tables use bounded local horizontal scrolling while page/document overflow remains zero. No console warning/error was observed in the browser proof.

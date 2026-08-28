@@ -23,6 +23,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { DATA_SOURCE } from "@/lib/data-source";
 import type { AccountBalanceReconciliation, AccountingDateLock, AccountStatement, TrialBalance, LedgerReconciliation } from "@/lib/repositories/interfaces";
 import { formatCurrency } from "@/lib/utils";
+import ux9 from "@/features/accounting/components/AccountingTreasuryUx9.module.css";
 
 const STATEMENT_PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
 
@@ -356,7 +357,7 @@ export default function AccountingPage() {
   ];
 
   return (
-    <div className="space-y-6">
+<div className={`${ux9.surface} space-y-6`}>
       <PageHeader
         title={t("title")}
         description={t("description")}

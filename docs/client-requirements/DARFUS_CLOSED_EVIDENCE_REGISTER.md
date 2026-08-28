@@ -153,3 +153,14 @@ not authorize or close the official financial Gift Voucher acceptance retry.
 - Owner explicitly accepted closure of the incomplete populated Customer/Supplier Tablet evidence caused by the isolated-session Branch-context blocker.
 - Historical truth remains: direct populated Tablet evidence is incomplete. Closure status is `UX7_STATUS = CLOSED_WITH_OWNER_EVIDENCE_WAIVER`; this is not a conversion of missing evidence into PASS.
 - `PRODUCT_DEFECT = NO`, `SOURCE_FIX_REQUIRED = NO`, `P0 = 0`, `P1 = 0`. UX-7 implementation, business contract, AR/EN, Light/Dark, Desktop, Mobile, tests, typecheck, build, main DB safety and rollback remain accepted upstream evidence.
+
+# UX-8 Gold Center (2026-08-28)
+
+- UX8 presentation/accessibility scope closed with source and browser evidence. Gold provider, quote semantics, settings handlers, permissions, APIs, DB, accounting, tax and inventory authorities remain unchanged.
+- `UX8_STATUS = CLOSED_PENDING_OWNER_REVIEW`; closure evidence is recorded separately from any future UX9 authorization.
+
+# UX-9 Accounting / Treasury (2026-08-28)
+
+- UX9 presentation/accessibility scope completed with route inventory, authority maps, browser evidence, focused/regression tests, typecheck, build, after hashes and rollback rehearsal.
+- Financial meaning, journal/posting, account resolution, Treasury mapping/register lifecycle, tax/rounding/sign, inventory, permissions, and Gift Voucher mapping remained unchanged.
+- `UX9_STATUS = CLOSED`; Owner review remains required before UX-10. No automatic next batch.

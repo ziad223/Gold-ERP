@@ -45,3 +45,15 @@ Only `app/globals.css` is the production file changed by UX-2. UX3 changes only 
 | Control | Production scope | Result | Evidence |
 |---|---|---|---|
 | `DARFUS-UIUX-UX7C-DIRECT-CHROME-PLAYWRIGHT-CDP-TABLET-EVIDENCE-CLOSEOUT-01` | Documentation/evidence only | BLOCKED; direct 840×1180 and auth proven, active Branch context unavailable for populated surfaces | UX7C browser discovery/runtime, viewport measurements, context blocker, source integrity, 4/4 focused test |
+
+## UX-8 Gold Center
+
+| Control | Production scope | Result | Evidence |
+|---|---|---|---|
+| `DARFUS-UIUX-UX8-GOLD-CENTER-IMPLEMENTATION-WITH-ROLLBACK-01` | Gold Center presentation/accessibility only; no Gold authority, API, DB, business or permission change | PASS; pre-existing worktree drift preserved | `ui-ux/ux8/DARFUS_UIUX_UX8_GOLD_CENTER_IMPLEMENTATION_WITH_ROLLBACK_01_REPORT.md`, before/after hashes, browser matrix, focused test, rollback rehearsal |
+
+## UX-9 Accounting / Treasury
+
+| Control | Production scope | Result | Evidence |
+|---|---|---|---|
+| `DARFUS-UIUX-UX9-ACCOUNTING-TREASURY-IMPLEMENTATION-WITH-ROLLBACK-01` | Accounting/Treasury presentation and interaction only; financial authorities frozen | PASS; no financial or business mutation | `ui-ux/ux9/DARFUS_UIUX_UX9_ACCOUNTING_TREASURY_IMPLEMENTATION_WITH_ROLLBACK_01_REPORT.md`, before/after hashes, browser matrix, focused/regression tests |

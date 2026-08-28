@@ -137,3 +137,15 @@
 | ID | Evidence | Result |
 |---|---|---|
 | DARFUS-UIUX-UX7-OWNER-TABLET-EVIDENCE-WAIVER-FINAL-CLOSURE-01 | Explicit Owner waiver for the isolated-session Branch-context blocker; prior UX7 business/runtime/safety evidence remains accepted and no source/DB change occurred | PASS_DARFUS_UIUX_UX7_WITH_OWNER_TABLET_EVIDENCE_WAIVER |
+
+# UX-8 Gold Center (2026-08-28)
+
+| ID | Evidence | Result |
+|---|---|---|
+| DARFUS-UIUX-UX8-GOLD-CENTER-IMPLEMENTATION-WITH-ROLLBACK-01 | Scoped presentation/accessibility refinement, AR/EN Light/Dark responsive browser matrix, 4/4 focused test, typecheck, build, GET-only runtime evidence, after hashes and isolated rollback rehearsal | PASS_DARFUS_UIUX_UX8_GOLD_CENTER_IMPLEMENTATION_WITH_ROLLBACK |
+
+# UX-9 Accounting / Treasury (2026-08-28)
+
+| ID | Evidence | Result |
+|---|---|---|
+| DARFUS-UIUX-UX9-ACCOUNTING-TREASURY-IMPLEMENTATION-WITH-ROLLBACK-01 | Scoped Accounting/Treasury presentation layer, AR/EN responsive and theme browser evidence, 55 relevant tests, typecheck, build, GET-only health proof, after hashes and rollback rehearsal | PASS_DARFUS_UIUX_UX9_ACCOUNTING_TREASURY_IMPLEMENTATION_WITH_ROLLBACK |

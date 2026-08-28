@@ -9,6 +9,7 @@
 | Empty/loading/error states | A/B | Improve clarity without swallowing or rewriting errors |
 | Responsive wrappers at desktop/tablet/mobile | A/B | Use bounded containers and responsive grids; no workflow change |
 | Focus-visible, disabled and status presentation | B | Preserve semantic text and existing disabled logic |
+| Existing karat-rate input accessible names | B | Add localized `aria-label` only; preserve value, parser, save handler and server authority |
 | Main overview fixing, quote calculator and fixing modal business logic | D | Not changed by UX-8 |
 | `use-gold.ts`, API routes, backend services, DB/schema, migrations | D | Forbidden and not changed |
 | Dashboard gold widget | D | Unrelated surface; not changed |

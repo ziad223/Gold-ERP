@@ -32,3 +32,15 @@ Future UX batches must add their own scoped snapshot, ledger row and rollback re
 | Control | Status | Restore scope | Evidence |
 |---|---|---|---|
 | `DARFUS-UIUX-UX7-CUSTOMERS-SUPPLIERS-IMPLEMENTATION-WITH-ROLLBACK-01` | READY | `globals.css`, Customer/Supplier list/detail presentation classes and UX7 focused test; no authority/handler changes | `ui-ux/ux7/DARFUS_UX7_ROLLBACK_PROOF.md`, before/after manifests, isolated rehearsal |
+
+## UX-8
+
+| Control | Status | Restore scope | Evidence |
+|---|---|---|---|
+| `DARFUS-UIUX-UX8-GOLD-CENTER-IMPLEMENTATION-WITH-ROLLBACK-01` | READY | UX8-scoped Gold Center panel CSS/classes, existing karat-input aria labels, and focused test; restore from UX8 before snapshots | `ui-ux/ux8/DARFUS_UX8_AFTER_HASH_MANIFEST.md`, `backups/ui-ux/UX8_GOLD_CENTER_20260828T171500Z/rollback/ROLLBACK_REHEARSAL_HASHES.txt` |
+
+## UX-9
+
+| Control | Status | Restore scope | Evidence |
+|---|---|---|---|
+| `DARFUS-UIUX-UX9-ACCOUNTING-TREASURY-IMPLEMENTATION-WITH-ROLLBACK-01` | READY | UX9-scoped CSS import/root hooks and focused test; restore from UX9 before snapshot only after Owner review | `ui-ux/ux9/DARFUS_UX9_AFTER_HASH_MANIFEST.md`, `backups/ui-ux/UX9_ACCOUNTING_TREASURY_20260828T183500Z/` |

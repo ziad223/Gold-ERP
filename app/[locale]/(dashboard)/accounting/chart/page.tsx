@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { usePermissions } from "@/hooks/use-permissions";
 import { apiClient } from "@/lib/api/client";
+import ux9 from "@/features/accounting/components/AccountingTreasuryUx9.module.css";
 import {
   DEFAULT_ACCOUNT_FILTERS,
   filterAccountHierarchy,
@@ -192,7 +193,7 @@ export default function ChartOfAccountsPage() {
   };
 
   return (
-    <div className="space-y-6">
+<div className={`${ux9.surface} space-y-6`}>
       <PageHeader
         title={ar ? "دليل الحسابات" : "Chart of Accounts"}
         description={ar ? "حسابات الشركة، جاهزية الإقلاع، وربط الحسابات بالفروع." : "Company accounts, bootstrap readiness, and Branch mappings."}

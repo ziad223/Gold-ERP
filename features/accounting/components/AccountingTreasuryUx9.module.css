@@ -1,0 +1,88 @@
+.surface {
+  --ux9-row-pad: 0.7rem;
+  min-width: 0;
+}
+
+.surface :global(table) {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.surface :global(th) {
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+.surface :global(td),
+.surface :global(th) {
+  vertical-align: middle;
+}
+
+.surface :global(td) {
+  padding-block: var(--ux9-row-pad);
+}
+
+.surface :global([class*="font-mono"]),
+.surface :global(code) {
+  unicode-bidi: plaintext;
+}
+
+.surface :global(button),
+.surface :global(a),
+.surface :global(input),
+.surface :global(select),
+.surface :global(textarea) {
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+.surface :global(button:focus-visible),
+.surface :global(a:focus-visible),
+.surface :global(input:focus-visible),
+.surface :global(select:focus-visible),
+.surface :global(textarea:focus-visible) {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.surface :global(.overflow-x-auto) {
+  min-width: 0;
+  scrollbar-gutter: stable;
+}
+
+.surface :global(dl dd) {
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+@media (max-width: 900px) {
+  .surface :global(table) {
+    min-width: 42rem;
+  }
+
+  .surface :global(.overflow-x-auto) {
+    overflow-x: auto;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .surface :global(table) {
+    min-width: 36rem;
+  }
+
+  .surface :global(td),
+  .surface :global(th) {
+    padding-inline: 0.55rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .surface :global(button),
+  .surface :global(a),
+  .surface :global(input),
+  .surface :global(select),
+  .surface :global(textarea) {
+    transition: none;
+  }
+}

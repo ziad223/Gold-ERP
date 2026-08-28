@@ -172,6 +172,7 @@ export default function GoldCenterPage() {
                 <NumericInput
                   step="0.01"
                   className="input-base w-32 text-end"
+                  aria-label={`${t("rate")} ${p.karat}K`}
                   value={drafts[p.karat] ?? ""}
                   onChange={(e) => setDrafts((d) => ({ ...d, [p.karat]: normalizeNumberInput(e.target.value) }))}
                 />

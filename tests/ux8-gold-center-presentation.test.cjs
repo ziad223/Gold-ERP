@@ -6,6 +6,7 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const panel = fs.readFileSync(path.join(root, "features/gold-center/components/GoldMarketAdminPanels.tsx"), "utf8");
 const styles = fs.readFileSync(path.join(root, "features/gold-center/components/GoldMarketAdminPanels.module.css"), "utf8");
+const goldCenterPage = fs.readFileSync(path.join(root, "app/[locale]/(dashboard)/gold-center/page.tsx"), "utf8");
 
 test("UX-8 scopes Gold Center refinement to presentation classes and preserves authorities", () => {
   assert.match(panel, /GoldMarketAdminPanels\.module\.css/);
@@ -28,6 +29,11 @@ test("UX-8 presentation styles provide bounded dense-data and responsive treatme
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(styles, /:focus-visible/);
   assert.match(styles, /unicode-bidi:\s*plaintext/);
+});
+
+test("UX-8 labels existing editable karat rate inputs without changing their authority", () => {
+  assert.match(goldCenterPage, /<NumericInput[\s\S]*aria-label=\{\`\$\{t\("rate"\)\} \$\{p\.karat\}K\`\}/);
+  assert.match(goldCenterPage, /saveKaratPrices/);
 });
 
 test("UX-8 keeps Gold Center business source values as source-owned display values", () => {

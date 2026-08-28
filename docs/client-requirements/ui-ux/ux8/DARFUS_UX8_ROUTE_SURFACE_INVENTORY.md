@@ -14,7 +14,7 @@ Control: `DARFUS-UIUX-UX8-GOLD-CENTER-IMPLEMENTATION-WITH-ROLLBACK-01`
 
 ## Embedded surface inventory
 
-The shared panel directly renders the market status card, source/health metrics, BID/SPOT/ASK cards, karat table, settings/provider cards, pricing-rule form/table, quote-history table, empty states, error state, refresh action, disabled permission state, and responsive overflow wrappers. No chart or tooltip is present in the shared panel. Existing dialogs/forms on the overview page are outside this presentation-only change.
+The shared panel directly renders the market status card, source/health metrics, BID/SPOT/ASK cards, karat table, settings/provider cards, pricing-rule form/table, quote-history table, empty states, error state, refresh action, disabled permission state, and responsive overflow wrappers. No chart or tooltip is present in the shared panel. Existing dialogs/forms on the overview page are outside this presentation-only change; the only overview-page adjustment is an accessible localized label on the existing karat rate inputs, with value and save handlers unchanged.
 
 ## Baseline evidence
 

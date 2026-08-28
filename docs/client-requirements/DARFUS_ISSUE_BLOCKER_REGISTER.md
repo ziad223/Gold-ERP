@@ -105,3 +105,7 @@ No P0 or P1 defect was introduced in the Gift Voucher implementation itself. GV-
 | DARFUS-UX7B-TABLET-VIEWPORT-EVIDENCE-001 | Required real measured Tablet viewport was unavailable in the in-app browser | UX7B evidence environment | P3 | BLOCKED | No viewport resize/measurement capability; available surface was 1422×800. Do not substitute CSS or mobile evidence. |
 
 | DARFUS-UX7C-DIRECT-TABLET-CONTEXT-001 | Disposable direct browser authenticated but had no active Branch context, preventing populated Customer/Supplier evidence | UX7C runtime/context | P3 | BLOCKED | Dashboard showed `Branch readiness required`; no context or DB mutation was authorized. |
+
+| DARFUS-UX8-GOLD-CENTER-PRESENTATION-001 | Gold Center shared admin surface lacked a consistent scoped hierarchy and dense-data responsive presentation; existing karat inputs also lacked accessible labels | Gold Center UX8 | P3 | CLOSED | Scoped CSS/presentation classes and rate-input `aria-label`s added; authorities and handlers unchanged; browser, test, typecheck, build and rollback evidence passed. |
+
+| DARFUS-UX9-ACCOUNTING-TREASURY-PRESENTATION-001 | Accounting/Treasury dense financial surfaces needed consistent scoped readability, responsive local scrolling and focus treatment | Accounting/Treasury UX9 | P3 | CLOSED | Scoped CSS only; financial handlers, values, permissions, routes and authorities unchanged; browser/tests/typecheck/build passed. |
