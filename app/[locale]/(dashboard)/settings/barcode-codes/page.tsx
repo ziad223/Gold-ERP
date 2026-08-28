@@ -11,6 +11,7 @@ import { Modal } from "@/components/ui/modal";
 import { PageHeader } from "@/components/ui/page-header";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useBarcodeSettings } from "@/features/settings/hooks/use-barcode-settings";
+import ux10 from "@/features/settings/components/SettingsAuditUx10.module.css";
 import type { AssetType, BarcodeInventoryCode, BarcodeItemCode } from "@/lib/types";
 
 type EditorKind = "inventory" | "item";
@@ -140,7 +141,7 @@ export default function BarcodeCodesSettingsPage() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className={`${ux10.surface} space-y-6`}>
       <PageHeader
         title={rtl ? "إعدادات أكواد الباركود" : "Barcode Code Settings"}
         description={rtl ? "إدارة أكواد المخزون والقطع المستخدمة لإنشاء هوية الباركود التشغيلية." : "Manage the database-backed inventory and item taxonomy used for operational barcode identities."}

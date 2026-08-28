@@ -6,6 +6,7 @@ import { useLocale } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { apiClient } from "@/lib/api/client";
 import { useBranchContext } from "@/contexts/branch-context";
+import ux10 from "@/features/settings/components/SettingsAuditUx10.module.css";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
@@ -58,7 +59,7 @@ export default function OnboardingPage() {
   if (error) return <ErrorState message={error} onRetry={() => void load()} />;
   if (!readiness) return null;
 
-  return <div className="space-y-6 text-xs">
+  return <div className={`${ux10.surface} space-y-6 text-xs`}>
     <PageHeader
       title={rtl ? "إعداد الشركة والجاهزية التشغيلية" : "Company onboarding & operational readiness"}
       description={rtl ? "دليل واحد مشتق من حالة قاعدة البيانات. لا ينشئ موردًا أو موقعًا أو إعداد ضريبة تلقائيًا." : "One database-derived guide. It never creates a supplier, location, or tax setting automatically."}

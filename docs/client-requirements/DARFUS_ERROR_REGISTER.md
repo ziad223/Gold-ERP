@@ -121,3 +121,24 @@ Recovery evidence: `DARFUS_GIFT_VOUCHER_MAIN_RUNTIME_PARITY_RECOVERY_01_REPORT.m
 # UX-9 Accounting / Treasury (2026-08-28)
 
 - No UX9 product error was observed. Mobile dense tables use bounded local horizontal scrolling while page/document overflow remains zero. No console warning/error was observed in the browser proof.
+
+# UX-10 Settings / Audit (2026-08-28)
+
+- No UX10 product error was observed. The owner-method contract file was absent from the workspace after exact search and was recorded as a documentation environment gap only; no secret or mutation was captured.
+
+# UX-11 Print / Preview (2026-08-28)
+
+- A first typecheck included the newly created partial UX11 source snapshot and reported missing copied dependencies inside `backups/ui-ux/PRE_UX11_PRINT_PREVIEW_20260828T222005Z/source`. This was an archive completeness issue, not a product defect; the archive was completed and typecheck passed. No production source/config was changed for this issue.
+- No UX11 browser console error or warning was observed. No print/reprint or business mutation was executed.
+
+# UX-11B Print / Preview Evidence Closeout (2026-08-28)
+
+- Local Chrome launched successfully and the required 840x1180 tablet viewport was measured.
+- The existing print-export harness could not render its fixture: the normal Playwright command lacked bundled `chromium_headless_shell-1161`, and the evidence-only local-Chrome runner received HTTP 404 for the localized `/ar/test/print-export` path. This is recorded as an evidence/runtime availability blocker; no source or test fix was made.
+- `ReceiptPreview` and `BarcodeLabelPreview` have source declarations but no current reachable consumer/mount, so direct browser proof is incomplete. No route or fixture was added to manufacture proof.
+
+# UX-11C Disposable Evidence Harness (2026-08-28)
+
+- The disposable-only direct mounts and localized fixture alias rendered successfully through verified local Chrome; no application console, hydration, page, or mutation error was observed.
+- The existing `tests/export-print.spec.ts` run was 16/17. The sole failure is a stale test-contract defect: `renders modernDark theme preset on luxuryGold without crashing` creates a locator without first calling `page.goto(FIXTURE_PAGE)`. The fixture marker is present when navigated by the evidence runner. No test or product source was modified.
+- The initial disposable build attempt failed only because Turbopack rejects a node_modules junction outside the filesystem root; an in-copy physical dependency copy resolved the harness environment issue. The disposable build then passed.

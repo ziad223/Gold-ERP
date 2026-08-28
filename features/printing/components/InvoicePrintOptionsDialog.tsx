@@ -19,6 +19,7 @@ import {
 } from "@/features/printing/lib/invoice-print-options";
 import { InvoiceDocument } from "@/features/printing/components/InvoiceDocument";
 import type { PrintCompany, InvoicePrintLabels } from "@/features/printing/components/InvoicePrintTemplate";
+import ux11 from "@/features/printing/components/PrintPreviewUx11.module.css";
 
 /**
  * Print options dialog — Phase 19F.
@@ -112,7 +113,7 @@ export function InvoicePrintOptionsDialog({
         "خيارات عرض فقط — بيانات الفاتورة وقيمها لا تتغير.",
       )}
     >
-      <div className="space-y-4">
+      <div className={`${ux11.previewSurface} space-y-4`}>
         <label className="block" htmlFor="print-document-type">
           <span className="label-base">{label("Document Type", "نوع المستند")}</span>
           <NativeSelect
@@ -171,14 +172,14 @@ export function InvoicePrintOptionsDialog({
         </label>
 
         {showPreview && previewCompany && previewLabels && (
-          <div className="rounded-2xl border border-border overflow-hidden">
+          <div className={`${ux11.documentFrame} rounded-2xl border border-border overflow-hidden`}>
             <div className="flex items-center justify-between border-b border-border bg-surface-muted px-3 py-1.5 text-[10px] font-bold text-muted-foreground">
               <span>{label("Live Preview", "معاينة مباشرة")}</span>
               <span className="uppercase">{options.templateId}</span>
             </div>
-            <div className="max-h-[46vh] overflow-auto bg-white p-3 flex justify-center">
+            <div className={`${ux11.previewViewport} max-h-[46vh] overflow-auto bg-white p-3 flex justify-center`}>
               <div style={options.templateId === "thermal" ? { width: "80mm" } : { zoom: 0.5 }}>
-                <div className="bg-white text-black">
+                <div className={`${ux11.documentFrame} bg-white text-black`}>
                   <InvoiceDocument
                     templateId={options.templateId}
                     invoice={invoice}

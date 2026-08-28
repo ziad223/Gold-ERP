@@ -164,3 +164,27 @@ not authorize or close the official financial Gift Voucher acceptance retry.
 - UX9 presentation/accessibility scope completed with route inventory, authority maps, browser evidence, focused/regression tests, typecheck, build, after hashes and rollback rehearsal.
 - Financial meaning, journal/posting, account resolution, Treasury mapping/register lifecycle, tax/rounding/sign, inventory, permissions, and Gift Voucher mapping remained unchanged.
 - `UX9_STATUS = CLOSED`; Owner review remains required before UX-10. No automatic next batch.
+
+# UX-10 Settings / Audit (2026-08-28)
+
+- UX10 presentation/accessibility scope completed with route inventory, Settings/Audit/RBAC/dependency maps, browser evidence, focused/regression tests, typecheck, build, after hashes and rollback rehearsal.
+- Setting meaning, handlers, permissions, API/routes, audit identity/immutability, tax, accounting, Gold, inventory, POS and Gift Voucher authorities remained unchanged.
+- `UX10_STATUS = CLOSED`; `UX-11_PRINT_PREVIEW_AFTER_OWNER_REVIEW` is recommended, with no automatic start.
+
+# UX-11 Print / Preview (2026-08-28)
+
+- UX11 presentation implementation is closed with source, browser, test, typecheck, build, DB-safety, after-snapshot and isolated rollback evidence.
+- Fixed-format preview and machine-readable tag surfaces remain isolated from the application theme; document and barcode authorities remain unchanged.
+- `UX11_STATUS = CLOSED`; next step is Owner review and no automatic UX12 start.
+
+# UX-11B Print / Preview Evidence Closeout (2026-08-28)
+
+- UX11B evidence directory, hashes, browser measurements, local-Chrome attempt, network safety, DB identity, and focused test artifacts were recorded.
+- Required direct runtime proof for `ReceiptPreview` and `BarcodeLabelPreview` was not available from the current source/runtime, and the print-export fixture returned HTTP 404. These gaps remain explicitly open.
+- `UX11B_STATUS = BLOCKED_FOR_EVIDENCE`; UX11B is not closed and no owner waiver was assumed.
+
+# UX-11C Disposable Evidence Harness (2026-08-28)
+
+- Disposable direct component, AR/EN, Light/Dark, Tablet, print-media, fixture, network, cleanup, and source/DB isolation evidence was recorded.
+- The existing print-export test remains 16/17 because one test body omits navigation; this is explicitly open and was not corrected in UX11C.
+- `UX11C_STATUS = BLOCKED_FOR_EVIDENCE`; no UX11 or UX12 closure was inferred, and no Gift Voucher/CGP open item was closed.

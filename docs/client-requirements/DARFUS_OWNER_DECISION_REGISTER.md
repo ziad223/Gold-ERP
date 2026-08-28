@@ -10,6 +10,36 @@
 | Official Gift Voucher business acceptance | Not authorized by this schema-promotion control |
 | Next batch | No automatic start |
 
+# UX-11C Disposable Evidence Harness (2026-08-28)
+
+| Decision / Evidence | State |
+|---|---|
+| Main source/test/DB scope | Frozen; no UX11C production/test source or DB mutation |
+| ReceiptPreview / BarcodeLabelPreview direct harness | Completed in disposable copy; synthetic values were non-persistent |
+| Existing export-print test | 16/17; one stale test omits navigation and remains unmodified |
+| UX11C gate | Blocked pending Owner review of stale test-contract evidence; no waiver inferred |
+| Open Gift Voucher mapping / CGP print recovery | Remain open and unchanged |
+| Next batch | No automatic start |
+
+## UX-11 Print / Preview
+
+- `DARFUS-UIUX-UX11-PRINT-PREVIEW-IMPLEMENTATION-WITH-ROLLBACK-01` is scoped to presentation-only preview/print CSS and wrappers.
+- Document identity, invoice/receipt values, tax, accounting, inventory, Asset/barcode/QR payloads, permissions, routes and server print/reprint authority remain frozen.
+- `DARFUS-GIFT-VOUCHER-FINANCIAL-MAPPING-PERSISTENCE-001` remains open.
+- `CGP-PRINT-RECOVERY-UI-001` remains open; UX11 does not close or change it.
+- The missing owner master working-method file remains a recorded source/documentation gap; no decision was inferred from its absence.
+
+# UX-10 Settings / Audit (2026-08-28)
+
+| Decision | State |
+|---|---|
+| UX-10 surface scope | FROZEN/APPLIED; Settings/Audit presentation and interaction affordances only |
+| Setting semantics and save handlers | PRESERVED; no key, value, validation, scope or handler change |
+| Audit authority and immutability | PRESERVED; no event, actor, timestamp, before/after or verification change |
+| RBAC/company/branch/security | PRESERVED; no permission or context change |
+| Gift Voucher financial mapping | OPEN_UNCHANGED |
+| UX-11 | No automatic start; Owner review required |
+
 ## UX-9
 
 | Decision | State |
@@ -212,4 +242,14 @@ No new Owner decision was assumed during this batch.
 | Module consumer migration | NOT AUTHORIZED; no mass rewrite performed |
 | Business/API/DB/permission scope | PRESERVED; no changes |
 | UX4 rollback | READY; file-scoped snapshot and hash rehearsal available |
+| Next batch | No automatic start |
+
+# UX-11B Evidence Closeout (2026-08-28)
+
+| Decision / Evidence | State |
+|---|---|
+| UX11B implementation scope | Evidence closeout only; no product/test/DB changes |
+| Direct ReceiptPreview and BarcodeLabelPreview proof | Unavailable because no current consumer/mount was found; no owner waiver recorded |
+| Print-export/print-media proof | Blocked by existing fixture HTTP 404 after verified local Chrome attempt |
+| UX11B owner decision | Required review of evidence gap; no PASS or waiver inferred |
 | Next batch | No automatic start |

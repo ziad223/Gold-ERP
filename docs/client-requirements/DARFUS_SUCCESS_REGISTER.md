@@ -149,3 +149,27 @@
 | ID | Evidence | Result |
 |---|---|---|
 | DARFUS-UIUX-UX9-ACCOUNTING-TREASURY-IMPLEMENTATION-WITH-ROLLBACK-01 | Scoped Accounting/Treasury presentation layer, AR/EN responsive and theme browser evidence, 55 relevant tests, typecheck, build, GET-only health proof, after hashes and rollback rehearsal | PASS_DARFUS_UIUX_UX9_ACCOUNTING_TREASURY_IMPLEMENTATION_WITH_ROLLBACK |
+
+# UX-10 Settings / Audit (2026-08-28)
+
+| ID | Evidence | Result |
+|---|---|---|
+| DARFUS-UIUX-UX10-SETTINGS-AUDIT-IMPLEMENTATION-WITH-ROLLBACK-01 | Scoped Settings/Audit presentation layer, AR/EN + RTL/LTR, Light/Dark, responsive browser evidence, 40/40 focused compatibility assertions, typecheck, build, GET-only health proof, after hashes and isolated rollback rehearsal; no settings or audit mutation | PASS_DARFUS_UIUX_UX10_SETTINGS_AUDIT_IMPLEMENTATION_WITH_ROLLBACK |
+
+# UX-11 Print / Preview (2026-08-28)
+
+| ID | Evidence | Result |
+|---|---|---|
+| DARFUS-UIUX-UX11-PRINT-PREVIEW-IMPLEMENTATION-WITH-ROLLBACK-01 | Scoped preview CSS, fixed-format print color isolation, AR/EN browser Asset-tag evidence, light/dark checks, responsive no-overflow checks, 42 focused tests, typecheck, build, GET-only health proof, after hashes and isolated rollback rehearsal; no print/reprint or business mutation | PASS_DARFUS_UIUX_UX11_PRINT_PREVIEW_IMPLEMENTATION_WITH_ROLLBACK |
+
+# UX-11B Evidence Closeout (2026-08-28)
+
+| ID | Evidence | Result |
+|---|---|---|
+| DARFUS-UIUX-UX11B-PRINT-PREVIEW-FINAL-BROWSER-EVIDENCE-CLOSEOUT-01 | Verified local Chrome launch, measured 840x1180 viewport, canonical invoice dialog and Asset Tag checks, 4/4 focused test, zero control-owned mutations; ReceiptPreview/BarcodeLabelPreview direct mounts and print-export fixture remained unavailable | BLOCKED_DARFUS_UIUX_UX11B_REQUIRED_BROWSER_EVIDENCE_INCOMPLETE |
+
+# UX-11C Disposable Evidence Harness (2026-08-28)
+
+| ID | Evidence | Result |
+|---|---|---|
+| DARFUS-UIUX-UX11C-DISPOSABLE-EVIDENCE-HARNESS-FINAL-CLOSEOUT-01 | Disposable copy parity, direct ReceiptPreview/BarcodeLabelPreview AR/EN Light/Dark at 840x1180, print media, fixture browser proof, zero mutation, cleanup, and main hash/DB safety passed; existing export test was 16/17 because one test omits navigation | BLOCKED_DARFUS_UIUX_UX11C_STALE_PRINT_EXPORT_TEST_CONTRACT |

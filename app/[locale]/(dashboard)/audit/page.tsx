@@ -14,6 +14,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { filterData } from "@/hooks/use-data-filters";
 import { AuditDiffViewer } from "@/features/audit/components/AuditDiffViewer";
 import { useAuditLogs, type AuditLogRow } from "@/hooks/use-audit-logs";
+import ux10 from "@/features/settings/components/SettingsAuditUx10.module.css";
 
 type Tone = "green" | "violet" | "blue" | "amber" | "slate" | "rose";
 
@@ -128,7 +129,7 @@ export default function AuditPage() {
   const showLoading = isApi && isLoading && logs.length === 0;
 
   return (
-    <div className="space-y-6">
+    <div className={`${ux10.surface} space-y-6`}>
       <PageHeader
         title={t("title")}
         description={t("description")}

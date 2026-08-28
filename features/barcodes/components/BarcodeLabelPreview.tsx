@@ -14,6 +14,7 @@ import { formatCurrency } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useLocale, useTranslations } from "next-intl";
+import ux11 from "@/features/printing/components/PrintPreviewUx11.module.css";
 
 interface BarcodeLabelPreviewProps {
   /** Canonical label payload — shared with the print template (P7.1). */
@@ -72,14 +73,14 @@ export function BarcodeLabelPreview({
   };
 
   return (
-    <div className="space-y-4">
+    <div className={`${ux11.previewSurface} space-y-4`}>
       <h3 className="text-xs font-black text-slate-500 uppercase tracking-wider">
         {rtl ? "معاينة بطاقة السعر والباركود المطبوعة" : "Sticker Tag Print Preview"}
       </h3>
 
       {/* Jewellery Tag Layout */}
-      <div className="flex flex-col items-center justify-center p-8 bg-background rounded-3xl border border-border">
-        <div className="w-[340px] border border-slate-300 bg-white rounded-lg shadow-sm p-4 relative font-mono text-[10px] text-slate-800 flex gap-4 items-stretch select-none">
+      <div className={`${ux11.previewViewport} flex flex-col items-center justify-center p-8 bg-background rounded-3xl border border-border`}>
+        <div className={`${ux11.machineReadable} w-[340px] border border-slate-300 bg-white rounded-lg shadow-sm p-4 relative font-mono text-[10px] text-slate-800 flex gap-4 items-stretch select-none`}>
           
           {/* Left part of the sticker tag — fields honour the same config gates as print */}
           <div className="flex-1 flex flex-col justify-between border-r border-dashed border-slate-200 pr-4">

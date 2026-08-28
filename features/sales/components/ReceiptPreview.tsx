@@ -14,6 +14,7 @@ import { useReceiptSettings } from "@/hooks/use-receipt-settings";
 import { useAppSettings } from "@/contexts/settings-context";
 import type { Invoice } from "@/lib/types";
 import { getPublicFileUrl } from "@/lib/api/files";
+import ux11 from "@/features/printing/components/PrintPreviewUx11.module.css";
 
 interface ReceiptPreviewProps {
   invoice: Invoice;
@@ -117,7 +118,7 @@ export function ReceiptPreview({
   const baseSubtotal = items.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
 
   return (
-    <div className="flex flex-col items-center">
+    <div className={`${ux11.previewSurface} flex flex-col items-center`}>
       {/* Action Buttons (Hidden during printing) */}
       <div className="no-print mb-6 flex gap-3 w-full justify-end" data-no-print="true">
         {onClose && (
@@ -134,7 +135,7 @@ export function ReceiptPreview({
       {/* Styled Receipt Preview */}
       <div
         id="print-receipt-container"
-        className="w-full max-w-[380px] bg-white text-slate-900 border border-slate-200 shadow-md p-6 rounded-2xl font-sans text-sm print:border-0 print:shadow-none print:max-w-none print:p-0 print:w-[80mm] print:mx-auto"
+        className={`${ux11.documentFrame} w-full max-w-[380px] bg-white text-slate-900 border border-slate-200 shadow-md p-6 rounded-2xl font-sans text-sm print:border-0 print:shadow-none print:max-w-none print:p-0 print:w-[80mm] print:mx-auto`}
         dir={rtl ? "rtl" : "ltr"}
       >
         {/* Header */}

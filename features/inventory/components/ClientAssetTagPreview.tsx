@@ -10,6 +10,7 @@ import { renderPrintDocument } from "@/features/printing/components/render-print
 import { printHtmlDocument } from "@/lib/print/print-service";
 import { assetToTagData } from "@/lib/print/barcode-label";
 import { DEFAULT_CLIENT_TAG_CONFIG, resolveClientTagProfile } from "@/features/printing/components/barcode-tags/types";
+import ux11 from "@/features/printing/components/PrintPreviewUx11.module.css";
 
 type ClientAssetTagPreviewProps = {
   asset: any;
@@ -51,14 +52,14 @@ export function ClientAssetTagPreview({ asset }: ClientAssetTagPreviewProps) {
   };
 
   return (
-    <section className="rounded-2xl border border-border p-5" data-c4-tag-preview={tagProfile}>
+    <section className={`${ux11.previewSurface} rounded-2xl border border-border p-5`} data-c4-tag-preview={tagProfile}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-sm font-black text-navy-950 dark:text-white">{rtl ? "معاينة تاج القطعة" : "Asset Tag Preview"}</h2>
         <Button variant="secondary" onClick={handlePrint} disabled={!canPrint} title={!canPrint ? (rtl ? "تحتاج صلاحية طباعة الباركود" : "Barcode print permission required") : undefined}>
           <Printer className="h-4 w-4" />{rtl ? "طباعة التاج" : "Print tag"}
         </Button>
       </div>
-      <div className="overflow-x-auto rounded-xl bg-slate-50 p-4 dark:bg-navy-950">
+      <div className={`${ux11.previewViewport} overflow-x-auto rounded-xl bg-slate-50 p-4 dark:bg-navy-950`}>
         <ClientBarcodeTagTemplate
           items={[tag]}
           config={config}

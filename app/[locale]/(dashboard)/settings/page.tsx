@@ -39,6 +39,7 @@ import { usePrintTemplateDefaults } from "@/hooks/use-print-template-defaults";
 import { useInvoicePrintBuilderConfig } from "@/hooks/use-invoice-print-builder-config";
 import { useInvoicePrintCustomBlocks } from "@/hooks/use-invoice-print-custom-blocks";
 import { usePrintCompanyInfo } from "@/hooks/use-print-company-info";
+import ux10 from "@/features/settings/components/SettingsAuditUx10.module.css";
 import type { InvoicePrintOptions, InvoicePrintTemplateId } from "@/features/printing/lib/invoice-print-options";
 import type { InvoicePrintBuilderConfig } from "@/features/printing/lib/print-builder-config";
 import {
@@ -1035,7 +1036,7 @@ export default function SettingsPage() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className={`${ux10.surface} space-y-6`}>
       <PageHeader
         title={t("title")}
         description={t("description")}

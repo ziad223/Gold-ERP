@@ -1,0 +1,64 @@
+.previewSurface {
+  min-width: 0;
+  isolation: isolate;
+}
+
+.previewSurface :where(button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.previewViewport {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-gutter: stable;
+}
+
+.documentFrame,
+.machineReadable {
+  background: #fff;
+  color: #111827;
+  color-scheme: light;
+  forced-color-adjust: none;
+}
+
+.machineReadable {
+  contain: layout paint;
+}
+
+.previewSurface :where(code, pre, [data-machine-value]) {
+  unicode-bidi: plaintext;
+  overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .previewSurface :where(*, *::before, *::after) {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .previewViewport {
+    padding-inline: 0.75rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .previewViewport {
+    padding-inline: 0.5rem;
+  }
+}
+
+@media print {
+  .previewSurface .documentFrame,
+  .previewSurface .machineReadable {
+    background: #fff !important;
+    color: #111827 !important;
+    box-shadow: none !important;
+  }
+}

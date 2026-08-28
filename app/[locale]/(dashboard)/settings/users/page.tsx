@@ -15,6 +15,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { apiClient } from "@/lib/api/client";
 import { formatDateTime } from "@/lib/dates/dates";
 import { useRouter } from "@/i18n/navigation";
+import ux10 from "@/features/settings/components/SettingsAuditUx10.module.css";
 
 function errorMessage(error: unknown, rtl: boolean) {
   if (error instanceof Error && error.message) return error.message;
@@ -161,14 +162,14 @@ export default function UsersManagementPage() {
 
   if (!canViewSystemAccounts) {
     return (
-      <div className="space-y-6">
+      <div className={`${ux10.surface} space-y-6`}>
         <PageHeader title={rtl ? "مركز الحسابات" : "Account Center"} description={rtl ? "ليست لديك صلاحية الوصول لهذه الصفحة." : "You do not have permission to access this page."} />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className={`${ux10.surface} space-y-6`}>
       <PageHeader
         title={rtl ? "مركز الحسابات" : "Account Center"}
         description={rtl

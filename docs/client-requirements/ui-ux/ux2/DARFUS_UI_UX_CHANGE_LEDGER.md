@@ -57,3 +57,15 @@ Only `app/globals.css` is the production file changed by UX-2. UX3 changes only 
 | Control | Production scope | Result | Evidence |
 |---|---|---|---|
 | `DARFUS-UIUX-UX9-ACCOUNTING-TREASURY-IMPLEMENTATION-WITH-ROLLBACK-01` | Accounting/Treasury presentation and interaction only; financial authorities frozen | PASS; no financial or business mutation | `ui-ux/ux9/DARFUS_UIUX_UX9_ACCOUNTING_TREASURY_IMPLEMENTATION_WITH_ROLLBACK_01_REPORT.md`, before/after hashes, browser matrix, focused/regression tests |
+
+## UX-10 Settings / Audit
+
+| Control | Production scope | Result | Evidence |
+|---|---|---|---|
+| `DARFUS-UIUX-UX10-SETTINGS-AUDIT-IMPLEMENTATION-WITH-ROLLBACK-01` | Settings/Audit presentation, interaction affordances and readability only; authority and security frozen | PASS; no settings, audit, API, DB or business mutation | `ui-ux/ux10/DARFUS_UIUX_UX10_SETTINGS_AUDIT_IMPLEMENTATION_WITH_ROLLBACK_01_REPORT.md`, before/after hashes, browser matrix, focused tests, typecheck, build, rollback rehearsal |
+
+## UX-11 Print / Preview
+
+| Control | Production scope | Result | Evidence |
+|---|---|---|---|
+| `DARFUS-UIUX-UX11-PRINT-PREVIEW-IMPLEMENTATION-WITH-ROLLBACK-01` | Print/preview presentation, fixed-format theme isolation, responsive containment and accessibility only; document, print/reprint, barcode/QR and business authorities frozen | PASS; no business print/reprint, API, DB or accounting mutation | `ui-ux/ux11/DARFUS_UIUX_UX11_PRINT_PREVIEW_IMPLEMENTATION_WITH_ROLLBACK_01_REPORT.md`, source hashes, browser evidence, 42 focused tests, typecheck, build, rollback rehearsal |

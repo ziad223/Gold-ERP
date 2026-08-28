@@ -39,13 +39,14 @@ export function getPrintDocumentCss(options: PrintOptions) {
       padding: 0;
       background: #fff;
       color: #111827;
+      color-scheme: light;
       font-family: ${options.locale === "ar" ? '"Cairo", "Arial", sans-serif' : '"Inter", "Arial", sans-serif'};
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
     body { direction: ${options.locale === "ar" ? "rtl" : "ltr"}; }
     .no-print, [data-no-print="true"] { display: none !important; }
-    [data-print-root] { background: #fff; color: #111827; }
+    [data-print-root] { background: #fff; color: #111827; color-scheme: light; forced-color-adjust: none; }
     .print-page { width: 100%; page-break-after: auto; }
     .print-document { background: #fff; color: #111827; }
     .print-section { break-inside: avoid; page-break-inside: avoid; }
@@ -121,6 +122,7 @@ export function getPrintDocumentCss(options: PrintOptions) {
       gap: 1px;
       align-items: stretch;
       background: #fff;
+      forced-color-adjust: none;
       border: 1px solid #111827;
       padding: 1px;
     }

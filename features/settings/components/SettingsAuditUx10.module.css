@@ -1,0 +1,70 @@
+.surface {
+  min-width: 0;
+  isolation: isolate;
+}
+
+.surface :where(section, article, form) {
+  min-width: 0;
+}
+
+.surface :where(h1, h2, h3) {
+  text-wrap: balance;
+  line-height: 1.25;
+}
+
+.surface :where(table) {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.surface :where(th, td) {
+  vertical-align: middle;
+}
+
+.surface :where(th) {
+  white-space: nowrap;
+}
+
+.surface :where(.overflow-x-auto) {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
+.surface :where(code, pre, [data-machine-value]) {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+
+.surface :where(input, select, textarea, button, a, [tabindex]) {
+  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+
+.surface :where(input, select, textarea, button, a, [tabindex]):focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+@media (max-width: 900px) {
+  .surface :where(table) {
+    min-width: max-content;
+  }
+}
+
+@media (max-width: 640px) {
+  .surface :where(h1) {
+    font-size: 1.35rem;
+  }
+
+  .surface :where(th, td) {
+    white-space: normal;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .surface :where(input, select, textarea, button, a, [tabindex]) {
+    transition: none;
+  }
+}

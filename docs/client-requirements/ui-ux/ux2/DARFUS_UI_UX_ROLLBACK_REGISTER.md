@@ -44,3 +44,15 @@ Future UX batches must add their own scoped snapshot, ledger row and rollback re
 | Control | Status | Restore scope | Evidence |
 |---|---|---|---|
 | `DARFUS-UIUX-UX9-ACCOUNTING-TREASURY-IMPLEMENTATION-WITH-ROLLBACK-01` | READY | UX9-scoped CSS import/root hooks and focused test; restore from UX9 before snapshot only after Owner review | `ui-ux/ux9/DARFUS_UX9_AFTER_HASH_MANIFEST.md`, `backups/ui-ux/UX9_ACCOUNTING_TREASURY_20260828T183500Z/` |
+
+## UX-10
+
+| Control | Status | Restore scope | Evidence |
+|---|---|---|---|
+| `DARFUS-UIUX-UX10-SETTINGS-AUDIT-IMPLEMENTATION-WITH-ROLLBACK-01` | READY | UX10 scoped stylesheet, six page imports/root hooks and focused presentation test; restore from UX10 before snapshot only after Owner review | `ui-ux/ux10/DARFUS_UX10_AFTER_HASH_MANIFEST.md`, `backups/ui-ux/UX10_SETTINGS_AUDIT_20260828T200000Z/` |
+
+## UX-11
+
+| Control | Status | Restore scope | Evidence |
+|---|---|---|---|
+| `DARFUS-UIUX-UX11-PRINT-PREVIEW-IMPLEMENTATION-WITH-ROLLBACK-01` | READY | UX11 preview CSS module, four scoped component hooks, shared print CSS isolation and focused test; restore from the pre-edit snapshot only after Owner review | `ui-ux/ux11/DARFUS_UX11_AFTER_HASH_MANIFEST.md`, `backups/ui-ux/PRE_UX11_PRINT_PREVIEW_20260828T222005Z/`, `backups/ui-ux/UX11_PRINT_PREVIEW_20260828T223310Z/rollback/ROLLBACK_REHEARSAL_HASHES.txt` |

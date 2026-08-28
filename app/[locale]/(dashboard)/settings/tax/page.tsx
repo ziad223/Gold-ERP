@@ -11,6 +11,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { usePermissions } from "@/hooks/use-permissions";
+import ux10 from "@/features/settings/components/SettingsAuditUx10.module.css";
 import { apiClient } from "@/lib/api/client";
 
 type TaxPolicy = {
@@ -128,7 +129,7 @@ export default function TaxVatSettingsPage() {
   if (error) return <ErrorState message={error} onRetry={() => void load()} />;
   if (!policy || !draft) return null;
 
-  return <div className="space-y-6 text-xs">
+  return <div className={`${ux10.surface} space-y-6 text-xs`}>
     <PageHeader
       title={rtl ? "إعدادات الضرائب وضريبة القيمة المضافة" : "Tax & VAT Settings"}
       description={rtl ? "سياسة ضريبة الشركة من السلطة الخلفية المعتمدة." : "Company tax policy from the existing server authority."}
