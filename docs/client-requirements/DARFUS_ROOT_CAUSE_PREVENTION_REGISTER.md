@@ -70,3 +70,21 @@ delta verification.
 | DARFUS-GBW-OVERRIDE-REASON-001 | UI exposed an editable purchase rate but omitted the server-required reason contract | Every governed manual-rate UI must map the server reason key, test equal/lower/higher cases, and verify rejection has zero business writes | Focused GBW override contract tests plus authenticated AR/EN browser proof |
 
 Raw-body observability remains a separate evidence limitation, not a reason to alter business validation.
+
+# GBW override-reason fix (2026-08-28)
+
+| Lesson ID | Root cause | What allowed it | Minimum fix | Prevention gate | Tests / modules |
+|---|---|---|---|---|---|
+| DARFUS-GBW-OVERRIDE-REASON-001-FIX | Editable manual purchase rate had no UI field/state/payload mapping for the existing server-required reason | Frontend contract omitted an already-enforced backend field | Show/require a scoped reason for non-equal entered/reference rates and map the existing key; preserve backend authority | Equal/lower/higher UI contract proof plus safe zero-write rejection proof before any final acceptance | `tests/gbw-override-reason-fix.test.cjs`, authenticated AR/EN GBW browser proof |
+
+# UX5B populated POS evidence prevention (2026-08-28)
+
+| Lesson ID | Root cause | Minimum prevention | Test/gate |
+|---|---|---|---|
+| DARFUS-UX5B-POPULATED-DENSITY-001 | Earlier responsive POS evidence used mainly an empty cart | Require an isolated populated display state with long values and explicit AR/EN, Light/Dark, desktop/tablet/mobile checks before density closeout | UX5B 8-state screenshot matrix, `104/104` focused/regression tests, no-mutation gate |
+
+# UX6 Inventory status/density prevention (2026-08-28)
+
+| Lesson ID | Root cause | What allowed it | Minimum fix | Prevention gate | Tests / modules |
+|---|---|---|---|---|---|
+| DARFUS-UX6-STATUS-DENSITY-001 | A server status enum was exposed as raw English text and the Asset table/detail hierarchy was too dense for quick scanning | Presentation had direct enum fallback and lacked an explicit table caption/search name | Keep server status keys authoritative but map display labels, semantic table metadata, numeric formatting, and bounded responsive density | UX6 presentation guard plus AR/EN desktop/tablet/mobile browser evidence | `tests/ux6-inventory-assets-presentation.test.cjs`, Inventory/Asset surfaces |

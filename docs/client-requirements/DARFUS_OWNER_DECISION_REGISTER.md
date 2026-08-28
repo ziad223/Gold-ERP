@@ -10,6 +10,37 @@
 | Official Gift Voucher business acceptance | Not authorized by this schema-promotion control |
 | Next batch | No automatic start |
 
+# UX6 owner scope record (2026-08-28)
+
+| Decision | State |
+|---|---|
+| UX6 scope | FROZEN/APPLIED; Inventory overview and Asset detail presentation only |
+| Business/API/DB/permission authorities | PRESERVED; no changes |
+| Inventory Count | CLOSED; not reopened |
+| Pre-existing worktree drift | PRESERVED; no cleanup or reset |
+| UX6 rollback | PASS rehearsal in isolated evidence directory |
+| Next batch | No automatic start |
+
+# GBW override-reason fix owner review (2026-08-28)
+
+| Decision | Current state | Owner action required |
+|---|---|---|
+| UI reason capture/mapping | Implemented with existing server contract | Review minimum-safe frontend fix |
+| Full successful lower-rate acceptance | Not run in this control | Authorize a safe acceptance target if required |
+| Full successful higher-rate acceptance | Not run in this control | Authorize a safe acceptance target if required |
+| Historical raw request body | Not retained; no replay or new Receive authorized | Accept evidence limitation or authorize future safe observability work |
+| Next batch | No automatic start | Explicit approval only |
+
+# UX5B owner review record (2026-08-28)
+
+| Decision | State |
+|---|---|
+| Populated POS evidence | CLOSED_BY_EVIDENCE; isolated static fixture only |
+| Production source/business logic | UNCHANGED |
+| Sidebar Light issue | Remains closed; not reopened |
+| Gift Voucher logic | Untouched |
+| UX-6 | OWNER REVIEW REQUIRED; no automatic start |
+
 # UX5D owner visual scope (2026-08-28)
 
 | Decision | State |

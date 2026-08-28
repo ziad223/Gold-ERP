@@ -79,3 +79,21 @@ No P0 or P1 defect was introduced in the Gift Voucher implementation itself. GV-
 | DARFUS-GBW-RECEIVING-PURCHASE-GOLD-RATE-OVERRIDE-REASON-001 | Authorized non-equal GBW purchase-rate flow cannot provide mandatory reason from current UI | Supplier receiving / GBW | P1 | ROOT_CAUSE_PROVEN | No fix in forensic control; requires named Owner-authorized UI contract fix |
 | DARFUS-GBW-RECEIVING-I18N-RAW-ERROR-001 | Raw backend English may surface in AR error display | UX/observability | P2 | DOCUMENTED | Track separately; no business logic change |
 | DARFUS-GBW-RECEIVING-RAW-PAYLOAD-EVIDENCE-001 | Historical logs provide status/request ID but not original request body | Forensic evidence | P3 | BLOCKED | Do not claim exact raw-body capture; add safe telemetry only in an approved future control |
+
+# UX5B populated POS evidence closeout (2026-08-28)
+
+| ID | Issue | Area | Severity | Status | Disposition |
+|---|---|---|---|---|---|
+| DARFUS-UIUX-UX5B-POPULATED-DENSITY-EVIDENCE-001 | Populated cart density evidence was previously incomplete | Acceptance evidence | P3 | CLOSED | Isolated fixture evidence completed across required locale/theme/viewport states; no production source or business behavior changed |
+
+# GBW purchase-rate override reason minimum-safe fix (2026-08-28)
+
+| ID | Issue | Area | Severity | Status | Disposition |
+|---|---|---|---|---|---|
+| DARFUS-GBW-RECEIVING-PURCHASE-GOLD-RATE-OVERRIDE-REASON-001-FIX | Non-equal GBW rate can now be accompanied by the mandatory reason from the UI | Supplier receiving / GBW | P1 | FRONTEND_REMEDIATED; ACCEPTANCE_OPEN | Do not claim full closure until an Owner-authorized successful lower/higher acceptance is proven in a safe target |
+
+# UX6 Inventory/Asset implementation (2026-08-28)
+
+| ID | Issue | Area | Severity | Status | Disposition |
+|---|---|---|---|---|---|
+| DARFUS-UX6-INVENTORY-PRESENTATION-001 | Inventory list/detail readability and semantic density required scoped presentation correction | Inventory UX | P3 | CLOSED | Summary hierarchy, readable EN statuses, table semantics, numeric alignment, and detail typography were corrected without business/API/DB changes |

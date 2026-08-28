@@ -15,7 +15,7 @@
 هل main DB تم تنفيذ Receive تجريبي عليها؟ لا.  
 هل Accounting/Inventory/Idempotency تغيرت؟ لا.  
 هل Rollback جاهز؟ نعم، hash parity على نسخة معزولة.  
-Gate: `PASS_DARFUS_GBW_PURCHASE_GOLD_RATE_OVERRIDE_REASON_MINIMUM_SAFE_FIX` للـminimum frontend fix، مع بقاء full successful override acceptance غير منفذ.  
+Gate: `BLOCKED_DARFUS_GBW_PURCHASE_GOLD_RATE_OVERRIDE_REASON_FULL_ACCEPTANCE_INCOMPLETE`؛ minimum frontend fix وproof UI/test مكتملان، لكن full successful lower/higher override acceptance لم يُنفذ.  
 الخطوة التالية فقط: Owner review؛ لا تبدأ أي batch تلقائي.
 
 ## 1. Executive Summary
@@ -75,6 +75,15 @@ No accounting/inventory/idempotency logic changed. Existing tests preserve Asset
 ## 12. Snapshots, ledger, rollback
 
 After snapshot: `backups/gbw/GBW_OVERRIDE_REASON_FIX_20260828T101352Z/`. Before page hash matched `9EF70D...C31A352`; after page hash is `1A1552...A33F5FB`; focused test hash is `1D1B...A6E0A`. Isolated rollback restored the exact before hash and re-applied the exact after hash. The six registers were updated documentation-only; the issue is not marked closed because full successful override acceptance was not performed.
+
+## 12A. Files changed by this control
+
+| Category | File(s) | Result |
+|---|---|---|
+| Product source | `app/[locale]/(dashboard)/inventory/gold-by-weight/page.tsx` | One scoped frontend contract change; this path was already part of the pre-existing dirty worktree |
+| Focused test | `tests/gbw-override-reason-fix.test.cjs` | One new focused regression test file |
+| Documentation/evidence | `docs/client-requirements/gbw-receiving/override-reason-fix/*`, six registers, `backups/gbw/*` | Evidence and audit records only |
+| Backend/API/DB/config/migrations | None | Unchanged; no migration created or executed |
 
 ## 13. Final Tokens
 
@@ -141,7 +150,10 @@ After snapshot: `backups/gbw/GBW_OVERRIDE_REASON_FIX_20260828T101352Z/`. Before 
 `P1 = 0`  
 `P2 = 0`  
 `P3 = 0`  
-`GATE = PASS_DARFUS_GBW_PURCHASE_GOLD_RATE_OVERRIDE_REASON_MINIMUM_SAFE_FIX`  
+`PRODUCT_SOURCE_FILES_CHANGED_BY_CONTROL = 1`  
+`TEST_FILES_CHANGED_BY_CONTROL = 1`  
+`TOTAL_FOCUSED_AND_REGRESSION_TESTS = 65/65`  
+`GATE = BLOCKED_DARFUS_GBW_PURCHASE_GOLD_RATE_OVERRIDE_REASON_FULL_ACCEPTANCE_INCOMPLETE`  
 `ISSUE_STATUS = IMPLEMENTED_AWAITING_FULL_ISOLATED_ACCEPTANCE`  
 `NEXT_RECOMMENDED_STEP = OWNER_REVIEW_ONLY; AUTHORIZE_ISOLATED_SUCCESSFUL_LOWER_HIGHER_ACCEPTANCE_IF_REQUIRED`  
 `NEXT_BATCH_ALLOWED = NO_AUTOMATIC_START`
@@ -149,4 +161,3 @@ After snapshot: `backups/gbw/GBW_OVERRIDE_REASON_FIX_20260828T101352Z/`. Before 
 ## STOP
 
 No official Receive, migration, seed, backend policy change, DB schema change, or next batch was started. STOP.
-

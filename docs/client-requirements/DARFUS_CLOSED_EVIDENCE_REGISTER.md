@@ -118,3 +118,18 @@ not authorize or close the official financial Gift Voucher acceptance retry.
 - Control `DARFUS-GBW-RECEIVING-PURCHASE-GOLD-RATE-OVERRIDE-REASON-READ-ONLY-FORENSIC-01` produced the 13 scoped evidence artifacts under `docs/client-requirements/gbw-receiving/override-reason/`.
 - The backend authority, reference-rate order, exact Decimal comparison, permission/reason gate, transaction boundary, current DOM absence, official DB identity, and historical 422 responses are documented.
 - This issue is not closed: the root cause is proven, but the strict exact historical raw request body was not retained. No code, Receive, migration, seed, or official DB write occurred.
+
+# GBW override-reason minimum-safe fix (2026-08-28)
+
+- Control `DARFUS-GBW-RECEIVING-PURCHASE-GOLD-RATE-OVERRIDE-REASON-MINIMUM-SAFE-FIX-01` produced the scoped fix artifacts under `docs/client-requirements/gbw-receiving/override-reason-fix/`, before/after hashes, focused tests, AR/EN browser evidence, typecheck/build, and rollback rehearsal.
+- The frontend contract fix is evidenced; this entry does not close the business acceptance. No Receive, official DB business write, migration, or seed was performed by the control.
+
+# UX5B populated POS evidence closeout (2026-08-28)
+
+- `DARFUS-UIUX-UX5B-POPULATED-POS-BROWSER-VISUAL-EVIDENCE-CLOSEOUT-01` closed the populated-density evidence gap using an isolated static fixture only. AR/EN, Light/Dark, desktop/tablet/mobile, long values, accessibility, UX5C regression, 104/104 tests, typecheck/build, SHA-256 and rollback evidence passed.
+- UX5/UX5C/UX5D business and presentation contracts remain closed; no production source, API, DB, payment, Gift Voucher, GBW, inventory, accounting or checkout behavior changed. UX-6 is not started.
+
+# UX6 Inventory/Asset presentation closure (2026-08-28)
+
+- UX6 closed its scoped Inventory overview and Asset detail presentation work with AR/EN, light/dark, desktop/tablet/mobile evidence, focused/regression tests, typecheck/build, SHA-256 manifests, official DB read-only identity proof, and isolated rollback rehearsal.
+- Asset/Barcode/status/branch/location/workflow and all business authorities remained unchanged. No official DB write, migration, receive, sale, count, or cleanup occurred.

@@ -10,7 +10,13 @@
 | UX5_ROLLBACK | READY_AFTER_REHEARSAL | POS page and UX5 focused test only; no shared component/API contract change | `ux5/DARFUS_UIUX_UX5_POS_SALES_IMPLEMENTATION_WITH_ROLLBACK_01_REPORT.md` + `backups/ui-ux/UX5_POS_20260828_081104Z/rollback-rehearsal` |
 | UX5C_ROLLBACK | READY_AFTER_REHEARSAL | POS page and UX5C focused test only; deferred Sidebar and Gift Voucher issues excluded | `ux5c/DARFUS_UX5C_ROLLBACK_PROOF.md` + `backups/ui-ux/UX5C_OWNER_VISUAL_20260828_090140Z/rollback-rehearsal` |
 | UX5D_ROLLBACK | READY_AFTER_REHEARSAL | `GiftVoucherPaymentSection.tsx` presentation only; public contract unchanged | `ux5d/DARFUS_UX5D_ROLLBACK_PROOF.md` + before/after SHA manifests + isolated restore/reapply proof |
+| UX5B_ROLLBACK | NOT_REQUIRED_FOR_PRODUCTION_CHANGE; FIXTURE_SCOPED | Isolated evidence fixture/server/screenshots only; no production file changed | `ux5b/DARFUS_UX5B_ROLLBACK_STATUS.md` + after SHA manifest + temporary clone absence/restore proof |
 
 `UX2_ROLLBACK = READY`
 
 Future UX batches must add their own scoped snapshot, ledger row and rollback rehearsal. Classic files must not be deleted as cleanup.
+## UX6
+
+| Control | Status | Restore scope | Evidence |
+|---|---|---|---|
+| `DARFUS-UIUX-UX6-INVENTORY-ASSETS-IMPLEMENTATION-WITH-ROLLBACK-01` | READY_AFTER_REHEARSAL | Two inventory presentation pages and the UX6 focused test only; no authority/handler changes | `ui-ux/ux6/DARFUS_UX6_ROLLBACK_PROOF.md`, before/after manifests, isolated rehearsal |

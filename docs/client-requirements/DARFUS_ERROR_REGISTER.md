@@ -82,3 +82,18 @@ Recovery evidence: `DARFUS_GIFT_VOUCHER_MAIN_RUNTIME_PARITY_RECOVERY_01_REPORT.m
 |---|---|---|---|---|
 | DARFUS-GBW-RECEIVING-PURCHASE-GOLD-RATE-OVERRIDE-REASON-001 | Non-equal purchase rate reaches the server without a reason and is rejected with 422 | GBW page has rate state/input but no reason state/key; backend gate at `erp.routes.js:8550–8564`; four logged 422 responses | PRODUCT_DEFECT / CONTRACT_MISMATCH; backend validation is not defective | ROOT_CAUSE_PROVEN_AWAITING_OWNER_FIX_AUTHORIZATION |
 | DARFUS-GBW-RECEIVING-I18N-RAW-ERROR-001 | Arabic UI can display backend English reason-required message | `page.tsx` catch uses `caught?.message` directly | UX/OBSERVABILITY | DOCUMENTED_AWAITING_OWNER_FIX_AUTHORIZATION |
+
+# GBW purchase-rate override reason minimum-safe fix (2026-08-28)
+
+| Issue ID | Current evidence | Status |
+|---|---|---|
+| DARFUS-GBW-RECEIVING-PURCHASE-GOLD-RATE-OVERRIDE-REASON-001 | Frontend now supplies the existing `purchaseRateOverrideReason` contract for non-equal rates; no business receive was executed | MINIMUM_FIX_IMPLEMENTED_AWAITING_FULL_ACCEPTANCE |
+| DARFUS-GBW-RECEIVING-I18N-RAW-ERROR-001 | Scoped Arabic mapping added for the exact reason-required backend error; other errors preserve existing handling | SCOPED_UI_MAPPING_IMPLEMENTED |
+
+# UX5B populated POS evidence closeout (2026-08-28)
+
+- No UX5B application error, business failure, or unexpected DB delta was observed. The isolated fixture is explicitly non-authoritative and produced no API mutation.
+
+# UX6 Inventory/Asset implementation (2026-08-28)
+
+- No new UX6 application, business, API, or database error was observed. The only coverage limitation is documented visual coverage for forced empty/loading/error and synthetic extreme-value states; no mutation was used to manufacture them.

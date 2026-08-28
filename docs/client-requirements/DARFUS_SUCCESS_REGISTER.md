@@ -82,3 +82,28 @@
 | ID | Evidence | Result |
 |---|---|---|
 | DARFUS-GBW-RECEIVING-PURCHASE-GOLD-RATE-OVERRIDE-REASON-READ-ONLY-FORENSIC-01 | Source/frontend/backend authority trace, official DB SELECT evidence, authenticated GBW DOM, and four historical 422 reason-required responses; no Receive or write by this control | ROOT_CAUSE_PROVEN; RAW_PAYLOAD_EVIDENCE_BLOCKED |
+
+# GBW purchase-rate override reason minimum-safe fix (2026-08-28)
+
+| ID | Evidence | Result |
+|---|---|---|
+| DARFUS-GBW-RECEIVING-PURCHASE-GOLD-RATE-OVERRIDE-REASON-001 | Scoped GBW frontend reason state/control/mapping, focused 8/8 tests, AR/EN browser proof, typecheck/build, after snapshot and rollback rehearsal; no Receive | FRONTEND_FIX_IMPLEMENTED; FULL_SUCCESSFUL_OVERRIDE_ACCEPTANCE_DEFERRED |
+
+## Change ledger — GBW minimum-safe fix
+
+| File | Before SHA-256 | After SHA-256 | Scope result |
+|---|---|---|---|
+| `app/[locale]/(dashboard)/inventory/gold-by-weight/page.tsx` | `9EF70DD20C014F6CF3EE49EFE11A6AEA36C10C4E8A237843E5D36F505C31A352` | `1A1552362CCE4BCD30B5E61395CF001EE314D30CF4F74987D523DF032A33F5FB` | Frontend contract only; backend/API/DB authority unchanged |
+| `tests/gbw-override-reason-fix.test.cjs` | `NEW IN THIS CONTROL` | `1D1BFF9583D6787B96C4E28C2E80C8961C4E6590F6149CDBAD443BBC88A6E0A` | Focused regression coverage |
+
+# UX5B populated POS evidence closeout (2026-08-28)
+
+| ID | Evidence | Result |
+|---|---|---|
+| DARFUS-UIUX-UX5B-POPULATED-POS-BROWSER-VISUAL-EVIDENCE-CLOSEOUT-01 | Isolated 4-row populated visual fixture, 8 AR/EN theme/viewport captures, 104/104 regressions, typecheck/build, official DB identity read-only proof, zero checkout/mutation, SHA-256 manifest and rollback rehearsal | PASS_DARFUS_UIUX_UX5B_POPULATED_POS_BROWSER_VISUAL_EVIDENCE_CLOSEOUT |
+
+# UX6 Inventory/Asset implementation (2026-08-28)
+
+| ID | Evidence | Result |
+|---|---|---|
+| DARFUS-UIUX-UX6-INVENTORY-ASSETS-IMPLEMENTATION-WITH-ROLLBACK-01 | Inventory list/detail presentation-only changes, 4/4 focused tests, 58/58 and 56/56 selected regressions, typecheck/build, AR/EN responsive browser matrix, official DB identity read-only proof, after hashes and isolated rollback rehearsal | PASS_DARFUS_UIUX_UX6_INVENTORY_ASSETS_IMPLEMENTATION_WITH_ROLLBACK |
