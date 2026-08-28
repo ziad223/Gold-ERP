@@ -10,7 +10,7 @@ const page = fs.readFileSync(path.join(root, "app/[locale]/(dashboard)/pos/page.
 test("visual correction keeps one canonical section and uses a non-collapsing grid", () => {
   assert.equal((page.match(/<GiftVoucherPaymentSection\b/g) || []).length, 1);
   assert.match(component, /flex min-w-0 flex-col gap-2 sm:flex-row/);
-  assert.match(component, /className="input-base min-w-0 w-full flex-1/);
+  assert.match(component, /className="input-base[^"\n]*min-w-0[^"\n]*w-full[^"\n]*flex-1/);
   assert.match(component, /width: "max-content"/);
   assert.match(component, /minWidth: "7rem"/);
 });

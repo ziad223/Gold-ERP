@@ -117,6 +117,7 @@ export function Sidebar({ open, onClose, collapsed, onToggle }: SidebarProps) {
     }))
     .filter((group) => group.items.length > 0);
   const ActiveArrow = rtl ? ChevronLeft : ChevronRight;
+  const navigationLabel = rtl ? "التنقل الرئيسي" : "Main navigation";
 
   return (
     <>
@@ -129,6 +130,8 @@ export function Sidebar({ open, onClose, collapsed, onToggle }: SidebarProps) {
       )}
       <aside
         data-app-sidebar="true"
+        aria-label={navigationLabel}
+        data-shell-sidebar="true"
         className={cn(
           "fixed inset-y-0 z-50 flex flex-col bg-sidebar text-sidebar-foreground shadow-float transition-all duration-300 lg:translate-x-0",
           rtl ? "right-0 border-l border-sidebar-border" : "left-0 border-r border-sidebar-border",
@@ -143,6 +146,8 @@ export function Sidebar({ open, onClose, collapsed, onToggle }: SidebarProps) {
             onClick={onToggle}
             title={collapsed ? t("expand") : t("collapse")}
             aria-label={collapsed ? t("expand") : t("collapse")}
+            aria-controls="primary-navigation"
+            aria-expanded={!collapsed}
             className={cn(
               "absolute top-1/2 z-10 hidden h-9 w-9 -translate-y-1/2 place-items-center rounded-xl border border-sidebar-border bg-sidebar text-sidebar-foreground shadow-lg transition hover:border-sidebar-accent hover:bg-sidebar-accent hover:text-sidebar-accent-foreground lg:grid",
               rtl ? "-left-4" : "-right-4",
@@ -150,12 +155,12 @@ export function Sidebar({ open, onClose, collapsed, onToggle }: SidebarProps) {
           >
             <CollapseIcon className="h-4 w-4" />
           </button>
-          <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-xl bg-sidebar-foreground/5 text-sidebar-muted lg:hidden hover:text-sidebar-foreground">
+          <button type="button" onClick={onClose} aria-label={rtl ? "إغلاق القائمة" : "Close navigation"} className="grid h-9 w-9 place-items-center rounded-xl bg-sidebar-foreground/5 text-sidebar-muted lg:hidden hover:text-sidebar-foreground">
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-3 py-5">
+        <nav id="primary-navigation" aria-label={navigationLabel} className="ux3-sidebar-nav flex-1 overflow-y-auto px-3 py-5">
           {visibleGroups.map((group) => (
             <div key={group.label} className="mb-6">
               {!collapsed && (
@@ -172,9 +177,11 @@ export function Sidebar({ open, onClose, collapsed, onToggle }: SidebarProps) {
                       key={item.href}
                       href={item.href}
                       onClick={onClose}
+                      aria-current={active ? "page" : undefined}
+                      data-active={active ? "true" : "false"}
                       title={collapsed ? t(item.label) : undefined}
                       className={cn(
-                        "group relative flex h-12 items-center rounded-2xl px-3 text-sm font-semibold transition",
+                        "ux3-nav-item group relative flex h-12 items-center rounded-2xl px-3 text-sm font-semibold transition",
                         collapsed ? "justify-center" : "gap-3",
                         active
                           ? "bg-sidebar-active text-sidebar-active-foreground shadow-lg shadow-sidebar/30"
@@ -190,7 +197,7 @@ export function Sidebar({ open, onClose, collapsed, onToggle }: SidebarProps) {
               </div>
             </div>
           ))}
-        </div>
+        </nav>
 
         {!collapsed && (
           <div className="border-t border-sidebar-border p-3">

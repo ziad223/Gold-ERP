@@ -59,6 +59,7 @@ export function DataToolbar({
             role={inputAriaExpanded !== undefined ? "combobox" : undefined}
             aria-autocomplete={inputAriaExpanded !== undefined ? "list" : undefined}
             aria-expanded={inputAriaExpanded}
+            aria-label={placeholder}
             className="input-base ps-11"
             placeholder={placeholder}
           />

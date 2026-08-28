@@ -515,12 +515,12 @@ export default function PosPage() {
   // Compute active payment methods based on settings
   const paymentOptions = useMemo(() => {
     const opts = [
-      { value: "cash", label: rtl ? "نقدي / Cash" : "Cash" },
-      { value: "card", label: rtl ? "بطاقة / Card" : "Card" },
-      { value: "transfer", label: rtl ? "تحويل / Transfer" : "Transfer" },
-      { value: "split", label: rtl ? "مجزأ / Split" : "Split" },
-      { value: "installment", label: rtl ? "تقسيط / Install" : "Installment" },
-      { value: "deposit", label: rtl ? "عربون / Deposit" : "Deposit" }
+      { value: "cash", label: rtl ? "نقدي" : "Cash" },
+      { value: "card", label: rtl ? "بطاقة" : "Card" },
+      { value: "transfer", label: rtl ? "تحويل" : "Transfer" },
+      { value: "split", label: rtl ? "مجزأ" : "Split" },
+      { value: "installment", label: rtl ? "تقسيط" : "Installment" },
+      { value: "deposit", label: rtl ? "عربون" : "Deposit" }
     ];
     const activeMethods = settings?.paymentMethods || ["cash", "card", "transfer", "installment", "deposit"];
     const installmentEnabled = settings?.installmentEnabled ?? true;
@@ -1284,7 +1284,7 @@ export default function PosPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5" data-testid="pos-sales-workspace">
       <PageHeader
         title={t("title")}
         description={t("description")}
@@ -1295,9 +1295,9 @@ export default function PosPage() {
         }
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-panel/80 px-4 py-3 text-xs shadow-sm dark:border-slate-800">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-panel/80 px-4 py-3 text-xs shadow-sm">
         <div className="flex items-center gap-2 font-bold text-navy-950 dark:text-white">
-          <span className="rounded-lg bg-brand-50 px-2 py-1 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">POS</span>
+          <span className="rounded-lg bg-gold-50 px-2 py-1 text-gold-700 dark:bg-gold-500/10 dark:text-gold-300">POS</span>
           <span>{rtl ? "فاتورة بيع جديدة" : "New sale invoice"}</span>
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-500 dark:text-slate-400">
@@ -1320,9 +1320,12 @@ export default function PosPage() {
         </div>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(180px,.22fr)_minmax(0,.54fr)_minmax(240px,.28fr)] xl:items-start" style={{ direction: "ltr" }}>
+      <div
+        className="grid gap-5 lg:grid-cols-[minmax(220px,.34fr)_minmax(0,1fr)] lg:items-start 2xl:grid-cols-[minmax(250px,.27fr)_minmax(0,1fr)_minmax(310px,.35fr)]"
+        style={{ direction: rtl ? "rtl" : "ltr" }}
+      >
         <div dir={rtl ? "rtl" : "ltr"}>
-        <Card className="overflow-hidden xl:sticky xl:top-5">
+        <Card className="h-full overflow-hidden xl:sticky xl:top-5">
           <div className="border-b border-slate-200 p-4 dark:border-slate-800">
             <div className="flex items-center gap-3">
               <div className="grid h-10 w-10 place-items-center rounded-2xl bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
@@ -1442,7 +1445,7 @@ export default function PosPage() {
         </div>
 
         <div className="min-w-0 space-y-3" dir={rtl ? "rtl" : "ltr"}>
-        <Card className="overflow-visible">
+        <Card className="overflow-visible border-brand-100/80 dark:border-brand-500/20">
           <div className="flex items-center gap-3 border-b border-slate-200 px-4 pt-4 dark:border-slate-800">
             <div className="grid h-9 w-9 place-items-center rounded-xl bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
               <Barcode className="h-4 w-4" />
@@ -1452,6 +1455,7 @@ export default function PosPage() {
               <p className="text-[10px] text-slate-400">{rtl ? "استخدم البحث الحالي لاختيار صنف للفاتورة" : "Use the current search to choose an invoice item"}</p>
             </div>
           </div>
+          <div className="min-w-0">
           <DataToolbar
             query={query}
             onQueryChange={(value) => {
@@ -1488,6 +1492,7 @@ export default function PosPage() {
           >
             <span className="hidden text-[10px] font-semibold text-slate-400 2xl:inline">F2</span>
           </DataToolbar>
+          </div>
 
           {searchOpen && searchItems.length ? (
             <div className="max-h-52 space-y-1 overflow-y-auto border-t border-slate-100 p-2 dark:border-slate-800">
@@ -1502,7 +1507,7 @@ export default function PosPage() {
                     disabled={priceUnavailable}
                     aria-disabled={priceUnavailable}
                     aria-current={searchHighlight === index ? "true" : undefined}
-                    className={`relative flex w-full items-center gap-3 rounded-xl border px-3 py-2 text-start transition ${
+                    className={`relative flex w-full flex-wrap items-center gap-3 rounded-xl border px-3 py-2 text-start transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 ${
                       searchHighlight === index
                         ? "border-brand-500 bg-brand-50/70 ring-1 ring-brand-300 dark:bg-brand-500/10"
                         : selected
@@ -1544,7 +1549,7 @@ export default function PosPage() {
           ) : null}
         </Card>
 
-        <Card className="flex min-h-0 flex-col overflow-hidden">
+        <Card className="flex min-h-0 flex-col overflow-hidden border-brand-100/80 dark:border-brand-500/20">
           <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-800">
             <div className="flex items-center gap-3">
               <div className="grid h-9 w-9 place-items-center rounded-xl bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
@@ -1557,7 +1562,7 @@ export default function PosPage() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
               <button
                 onClick={() => { loadDrafts(); setShowDraftsModal(true); }}
                 className="text-[11px] font-bold text-slate-500 transition hover:text-brand-600"
@@ -1577,19 +1582,26 @@ export default function PosPage() {
                 {t("saveDraft")}
               </button>
               <span className="text-slate-300 dark:text-slate-700">|</span>
-              <button onClick={() => setCart([])} className="text-[11px] font-bold text-rose-600 transition hover:text-rose-700" type="button">
+              <button
+                onClick={() => setCart([])}
+                aria-disabled={cart.length === 0}
+                className={`text-[11px] font-bold transition ${cart.length === 0 ? "cursor-not-allowed text-slate-400" : "text-rose-600 hover:text-rose-700"}`}
+                type="button"
+              >
                 {t("clear")}
               </button>
             </div>
           </div>
 
-          <div className="max-h-[390px] min-h-[150px] overflow-y-auto p-3">
+          <div className="min-h-[220px] max-h-[520px] overflow-y-auto overscroll-contain p-3">
             {!cart.length && (
-              <div className="grid min-h-[132px] place-items-center rounded-xl border border-dashed border-slate-200 text-center dark:border-slate-800">
+            <div className="grid min-h-[170px] place-items-center rounded-2xl border border-dashed border-slate-200 bg-surface-muted/20 px-6 py-5 text-center dark:border-slate-800">
                 <div>
-                  <ListChecks className="mx-auto h-7 w-7 text-slate-300" />
-                  <p className="mt-2 text-xs font-bold text-slate-500">{t("empty")}</p>
-                  <p className="mt-1 text-[10px] text-slate-400">{t("emptySub")}</p>
+                  <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-300">
+                    <ListChecks className="h-6 w-6" />
+                  </div>
+                  <p className="mt-3 text-sm font-black text-slate-600 dark:text-slate-200">{t("empty")}</p>
+                  <p className="mx-auto mt-1 max-w-xs text-[11px] leading-5 text-slate-400">{t("emptySub")}</p>
                 </div>
               </div>
             )}
@@ -1599,18 +1611,19 @@ export default function PosPage() {
         </Card>
         </div>
 
-        <div dir={rtl ? "rtl" : "ltr"}>
-        <Card className="flex min-h-0 flex-col overflow-hidden xl:sticky xl:top-5">
-          <div className="border-b border-slate-200 p-5 dark:border-slate-800">
+        <div className="lg:col-span-2 2xl:col-span-1" dir={rtl ? "rtl" : "ltr"}>
+        <Card className="flex min-h-0 flex-col overflow-hidden border-brand-100/80 xl:sticky xl:top-5 dark:border-brand-500/20">
+          <div className="border-b border-slate-200 bg-surface-muted/20 p-5 dark:border-slate-800">
             <label className="mb-2 flex items-center gap-2 text-xs font-bold">
               <CreditCard className="h-4 w-4 text-brand-600" />
               {rtl ? "الدفع والإجمالي" : "Payment & totals"}
             </label>
-            <div className="mb-4 grid grid-cols-3 gap-2">
+            <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3" role="group" aria-label={rtl ? "طرق الدفع" : "Payment methods"}>
               {paymentOptions.map((opt) => (
                 <button
                   key={opt.value}
                   onClick={() => setMethod(opt.value)}
+                  aria-pressed={method === opt.value}
                   className={`h-10 rounded-xl border text-[11px] font-bold ${
                     method === opt.value
                       ? "border-brand-600 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300"
@@ -1648,10 +1661,10 @@ export default function PosPage() {
 
             {method === "split" && (
               <div className="mb-4 rounded-2xl border border-slate-200 p-4 space-y-3 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
-                <p className="text-xs font-bold text-slate-600 dark:text-slate-400">توزيع الدفع / Split Allocation</p>
+                <p className="text-xs font-bold text-slate-600 dark:text-slate-400">{rtl ? "توزيع الدفع" : "Split allocation"}</p>
                 <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
                   <div>
-                    <label className="text-[10px] text-slate-400">نقدي / Cash</label>
+                    <label className="text-[10px] text-slate-400">{rtl ? "نقدي" : "Cash"}</label>
                     <NumericInput
                       value={splitCash}
                       onChange={(e) => setSplitCash(normalizeNumberInput(e.target.value))}
@@ -1660,7 +1673,7 @@ export default function PosPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-400">بطاقة / Card</label>
+                    <label className="text-[10px] text-slate-400">{rtl ? "بطاقة" : "Card"}</label>
                     <NumericInput
                       value={splitCard}
                       onChange={(e) => setSplitCard(normalizeNumberInput(e.target.value))}
@@ -1669,7 +1682,7 @@ export default function PosPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-400">تحويل / Bank</label>
+                    <label className="text-[10px] text-slate-400">{rtl ? "تحويل" : "Bank transfer"}</label>
                     <NumericInput
                       value={splitTransfer}
                       onChange={(e) => setSplitTransfer(normalizeNumberInput(e.target.value))}
@@ -1689,10 +1702,10 @@ export default function PosPage() {
 
             {method === "installment" && (
               <div className="mb-4 rounded-2xl border border-slate-200 p-4 space-y-3 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
-                <p className="text-xs font-bold text-slate-600 dark:text-slate-400">خطة التقسيط / Installment Plan</p>
+                <p className="text-xs font-bold text-slate-600 dark:text-slate-400">{rtl ? "خطة التقسيط" : "Installment plan"}</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[10px] text-slate-400">الدفعة الأولى / Down Payment</label>
+                    <label className="text-[10px] text-slate-400">{rtl ? "الدفعة الأولى" : "Down payment"}</label>
                     <NumericInput
                       value={downPayment}
                       onChange={(e) => setDownPayment(normalizeNumberInput(e.target.value))}
@@ -1701,7 +1714,7 @@ export default function PosPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-400">عدد الأقساط / Count</label>
+                    <label className="text-[10px] text-slate-400">{rtl ? "عدد الأقساط" : "Installment count"}</label>
                     <NumericInput
                       value={installmentCount}
                       onChange={(e) => setInstallmentCount(normalizeNumberInput(e.target.value))}
@@ -1710,18 +1723,18 @@ export default function PosPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-400">تكرار الدفع / Frequency</label>
+                    <label className="text-[10px] text-slate-400">{rtl ? "تكرار الدفع" : "Payment frequency"}</label>
                     <select
                       value={installmentFrequency}
                       onChange={(e) => setInstallmentFrequency(e.target.value)}
                       className="input-base text-xs py-1 h-8 bg-input text-foreground border-border"
                     >
-                      <option value="monthly">شهري / Monthly</option>
-                      <option value="weekly">أسبوعي / Weekly</option>
+                      <option value="monthly">{rtl ? "شهري" : "Monthly"}</option>
+                      <option value="weekly">{rtl ? "أسبوعي" : "Weekly"}</option>
                     </select>
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-400">تاريخ أول قسط / First Due Date</label>
+                    <label className="text-[10px] text-slate-400">{rtl ? "تاريخ أول قسط" : "First due date"}</label>
                     <DateInput
                       value={firstDueDate}
                       onChange={setFirstDueDate}
@@ -1729,7 +1742,7 @@ export default function PosPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-400">اسم الضامن / Guarantor Name</label>
+                    <label className="text-[10px] text-slate-400">{rtl ? "اسم الضامن" : "Guarantor name"}</label>
                     <input
                       type="text"
                       value={guarantorName}
@@ -1739,7 +1752,7 @@ export default function PosPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-400">هاتف الضامن / Guarantor Phone</label>
+                    <label className="text-[10px] text-slate-400">{rtl ? "هاتف الضامن" : "Guarantor phone"}</label>
                     <input
                       type="text"
                       value={guarantorPhone}
@@ -1758,7 +1771,7 @@ export default function PosPage() {
                     <div className="flex justify-between text-brand-600 dark:text-brand-400 font-bold">
                       <span>قيمة القسط التقريبية:</span>
                       <strong>
-                        {money(Math.round(Math.max(0, Number(provisionalTotal) - (Number(downPayment) || 0)) / Number(installmentCount) * 100) / 100)} / القسط
+                        {money(Math.round(Math.max(0, Number(provisionalTotal) - (Number(downPayment) || 0)) / Number(installmentCount) * 100) / 100)} {rtl ? "/ القسط" : "/ installment"}
                       </strong>
                     </div>
                   </div>
@@ -1773,7 +1786,7 @@ export default function PosPage() {
                 <bdi dir="ltr" className="numeric-token font-black text-brand-700 dark:text-brand-300">{numericText(eligibleGoldWeight)} {t("gram")}</bdi>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-[10px] font-bold text-slate-500">
                   {t("makingChargePerGram")}
@@ -1806,7 +1819,7 @@ export default function PosPage() {
                   min="0"
                   value={discount}
                   onChange={(e) => setDiscount(normalizeNumberInput(e.target.value))}
-                  className="input-base text-xs py-1.5 h-8 bg-input text-rose-600 dark:text-rose-400 font-bold border-border"
+                  className={`input-base text-xs py-1.5 h-8 bg-input font-bold border-border ${Number(discount) > 0 ? "text-rose-600 dark:text-rose-400" : "text-foreground"}`}
                   placeholder="0"
                 />
               </div>
@@ -1824,7 +1837,7 @@ export default function PosPage() {
               </div>
             </div>
 
-            <div className="space-y-2 border-t border-dashed border-slate-200 pt-4 text-xs dark:border-slate-700">
+            <div className="space-y-2 rounded-2xl border border-border bg-surface-muted/25 p-4 text-xs">
               <div className="flex justify-between text-slate-500">
                 <span>{t("subtotal")} ({t("pieces", { count: cart.reduce((sum, item) => sum + item.quantity, 0) })})</span>
                 <span>{money(cart.reduce((sum, item) => sum + item.price * item.quantity, 0))}</span>
@@ -1851,9 +1864,9 @@ export default function PosPage() {
                 <span>{t("vatAmount")}{settings?.vatRate ? ` (${Number(settings.vatRate)}%)` : ""}</span>
                 <span>{money(provisionalTax)}</span>
               </div>
-              <div className="flex justify-between pt-2 text-lg font-black">
+              <div className="flex items-end justify-between gap-3 border-t border-border pt-3 text-lg font-black">
                 <span>{t("total")}</span>
-                <span className="text-brand-700 dark:text-brand-300">{money(provisionalTotal)}</span>
+                <span className="text-gold-700 dark:text-gold-300">{money(provisionalTotal)}</span>
               </div>
             </div>
 
@@ -1922,7 +1935,7 @@ export default function PosPage() {
                 <Button
                   onClick={completeSale}
                   disabled={!cart.length || isPosting || settingsNotReady || (method === "deposit" && !reservationAccountConfigured)}
-                  className="mt-5 w-full"
+                  className="mt-5 w-full disabled:cursor-not-allowed disabled:border disabled:border-slate-300 disabled:bg-slate-100 disabled:text-slate-400 disabled:opacity-100 dark:disabled:border-slate-700 dark:disabled:bg-slate-800/80 dark:disabled:text-slate-500"
                 >
                   {isPosting ? (
                     <RefreshCw className="h-5 w-5 animate-spin" />

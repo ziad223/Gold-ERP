@@ -7,6 +7,8 @@
 
 No P0 or P1 defect was introduced in the Gift Voucher implementation itself. GV-I-001 remains a separate Pearl configuration issue.
 
+| DARFUS-UX4-NETWORK-OBSERVABILITY-001 | Browser capability did not expose network request instrumentation during UX4 presentation verification | ACCEPTANCE_EVIDENCE_GAP | P3 | No | Console/DOM/runtime evidence recorded; no network PASS claim inferred |
+
 | GV-I-003 | Official Gift Voucher business acceptance was blocked because the running backend served the old fail-closed financial-workflow guard while current source exposed the promoted issue route; read-side Voucher list also returned 500 | ENVIRONMENT_CONFIG / RUNTIME_PARITY | P1 for the prior acceptance | Resolved for read-side parity; no business acceptance authorized | Backend-only refresh completed; authenticated Gift Voucher GET returned 200; any future financial attempt still needs separate Owner authorization |
 
 | POS-GV-PAYMENT-MODE-VISIBILITY-001 | Gift Voucher + Installment/Deposit is not supported by the current server payment contract; the UI cannot claim full all-mode enablement | PROVIDER/CAPABILITY / UX COMPOSITION | P2 current control; blocks full all-mode closure | No backend change in this UI control; fail closed and require Owner decision for any future server capability | Cash/Card/Transfer/Split are proven supported; no official DB impact |
@@ -26,3 +28,54 @@ No P0 or P1 defect was introduced in the Gift Voucher implementation itself. GV-
 | AUTO-STARTUP-MIGRATION-CONTRACT-RESTORE-001 | Normal startup was blocked by the safe approval wrapper / missing automatic chain | RESOLVED_SOURCE_CONTRACT | P1 | No | Canonical runner restored and proven on Disposable clone; official DB never executed |
 | UX0-BLOCK-001 | UX-0 evidence gate remains blocked for exhaustive critical-state visual coverage; five required visual/i18n concerns remain open | UX / ACCEPTANCE_EVIDENCE_GAP | P1/P2 | Yes for UX-0 PASS | No implementation, no DB impact; see UX-0 issue matrix |
 | UX0-OBS-DB-001 | Official `journal_entries` increased from 34 to 35 during read-only audit; latest row is an external Gift Voucher issue at 20:10:13Z | CONCURRENT_EXTERNAL_MUTATION / FINANCIAL | P1 for attribution review; not caused by UX-0 | No | Preserve and attribute separately; no cleanup or rollback by UX-0 |
+| DARFUS-MODERN-EXPERIENCE-NONTRADITIONAL-001 | Existing navy/teal/gold UI is operational but not yet a distinctive modern jewellery/precious-metals direction | DESIGN_DIRECTION / UX | P2 | No | Refined Obsidian Atelier proposal awaits Owner review; no implementation |
+| DARFUS-I18N-LANGUAGE-PURITY-001 | AR/EN chrome/data/message separation is incomplete; English surfaces show Arabic business values and some raw Arabic runtime text | I18N | P1 | Yes for UX-0B PASS | Business data may remain source language; raw messages require translation boundary |
+| DARFUS-RESPONSIVE-ALL-DEVICE-CLASS-001 | Seven viewport classes measured for EN/Dark, but complete locale/theme cross-product and overlay proof remain incomplete | RESPONSIVE / ACCEPTANCE_EVIDENCE_GAP | P1 | Yes for UX-0B PASS | Do not claim universal responsive acceptance; follow dedicated matrix |
+| DARFUS-MOTION-SAFETY-001 | No formal reduced-motion/critical-operation motion contract was previously frozen | MOTION / ACCESSIBILITY | P2 | No | UX-1 must adopt the read-only motion policy; no decorative infinite motion |
+| UX1-REFERENCE-EVIDENCE-001 | UX-1 isolated prototypes required actual browser proof before a design-system reference gate could close | ACCEPTANCE_EVIDENCE_GAP / UX1 | RESOLVED | No | Browser matrix covers three prototypes, AR/EN, RTL/LTR, dark/light and mobile/tablet/desktop; production rollout remains separate |
+| UX1R-OWNER-VISUAL-001 | UX-1 identity needed operational-density and Arabic/English purity evidence before visual handoff | UX1R / DESIGN / ACCEPTANCE | RESOLVED_FOR_PROTOTYPE | No | Compact shell, density, language, motion, reduced-motion, responsive and accessibility evidence are documented; production rollout remains separately gated |
+| DARFUS-UIUX-UX2-001 | UX-2 required classic rollback proof before a production foundation change | UX2 / ROLLBACK | RESOLVED | No | Classic snapshot, exact SHA parity rehearsal, restore map and after-state rollback proof completed |
+
+# UX4B blocker status (2026-08-28)
+
+| ID | Issue | Area | Severity | Status | Disposition |
+|---|---|---|---|---|---|
+| UX4B-A11Y-001 | Drawer closes with focus on BODY instead of the invoking trigger | Accessibility / UX4B | P2 | OPEN | Owner review; propose separate UX4C minimum-safe correction |
+
+# UX4C blocker resolution (2026-08-28)
+
+| ID | Resolution | Severity | Status | Evidence |
+|---|---|---|---|---|
+| UX4B-A11Y-001 | Drawer restores focus to exact invoking trigger after close | P2 | RESOLVED | UX4C browser evidence and focused regression test |
+# UX3 issue status (2026-08-28)
+
+- No P0/P1 UX3 blocker observed. Dedicated network capture is unavailable in the browser tool; source/API scope review confirms no UX3 API caller or route change.
+
+# UX5 evidence limitations (2026-08-28)
+
+| ID | Issue | Area | Severity | Status | Disposition |
+|---|---|---|---|---|---|
+| UX5-NETWORK-OBSERVABILITY-001 | Connected browser surface does not expose request-method/network interception; only DOM, console, URL and read-only runtime evidence were available | Acceptance evidence | P3 | DOCUMENTED | No network PASS claim inferred; source/API caller review remains the evidence for unchanged network contracts |
+| UX5-POPULATED-STATE-001 | No safe mutation was authorized, so a populated cart/selected-asset state was not created for this visual-only control | Acceptance evidence | P3 | DOCUMENTED | Empty/read-only state was verified; no fixture checkout or business mutation performed |
+
+# UX5C evidence limitations and deferred protections (2026-08-28)
+
+| ID | Issue | Area | Severity | Status | Disposition |
+|---|---|---|---|---|---|
+| DARFUS-UX5C-NETWORK-OBSERVABILITY-001 | Connected browser surface does not provide detailed request interception | Acceptance evidence | P3 | DOCUMENTED | No detailed network PASS claimed; source/API and backend read-only evidence used |
+| DARFUS-UX5C-DEFERRED-SIDEBAR-LIGHT-HEIGHT-001 | Light Mode Sidebar height | UX5C deferred issue | P2 | DEFERRED | Explicitly not touched in UX5C |
+| DARFUS-UX5C-DEFERRED-VOUCHER-EMPTY-CART-STATE-001 | Gift Voucher state vs Empty Cart | UX5C deferred issue | P2 | DEFERRED | Explicitly not touched in UX5C |
+
+# UX5D evidence note (2026-08-28)
+
+| ID | Issue | Area | Severity | Status | Disposition |
+|---|---|---|---|---|---|
+| DARFUS-UX5D-SHARED-RUNTIME-CONCURRENCY-001 | Shared runtime showed an unrelated Receive/PO/Asset/Journal group during the visual-only window; no UX5D action initiated it | Acceptance evidence | P3 | DOCUMENTED | Preserve data, do not attribute to UX5D, and do not claim whole-runtime zero delta without an isolated baseline |
+
+# GBW purchase-rate override reason (2026-08-28)
+
+| ID | Issue | Area | Severity | Status | Disposition |
+|---|---|---|---|---|---|
+| DARFUS-GBW-RECEIVING-PURCHASE-GOLD-RATE-OVERRIDE-REASON-001 | Authorized non-equal GBW purchase-rate flow cannot provide mandatory reason from current UI | Supplier receiving / GBW | P1 | ROOT_CAUSE_PROVEN | No fix in forensic control; requires named Owner-authorized UI contract fix |
+| DARFUS-GBW-RECEIVING-I18N-RAW-ERROR-001 | Raw backend English may surface in AR error display | UX/observability | P2 | DOCUMENTED | Track separately; no business logic change |
+| DARFUS-GBW-RECEIVING-RAW-PAYLOAD-EVIDENCE-001 | Historical logs provide status/request ID but not original request body | Forensic evidence | P3 | BLOCKED | Do not claim exact raw-body capture; add safe telemetry only in an approved future control |

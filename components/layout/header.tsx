@@ -16,7 +16,7 @@ import {
   Sun,
   X,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { LanguageSwitcher } from "@/components/auth/language-switcher";
 import { BranchSwitcher } from "@/components/layout/branch-switcher";
 import { CompanySwitcher } from "@/components/company/company-switcher";
@@ -33,6 +33,8 @@ import { OperatorBar } from "@/components/operator/operator-bar";
 
 export function Header({ onOpenSidebar, onOpenCommandPalette }: { onOpenSidebar: () => void; onOpenCommandPalette?: () => void }) {
   const t = useTranslations("Header");
+  const locale = useLocale();
+  const rtl = locale === "ar";
   const { theme, toggleTheme } = useTheme();
   const { user, company, logout } = useAuth();
   const { company: selectedCompany, companyId: selectedCompanyId, isSuperAdmin } = useCompanyContext();
@@ -78,8 +80,8 @@ export function Header({ onOpenSidebar, onOpenCommandPalette }: { onOpenSidebar:
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-20 items-center gap-3 border-b border-border bg-panel/90 px-4 shadow-sm backdrop-blur-xl lg:px-7" data-app-header="true">
-      <button onClick={onOpenSidebar} className="grid h-11 w-11 place-items-center rounded-2xl border border-border text-foreground hover:bg-background bg-panel lg:hidden">
+    <header className="ux3-shell-header sticky top-0 z-30 flex h-20 items-center gap-3 border-b border-border bg-panel/90 px-4 shadow-sm backdrop-blur-xl lg:px-7" data-app-header="true" data-shell-header="true">
+      <button onClick={onOpenSidebar} aria-label={rtl ? "فتح القائمة" : "Open navigation"} aria-controls="primary-navigation" className="ux3-menu-trigger grid h-11 w-11 place-items-center rounded-2xl border border-border bg-panel text-foreground hover:bg-background lg:hidden">
         <Menu className="h-5 w-5" />
       </button>
 
@@ -128,7 +130,7 @@ export function Header({ onOpenSidebar, onOpenCommandPalette }: { onOpenSidebar:
 
         <LanguageSwitcher compact />
 
-        <button onClick={toggleTheme} className="grid h-10 w-10 place-items-center rounded-2xl border border-border bg-panel text-foreground hover:border-brand-500 hover:text-brand-600" aria-label="Toggle theme">
+        <button onClick={toggleTheme} className="ux3-theme-toggle grid h-10 w-10 place-items-center rounded-2xl border border-border bg-panel text-foreground hover:border-brand-500 hover:text-brand-600" aria-label={rtl ? "تبديل المظهر" : "Toggle theme"}>
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </button>
 

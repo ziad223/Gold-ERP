@@ -11,5 +11,5 @@ const styles = {
 };
 
 export function Badge({ children, tone = "slate", className }: { children: React.ReactNode; tone?: keyof typeof styles; className?: string }) {
-  return <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ring-inset", styles[tone], className)}>{children}</span>;
+  return <span className={cn("inline-flex max-w-full items-center rounded-full px-2.5 py-1 text-[11px] font-bold leading-4 ring-1 ring-inset", styles[tone], className)}>{children}</span>;
 }

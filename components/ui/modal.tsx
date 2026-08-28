@@ -1,7 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 
 // Reference-counted body scroll lock shared across all open modals. Nested or
@@ -25,6 +25,10 @@ export function Modal({
   children: React.ReactNode;
 }) {
   const portalRootRef = useRef<Element | null>(null);
+  const dialogTitleId = useId();
+  const dialogDescriptionId = useId();
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const previousActiveElementRef = useRef<HTMLElement | null>(null);
   // Keep the latest onClose for the Escape handler without re-running the
   // scroll-lock effect when a parent passes a new inline callback each render
   // (that churn is what previously restored body overflow to "hidden").
@@ -33,6 +37,7 @@ export function Modal({
 
   useEffect(() => {
     if (!open) return;
+    previousActiveElementRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     if (activeModalCount === 0) {
       previousBodyOverflow = document.body.style.overflow;
       document.body.style.overflow = "hidden";
@@ -42,6 +47,7 @@ export function Modal({
       if (event.key === "Escape") onCloseRef.current();
     };
     window.addEventListener("keydown", close);
+    closeButtonRef.current?.focus();
     return () => {
       window.removeEventListener("keydown", close);
       activeModalCount = Math.max(0, activeModalCount - 1);
@@ -49,6 +55,8 @@ export function Modal({
         document.body.style.overflow = previousBodyOverflow ?? "";
         previousBodyOverflow = null;
       }
+      previousActiveElementRef.current?.focus?.();
+      previousActiveElementRef.current = null;
     };
   }, [open]);
 
@@ -61,14 +69,14 @@ export function Modal({
 
   return createPortal(
     <div className="fixed inset-0 z-[100] grid place-items-center overflow-y-auto bg-foreground/20 p-4 backdrop-blur-sm">
-      <button className="absolute inset-0" onClick={onClose} aria-label="Close" />
-      <section className="relative z-10 w-full max-w-2xl rounded-[28px] border border-border bg-panel shadow-float">
+      <button type="button" className="absolute inset-0" onClick={onClose} aria-label="Close dialog" />
+      <section role="dialog" aria-modal="true" aria-labelledby={dialogTitleId} aria-describedby={description ? dialogDescriptionId : undefined} className="relative z-10 w-full max-w-2xl rounded-[28px] border border-border bg-panel shadow-float">
         <header className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
           <div>
-            <h2 className="text-lg font-extrabold text-foreground">{title}</h2>
-            {description && <p className="mt-1 text-xs leading-6 text-muted-foreground">{description}</p>}
+            <h2 id={dialogTitleId} className="text-lg font-extrabold text-foreground">{title}</h2>
+            {description && <p id={dialogDescriptionId} className="mt-1 text-xs leading-6 text-muted-foreground">{description}</p>}
           </div>
-          <button onClick={onClose} className="grid h-10 w-10 place-items-center rounded-2xl bg-surface-muted text-muted hover:text-foreground transition focus:outline-none focus:ring-2 focus:ring-ring">
+          <button ref={closeButtonRef} type="button" onClick={onClose} aria-label="Close dialog" className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-surface-muted text-muted transition-colors hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <X className="h-5 w-5" />
           </button>
         </header>

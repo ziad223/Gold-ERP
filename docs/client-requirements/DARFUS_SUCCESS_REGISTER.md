@@ -32,3 +32,53 @@
 | GV-S-OFFICIAL-1000-E2E-01 | Owner-authorized AED 1000 issue, activation, one POS full redemption, accounting/tax/treasury/inventory/audit proof, and exact issue/checkout replay | PASS; one new voucher and one checkout, replay produced no duplicates | `DARFUS_GIFT_VOUCHER_OFFICIAL_END_TO_END_ACCEPTANCE_1000_01_REPORT.md` |
 | AUTO-STARTUP-MIGRATION-CONTRACT-RESTORE-001 | Restored original automatic migration startup contract with Disposable-clone proof | PASS; one pending migration applied, second start pending=0, failure blocked app start, official DB unchanged | `DARFUS_MIGRATION_STARTUP_CONTRACT_RESTORATION_01_REPORT.md` |
 | UX0-AUDIT-01 | Full UI/UX route, shell, theme, AR/EN, RTL/LTR, density, accessibility, POS, numeric, print and issue audit artifacts | COMPLETE_AS_AUDIT; Gate blocked for evidence completion, not a product PASS claim | `docs/client-requirements/ui-ux/DARFUS_UI_UX_MODERNIZATION_UX0_FULL_READ_ONLY_AUDIT_01_REPORT.md` |
+| UX0B-RESEARCH-001 | UX-0B external benchmark research, 18-family × 7 viewport measurement, dark/light and AR/EN closeout artifacts | COMPLETE_AS_READ_ONLY_RESEARCH; gate blocked for full cross-product visual evidence | `docs/client-requirements/ui-ux/DARFUS_UIUX_UX0B_DESIGN_RESEARCH_AND_EVIDENCE_CLOSEOUT_01_REPORT.md` |
+| UX1-REFERENCE-PROTOTYPES-001 | UX-1 Obsidian Atelier semantic system and three isolated reference prototypes with real-browser AR/EN, RTL/LTR, dark/light and responsive evidence | PASS_DARFUS_UIUX_UX1_DESIGN_SYSTEM_AND_REFERENCE_PROTOTYPES; static focused test 3/3, typecheck/build PASS, zero prototype business writes | `docs/client-requirements/ui-ux/ux1/DARFUS_UIUX_UX1_DESIGN_SYSTEM_SPECIFICATION_AND_REFERENCE_PROTOTYPES_01_REPORT.md` |
+| UX1R-OWNER-VISUAL-REFINEMENT-001 | Owner-approved Obsidian Atelier refinement: compact shell, production-density references, AR/EN purity, motion/reduced-motion and responsive browser evidence | PASS_DARFUS_UIUX_UX1R_OWNER_VISUAL_REFINEMENT; focused tests 7/7, typecheck/build PASS, zero business writes | `docs/client-requirements/ui-ux/ux1r/DARFUS_UIUX_UX1R_OWNER_VISUAL_REFINEMENT_01_REPORT.md` |
+| DARFUS-UIUX-VISUAL-ROLLBACK-AND-BASELINE-CONTRACT-001 | Classic baseline, source snapshot, hash manifest and isolated rollback proof | PASS; classic hash restored exactly | `docs/client-requirements/ui-ux/ux2/DARFUS_UX2_CLASSIC_ROLLBACK_REHEARSAL.md` |
+| DARFUS-CLASSIC-DESIGN-BASELINE-001 | 48-file classic production design baseline | FROZEN; snapshot and complete SHA-256 records available | `docs/client-requirements/ui-ux/ux2/DARFUS_UX2_CLASSIC_DESIGN_HASH_MANIFEST.md` |
+| DARFUS-UIUX-CHANGE-LEDGER-001 | UX-2 change boundary and before/after hashes | CREATED; one active production file only | `docs/client-requirements/ui-ux/ux2/DARFUS_UI_UX_CHANGE_LEDGER.md` |
+| DARFUS-UIUX-ROLLBACK-REGISTER-001 | File-scoped classic and UX2 rollback readiness | READY; isolated restore and re-apply parity proven | `docs/client-requirements/ui-ux/ux2/DARFUS_UX2_ROLLBACK_PROOF.md` |
+| DARFUS-UX2-SEMANTIC-TOKEN-FOUNDATION-001 | Minimum semantic token, typography, motion and reduced-motion foundation | PASS; focused tests/typecheck/build/browser evidence pass | `docs/client-requirements/ui-ux/ux2/DARFUS_UIUX_UX2_THEME_SEMANTIC_TOKEN_FOUNDATION_WITH_CLASSIC_ROLLBACK_01_REPORT.md` |
+# UX3 success evidence (2026-08-28)
+
+- UX3 shell/navigation implementation: focused tests `3/3`, selected regressions `33/33`, typecheck PASS, build PASS, AR/EN browser shell proof PASS, console errors `0`, official DB writes `0`, rollback rehearsal PASS.
+
+# UX4 success evidence (2026-08-28)
+
+| ID | Evidence | Result |
+|---|---|---|
+| DARFUS-UX4-CORE-COMPONENTS-001 | Shared core component implementation and scope audit | PASS; core-components-only |
+| DARFUS-COMPONENT-PROP-CONTRACT-PRESERVATION-001 | Existing props/defaults/events/className compatibility test and typecheck | PASS; no prop contract change |
+| DARFUS-COMPONENT-ACCESSIBILITY-GATE-001 | Dialog/listbox/tab/table/status semantics and focus/name test | PASS |
+| DARFUS-UX4-ROLLBACK-001 | UX4 before/after snapshots, SHA-256 manifests, restore map and hash rehearsal | PASS |
+
+# UX4B evidence closeout (2026-08-28)
+
+| ID | Evidence | Result |
+|---|---|---|
+| DARFUS-UX4B-REFERENCE-001 | Isolated localized static component reference surface, focused isolation test, AR/EN dark/light/responsive browser evidence | PARTIAL; Drawer focus restoration blocks closeout |
+
+# UX4C corrective evidence (2026-08-28)
+
+| ID | Evidence | Result |
+|---|---|---|
+| DARFUS-UX4C-DRAWER-FOCUS-001 | Exact trigger capture/return, AR/EN, dark/light, desktop/mobile browser proof, 13/13 focused/regression tests, typecheck/build, isolated rollback | PASS |
+
+# UX5C owner visual corrections (2026-08-28)
+
+| ID | Evidence | Result |
+|---|---|---|
+| DARFUS-UX5C-OWNER-VISUAL-CORRECTIONS-001 | Eight approved POS presentation corrections, 11/11 focused tests, 41/41 POS regression tests, AR/EN Dark/Light responsive browser evidence, typecheck/build, after snapshot and isolated rollback | PASS |
+
+# UX5D Gift Voucher visual clarity (2026-08-28)
+
+| ID | Evidence | Result |
+|---|---|---|
+| DARFUS-UX5D-GIFT-VOUCHER-VISUAL-001 | Scoped component presentation change, 44/44 impacted POS tests, 28/28 Gift Voucher backend regressions, AR/EN light/dark responsive browser evidence, typecheck/build, after snapshot and isolated rollback | PASS |
+
+# GBW purchase-rate override reason forensic (2026-08-28)
+
+| ID | Evidence | Result |
+|---|---|---|
+| DARFUS-GBW-RECEIVING-PURCHASE-GOLD-RATE-OVERRIDE-REASON-READ-ONLY-FORENSIC-01 | Source/frontend/backend authority trace, official DB SELECT evidence, authenticated GBW DOM, and four historical 422 reason-required responses; no Receive or write by this control | ROOT_CAUSE_PROVEN; RAW_PAYLOAD_EVIDENCE_BLOCKED |

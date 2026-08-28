@@ -1,7 +1,10 @@
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
+
 export function PageHeader({ title, description, actions }: { title: string; description: string; actions?: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div className="ux3-page-header flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
       <div>
+        <Breadcrumbs />
         <h1 className="text-2xl font-extrabold tracking-tight text-foreground lg:text-3xl">{title}</h1>
         <p className="mt-1 text-sm leading-7 text-muted-foreground">{description}</p>
       </div>

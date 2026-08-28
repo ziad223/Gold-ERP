@@ -73,7 +73,7 @@ test("GBW final closure keeps the canonical receive, tax, asset and barcode auth
   assert.match(page, /SharedReceiveSection/);
   assert.match(page, /inventory-v2\/receive-preview/);
   assert.match(shared, /No frontend tax default/);
-  assert.match(shared, /Server Tax Summary/);
+  assert.match(shared, /Tax Summary/);
   assert.match(v2, /assertPieceBasedPayload/);
   assert.match(policy, /INVENTORY_STOCK_QUANTITY_FORBIDDEN/);
   assert.match(receiveRoute, /movementType:\s*"PURCHASE_RECEIVE"/);

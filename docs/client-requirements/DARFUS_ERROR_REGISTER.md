@@ -43,3 +43,42 @@ Recovery evidence: `DARFUS_GIFT_VOUCHER_MAIN_RUNTIME_PARITY_RECOVERY_01_REPORT.m
 | GV-EXTERNAL-CONCURRENT-500-001 | Concurrent official Voucher mutation outside this control | Voucher `GV-05a43035-1aa2-456d-abc5-1c08c966a140` / AED 500 appeared at 19:05:19 with independent issue/activation records after the authorized AED 1000 flow | `DARFUS_GV_OFFICIAL_1000_DB_DELTA.md` | OPEN / OWNER REVIEW | Attributed and preserved; no cleanup, reversal, or retry | 0 |
 | MIGRATION-DEPLOYMENT-CONTRACT-TENSION-001 | Historical safe wrapper and normal automatic deployment policy are separate contracts | Worktree drift replaced the normal runner with the approval wrapper; no introducing commit exists in reachable history | DOCUMENTED / P3 | Keep `db:migrate` canonical and retain `db:migrate:safe` for manual rehearsal; Owner review before deployment | 0 |
 | UX0-ERR-001 | UX-0 sampled browser evidence found mixed-language values, dense critical views, and incomplete global contrast/label proof | UX / I18N / ACCESSIBILITY / EVIDENCE | OPEN; documented only | No source or DB change; retained for Owner review and later UX-1 scope | 0 |
+| UX0B-ERR-001 | Full AR/EN × Dark/Light × 7-class evidence was not completed; `/en/sales/deposits` returned 404 and Tax Center state was not fully proven | ACCEPTANCE_EVIDENCE_GAP / ROUTE | OPEN / UX-0B BLOCKING | Preserve evidence, do not infer route or state, require Owner-approved follow-up | 0 |
+| UX1-ERR-001 | UX-1 isolated reference route was initially unavailable through the locale wrapper because of an incorrect relative import | UX1 / ROUTE / SOURCE | RESOLVED | Minimum prototype-only wrapper import correction; browser route returned 200; no production/API/DB change | 0 |
+| UX1R-ERR-001 | No new runtime warning/error was captured during UX-1R browser refinement; reduced-motion media emulation is not exposed by the browser harness | UX1R / ACCEPTANCE_EVIDENCE | DOCUMENTED_LIMITATION | CSS contract and served keyframes were inspected; no production change or fallback behavior was introduced | 0 |
+| UX2-ERR-001 | Initial typecheck included TypeScript files inside the in-repository classic snapshot and reported missing snapshot-only dependencies | UX2 / ARTIFACT_SCOPE | RESOLVED | Snapshot TypeScript copies were renamed to `.ux2snapshot`; product source/config was not changed; typecheck then exited 0 | 0 |
+# UX3 error reconciliation (2026-08-28)
+
+- UX3 browser console error count: `0` on the tested AR/EN shell routes. No API/DB error path was changed. Network instrumentation was not exposed by the connected browser capability set and remains an evidence limitation, not an inferred PASS.
+
+# UX4 error reconciliation (2026-08-28)
+
+- No UX4 runtime console error/warning was captured on the tested AR/EN consumer routes. Network instrumentation was not exposed by the connected browser capability set; this remains a P3 evidence limitation and is not treated as a business/API PASS claim.
+
+# UX4B error reconciliation (2026-08-28)
+
+- `UX4B-A11Y-001`: Drawer entry focus passed, but close did not restore focus to the invoking trigger; active element was `BODY`. P2; not fixed in UX4B.
+- Fresh UX4B reference tabs reported zero console errors/warnings after the localized route correction. Network capture and reduced-motion emulation remain tool limitations.
+
+# UX4C error reconciliation (2026-08-28)
+
+- `UX4B-A11Y-001` resolved by the scoped Drawer focus-restoration change; fresh EN/AR desktop/mobile probes returned focus to the exact trigger.
+- Focused UX4C/UX4B/UX4/UX3 tests passed `13/13`; fresh browser tabs captured zero error/warning entries.
+
+# UX5C evidence reconciliation (2026-08-28)
+
+- No application console errors, warnings, or hydration errors were observed in the UX5C AR/EN browser pass.
+- Detailed request interception remains unavailable in the connected browser surface; source/API review and read-only backend evidence were used. This is a P3 evidence limitation, not a product mutation.
+- Empty-cart state was intentionally retained because UX5C forbids business mutation; populated-cart acceptance is outside this visual-only control.
+
+# UX5D evidence reconciliation (2026-08-28)
+
+- No UX5D application console errors, warnings, or hydration errors were observed.
+- A concurrent Receive/PO/Asset/Journal group was observed in the shared official runtime during the window; it was not initiated by UX5D, was not modified, and is documented in the UX5D report. UX5D business writes remain zero.
+
+# GBW receiving purchase-rate override reason (2026-08-28)
+
+| Issue ID | Symptom | Evidence | Classification | Status |
+|---|---|---|---|---|
+| DARFUS-GBW-RECEIVING-PURCHASE-GOLD-RATE-OVERRIDE-REASON-001 | Non-equal purchase rate reaches the server without a reason and is rejected with 422 | GBW page has rate state/input but no reason state/key; backend gate at `erp.routes.js:8550–8564`; four logged 422 responses | PRODUCT_DEFECT / CONTRACT_MISMATCH; backend validation is not defective | ROOT_CAUSE_PROVEN_AWAITING_OWNER_FIX_AUTHORIZATION |
+| DARFUS-GBW-RECEIVING-I18N-RAW-ERROR-001 | Arabic UI can display backend English reason-required message | `page.tsx` catch uses `caught?.message` directly | UX/OBSERVABILITY | DOCUMENTED_AWAITING_OWNER_FIX_AUTHORIZATION |

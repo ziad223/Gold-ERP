@@ -79,3 +79,42 @@ not authorize or close the official financial Gift Voucher acceptance retry.
 | GV-S-OFFICIAL-1000-E2E-01 | Owner-authorized AED 1000 official issue, activation, full POS redemption, accounting/tax/treasury/inventory/idempotency proof | `DARFUS_GIFT_VOUCHER_OFFICIAL_END_TO_END_ACCEPTANCE_1000_01_REPORT.md` and companion evidence artifacts | CLOSED FOR THIS CONTROL; external AED 500 delta separately attributed |
 | AUTO-STARTUP-MIGRATION-CONTRACT-RESTORE-001 | Original startup runner restoration and Clone proof | `DARFUS_MIGRATION_STARTUP_CONTRACT_RESTORATION_01_REPORT.md`; companion current/git/clone/boot/schema/failure artifacts; focused tests and typecheck | CLOSED / PASS |
 | UX-0 audit artifacts | `docs/client-requirements/ui-ux/` route inventory, shell/theme/locale/density/accessibility/POS/numeric/tag/error audits, screenshot baseline, issue matrix, design directions, and full report | Documentation-only audit; no UX issue marked closed; Gate blocked on remaining evidence coverage |
+| UX-0B design research and evidence artifacts | `docs/client-requirements/ui-ux/DARFUS_UIUX_UX0B_DESIGN_RESEARCH_AND_EVIDENCE_CLOSEOUT_01_REPORT.md` and companion browser/responsive/research/problem-map artifacts | Documentation-only closeout; 7 viewport classes measured for 18 families, full locale/theme state acceptance remains blocked | OPEN / NOT A PRODUCT CLOSURE |
+| UX1 design system and reference prototypes | `docs/client-requirements/ui-ux/ux1/` including specifications, three isolated prototype docs, browser evidence matrix and final report | Documentation plus isolated prototype-only surface; real-browser proof complete; no production rollout or business write | PASS_REFERENCE_PROTOTYPE_ONLY |
+| UX1R owner visual refinement | `docs/client-requirements/ui-ux/ux1r/` including compact shell, density, language, motion, responsive, accessibility, browser matrix, approval pack and report | Prototype-only refinement; real-browser evidence complete; no production rollout or business write | PASS_REFERENCE_REFINEMENT_ONLY |
+| DARFUS-UIUX-VISUAL-ROLLBACK-AND-BASELINE-CONTRACT-001 / DARFUS-CLASSIC-DESIGN-BASELINE-001 | `docs/client-requirements/ui-ux/ux2/` and `backups/ui-ux/PRE_UX2_CLASSIC_DESIGN_20260828_020614/` | Classic baseline frozen; 48-file manifest and isolated exact-hash rollback proof | PASS_CLASSIC_BASELINE |
+| DARFUS-UIUX-CHANGE-LEDGER-001 / DARFUS-UIUX-ROLLBACK-REGISTER-001 | `docs/client-requirements/ui-ux/ux2/DARFUS_UI_UX_CHANGE_LEDGER.md`, `DARFUS_UI_UX_CLASSIC_RESTORE_MAP.md`, `DARFUS_UX2_ROLLBACK_PROOF.md` | UX2 scope limited to `app/globals.css`; rollback ready | PASS_UX2_ROLLBACK |
+| DARFUS-UX2-SEMANTIC-TOKEN-FOUNDATION-001 | `docs/client-requirements/ui-ux/ux2/DARFUS_UIUX_UX2_THEME_SEMANTIC_TOKEN_FOUNDATION_WITH_CLASSIC_ROLLBACK_01_REPORT.md` | Semantic foundation, browser, focused tests, typecheck/build, and zero business delta evidence | PASS_UX2_FOUNDATION |
+# UX3 closure evidence (2026-08-28)
+
+- `DARFUS-UIUX-UX3-SHELL-NAVIGATION-IMPLEMENTATION-WITH-ROLLBACK-01`: shell-only changes passed focused/regression tests, typecheck/build, AR/EN desktop/mobile browser proof, and isolated rollback hash proof. No closed business authority was reopened.
+
+# UX4 closure evidence (2026-08-28)
+
+- `DARFUS-UIUX-UX4-CORE-COMPONENTS-IMPLEMENTATION-WITH-ROLLBACK-01`: component inventory/contract freeze, before/after SHA snapshots, focused tests 5/5, affected UX regressions 15/15, typecheck/build PASS, AR/EN and narrow read-only consumer browser proof, zero business/DB mutation, and isolated rollback hash parity. Full artifacts are under `docs/client-requirements/ui-ux/ux4/`.
+
+# UX4B closeout status (2026-08-28)
+
+- `DARFUS-UIUX-UX4B-CORE-COMPONENTS-BROWSER-VISUAL-EVIDENCE-CLOSEOUT-01`: isolated reference surface, focused tests, typecheck/build, AR/EN dark/light/responsive and consumer smoke evidence collected; closeout remains OPEN because Drawer focus return failed. Not a closed authority.
+
+# UX4C closure evidence (2026-08-28)
+
+- `DARFUS-UIUX-UX4C-DRAWER-FOCUS-RESTORATION-MINIMUM-SAFE-FIX-01`: shared Drawer focus return corrected and proven in EN/AR, dark/light, desktop/mobile; contract unchanged, business/API/DB unchanged, 13/13 tests, typecheck/build and isolated rollback hash parity passed. `UX4B-A11Y-001` closed; UX4 final visual/accessibility acceptance closed.
+
+# UX5 POS evidence (2026-08-28)
+
+- `DARFUS-UIUX-UX5-POS-SALES-IMPLEMENTATION-WITH-ROLLBACK-01`: adopted Desktop control executed within POS presentation-only scope. Existing customer/search/items/payment/totals/checkout authorities were preserved; 22 focused POS/payment/accounting tests passed, typecheck/build passed, AR/EN light/dark and responsive read-only browser evidence was collected, and isolated source-hash rollback parity passed. Detailed gate disposition is in `ui-ux/ux5/DARFUS_UIUX_UX5_POS_SALES_IMPLEMENTATION_WITH_ROLLBACK_01_REPORT.md`.
+
+# UX5C closure evidence (2026-08-28)
+
+- `DARFUS-UIUX-UX5C-OWNER-VISUAL-CORRECTIONS-01`: approved POS visual corrections applied without changing business/API/DB/payment/checkout/Gift Voucher/Sidebar deferred authorities. Focused `11/11`, POS regression `41/41`, typecheck/build, AR/EN Dark/Light responsive browser proof, official DB identity read-only proof, and isolated rollback hash parity passed. Deferred Sidebar Light height and Gift Voucher Empty Cart state remain open and untouched.
+
+# UX5D closure evidence (2026-08-28)
+
+- `DARFUS-UIUX-UX5D-GIFT-VOUCHER-VISUAL-CLARITY-ONLY`: Gift Voucher presentation hierarchy, contrast, responsive amount layout, AR/EN readability and accessibility were corrected without changing the frozen component contract or business authorities. Focused/impacted tests `44/44`, Gift Voucher backend regressions `28/28`, typecheck/build, browser evidence, after hash snapshot and isolated rollback rehearsal passed. Shared-runtime concurrent business activity was preserved and separately documented.
+
+# GBW override-reason forensic evidence (2026-08-28)
+
+- Control `DARFUS-GBW-RECEIVING-PURCHASE-GOLD-RATE-OVERRIDE-REASON-READ-ONLY-FORENSIC-01` produced the 13 scoped evidence artifacts under `docs/client-requirements/gbw-receiving/override-reason/`.
+- The backend authority, reference-rate order, exact Decimal comparison, permission/reason gate, transaction boundary, current DOM absence, official DB identity, and historical 422 responses are documented.
+- This issue is not closed: the root cause is proven, but the strict exact historical raw request body was not retained. No code, Receive, migration, seed, or official DB write occurred.

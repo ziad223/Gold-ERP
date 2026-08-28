@@ -1,0 +1,16 @@
+# DARFUS UI/UX Change Ledger
+
+| Batch | Production file | Before SHA-256 | After SHA-256 | Change purpose | Functional change | Rollback ready | Evidence |
+|---|---|---|---|---|---|---|---|
+| CLASSIC-BASELINE | 48 inventoried frontend/design files | See classic manifest | Same | Freeze recoverable classic baseline | No | YES | `DARFUS_UX2_CLASSIC_DESIGN_HASH_MANIFEST.md` |
+| UX2 | `app/globals.css` | See classic manifest | Recorded after build | Add semantic aliases, foundation palette hooks and motion tokens | No | YES | UX2 report + rollback proof |
+| UX3 | `app/globals.css`, `components/layout/app-shell.tsx`, `components/layout/header.tsx`, `components/layout/sidebar.tsx`, `components/ui/page-header.tsx`, new `components/layout/breadcrumbs.tsx` | UX3 pre-manifest | UX3 after-manifest | Shell/navigation presentation, landmarks, breadcrumbs, active semantics, responsive hooks | No | YES | UX3 report + isolated rollback rehearsal |
+| UX4 | Shared UI component files listed in UX4 report; focused UX4 test | UX4 before manifest | UX4 after manifest | Shared component presentation/accessibility only; no consumer mass migration | No | YES | UX4 report + before/after manifests + isolated rollback proof |
+| UX4C | `components/ui/drawer.tsx`; `tests/ux4c-drawer-focus.test.cjs` | `73B50EF20B2D7251BF803B2F7C83426C32D4009BCB40867BF05FC9FE26E55FB8` | `32251475D47AC86F1A8C64267A4F2188CBDAE956361FD769889B61A505D466E6` | Restore focus to exact invoking Drawer trigger | ACCESSIBILITY_FOCUS_LIFECYCLE_ONLY; business change NO | YES | UX4C report + snapshots + isolated hash rollback rehearsal |
+| UX5 | `app/[locale]/(dashboard)/pos/page.tsx`; `tests/ux5-pos-presentation.test.cjs` | `AD8D2330D6D1D76C110BA0B5E7741F759185AF2DD4394C475310A85C58BA88A4` | `A02F9F9DC4C3179246DFC701815FBA07E187C4AD80FBE8AB958B2F788F5AE90A` | POS presentation hierarchy, density, responsive layout and payment selected-state accessibility; existing actions/contracts preserved | PRESENTATION_ONLY; business change NO | YES | UX5 report + snapshots + focused tests + browser evidence |
+| UX5C | `app/[locale]/(dashboard)/pos/page.tsx`; `tests/ux5c-pos-visual-corrections.test.cjs`; UX5C evidence docs | `A02F9F9DC4C3179246DFC701815FBA07E187C4AD80FBE8AB958B2F788F5AE90A` | `3B787189C7F75007F0C32B2114456783036D292C8DC66107034BFB3BC1814EC7` | Owner visual corrections only: medium responsive layout, locale-pure payment chrome, neutral/disabled/empty states, search density, teal/gold balance | PRESENTATION_ONLY; business/API/DB change NO | YES | UX5C report + before/after screenshots + focused/regression tests + isolated rollback |
+| UX5D | `features/sales/components/GiftVoucherPaymentSection.tsx`; UX5D focused test; UX5D evidence docs | `02D379E629DE057FBA2523C0F0A1932E12B0BAFE005A8C010BE12C587E09B7F4` | `37A841A5AA15A1D8A62733D32527FC8542A7F7CB38294F5A4905EDB2224D7321` | Gift Voucher visual clarity only: hierarchy, contrast, adaptive layout, AR/EN readability, focus/touch presentation | PRESENTATION_ONLY; business/API/DB change NO | YES | UX5D report + snapshots + focused/regression tests + browser evidence + isolated rollback |
+
+Only `app/globals.css` is the production file changed by UX-2. UX3 changes only the shell/navigation files listed above; no module page was migrated.
+
+`UI_UX_CHANGE_LEDGER = CREATED`

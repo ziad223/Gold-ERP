@@ -43,7 +43,7 @@ export function LoadingState({ message, className, variant = "inline" }: Loading
   }
 
   return (
-    <div className={cn("flex flex-col items-center justify-center py-12 text-center", className)}>
+      <div role="status" aria-live="polite" className={cn("flex flex-col items-center justify-center py-12 text-center", className)}>
       <span className="h-8 w-8 animate-spin rounded-full border-4 border-brand-200 border-t-brand-600" />
       <p className="mt-3 text-xs font-bold text-muted-foreground">{displayMessage}</p>
     </div>

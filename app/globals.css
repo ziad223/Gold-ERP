@@ -46,6 +46,46 @@
   --sidebar-active: 39 155 144;
   --sidebar-active-foreground: 255 255 255;
   --sidebar-ring: 39 155 144;
+
+  /* UX-2 semantic foundation: aliases preserve the existing RGB contract. */
+  --canvas: var(--background);
+  --surface-1: var(--panel);
+  --surface-2: var(--surface-muted);
+  --surface-3: var(--surface-elevated);
+  --surface-interactive: var(--surface-elevated);
+  --surface-selected: var(--table-row-selected);
+  --text-primary: var(--foreground);
+  --text-secondary: var(--muted-foreground);
+  --text-muted: var(--muted-foreground);
+  --text-inverse: var(--primary-foreground);
+  --border-subtle: var(--border);
+  --border-default: var(--border);
+  --border-strong: var(--sidebar-border);
+  --gold-primary: var(--secondary);
+  --gold-muted: var(--secondary);
+  --gold-highlight: var(--secondary);
+  --gold-contrast: var(--secondary-foreground);
+  --danger: var(--destructive);
+  --focus: var(--ring);
+  --disabled: var(--muted);
+  --overlay: var(--sidebar);
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --motion-fast: 120ms;
+  --motion-standard: 180ms;
+  --motion-slow: 260ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1.15);
+  --font-brand: Georgia, Cambria, "Times New Roman", serif;
+  --font-operational: Inter, Cairo, system-ui, sans-serif;
+  --font-numeric: Inter, Cairo, system-ui, sans-serif;
+  --font-arabic: Cairo, system-ui, sans-serif;
+  --font-english: Inter, Cairo, system-ui, sans-serif;
 }
 
 .dark {
@@ -92,14 +132,14 @@
   --sidebar-ring: 39 155 144;
 }
 
-* { border-color: rgb(var(--border)); }
+* { border-color: rgb(var(--border-default)); }
 html { scroll-behavior: smooth; }
 body {
   min-height: 100vh;
   background:
     radial-gradient(circle at 12% 5%, rgba(39, 155, 144, .055), transparent 22rem),
-    rgb(var(--background));
-  color: rgb(var(--foreground));
+    rgb(var(--canvas));
+  color: rgb(var(--text-primary));
 }
 html[lang="ar"] body { font-family: "Cairo", system-ui, sans-serif; }
 html[lang="en"] body { font-family: "Inter", "Cairo", system-ui, sans-serif; }
@@ -117,6 +157,18 @@ button {
   direction: ltr;
   unicode-bidi: isolate;
   font-variant-numeric: lining-nums tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 button, input, select, textarea { font: inherit; }
@@ -256,6 +308,97 @@ input:-webkit-autofill:focus {
 .dark input:-webkit-autofill:focus {
   -webkit-text-fill-color: rgb(var(--foreground));
   -webkit-box-shadow: 0 0 0 1000px rgb(var(--input)) inset;
+}
+
+/* ── UX-3 shell/navigation layer: presentation and accessibility only ─── */
+.ux3-shell-header {
+  background-color: rgb(var(--surface-1) / 0.9);
+  border-color: rgb(var(--border-subtle));
+  transition: background-color var(--motion-standard), border-color var(--motion-standard), box-shadow var(--motion-standard);
+}
+
+.ux3-shell-content {
+  transition: margin var(--motion-standard);
+}
+
+.ux3-page-container {
+  min-width: 0;
+  scroll-margin-top: 5rem;
+}
+
+.ux3-page-header {
+  min-width: 0;
+}
+
+.ux3-breadcrumbs {
+  min-height: 1.5rem;
+  margin-bottom: var(--space-2);
+  color: rgb(var(--text-muted));
+  font-size: 0.72rem;
+  line-height: 1.25rem;
+}
+
+.ux3-breadcrumb-link {
+  color: rgb(var(--text-secondary));
+  transition: color var(--motion-fast);
+}
+
+.ux3-breadcrumb-link:hover,
+.ux3-breadcrumb-link:focus-visible {
+  color: rgb(var(--gold-primary));
+}
+
+.ux3-breadcrumb-current {
+  color: rgb(var(--text-primary));
+}
+
+.ux3-nav-item {
+  outline: none;
+  transition: background-color var(--motion-fast), color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
+}
+
+.ux3-nav-item[data-active="true"] {
+  background-color: rgb(var(--surface-selected));
+  color: rgb(var(--text-primary));
+  box-shadow: inset 3px 0 0 rgb(var(--gold-primary));
+}
+
+[dir="rtl"] .ux3-nav-item[data-active="true"] {
+  box-shadow: inset -3px 0 0 rgb(var(--gold-primary));
+}
+
+.ux3-nav-item:focus-visible,
+.ux3-menu-trigger:focus-visible,
+.ux3-theme-toggle:focus-visible,
+.ux3-shell-header button:focus-visible,
+.ux3-shell-header a:focus-visible {
+  outline: 3px solid rgb(var(--focus));
+  outline-offset: 2px;
+}
+
+@media (max-width: 1023px) {
+  .ux3-shell-header {
+    min-height: 4rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .ux3-page-container {
+    padding: var(--space-4) var(--space-3) var(--space-6);
+  }
+
+  .ux3-breadcrumbs {
+    margin-bottom: var(--space-1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ux3-shell-header,
+  .ux3-shell-content,
+  .ux3-nav-item,
+  .ux3-breadcrumb-link {
+    transition-duration: 0ms !important;
+  }
 }
 
 /* ── Native select: ensure option text is always readable ──────────────── */

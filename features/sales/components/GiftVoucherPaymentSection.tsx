@@ -54,21 +54,21 @@ export function GiftVoucherPaymentSection({
     <section
       data-testid="gift-voucher-payment-section"
       data-gift-voucher-supported={supported ? "true" : "false"}
-      className="mb-4 space-y-3 rounded-2xl border border-gold-200 bg-gold-50/50 p-4 dark:border-gold-500/30 dark:bg-gold-500/5"
+      className="mb-4 space-y-4 rounded-2xl border border-gold-200 bg-gold-50/50 p-4 sm:p-5 dark:border-gold-500/30 dark:bg-gold-500/5"
       dir={rtl ? "rtl" : "ltr"}
     >
       <div className="flex items-start gap-3">
-        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gold-100 text-gold-700 dark:bg-gold-500/10 dark:text-gold-300">
-          <Ticket className="h-4 w-4" />
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gold-100 text-gold-700 dark:bg-gold-500/10 dark:text-gold-300">
+          <Ticket className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-black text-navy-950 dark:text-white">{labels.title}</h3>
-          <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">{labels.description}</p>
+          <h3 className="text-base font-black leading-5 text-navy-950 dark:text-white">{labels.title}</h3>
+          <p className="mt-1 text-xs leading-4 text-slate-600 dark:text-slate-300">{labels.description}</p>
         </div>
       </div>
 
-      <div className="space-y-1.5">
-        <label htmlFor="pos-gift-voucher-code" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400">
+      <div className="space-y-2">
+        <label htmlFor="pos-gift-voucher-code" className="block text-xs font-bold text-slate-700 dark:text-slate-200">
           {labels.code}
         </label>
         <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
@@ -83,7 +83,7 @@ export function GiftVoucherPaymentSection({
                 onValidate();
               }
             }}
-            className="input-base min-w-0 w-full flex-1 font-mono tracking-wide [direction:ltr]"
+            className="input-base min-h-10 min-w-0 w-full flex-1 font-mono tracking-wide [direction:ltr]"
             placeholder={labels.placeholder}
             aria-describedby={error ? "pos-gift-voucher-error" : undefined}
             aria-invalid={error ? "true" : undefined}
@@ -97,7 +97,7 @@ export function GiftVoucherPaymentSection({
             variant="secondary"
             onClick={onValidate}
             disabled={!supported || loading || !code.trim()}
-            className="shrink-0"
+            className="min-h-10 shrink-0"
             style={{ width: "max-content", maxWidth: "100%", minWidth: "7rem" }}
           >
             {loading ? labels.validating : labels.validate}
@@ -105,25 +105,34 @@ export function GiftVoucherPaymentSection({
         </div>
       </div>
 
-      {!supported && <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">{labels.unavailable}</p>}
+      {!supported && <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-bold leading-5 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">{labels.unavailable}</p>}
 
       {voucher && supported ? (
-        <div className="space-y-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-[10px] text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100">
-          <div className="flex items-start justify-between gap-2">
-            <p className="flex min-w-0 items-center gap-1.5 font-black"><CheckCircle2 className="h-3.5 w-3.5 shrink-0" />{labels.active}</p>
-            <button type="button" onClick={onRemove} className="rounded-lg p-1 text-emerald-700 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 dark:text-emerald-200 dark:hover:bg-emerald-500/20" aria-label={labels.remove} title={labels.remove}>
-              <X className="h-3.5 w-3.5" />
+        <div className="space-y-3 rounded-2xl border border-emerald-300 bg-emerald-50/90 p-4 text-emerald-950 dark:border-emerald-400/40 dark:bg-emerald-950/35 dark:text-emerald-50">
+          <div className="flex items-start justify-between gap-3">
+            <p className="flex min-w-0 items-center gap-2 text-xs font-black leading-5"><CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-300" />{labels.active}</p>
+            <button type="button" onClick={onRemove} className="grid min-h-9 min-w-9 shrink-0 place-items-center rounded-lg text-emerald-700 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-600/50 dark:text-emerald-200 dark:hover:bg-emerald-500/20" aria-label={labels.remove} title={labels.remove}>
+              <X className="h-4 w-4" />
             </button>
           </div>
-          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-3">
-            <span>{labels.faceValue}: <bdi dir="ltr" className="numeric-token font-black">{formatAmount(voucher.faceValue)} {currency}</bdi></span>
-            <span>{labels.applied}: <bdi dir="ltr" className="numeric-token font-black">{formatAmount(voucher.faceValue)} {currency}</bdi></span>
-            <span>{labels.remaining}: <bdi dir="ltr" className="numeric-token font-black">{formatAmount(remainingDue)} {currency}</bdi></span>
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(10rem,1fr))] gap-2">
+            <div className="rounded-xl border border-emerald-200/80 bg-white/70 p-3 dark:border-emerald-400/20 dark:bg-emerald-900/20">
+              <span className="block text-[11px] font-semibold leading-4 text-emerald-800 dark:text-emerald-200">{labels.faceValue}</span>
+              <bdi dir="ltr" className="numeric-token mt-1 block text-sm font-black leading-5">{formatAmount(voucher.faceValue)} {currency}</bdi>
+            </div>
+            <div className="rounded-xl border border-emerald-200/80 bg-white/70 p-3 dark:border-emerald-400/20 dark:bg-emerald-900/20">
+              <span className="block text-[11px] font-semibold leading-4 text-emerald-800 dark:text-emerald-200">{labels.applied}</span>
+              <bdi dir="ltr" className="numeric-token mt-1 block text-sm font-black leading-5">{formatAmount(voucher.faceValue)} {currency}</bdi>
+            </div>
+            <div className="rounded-xl border border-emerald-200/80 bg-white/70 p-3 dark:border-emerald-400/20 dark:bg-emerald-900/20">
+              <span className="block text-[11px] font-semibold leading-4 text-emerald-800 dark:text-emerald-200">{labels.remaining}</span>
+              <bdi dir="ltr" className="numeric-token mt-1 block text-sm font-black leading-5">{formatAmount(remainingDue)} {currency}</bdi>
+            </div>
           </div>
         </div>
       ) : null}
 
-      {error ? <p id="pos-gift-voucher-error" role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[10px] font-bold text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">{error}</p> : null}
+      {error ? <p id="pos-gift-voucher-error" role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-bold leading-5 text-rose-800 dark:border-rose-500/30 dark:bg-rose-950/35 dark:text-rose-100">{error}</p> : null}
     </section>
   );
 }

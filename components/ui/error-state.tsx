@@ -22,7 +22,7 @@ export function ErrorState({ title, message, correlationId, onRetry, className }
   const retryLabel = isEn ? "Retry Connection" : "إعادة المحاولة";
 
   return (
-    <div
+    <div role="alert"
       className={cn(
         "flex flex-col items-center justify-center rounded-3xl border border-destructive/20 bg-destructive/5 p-8 text-center",
         className,

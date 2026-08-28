@@ -2,8 +2,9 @@
 
 import { ChevronDown } from "lucide-react";
 import { forwardRef } from "react";
+import { cn } from "@/lib/utils";
 
-interface NativeSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
+export interface NativeSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   /** Extra wrapper className */
   wrapperClassName?: string;
 }
@@ -20,7 +21,7 @@ interface NativeSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement
 export const NativeSelect = forwardRef<HTMLSelectElement, NativeSelectProps>(
   ({ className = "", wrapperClassName = "", children, ...props }, ref) => {
     return (
-      <div className={`relative ${wrapperClassName}`}>
+      <div className={cn("relative", wrapperClassName)}>
         <select
           ref={ref}
           className={[
@@ -55,7 +56,7 @@ export const NativeSelect = forwardRef<HTMLSelectElement, NativeSelectProps>(
 
         {/* Custom chevron icon — absolutely positioned, pointer-events-none */}
         <span className="pointer-events-none absolute inset-y-0 end-0 flex items-center pe-3 text-muted-foreground">
-          <ChevronDown className="h-3.5 w-3.5 stroke-[2.5]" />
+          <ChevronDown aria-hidden="true" className="h-3.5 w-3.5 stroke-[2.5]" />
         </span>
       </div>
     );

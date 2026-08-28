@@ -28,12 +28,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="app-shell min-h-screen bg-background" data-app-shell="true">
+    <div className="app-shell min-h-screen bg-background" data-app-shell="true" data-shell-version="ux3">
       <CompanyFaviconUpdater />
       <Sidebar open={open} onClose={() => setOpen(false)} collapsed={collapsed} onToggle={toggle} />
       <div
         className={cn(
-          "min-h-screen transition-[margin] duration-300",
+          "ux3-shell-content min-h-screen transition-[margin] duration-300",
           rtl
             ? collapsed
               ? "lg:mr-[88px]"
@@ -44,7 +44,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
       >
         <Header onOpenSidebar={() => setOpen(true)} />
-        <main className="mx-auto max-w-[1700px] p-4 sm:p-5 lg:p-7">{children}</main>
+        <main id="main-content" tabIndex={-1} className="ux3-page-container mx-auto max-w-[1700px] p-4 sm:p-5 lg:p-7">{children}</main>
       </div>
     </div>
   );

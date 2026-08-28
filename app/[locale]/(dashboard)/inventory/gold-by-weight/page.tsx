@@ -15,6 +15,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { useBranchContext } from "@/contexts/branch-context";
 import { apiClient, generateUUID } from "@/lib/api/client";
 import { formatCurrency } from "@/lib/utils";
+import { compareDecimals } from "@/lib/decimal/decimal";
 import { buildSharedTaxRequest, SharedReceiveSection, type SharedReceiveState } from "@/components/inventory/shared-receive-section";
 
 type Master = { id: string; category: string; label: string; value: string; isActive: boolean };
@@ -37,14 +38,14 @@ type Draft = {
   strategy: "GOLD_BY_WEIGHT_JEWELLERY" | "GOLD_BAR_24K";
   description: string; karat: string; goldColor: string; brand: string; model: string; modelNumber: string;
   grossWeight: string; stoneWeight: string; stoneName: string;
-  itemCode: string; purchaseGoldRate: string; makingPerGram: string; currentMakingPerGram: string; certificateCost: string;
+  itemCode: string; purchaseGoldRate: string; purchaseGoldRateOverrideReason: string; makingPerGram: string; currentMakingPerGram: string; certificateCost: string;
   sellingMakingPerGram: string; minimumMakingPerGram: string; rfid: string;
 };
 
 const initialDraft: Draft = {
   strategy: "GOLD_BY_WEIGHT_JEWELLERY", description: "", karat: "21", goldColor: "", brand: "", model: "", modelNumber: "",
   grossWeight: "", stoneWeight: "0", stoneName: "",
-  itemCode: "", purchaseGoldRate: "", makingPerGram: "", currentMakingPerGram: "", certificateCost: "", sellingMakingPerGram: "", minimumMakingPerGram: "", rfid: "",
+  itemCode: "", purchaseGoldRate: "", purchaseGoldRateOverrideReason: "", makingPerGram: "", currentMakingPerGram: "", certificateCost: "", sellingMakingPerGram: "", minimumMakingPerGram: "", rfid: "",
 };
 
 const initialReceiveState: SharedReceiveState = {
@@ -148,6 +149,12 @@ export default function GoldByWeightProfilePage() {
   const inventoryCode = useMemo(() => contract?.barcode?.inventoryCodes?.find((item: any) => item.assetType === "gold-weight" && item.isActive)?.code, [contract]);
   const resolvedItemCode = useMemo(() => draft.itemCode || contract?.barcode?.itemCodes?.find((item: any) => item.isActive && item.isClientApproved !== false && (!inventoryCode || !item.allowedInventoryCodes?.length || item.allowedInventoryCodes.includes(inventoryCode)))?.code || "", [contract, draft.itemCode, inventoryCode]);
   const resolvedPurchaseGoldRate = draft.purchaseGoldRate ? number(draft.purchaseGoldRate) : number(preview?.gold?.purchaseRate);
+  const purchaseRateOverrideActive = useMemo(() => {
+    const enteredRate = draft.purchaseGoldRate.trim();
+    const referenceRate = preview?.gold?.currentRate;
+    if (!enteredRate || referenceRate === undefined || referenceRate === null || String(referenceRate).trim() === "") return false;
+    return Number.isFinite(Number(enteredRate)) && Number.isFinite(Number(referenceRate)) && compareDecimals(enteredRate, String(referenceRate)) !== 0;
+  }, [draft.purchaseGoldRate, preview?.gold?.currentRate]);
   const receiveItem = useMemo(() => {
     const unitCost = number(preview?.purchase?.totalPurchaseCost);
     const piece = { ...itemPayload, profile: draft.strategy, inventoryProfile: draft.strategy, type: "gold-weight", category: "Gold By Weight", inventoryCode, itemCode: resolvedItemCode, weightPerUnit: number(draft.grossWeight), unitCost, cost: unitCost, goldValuation: {
@@ -159,9 +166,10 @@ export default function GoldByWeightProfilePage() {
       currentCertificateCost: draft.strategy === "GOLD_BAR_24K" ? number(draft.certificateCost) : undefined,
       vatRate: contract?.vat.enabled === false ? 0 : contract?.vat.rate,
       currentVatRate: contract?.vat.enabled === false ? 0 : contract?.vat.rate,
+      purchaseRateOverrideReason: purchaseRateOverrideActive ? draft.purchaseGoldRateOverrideReason.trim() || undefined : undefined,
     } };
     return { ...piece, name: draft.description, description: draft.description, quantity: 1, grossWeight: number(draft.grossWeight), perPiece: [piece] };
-  }, [draft.description, draft.grossWeight, draft.strategy, inventoryCode, itemPayload, preview, resolvedItemCode, resolvedPurchaseGoldRate]);
+  }, [draft.description, draft.grossWeight, draft.purchaseGoldRateOverrideReason, draft.strategy, inventoryCode, itemPayload, preview, purchaseRateOverrideActive, resolvedItemCode, resolvedPurchaseGoldRate]);
 
   useEffect(() => {
     const treatment = receive.taxTreatment;
@@ -194,6 +202,7 @@ export default function GoldByWeightProfilePage() {
   const submit = async () => {
     if (!contract || !branchId || !receive.supplierId || !receive.locationId || !receive.taxTreatment) { setError(rtl ? "المورد والموقع والمعاملة الضريبية مطلوبة." : "Supplier, Location, and Tax Treatment are required."); return; }
     if (!preview || !taxSummary) { setError(rtl ? "انتظر المعاينات القانونية قبل الحفظ." : "Wait for the canonical server previews before submitting."); return; }
+    if (purchaseRateOverrideActive && !draft.purchaseGoldRateOverrideReason.trim()) { setError(rtl ? "سبب تعديل سعر شراء الذهب مطلوب عند اختلاف السعر عن المرجع." : "A reason is required when the purchase gold rate differs from the reference."); return; }
     if (receive.taxTreatment === "REVERSE_CHARGE" && !rcmVerified) { setError(rtl ? "أدلة الاحتساب العكسي مطلوبة." : "Reverse-charge evidence is required."); return; }
     setSubmitLoading(true); setError(""); setSubmitResult(null);
     const idempotencyKey = generateUUID();
@@ -207,6 +216,7 @@ export default function GoldByWeightProfilePage() {
         certificateCost: draft.strategy === "GOLD_BAR_24K" ? number(draft.certificateCost) : undefined,
         vatRate: contract.vat.enabled === false ? 0 : contract.vat.rate,
         currentVatRate: contract.vat.enabled === false ? 0 : contract.vat.rate,
+        purchaseRateOverrideReason: purchaseRateOverrideActive ? draft.purchaseGoldRateOverrideReason.trim() : undefined,
       } };
       const response = await apiClient<any>("/purchase-orders/receive", {
         method: "POST", locale, branchId, idempotencyKey,
@@ -216,7 +226,12 @@ export default function GoldByWeightProfilePage() {
          }] }),
       });
       setSubmitResult(response?.data || response);
-    } catch (caught: any) { setError(caught?.message || (rtl ? "فشل استلام قطعة الذهب." : "Gold By Weight receive failed.")); }
+    } catch (caught: any) {
+      const message = caught?.message;
+      setError(message === "Purchase gold-rate override reason is required."
+        ? (rtl ? "سبب تعديل سعر شراء الذهب مطلوب عند اختلاف السعر عن المرجع." : message)
+        : (message || (rtl ? "فشل استلام قطعة الذهب." : "Gold By Weight receive failed.")));
+    }
     finally { setSubmitLoading(false); }
   };
 
@@ -240,7 +255,7 @@ export default function GoldByWeightProfilePage() {
 
     <Section number={2} title={rtl ? "بيانات الأوزان" : "Weight Information"} icon={<Scale className="h-4 w-4 text-brand-600" />}><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5"><Field label={rtl ? "الوزن الإجمالي (g)" : "Gross Weight (g)"} value={draft.grossWeight} onChange={(value) => update("grossWeight", value)} type="number" step="0.0001" required /><Field label={rtl ? "وزن الأحجار (g)" : "Stone Weight (g)"} value={draft.stoneWeight} onChange={(value) => update("stoneWeight", value)} type="number" step="0.0001" required /><Field label={rtl ? "اسم الحجر" : "Stone Name"} value={draft.stoneName} onChange={(value) => update("stoneName", value)} /><Field label={rtl ? "الوزن الصافي (g)" : "Net Gold Weight (g)"} value={preview?.weights?.netGoldWeight || "—"} readOnly /><Field label={rtl ? "الذهب الخالص 999.9 (g)" : "Pure Gold Weight 999.9 (g)"} value={preview?.weights?.pureGoldWeight9999 || "—"} readOnly /></div><p className="text-[10px] text-slate-500">{rtl ? "الصافي والذهب الخالص محسوبان على الخادم ولا يمكن تحريرهما." : "Net and pure-gold weights are server-calculated and read-only."}</p></Section>
 
-    <Section number={3} title={rtl ? "بيانات الشراء" : "Purchase Information"}><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3"><Field label={rtl ? "سعر الذهب وقت الشراء / g" : "Global Gold Rate At Purchase / g"} value={draft.purchaseGoldRate} onChange={(value) => update("purchaseGoldRate", value)} type="number" step="0.00000001" /><Field label={rtl ? "المصنعية / g" : "Making Cost Per Gram"} value={draft.makingPerGram} onChange={(value) => update("makingPerGram", value)} type="number" step="0.00000001" required={draft.strategy !== "GOLD_BAR_24K"} disabled={draft.strategy === "GOLD_BAR_24K"} /><Field label={rtl ? "تكلفة الشهادة" : "Certificate Cost"} value={draft.certificateCost} onChange={(value) => update("certificateCost", value)} type="number" step="0.01" required={draft.strategy === "GOLD_BAR_24K"} disabled={draft.strategy !== "GOLD_BAR_24K"} /></div><div className="mt-3 grid gap-3 md:grid-cols-3"><Field label={rtl ? "قيمة الذهب" : "Total Gold Value"} value={money(preview?.purchase?.goldValue, contract?.currency || "AED", locale)} readOnly /><Field label={rtl ? "إجمالي المصنعية" : "Total Making Cost"} value={money(preview?.purchase?.makingTotal, contract?.currency || "AED", locale)} readOnly /><Field label={rtl ? "إجمالي الشراء" : "Total Purchase Cost"} value={money(preview?.purchase?.totalPurchaseCost, contract?.currency || "AED", locale)} readOnly /></div></Section>
+    <Section number={3} title={rtl ? "بيانات الشراء" : "Purchase Information"}><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3"><Field label={rtl ? "سعر الذهب وقت الشراء / g" : "Global Gold Rate At Purchase / g"} value={draft.purchaseGoldRate} onChange={(value) => update("purchaseGoldRate", value)} type="number" step="0.00000001" /><Field label={rtl ? "المصنعية / g" : "Making Cost Per Gram"} value={draft.makingPerGram} onChange={(value) => update("makingPerGram", value)} type="number" step="0.00000001" required={draft.strategy !== "GOLD_BAR_24K"} disabled={draft.strategy === "GOLD_BAR_24K"} /><Field label={rtl ? "تكلفة الشهادة" : "Certificate Cost"} value={draft.certificateCost} onChange={(value) => update("certificateCost", value)} type="number" step="0.01" required={draft.strategy === "GOLD_BAR_24K"} disabled={draft.strategy !== "GOLD_BAR_24K"} />{purchaseRateOverrideActive && <label className="space-y-1 md:col-span-2 xl:col-span-3"><span className="block text-[11px] font-bold text-slate-500">{rtl ? "سبب تعديل سعر شراء الذهب" : "Purchase Gold-Rate Override Reason"} *</span><textarea id="purchase-gold-rate-override-reason" aria-describedby="purchase-gold-rate-override-reason-help" required rows={2} className="input-base min-h-20 w-full resize-y" value={draft.purchaseGoldRateOverrideReason} onChange={(event) => update("purchaseGoldRateOverrideReason", event.target.value)} /><span id="purchase-gold-rate-override-reason-help" className="block text-[10px] text-slate-500">{rtl ? "أدخل سبب اختلاف السعر عن المرجع الحالي." : "Enter why the purchase rate differs from the current reference."}</span></label>}</div><div className="mt-3 grid gap-3 md:grid-cols-3"><Field label={rtl ? "قيمة الذهب" : "Total Gold Value"} value={money(preview?.purchase?.goldValue, contract?.currency || "AED", locale)} readOnly /><Field label={rtl ? "إجمالي المصنعية" : "Total Making Cost"} value={money(preview?.purchase?.makingTotal, contract?.currency || "AED", locale)} readOnly /><Field label={rtl ? "إجمالي الشراء" : "Total Purchase Cost"} value={money(preview?.purchase?.totalPurchaseCost, contract?.currency || "AED", locale)} readOnly /></div></Section>
 
     <Section number={4} title={rtl ? "التكلفة الحالية" : "Current Cost"}><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5"><Field label={rtl ? "سعر الذهب الحالي" : "Current Global Gold Rate"} value={selectedRate || "—"} readOnly /><Field label={rtl ? "قيمة الذهب الحالية" : "Current Gold Value"} value={money(preview?.current?.goldValue, contract?.currency || "AED", locale)} readOnly /><Field label={rtl ? "مصنعية حالية / g" : "Current Making Cost / g"} value={draft.currentMakingPerGram || draft.makingPerGram} onChange={(value) => update("currentMakingPerGram", value)} type="number" step="0.00000001" disabled={draft.strategy === "GOLD_BAR_24K"} /><Field label={rtl ? "قيمة المصنعية الحالية" : "Current Making Value"} value={money(preview?.current?.makingValue, contract?.currency || "AED", locale)} readOnly /><Field label={rtl ? "الإجمالي الحالي" : "Current Total Cost"} value={money(preview?.current?.totalValue, contract?.currency || "AED", locale)} readOnly /></div><p className="mt-2 text-[10px] text-slate-500">{rtl ? "المعاينة الحالية منفصلة عن لقطة الشراء التاريخية. التعديل اليدوي محكوم بإعداد وصلاحية صريحة." : "Current valuation is separate from the immutable purchase snapshot. Manual override requires explicit configuration and permission."} {contract?.settings.manualOverride.available ? <Badge tone="amber">{rtl ? "متاح بصلاحية" : "Permission enabled"}</Badge> : <Badge tone="slate"><LockKeyhole className="me-1 inline h-3 w-3" />{rtl ? "مغلق Fail-Closed" : "Fail-closed"}</Badge>}</p></Section>
 

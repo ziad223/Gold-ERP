@@ -30,3 +30,43 @@ delta verification.
 | GV-L-009 | An unrelated official AED 500 Voucher was created concurrently while the AED 1000 acceptance was being reconciled | After-state counts alone can be mistaken for this control's writes | Attribute every delta by immutable identity, idempotency key, timestamp, and source journal before gate; never clean concurrent data automatically | `DARFUS_GV_OFFICIAL_1000_DB_DELTA.md` | Gift Voucher / Finance / Operations | ACTIVE; Owner review |
 | MIGRATION-STARTUP-CONTRACT-001 | Normal application startup must automatically apply repository-approved pending migrations; failure must block app start | `db:migrate` and Compose had drifted to the manual approval wrapper / no-migration startup | Keep canonical `db:migrate` for deployment, retain guarded `db:migrate:safe` for manual rehearsal, and require `&& npm start` | Fresh-clone first boot, double boot, and failure probe | Deployment / Database | FROZEN BY THIS CONTROL |
 | UX0-L-001 | Visual acceptance cannot be inferred from component existence or normal rendering alone | Prior evidence focused on runtime/function, not complete theme/locale/density/accessibility coverage | Require route inventory plus real AR/EN, RTL/LTR, dark/light, desktop/narrow and state evidence before UX PASS | UX-0 browser matrix and screenshot baseline | ACTIVE; UX-1 prevention gate |
+| UX0B-L-001 | Responsive evidence can be mistaken for complete visual acceptance when only one locale/theme is measured | Viewport measurement and content/state/theme coverage were not separated | Report requested vs actual viewport, state, locale and theme independently; block full PASS until the cross-product is proven | ACTIVE; UX0B |
+| UX1-L-001 | Reference-prototype existence can be mistaken for a verified design-system gate | Static hooks do not prove served AR/EN/theme/responsive/focus behavior | Require a real-browser matrix with requested and actual viewport, root lang/dir/theme, selected prototype, named controls, console state and no business-write path | UX-1 browser matrix + focused isolation test | APPLIED; UX-1 |
+| UX1R-L-001 | A polished reference can remain too editorial to validate operational density | UX-1 proved identity but retained oversized hero/spacing and a single illustrative POS row | Require compact shell, 3–5 representative POS rows, explicit Arabic/English purity, motion safety and actual responsive evidence before visual handoff | UX1R focused tests + 18-state browser matrix | APPLIED; UX-1R |
+| DARFUS-UX2-SEMANTIC-TOKEN-FOUNDATION-001 | A theme foundation can accidentally widen into a module redesign or make backup source compile as product source | UX-2 boundary and in-repository snapshot compilation were not isolated initially | Keep UX-2 consumption global and minimal; store TypeScript snapshot copies with a non-compiling suffix; run typecheck after artifact creation | Focused UX2 regression + typecheck + source-file boundary review | UX2 | APPLIED; UX-2 |
+# UX3 prevention note (2026-08-28)
+
+- `UX3-SHELL-SCOPE`: keep navigation presentation separate from permission authority; focused test protects the existing route catalog and permission references. Rollback proof is isolated and hash-based.
+
+# UX4 prevention note (2026-08-28)
+
+| Lesson ID | Root cause | Minimum prevention | Test/gate |
+|---|---|---|---|
+| DARFUS-UX4-SCOPE-001 | Shared visual work can accidentally become consumer/business refactoring | Freeze props, consumers, exact files, before/after hashes; forbid module/API/DB changes | UX4 inventory, contract test, scope review |
+| DARFUS-UX4-ACCESSIBILITY-001 | A visual primitive can render while lacking accessible state semantics | Require names, focus-visible, dialog/listbox/tab/table/status semantics | UX4 focused accessibility test |
+
+# UX4B prevention note (2026-08-28)
+
+| Lesson ID | Root cause | Minimum prevention | Test/gate |
+|---|---|---|---|
+| DARFUS-UX4B-FOCUS-RETURN-001 | Drawer entry focus was verified, but trigger restoration was not part of the earlier evidence | Require open → entry focus → close → invoking-trigger focus proof for every overlay | UX4B keyboard/focus gate; UX4C regression test before close |
+
+# UX4C prevention closure (2026-08-28)
+
+- `DARFUS-UX4B-FOCUS-RETURN-001` was exercised and closed by `tests/ux4c-drawer-focus.test.cjs` plus real-browser exact-trigger probes. Future overlay controls retain the same entry/return acceptance requirement.
+
+# UX5C prevention record (2026-08-28)
+
+| Lesson ID | Root cause | Minimum prevention | Test/gate |
+|---|---|---|---|
+| DARFUS-UX5C-PRESENTATION-STATE-001 | POS visual hierarchy did not distinguish neutral zero values, disabled actions, narrow responsive layouts, and locale-specific payment chrome | Keep presentation-state and locale-purity assertions beside POS authority/contract tests; verify AR/EN at desktop/tablet/mobile | `tests/ux5c-pos-visual-corrections.test.cjs` plus UX5C browser matrix |
+
+| DARFUS-UX5D-PRESENTATION-CONTRACT-001 | Gift Voucher visual state needed clearer hierarchy and adaptive amount layout without changing payment semantics | Keep visual assertions on existing props/handlers/value expressions and run Gift Voucher + POS regressions before closure | `tests/ux5d-gift-voucher-visual-clarity.test.cjs` plus UX5D browser matrix |
+
+# GBW receiving override-reason contract (2026-08-28)
+
+| Lesson ID | Root cause | Minimum prevention | Test/gate |
+|---|---|---|---|
+| DARFUS-GBW-OVERRIDE-REASON-001 | UI exposed an editable purchase rate but omitted the server-required reason contract | Every governed manual-rate UI must map the server reason key, test equal/lower/higher cases, and verify rejection has zero business writes | Focused GBW override contract tests plus authenticated AR/EN browser proof |
+
+Raw-body observability remains a separate evidence limitation, not a reason to alter business validation.
