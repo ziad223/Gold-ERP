@@ -133,3 +133,13 @@ not authorize or close the official financial Gift Voucher acceptance retry.
 
 - UX6 closed its scoped Inventory overview and Asset detail presentation work with AR/EN, light/dark, desktop/tablet/mobile evidence, focused/regression tests, typecheck/build, SHA-256 manifests, official DB read-only identity proof, and isolated rollback rehearsal.
 - Asset/Barcode/status/branch/location/workflow and all business authorities remained unchanged. No official DB write, migration, receive, sale, count, or cleanup occurred.
+
+# UX6B Asset Tag / Barcode Dark Mode closure (2026-08-28)
+
+- UX6B reproduced and closed the embedded Asset Tag contrast defect with one scoped production CSS change. Light/Dark, AR/EN, responsive, barcode/tag readability, print-surface, focused/regression, typecheck/build, and isolated rollback evidence passed.
+- The permanent `DARFUS-PREVIEW-THEME-ISOLATION-GATE-001` and embedded high-risk visual checklist were created. Barcode value/generation, tag data, print behavior, Asset authority, API, DB, and business logic were unchanged.
+
+# UX7 Customers / Suppliers closure (2026-08-28)
+
+- UX7 closed scoped Customers/Suppliers presentation work with populated list/detail/form evidence in AR/EN and Light/Dark, wide/narrow responsive checks, direct embedded-component sweep, focused/regression tests, typecheck/build, official DB read-only identity proof, after hashes and isolated rollback rehearsal.
+- Customer/Supplier identity, contact, tax, status, financial, permission, POS, API, DB and accounting authorities remained unchanged. No synthetic Customer/Supplier record or business write was created.

@@ -97,3 +97,11 @@ Recovery evidence: `DARFUS_GIFT_VOUCHER_MAIN_RUNTIME_PARITY_RECOVERY_01_REPORT.m
 # UX6 Inventory/Asset implementation (2026-08-28)
 
 - No new UX6 application, business, API, or database error was observed. The only coverage limitation is documented visual coverage for forced empty/loading/error and synthetic extreme-value states; no mutation was used to manufacture them.
+
+# UX6B Asset Tag / Barcode Dark Mode visual correction (2026-08-28)
+
+- The observed Dark Mode contrast defect was reproduced and closed by a scoped presentation fix. No new application, business, barcode, print, API, or database error remains in this control.
+
+# UX7 Customers / Suppliers presentation (2026-08-28)
+
+- No new application, business, API, database, accounting, POS or permission error was observed. The typecheck issue caused by old UX6B evidence copies was isolated to those non-source copies and resolved by renaming them as snapshot evidence; the final typecheck and build passed.

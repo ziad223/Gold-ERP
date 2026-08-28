@@ -21,3 +21,15 @@ Only `app/globals.css` is the production file changed by UX-2. UX3 changes only 
 | Control | Intentional source scope | Result | Evidence |
 |---|---|---|---|
 | `DARFUS-UIUX-UX6-INVENTORY-ASSETS-IMPLEMENTATION-WITH-ROLLBACK-01` | `inventory/page.tsx`, `inventory/[id]/page.tsx`, focused presentation test; list/detail readability, status labels, density, accessibility | PASS; business/API/DB/permission authorities unchanged | UX6 report, browser matrix, focused/regression tests, after hashes, rollback proof |
+
+## UX6B Asset Tag/Barcode preview theme isolation (2026-08-28)
+
+| Control | Production file | Before SHA-256 | After SHA-256 | Business change | Barcode value change | Print behavior change | Rollback |
+|---|---|---|---|---|---|---|---|
+| `DARFUS-UIUX-UX6B-ASSET-TAG-BARCODE-PREVIEW-DARK-MODE-VISUAL-FIX-AND-PREVENTION-GATE-01` | `features/printing/components/ClientBarcodeTagTemplate.tsx` | `C17B7F290EE981E6EA00D794921F6C78ABF0D648722F7D497D438B610AD12B4E` | `5A6530F4180E8B18C42DC77D3E892C7AB1A0344485B1EF242AE99CACE6E95B04` | NO | NO | NO | YES |
+
+## UX7 Customers/Suppliers presentation (2026-08-28)
+
+| Control | Production scope | Result | Evidence |
+|---|---|---|---|
+| `DARFUS-UIUX-UX7-CUSTOMERS-SUPPLIERS-IMPLEMENTATION-WITH-ROLLBACK-01` | `app/globals.css`, Customer/Supplier list/detail pages, focused UX7 test; scoped presentation/readability/responsive classes only | PASS; business/API/DB/accounting/POS/permission authorities unchanged | UX7 report, AR/EN Light/Dark browser evidence, 43/43 relevant tests, typecheck/build, DB identity proof, after hashes, isolated rollback rehearsal |

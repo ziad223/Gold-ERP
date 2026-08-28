@@ -107,3 +107,15 @@
 | ID | Evidence | Result |
 |---|---|---|
 | DARFUS-UIUX-UX6-INVENTORY-ASSETS-IMPLEMENTATION-WITH-ROLLBACK-01 | Inventory list/detail presentation-only changes, 4/4 focused tests, 58/58 and 56/56 selected regressions, typecheck/build, AR/EN responsive browser matrix, official DB identity read-only proof, after hashes and isolated rollback rehearsal | PASS_DARFUS_UIUX_UX6_INVENTORY_ASSETS_IMPLEMENTATION_WITH_ROLLBACK |
+
+# UX6B Asset Tag / Barcode Dark Mode visual correction (2026-08-28)
+
+| ID | Evidence | Result |
+|---|---|---|
+| DARFUS-UIUX-UX6B-ASSET-TAG-BARCODE-PREVIEW-DARK-MODE-VISUAL-FIX-AND-PREVENTION-GATE-01 | Reproduced Dark defect, isolated one-file visual fix, same Asset/barcode AR/EN Light/Dark and responsive browser proof, 4/4 focused tests, regressions, typecheck/build, zero official DB writes, prevention gate, and rollback hash parity | PASS_DARFUS_UIUX_UX6B_ASSET_TAG_BARCODE_PREVIEW_DARK_MODE_VISUAL_FIX_AND_PREVENTION_GATE |
+
+# UX7 Customers / Suppliers presentation (2026-08-28)
+
+| ID | Evidence | Result |
+|---|---|---|
+| DARFUS-UIUX-UX7-CUSTOMERS-SUPPLIERS-IMPLEMENTATION-WITH-ROLLBACK-01 | Scoped Customer/Supplier presentation layer, AR/EN Light/Dark browser evidence, 43/43 relevant tests, typecheck/build, official DB identity read-only proof, after hashes and isolated rollback rehearsal | PASS_DARFUS_UIUX_UX7_CUSTOMERS_SUPPLIERS_IMPLEMENTATION_WITH_ROLLBACK |

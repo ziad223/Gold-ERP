@@ -346,12 +346,12 @@ export default function SuppliersPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="ux7-page space-y-6" data-testid="suppliers-page">
       <PageHeader
         title={t("title")}
         description={t("description")}
         actions={
-          <div className="flex gap-2">
+          <div className="ux7-page-actions flex flex-wrap gap-2">
             <Button variant="secondary" onClick={handleExport} disabled={isExporting}>
               <Download className="h-4 w-4" /> {common("export")}
             </Button>
@@ -383,7 +383,7 @@ export default function SuppliersPage() {
           [t("leadTime"), `4.2`],
           [rtl ? "إجمالي الموردين" : "Total Suppliers", suppliers.length],
         ].map(([label, value]) => (
-          <Card key={label} className="p-5">
+          <Card key={label} className="ux7-stat-card p-5">
             <p className="text-xs font-semibold text-slate-500">{label}</p>
             <p className="mt-2 text-2xl font-black text-navy-950 dark:text-white">{value}</p>
             <p className="mt-2 text-[11px] text-slate-400">{pageSummaryHint}</p>
@@ -391,7 +391,7 @@ export default function SuppliersPage() {
         ))}
       </div>
 
-      <Card className="overflow-hidden">
+      <Card className="ux7-data-card overflow-hidden">
         <DataToolbar
           query={queryState}
           onQueryChange={handleQueryChange}
@@ -439,7 +439,7 @@ export default function SuppliersPage() {
         {loading ? (
           <LoadingState message={common("loading")} />
         ) : suppliers.length ? (
-          <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3" data-testid="supplier-card-grid">
             {suppliers.map((supplier) => (
               <div
                 key={supplier.id}
@@ -465,7 +465,7 @@ export default function SuppliersPage() {
                     </Link>
                   </h3>
                   <p className="mt-1 text-xs text-slate-400">
-                    {supplier.category} · {supplier.id}
+                     {supplier.category} · <span className="ux7-identifier">{supplier.id}</span>
                   </p>
 
                   <div className="mt-5 grid grid-cols-2 gap-3">
@@ -483,7 +483,7 @@ export default function SuppliersPage() {
                 </div>
 
                 <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4 dark:border-slate-800">
-                  <p className="text-xs text-slate-500">{supplier.phone}</p>
+                   <p className="ux7-contact-value text-xs text-slate-500">{supplier.phone}</p>
                   <div className="flex gap-1">
                     <Link href={`/suppliers/${supplier.id}`}>
                       <Button variant="ghost" size="sm" title={common("view")}>
@@ -604,7 +604,7 @@ export default function SuppliersPage() {
         title={isEdit ? (rtl ? "تعديل بيانات المورد" : "Edit Supplier Details") : t("addTitle")}
         description={t("addDescription")}
       >
-        <form onSubmit={save} className="grid gap-5 sm:grid-cols-2">
+        <form onSubmit={save} className="ux7-form-grid grid gap-5 sm:grid-cols-2">
           <label className="sm:col-span-2">
             <span className="label-base">{t("name")}</span>
             <input

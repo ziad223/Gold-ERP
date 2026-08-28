@@ -20,3 +20,15 @@ Future UX batches must add their own scoped snapshot, ledger row and rollback re
 | Control | Status | Restore scope | Evidence |
 |---|---|---|---|
 | `DARFUS-UIUX-UX6-INVENTORY-ASSETS-IMPLEMENTATION-WITH-ROLLBACK-01` | READY_AFTER_REHEARSAL | Two inventory presentation pages and the UX6 focused test only; no authority/handler changes | `ui-ux/ux6/DARFUS_UX6_ROLLBACK_PROOF.md`, before/after manifests, isolated rehearsal |
+
+## UX6B
+
+| Control | Status | Restore scope | Evidence |
+|---|---|---|---|
+| `DARFUS-UIUX-UX6B-ASSET-TAG-BARCODE-PREVIEW-DARK-MODE-VISUAL-FIX-AND-PREVENTION-GATE-01` | READY | `ClientBarcodeTagTemplate.tsx` visual CSS only; no barcode/data/handler authority | `ui-ux/ux6b/DARFUS_UX6B_ROLLBACK_PROOF.md`, before/after manifests, isolated rehearsal |
+
+## UX7
+
+| Control | Status | Restore scope | Evidence |
+|---|---|---|---|
+| `DARFUS-UIUX-UX7-CUSTOMERS-SUPPLIERS-IMPLEMENTATION-WITH-ROLLBACK-01` | READY | `globals.css`, Customer/Supplier list/detail presentation classes and UX7 focused test; no authority/handler changes | `ui-ux/ux7/DARFUS_UX7_ROLLBACK_PROOF.md`, before/after manifests, isolated rehearsal |

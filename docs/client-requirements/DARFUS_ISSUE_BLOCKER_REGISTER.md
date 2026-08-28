@@ -97,3 +97,7 @@ No P0 or P1 defect was introduced in the Gift Voucher implementation itself. GV-
 | ID | Issue | Area | Severity | Status | Disposition |
 |---|---|---|---|---|---|
 | DARFUS-UX6-INVENTORY-PRESENTATION-001 | Inventory list/detail readability and semantic density required scoped presentation correction | Inventory UX | P3 | CLOSED | Summary hierarchy, readable EN statuses, table semantics, numeric alignment, and detail typography were corrected without business/API/DB changes |
+
+| DARFUS-ASSET-TAG-PREVIEW-DARK-MODE-CONTRAST-001 | Embedded Asset Tag Preview lost contrast in application Dark Mode | Inventory / Asset / Tag Preview | P2 | CLOSED | Inner face had transparent background and inherited light text; explicit print-safe face/container colors were added without changing data or print behavior |
+
+| DARFUS-UX7-CUSTOMERS-SUPPLIERS-PRESENTATION-001 | Customer/Supplier master-data surfaces needed clearer scoped hierarchy and contact/identifier readability | Customers / Suppliers UX | P3 | CLOSED | Added UX7-scoped presentation classes only; source authorities, actions and values unchanged |

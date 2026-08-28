@@ -344,12 +344,12 @@ export default function CustomersPage() {
   const lastVisibleRecord = resultTotal === 0 ? 0 : Math.min(resultTotal, firstVisibleRecord + customers.length - 1);
 
   return (
-    <div className="space-y-6">
+    <div className="ux7-page space-y-6" data-testid="customers-page">
       <PageHeader
         title={t("title")}
         description={t("description")}
         actions={
-          <div className="flex flex-wrap gap-2">
+          <div className="ux7-page-actions flex flex-wrap gap-2">
             <Link href="/customers/loyalty"><Button variant="secondary"><Gift className="h-4 w-4" />{t("loyaltyAndSegments")}</Button></Link>
             <Button variant="secondary" onClick={handleExport} disabled={isExporting}>
               <Download className="h-4 w-4" /> {common("export")}
@@ -376,7 +376,7 @@ export default function CustomersPage() {
           [t("totalReferenceBalance"), money(customers.reduce((sum, item) => sum + (Number(item.balance) || 0), 0))],
           [locale === "ar" ? "عملاء نشطون" : "Active Customers", customers.filter((item) => item.status !== "inactive").length],
         ].map(([label, value]) => (
-          <Card key={String(label)} className="p-5">
+          <Card key={String(label)} className="ux7-stat-card p-5">
             <p className="text-xs font-semibold text-slate-500">{label}</p>
             <p className="mt-2 text-2xl font-black text-navy-950 dark:text-white">{value}</p>
             <p className="mt-2 text-[11px] text-slate-400">{pageSummaryHint}</p>
@@ -384,7 +384,7 @@ export default function CustomersPage() {
         ))}
       </div>
 
-      <Card className="overflow-hidden">
+      <Card className="ux7-data-card overflow-hidden">
         <DataToolbar
           query={queryState}
           onQueryChange={handleQueryChange}
@@ -435,7 +435,7 @@ export default function CustomersPage() {
           <LoadingState message={common("loading")} />
         ) : customers.length ? (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[950px] text-start text-xs">
+            <table className="ux7-data-table w-full min-w-[950px] text-start text-xs">
               <thead className="bg-slate-50 text-slate-500 dark:bg-navy-950">
                 <tr>
                   <th className="px-5 py-4 text-start">{t("customer")}</th>
@@ -465,7 +465,7 @@ export default function CustomersPage() {
                           >
                             {customer.name}
                           </Link>
-                          <p className="mt-1 text-[10px] text-slate-400">{customer.id}</p>
+                          <p className="ux7-identifier mt-1 text-[10px] text-slate-400">{customer.id}</p>
                         </div>
                       </div>
                     </td>
@@ -483,12 +483,12 @@ export default function CustomersPage() {
                       </Badge>
                     </td>
                     <td className="px-5 py-4">
-                      <p className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                      <p className="ux7-contact-value flex items-center gap-2 text-slate-600 dark:text-slate-300">
                         <Phone className="h-3.5 w-3.5" />
                         {customer.phone}
                       </p>
                       {customer.email && (
-                        <p className="mt-1 flex items-center gap-2 text-slate-400">
+                        <p className="ux7-contact-value mt-1 flex items-center gap-2 text-slate-400">
                           <Mail className="h-3.5 w-3.5" />
                           {customer.email}
                         </p>
@@ -628,7 +628,7 @@ export default function CustomersPage() {
         title={isEdit ? (locale === "ar" ? "تعديل بيانات العميل" : "Edit Customer Details") : t("addTitle")}
         description={t("addDescription")}
       >
-        <form onSubmit={save} className="grid gap-5 sm:grid-cols-2" data-testid="customer-create-edit-form">
+        <form onSubmit={save} className="ux7-form-grid grid gap-5 sm:grid-cols-2" data-testid="customer-create-edit-form">
           <label className="sm:col-span-2">
             <span className="label-base">{t("name")}</span>
             <input

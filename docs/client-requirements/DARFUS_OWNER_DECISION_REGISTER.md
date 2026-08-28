@@ -10,6 +10,26 @@
 | Official Gift Voucher business acceptance | Not authorized by this schema-promotion control |
 | Next batch | No automatic start |
 
+# UX7 owner decision record (2026-08-28)
+
+| Decision | State |
+|---|---|
+| UX7 scope | FROZEN/APPLIED; Customers/Suppliers presentation and interaction polish only |
+| Business/API/DB/accounting/POS/permission behavior | PRESERVED; no changes |
+| UX7 theme parity and embedded sweep | PASS; no fixed-format preview in scope, UX6B gate remains active |
+| UX7 rollback | READY; file-scoped snapshot and isolated hash rehearsal available |
+| Next batch | No automatic start; UX-8 requires explicit approval |
+
+# UX6B owner visual prevention decision (2026-08-28)
+
+| Decision | State |
+|---|---|
+| Embedded high-risk preview acceptance | FROZEN: embedded components cannot pass from parent-page screenshots alone |
+| Light/Dark proof | FROZEN: same data/state must be proven in both themes |
+| Print-like surfaces | FROZEN: explicit theme-isolated paper/ink surface required |
+| UX6B correction | APPLIED; presentation only, barcode/tag/print/business authorities preserved |
+| Next batch | No automatic start |
+
 # UX6 owner scope record (2026-08-28)
 
 | Decision | State |

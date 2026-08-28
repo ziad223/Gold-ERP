@@ -53,7 +53,16 @@ const TAG_CSS = `
     font-size: var(--tag-font);
     line-height: 1.25;
     border: 1px solid #111827;
+    /* A tag is a print-like surface, not a themed dashboard card. Keep its
+       paper and ink explicit so the application .dark ancestor cannot turn
+       black barcode bars into dark-on-dark content. */
+    background: #ffffff;
+    color: #111827;
+    color-scheme: light;
+    forced-color-adjust: none;
   }
+  .barcode-tag-face .scannable-barcode { background: #ffffff; color: #111827; }
+  .barcode-tag-face .scannable-barcode svg { background: #ffffff; }
   .client-tag-sheet.no-border .barcode-tag-face { border: none; }
   .barcode-tag-head { display: flex; align-items: center; justify-content: space-between; gap: 2mm; }
   .barcode-tag-company { font-weight: 900; font-size: 1.05em; }

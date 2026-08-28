@@ -463,7 +463,7 @@ export default function SupplierProfilePage({ params }: PageProps) {
   const rcmEstimatedVat = rcmBase * ((Number(settings.vatRate) || 0) / 100); // VAT under RCM (rate from settings)
 
   return (
-    <div className="space-y-6">
+    <div className="ux7-page ux7-detail-page space-y-6" data-testid="supplier-detail-page">
       <div className="flex items-center gap-4">
         <Link href="/suppliers">
           <Button variant="ghost" size="sm">
@@ -474,7 +474,7 @@ export default function SupplierProfilePage({ params }: PageProps) {
           <span className="text-xs text-slate-400">
             {rtl ? "ملف المورد" : "Supplier Profile"} · {supplier.id}
           </span>
-          <h1 className="text-xl font-black text-navy-950 dark:text-white">{supplier.name}</h1>
+          <h1 className="min-w-0 break-words text-xl font-black text-navy-950 dark:text-white">{supplier.name}</h1>
         </div>
         <div className="ml-auto flex gap-2 rtl:mr-auto rtl:ml-0">
           <Badge tone={supplier.status === "inactive" ? "rose" : "green"}>
@@ -485,7 +485,7 @@ export default function SupplierProfilePage({ params }: PageProps) {
       </div>
 
       {/* Tabs Selector */}
-      <div className="flex border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
+      <div className="ux7-detail-tabs flex border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
         {[
           { id: "overview", label: rtl ? "نظرة عامة" : "Overview", icon: Truck },
           { id: "purchases", label: rtl ? "أوامر الشراء والاستلام" : "POs & Receipts", icon: History },

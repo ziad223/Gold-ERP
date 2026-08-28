@@ -562,7 +562,7 @@ export default function CustomerProfilePage({ params }: PageProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="ux7-page ux7-detail-page space-y-6" data-testid="customer-detail-page">
       <div className="flex items-center gap-4">
         <Link href="/customers">
           <Button variant="ghost" size="sm">
@@ -573,7 +573,7 @@ export default function CustomerProfilePage({ params }: PageProps) {
           <span className="text-xs text-slate-400">
             {locale === "ar" ? "ملف العميل" : "Customer Profile"} · {toEnglishDigits(customer.id)}
           </span>
-          <h1 className="text-xl font-black text-navy-950 dark:text-white">{customer.name}</h1>
+          <h1 className="min-w-0 break-words text-xl font-black text-navy-950 dark:text-white">{customer.name}</h1>
         </div>
         <div className="ml-auto flex gap-2 rtl:mr-auto rtl:ml-0">
           {canUpdateCustomer && (
@@ -599,7 +599,7 @@ export default function CustomerProfilePage({ params }: PageProps) {
           ? "يتم تعديل بيانات الملف فقط. الحالة والحقول المالية لها سلطاتها المنفصلة."
           : "Only profile details are editable here. Status and financial fields keep their separate authorities."}
       >
-        <form className="grid gap-5 sm:grid-cols-2" onSubmit={saveCustomerProfile} data-testid="customer-profile-edit-form">
+        <form className="ux7-form-grid grid gap-5 sm:grid-cols-2" onSubmit={saveCustomerProfile} data-testid="customer-profile-edit-form">
           {customerConflictMessage && (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-xs font-bold text-rose-700 sm:col-span-2 dark:border-rose-900/50 dark:bg-rose-500/10 dark:text-rose-300" role="alert">
               {customerConflictMessage}
@@ -713,7 +713,7 @@ export default function CustomerProfilePage({ params }: PageProps) {
       </Modal>
 
       {/* Tabs Selector */}
-      <div className="flex border-b border-slate-200 dark:border-slate-800">
+      <div className="ux7-detail-tabs flex border-b border-slate-200 dark:border-slate-800">
         {[
           { id: "overview", label: locale === "ar" ? "نظرة عامة" : "Overview", icon: User },
           { id: "sales", label: locale === "ar" ? "المبيعات والفواتير" : "Sales & Invoices", icon: History },

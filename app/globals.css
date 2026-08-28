@@ -171,6 +171,102 @@ button {
   }
 }
 
+/* ── UX-7 Customers / Suppliers presentation layer ────────────────────────
+   Scoped to the two master-data surfaces.  These rules intentionally do not
+   alter data, interaction, permissions, or financial semantics. */
+.ux7-page {
+  min-width: 0;
+}
+
+.ux7-page .ux7-stat-card {
+  background: linear-gradient(145deg, rgb(var(--surface-1)), rgb(var(--surface-2) / .72));
+  box-shadow: 0 12px 28px rgb(var(--sidebar) / .06);
+  transition: border-color var(--motion-standard), box-shadow var(--motion-standard), transform var(--motion-standard);
+}
+
+.ux7-page .ux7-stat-card:hover {
+  border-color: rgb(var(--gold-primary) / .42);
+  box-shadow: 0 16px 34px rgb(var(--sidebar) / .1);
+  transform: translateY(-1px);
+}
+
+.ux7-page .ux7-data-card {
+  box-shadow: 0 14px 32px rgb(var(--sidebar) / .07);
+}
+
+.ux7-page .ux7-data-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.ux7-page .ux7-data-table th {
+  background: rgb(var(--table-header));
+  color: rgb(var(--text-secondary));
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .01em;
+  white-space: nowrap;
+}
+
+.ux7-page .ux7-data-table tbody tr {
+  transition: background-color var(--motion-fast);
+}
+
+.ux7-page .ux7-data-table tbody tr:hover {
+  background: rgb(var(--table-row-hover) / .72);
+}
+
+.ux7-page .ux7-identifier,
+.ux7-page .ux7-contact-value {
+  direction: ltr;
+  unicode-bidi: plaintext;
+  overflow-wrap: break-word;
+}
+
+.ux7-page .ux7-identifier {
+  font-family: var(--font-numeric);
+  font-size: .68rem;
+  letter-spacing: .02em;
+}
+
+.ux7-page .ux7-contact-value {
+  max-width: 100%;
+}
+
+.ux7-page .ux7-detail-tabs {
+  scrollbar-width: thin;
+}
+
+.ux7-page .ux7-form-grid {
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .ux7-page .ux7-page-actions {
+    width: 100%;
+  }
+
+  .ux7-page .ux7-page-actions > * {
+    flex: 1 1 auto;
+  }
+
+  .ux7-page .ux7-page-actions button,
+  .ux7-page .ux7-page-actions a {
+    min-height: 2.75rem;
+  }
+
+  .ux7-page .ux7-data-card {
+    border-radius: 1.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ux7-page .ux7-stat-card,
+  .ux7-page .ux7-data-table tbody tr {
+    transition-duration: 0ms !important;
+  }
+}
+
 button, input, select, textarea { font: inherit; }
 ::selection { background: rgba(39, 155, 144, .22); }
 
