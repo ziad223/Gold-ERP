@@ -101,3 +101,7 @@ No P0 or P1 defect was introduced in the Gift Voucher implementation itself. GV-
 | DARFUS-ASSET-TAG-PREVIEW-DARK-MODE-CONTRAST-001 | Embedded Asset Tag Preview lost contrast in application Dark Mode | Inventory / Asset / Tag Preview | P2 | CLOSED | Inner face had transparent background and inherited light text; explicit print-safe face/container colors were added without changing data or print behavior |
 
 | DARFUS-UX7-CUSTOMERS-SUPPLIERS-PRESENTATION-001 | Customer/Supplier master-data surfaces needed clearer scoped hierarchy and contact/identifier readability | Customers / Suppliers UX | P3 | CLOSED | Added UX7-scoped presentation classes only; source authorities, actions and values unchanged |
+
+| DARFUS-UX7B-TABLET-VIEWPORT-EVIDENCE-001 | Required real measured Tablet viewport was unavailable in the in-app browser | UX7B evidence environment | P3 | BLOCKED | No viewport resize/measurement capability; available surface was 1422×800. Do not substitute CSS or mobile evidence. |
+
+| DARFUS-UX7C-DIRECT-TABLET-CONTEXT-001 | Disposable direct browser authenticated but had no active Branch context, preventing populated Customer/Supplier evidence | UX7C runtime/context | P3 | BLOCKED | Dashboard showed `Branch readiness required`; no context or DB mutation was authorized. |

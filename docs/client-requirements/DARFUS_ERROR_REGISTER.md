@@ -105,3 +105,11 @@ Recovery evidence: `DARFUS_GIFT_VOUCHER_MAIN_RUNTIME_PARITY_RECOVERY_01_REPORT.m
 # UX7 Customers / Suppliers presentation (2026-08-28)
 
 - No new application, business, API, database, accounting, POS or permission error was observed. The typecheck issue caused by old UX6B evidence copies was isolated to those non-source copies and resolved by renaming them as snapshot evidence; the final typecheck and build passed.
+
+# UX7B Tablet evidence closeout (2026-08-28)
+
+- Tablet evidence remains incomplete because the available real browser could not set or expose a measured viewport in the required 768–900px range. This is an evidence-environment blocker, not a product defect; no source or business behavior was changed.
+
+# UX7C direct Chrome/Playwright Tablet evidence (2026-08-28)
+
+- Direct Chrome/Playwright measured the required 840×1180 viewport and authenticated, but the isolated session stopped at `Branch readiness required`; populated Customer/Supplier proof could not be reached without a context change. No product defect or mutation was introduced.

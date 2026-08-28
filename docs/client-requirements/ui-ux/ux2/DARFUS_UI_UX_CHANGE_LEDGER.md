@@ -33,3 +33,15 @@ Only `app/globals.css` is the production file changed by UX-2. UX3 changes only 
 | Control | Production scope | Result | Evidence |
 |---|---|---|---|
 | `DARFUS-UIUX-UX7-CUSTOMERS-SUPPLIERS-IMPLEMENTATION-WITH-ROLLBACK-01` | `app/globals.css`, Customer/Supplier list/detail pages, focused UX7 test; scoped presentation/readability/responsive classes only | PASS; business/API/DB/accounting/POS/permission authorities unchanged | UX7 report, AR/EN Light/Dark browser evidence, 43/43 relevant tests, typecheck/build, DB identity proof, after hashes, isolated rollback rehearsal |
+
+## UX7B Tablet evidence closeout (no production change)
+
+| Control | Production scope | Result | Evidence |
+|---|---|---|---|
+| `DARFUS-UIUX-UX7B-CUSTOMERS-SUPPLIERS-TABLET-REAL-BROWSER-EVIDENCE-CLOSEOUT-01` | Documentation/evidence only | BLOCKED; real measured 768–900px viewport unavailable | UX7B baseline, viewport measurements, browser capability blocker, 4/4 focused safety test |
+
+## UX7C Direct Chrome/Playwright Tablet evidence (no production change)
+
+| Control | Production scope | Result | Evidence |
+|---|---|---|---|
+| `DARFUS-UIUX-UX7C-DIRECT-CHROME-PLAYWRIGHT-CDP-TABLET-EVIDENCE-CLOSEOUT-01` | Documentation/evidence only | BLOCKED; direct 840×1180 and auth proven, active Branch context unavailable for populated surfaces | UX7C browser discovery/runtime, viewport measurements, context blocker, source integrity, 4/4 focused test |

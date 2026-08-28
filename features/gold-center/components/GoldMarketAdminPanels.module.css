@@ -1,0 +1,212 @@
+.panelRoot {
+  min-width: 0;
+}
+
+.pageHeader {
+  min-width: 0;
+  padding: .25rem 0;
+}
+
+.sectionNav {
+  display: flex;
+  gap: .5rem;
+  min-width: 0;
+  overflow-x: auto;
+  padding: .25rem;
+  border: 1px solid rgb(var(--border-subtle));
+  border-radius: 1rem;
+  background: rgb(var(--surface-2) / .68);
+  scrollbar-width: thin;
+}
+
+.sectionLink {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: .45rem;
+  min-height: 2.5rem;
+  padding: .55rem .8rem;
+  border: 1px solid transparent;
+  border-radius: .8rem;
+  color: rgb(var(--text-secondary));
+  font-size: .75rem;
+  font-weight: 800;
+  white-space: nowrap;
+  transition: border-color var(--motion-fast), color var(--motion-fast), background-color var(--motion-fast);
+}
+
+.sectionLink:hover,
+.sectionLink:focus-visible {
+  border-color: rgb(var(--gold-primary) / .45);
+  color: rgb(var(--text-primary));
+  background: rgb(var(--surface-interactive));
+  outline: none;
+}
+
+.surface {
+  min-width: 0;
+  border-color: rgb(var(--border-default));
+  box-shadow: 0 12px 28px rgb(var(--sidebar) / .06);
+}
+
+.statusSurface {
+  background: linear-gradient(145deg, rgb(var(--surface-1)), rgb(var(--surface-2) / .74));
+}
+
+.surfaceHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.eyebrow {
+  color: rgb(var(--text-secondary));
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.surfaceTitle {
+  margin-top: .25rem;
+  color: rgb(var(--text-primary));
+  font-size: 1.15rem;
+  font-weight: 900;
+  letter-spacing: -.01em;
+}
+
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: .75rem;
+}
+
+.metric {
+  min-width: 0;
+  padding: .8rem;
+  border: 1px solid rgb(var(--border-subtle));
+  border-radius: .9rem;
+  background: rgb(var(--surface-interactive) / .72);
+}
+
+.metricValue {
+  display: block;
+  max-width: 100%;
+  margin-top: .35rem;
+  color: rgb(var(--text-primary));
+  font-family: var(--font-numeric);
+  font-size: .8rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+
+.dataFrame {
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid rgb(var(--border-subtle));
+  border-radius: 1rem;
+  scrollbar-width: thin;
+}
+
+.dataTable {
+  width: 100%;
+  min-width: 42rem;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: .75rem;
+  text-align: start;
+}
+
+.dataTable th {
+  padding: .8rem 1rem;
+  color: rgb(var(--text-secondary));
+  background: rgb(var(--table-header));
+  font-size: .68rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.dataTable td {
+  padding: .8rem 1rem;
+  border-top: 1px solid rgb(var(--border-subtle));
+  vertical-align: middle;
+}
+
+.dataTable tbody tr {
+  transition: background-color var(--motion-fast);
+}
+
+.dataTable tbody tr:hover {
+  background: rgb(var(--table-row-hover) / .72);
+}
+
+.machineValue {
+  direction: ltr;
+  font-family: var(--font-numeric);
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.providerGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: .75rem;
+}
+
+.providerCard {
+  min-width: 0;
+  padding: .85rem;
+  border: 1px solid rgb(var(--border-subtle));
+  border-radius: .9rem;
+  background: rgb(var(--surface-interactive) / .72);
+}
+
+.providerMeta {
+  margin-top: .35rem;
+  color: rgb(var(--text-secondary));
+  font-size: .7rem;
+  line-height: 1.5;
+}
+
+.notice {
+  border: 1px solid rgb(245 158 11 / .35);
+  border-radius: .9rem;
+  background: rgb(245 158 11 / .1);
+  color: rgb(180 83 9);
+  font-size: .75rem;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+@media (max-width: 640px) {
+  .formGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .surfaceHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dataTable th,
+  .dataTable td {
+    padding-inline: .75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sectionLink,
+  .dataTable tbody tr {
+    transition: none;
+  }
+}

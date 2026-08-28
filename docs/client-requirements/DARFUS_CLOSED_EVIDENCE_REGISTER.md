@@ -143,3 +143,13 @@ not authorize or close the official financial Gift Voucher acceptance retry.
 
 - UX7 closed scoped Customers/Suppliers presentation work with populated list/detail/form evidence in AR/EN and Light/Dark, wide/narrow responsive checks, direct embedded-component sweep, focused/regression tests, typecheck/build, official DB read-only identity proof, after hashes and isolated rollback rehearsal.
 - Customer/Supplier identity, contact, tax, status, financial, permission, POS, API, DB and accounting authorities remained unchanged. No synthetic Customer/Supplier record or business write was created.
+
+- UX7B did not close the Tablet evidence gap: the required measured 768–900px browser viewport was unavailable. UX7 remains closed upstream; UX7B is blocked without changing production source or database state.
+
+- UX7C proved a direct local Chrome/Playwright 840×1180 runtime without touching the personal profile, but did not close the Tablet evidence gap because the disposable authenticated session lacked active Branch context. No source or database mutation occurred.
+
+# UX-7 final Owner waiver (2026-08-28)
+
+- Owner explicitly accepted closure of the incomplete populated Customer/Supplier Tablet evidence caused by the isolated-session Branch-context blocker.
+- Historical truth remains: direct populated Tablet evidence is incomplete. Closure status is `UX7_STATUS = CLOSED_WITH_OWNER_EVIDENCE_WAIVER`; this is not a conversion of missing evidence into PASS.
+- `PRODUCT_DEFECT = NO`, `SOURCE_FIX_REQUIRED = NO`, `P0 = 0`, `P1 = 0`. UX-7 implementation, business contract, AR/EN, Light/Dark, Desktop, Mobile, tests, typecheck, build, main DB safety and rollback remain accepted upstream evidence.

@@ -119,3 +119,21 @@
 | ID | Evidence | Result |
 |---|---|---|
 | DARFUS-UIUX-UX7-CUSTOMERS-SUPPLIERS-IMPLEMENTATION-WITH-ROLLBACK-01 | Scoped Customer/Supplier presentation layer, AR/EN Light/Dark browser evidence, 43/43 relevant tests, typecheck/build, official DB identity read-only proof, after hashes and isolated rollback rehearsal | PASS_DARFUS_UIUX_UX7_CUSTOMERS_SUPPLIERS_IMPLEMENTATION_WITH_ROLLBACK |
+
+# UX7B Tablet evidence closeout (2026-08-28)
+
+| ID | Evidence | Result |
+|---|---|---|
+| DARFUS-UIUX-UX7B-CUSTOMERS-SUPPLIERS-TABLET-REAL-BROWSER-EVIDENCE-CLOSEOUT-01 | Read-only baseline, official DB identity, safe focused test (4/4); required measured 768–900px browser viewport unavailable, so no Tablet PASS was claimed | BLOCKED_DARFUS_UIUX_UX7B_TABLET_REAL_BROWSER_EVIDENCE_UNAVAILABLE |
+
+# UX7C direct Chrome/Playwright Tablet evidence (2026-08-28)
+
+| ID | Evidence | Result |
+|---|---|---|
+| DARFUS-UIUX-UX7C-DIRECT-CHROME-PLAYWRIGHT-CDP-TABLET-EVIDENCE-CLOSEOUT-01 | Direct local Chrome 151 + Playwright 1.51.1 measured 840×1180 and authenticated, but the isolated session required active Branch context before populated Customer/Supplier states; no mutation or source change | BLOCKED_DARFUS_UIUX_UX7C_REQUIRED_CUSTOMER_SUPPLIER_CONTEXT_UNAVAILABLE |
+
+# UX-7 final Owner Tablet evidence waiver (2026-08-28)
+
+| ID | Evidence | Result |
+|---|---|---|
+| DARFUS-UIUX-UX7-OWNER-TABLET-EVIDENCE-WAIVER-FINAL-CLOSURE-01 | Explicit Owner waiver for the isolated-session Branch-context blocker; prior UX7 business/runtime/safety evidence remains accepted and no source/DB change occurred | PASS_DARFUS_UIUX_UX7_WITH_OWNER_TABLET_EVIDENCE_WAIVER |

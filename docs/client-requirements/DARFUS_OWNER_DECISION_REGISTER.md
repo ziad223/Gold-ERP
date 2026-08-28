@@ -10,6 +10,36 @@
 | Official Gift Voucher business acceptance | Not authorized by this schema-promotion control |
 | Next batch | No automatic start |
 
+# UX-7 Owner Tablet Evidence Waiver (2026-08-28)
+
+| Decision | Frozen result |
+|---|---|
+| UX7_TABLET_REAL_BROWSER_EVIDENCE | WAIVED_BY_OWNER |
+| Waiver reason | EPHEMERAL_BROWSER_SESSION_BRANCH_CONTEXT_BLOCKER_AFTER_DIRECT_840X1180_BROWSER_PROOF |
+| Product defect | NO |
+| Source fix required | NO |
+| Residual risk accepted | YES; Tablet-only defect on populated Customer/Supplier surfaces remains unproven |
+| UX7 status | CLOSED_WITH_OWNER_EVIDENCE_WAIVER |
+| Next stage | UX-8 Gold Center; not started automatically |
+
+This waiver closes the evidence gap only. It does not convert missing Tablet evidence into PASS and does not waive business, API, DB, accounting, permissions, AR/EN, Light/Dark, Desktop, Mobile, test, typecheck, build, safety, or rollback requirements.
+
+# UX7B evidence decision (2026-08-28)
+
+| Decision | State |
+|---|---|
+| Tablet proof | BLOCKED until a real browser surface can be measured at 768–900px; no CSS/mobile substitution accepted |
+| Production changes | None in UX7B |
+| Next stage | UX-8 is not started automatically |
+
+# UX7C evidence decision (2026-08-28)
+
+| Decision | State |
+|---|---|
+| Direct Tablet evidence | Viewport proven at 840×1180, but populated Customer/Supplier proof blocked by missing active Branch context in disposable session |
+| Context handling | No context injection or DB mutation performed |
+| Next stage | UX-8 is not started automatically |
+
 # UX7 owner decision record (2026-08-28)
 
 | Decision | State |
