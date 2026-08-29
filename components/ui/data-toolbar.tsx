@@ -89,6 +89,7 @@ export function DataToolbar({
             variant="secondary"
             onClick={onReset}
             disabled={!hasActiveFilters}
+            aria-label={resetLabel}
             className="shrink-0"
           >
             <RotateCcw className="h-4 w-4" />

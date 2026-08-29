@@ -188,3 +188,7 @@ not authorize or close the official financial Gift Voucher acceptance retry.
 - Disposable direct component, AR/EN, Light/Dark, Tablet, print-media, fixture, network, cleanup, and source/DB isolation evidence was recorded.
 - The existing print-export test remains 16/17 because one test body omits navigation; this is explicitly open and was not corrected in UX11C.
 - `UX11C_STATUS = BLOCKED_FOR_EVIDENCE`; no UX11 or UX12 closure was inferred, and no Gift Voucher/CGP open item was closed.
+- UX-12 evidence is recorded in `docs/client-requirements/ui-ux/ux12/`; direct Chrome AR/EN/theme/responsive evidence and DB zero-delta proof are present, while print headless runner evidence remains open.
+- UX-12 does not close `UX11C-PRINT-EXPORT-STALE-NAVIGATION-TEST-001` or any prior Gift Voucher/CGP open issue.
+- UX-12B closeout evidence is recorded under `docs/client-requirements/ui-ux/ux12b/` and `backups/ui-ux/UX12B_FINAL_EVIDENCE_20260829T170000Z/`; UX12B remains blocked and did not close any pre-existing issue.
+- UX-12B Recovery evidence is recorded under `docs/client-requirements/ui-ux/ux12b/` and the same evidence directory; the build-scope correction remains Owner-gated and no previous open issue was closed.

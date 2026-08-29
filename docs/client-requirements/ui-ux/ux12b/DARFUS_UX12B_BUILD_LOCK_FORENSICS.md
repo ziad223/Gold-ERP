@@ -1,0 +1,3 @@
+# UX-12B Build Lock Forensics
+
+At initial UX-12B capture there was no `.next/lock` and no `next build` process. The dedicated build later created a live lock and process chain: PowerShell → `cmd /c npm run build` → npm → `cmd /d /s /c next build`; output showed `Creating an optimized production build`, then `Compiled successfully in 44s`, then TypeScript. This proved it was live, not stale, so it was not killed. The failure came from a pre-existing backup artifact under `backups/ui-ux/UX11_PRINT_PREVIEW_20260828T223310Z/rollback/before-restored/source/lib/print/print-config.ts` importing missing `./print-types`. The lock cleared after the process ended.

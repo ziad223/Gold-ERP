@@ -9,6 +9,10 @@
 | Pearl markup data | Separate Owner decision/track; not changed here |
 | Official Gift Voucher business acceptance | Not authorized by this schema-promotion control |
 | Next batch | No automatic start |
+| UX-12 gate disposition | Owner review required: direct Chrome regression passed, but print headless executable and final synchronized build exit evidence remain incomplete |
+| UX-12 source repair | One presentation-only `aria-label={resetLabel}` addition in shared DataToolbar; no business/API/DB authority changed |
+| UX-12B disposition | Direct Chrome console logs and DataToolbar/hash/DB proof passed; build exit 1 from pre-existing rollback artifact and separate pageerror/requestfailed hooks remain evidence blockers |
+| UX-12B Recovery decision | Owner approval required before the proposed narrow `tsconfig.json` exclusion for ignored `backups/**`; no repository change applied |
 
 # UX-11C Disposable Evidence Harness (2026-08-28)
 
