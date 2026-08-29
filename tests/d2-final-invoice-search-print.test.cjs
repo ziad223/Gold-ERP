@@ -12,11 +12,11 @@ const hook = read("features/sales/hooks/use-invoice-search-print.ts");
 const page = read("app/[locale]/(dashboard)/sales/search-print/page.tsx");
 const printModel = read("features/printing/lib/invoice-print-view-model.ts");
 
-test("D2 active projection registry is exact and future invoice families remain inactive", () => {
-  for (const sourceType of ["sale", "return", "exchange", "installment", "deposit", "customer_gold_purchase"]) {
+test("D2 active projection registry includes the authorized Gift Voucher adapter and future families remain inactive", () => {
+  for (const sourceType of ["sale", "return", "exchange", "installment", "deposit", "customer_gold_purchase", "gift_voucher"]) {
     assert.match(service, new RegExp(`sourceType: "${sourceType}"`));
   }
-  assert.match(service, /gift_voucher:[\s\S]*?status: "SUPPORTED_LATER"[\s\S]*?canViewDetail: false[\s\S]*?canPrint: false/);
+  assert.match(service, /gift_voucher:[\s\S]*?status: "SUPPORTED_NOW"[\s\S]*?adapter: "gift_voucher"[\s\S]*?canViewDetail: true[\s\S]*?canPrint: true/);
   assert.match(service, /purchase_order:[\s\S]*?status: "NOT_AN_INVOICE"[\s\S]*?canViewDetail: false/);
   assert.match(service, /repair:[\s\S]*?status: "NOT_AN_INVOICE"[\s\S]*?canViewDetail: false/);
 });
@@ -43,10 +43,10 @@ test("D2 API contract is GET-only for search/detail and print authorization is e
   assert.doesNotMatch(route, /router\.(put|patch|delete)\("\/summaries/);
 });
 
-test("D2 UI uses the projection source, six-type multi-select, row detail, and employee filter", () => {
+test("D2 UI uses the projection source, seven-type multi-select, row detail, and employee filter", () => {
   assert.match(hook, /\/invoice-projection\/summaries\?/);
   assert.doesNotMatch(hook, /\/invoices\/search-print/);
-  for (const sourceType of ["sale", "return", "exchange", "installment", "deposit", "customer_gold_purchase"]) {
+  for (const sourceType of ["sale", "return", "exchange", "installment", "deposit", "customer_gold_purchase", "gift_voucher"]) {
     assert.match(hook, new RegExp(`"${sourceType}"`));
   }
   assert.match(page, /invoice-type|typeLabel/);
@@ -55,6 +55,7 @@ test("D2 UI uses the projection source, six-type multi-select, row detail, and e
   assert.doesNotMatch(page, /employee-salesperson[\s\S]{0,300}disabled/);
   assert.match(page, /onClick=\{\(\) => openInvoice\(invoice\)\}/);
   assert.match(page, /sourceType === "customer_gold_purchase"/);
+  assert.match(page, /type === "gift_voucher"/);
   assert.match(hook, /\/invoice-projection\/\$\{invoice\?\.type\}\/\$\{invoice\?\.id\}/);
   assert.match(page, /InvoiceReadOnlyDetail/);
 });
@@ -66,4 +67,5 @@ test("D2 CGP detail and print use stored projection evidence without financial r
   assert.doesNotMatch(printModel, /goldWeight[\s\S]{0,500}(\+|\*|\/)[\s\S]{0,500}(rate|vat|tax)/i);
   assert.match(page, /type === "customer_gold_purchase"/);
   assert.match(page, /type: "customerGoldPurchase"/);
+  assert.match(page, /type: "giftVoucher"/);
 });

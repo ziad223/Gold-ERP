@@ -883,7 +883,11 @@ function SpecialSections({
         <div className="luxury-box">
           <BoxTitle en="GIFT VOUCHER SUMMARY" ar="ملخص قسيمة الهدية" showEnglish={showEnglish} showArabic={showArabic} />
           <DetailRow labelAr="رقم القسيمة" labelEn="Voucher Number" value={text(special.giftVoucher.voucherNumber)} showEnglish={showEnglish} showArabic={showArabic} />
+          <DetailRow labelAr="رمز القسيمة" labelEn="Voucher Code" value={text(special.giftVoucher.voucherCode)} showEnglish={showEnglish} showArabic={showArabic} />
           <DetailRow labelAr="قيمة القسيمة" labelEn="Voucher Value" value={money(special.giftVoucher.voucherValue)} showEnglish={showEnglish} showArabic={showArabic} />
+          <DetailRow labelAr="العملة" labelEn="Currency" value={text(special.giftVoucher.currency)} showEnglish={showEnglish} showArabic={showArabic} />
+          <DetailRow labelAr="تاريخ الإصدار" labelEn="Issue Date" value={text(special.giftVoucher.issueDate)} showEnglish={showEnglish} showArabic={showArabic} />
+          <DetailRow labelAr="الحالة" labelEn="Status" value={text(special.giftVoucher.status)} showEnglish={showEnglish} showArabic={showArabic} />
           <DetailRow labelAr="تاريخ الانتهاء" labelEn="Expiry Date" value={text(special.giftVoucher.expiryDate)} showEnglish={showEnglish} showArabic={showArabic} />
           <DetailRow labelAr={special.giftVoucher.redemptionPolicyAr ?? "الاستخدام الكامل فقط"} labelEn={special.giftVoucher.redemptionPolicyEn ?? "Full redemption only"} value="—" showEnglish={showEnglish} showArabic={showArabic} />
         </div>

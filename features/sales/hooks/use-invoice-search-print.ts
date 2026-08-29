@@ -8,7 +8,7 @@ import { toFiniteNumber } from "@/lib/api/normalize";
 import { getDataSourceMode } from "@/lib/data-source";
 import type { Invoice, InvoiceItem } from "@/lib/types";
 
-export const SEARCH_PRINT_INVOICE_TYPES = ["sale", "return", "exchange", "installment", "deposit", "customer_gold_purchase"] as const;
+export const SEARCH_PRINT_INVOICE_TYPES = ["sale", "return", "exchange", "installment", "deposit", "customer_gold_purchase", "gift_voucher"] as const;
 export const SEARCH_PRINT_STATUSES = ["draft", "posted", "closed", "cancelled", "returned"] as const;
 
 export type SearchPrintInvoiceType = (typeof SEARCH_PRINT_INVOICE_TYPES)[number];
@@ -33,6 +33,7 @@ export interface InvoiceProjectionDetail {
   paymentSummary?: Record<string, any>;
   sourceLinks?: Record<string, any>;
   audit?: Record<string, any>;
+  voucher?: Record<string, any>;
 }
 
 export interface SearchPrintInvoice extends Invoice {

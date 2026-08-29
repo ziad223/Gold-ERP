@@ -115,6 +115,7 @@ export default function InvoicesSearchPrintPage() {
       installment: ["Installment", "تقسيط"],
       deposit: ["Deposit", "عربون"],
       customer_gold_purchase: ["Customer Gold Purchase", "شراء ذهب من عميل"],
+      gift_voucher: ["Gift Voucher", "قسيمة هدية"],
     };
     const value = labels[type || "sale"];
     return label(value[0], value[1]);
@@ -163,6 +164,8 @@ export default function InvoicesSearchPrintPage() {
   const printInvoice = (invoice: Invoice, options: InvoicePrintOptions = savedPrintDefaults) => {
     const printableInvoice = invoice.type === "customer_gold_purchase"
       ? { ...invoice, type: "customerGoldPurchase" as const }
+      : invoice.type === "gift_voucher"
+        ? { ...invoice, type: "giftVoucher" as const }
       : invoice;
     const mappedPaperSize = options.templateId === "thermal" ? "80mm" : "A4";
     const html = renderPrintDocument(
@@ -244,6 +247,10 @@ export default function InvoicesSearchPrintPage() {
   const authorizeAndPrint = async (invoice: Invoice, options: InvoicePrintOptions = savedPrintDefaults) => {
     const sourceType = String((invoice as Invoice & { type?: string }).type || "sale");
     const key = `${sourceType}:${invoice.id}`;
+    if (sourceType === "gift_voucher") {
+      printInvoice(invoice, options);
+      return;
+    }
     const isReprint = printedInvoiceIds.has(key);
     const path = sourceType === "customer_gold_purchase"
       ? `/invoice-projection/${sourceType}/${invoice.id}/print-events`
@@ -399,8 +406,8 @@ export default function InvoicesSearchPrintPage() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
             <p className="max-w-3xl text-xs leading-6 text-muted-foreground">
               {label(
-                "Supported projection sources: sale, return, exchange, installment, deposit, and customer gold purchase. Gift vouchers remain an inactive source until their projection contract is approved.",
-                "مصادر العرض المدعومة: المبيعات والمرتجعات والاستبدال والتقسيط والعربون وشراء ذهب من عميل. تبقى قسائم الهدايا غير مفعّلة حتى اعتماد عقد العرض الخاص بها.",
+                "Supported read-only projection sources: sale, return, exchange, installment, deposit, customer gold purchase, and gift voucher.",
+                "مصادر العرض المدعومة للقراءة فقط: المبيعات والمرتجعات والاستبدال والتقسيط والعربون وشراء ذهب من عميل وقسائم الهدايا.",
               )}
             </p>
             <div className="flex gap-2">
@@ -553,6 +560,7 @@ export default function InvoicesSearchPrintPage() {
                   money={money}
                 />
                 {selectedDetail.type === "customer_gold_purchase" && <CgpEvidence invoice={selectedDetail} label={label} />}
+                {selectedDetail.type === "gift_voucher" && <GiftVoucherEvidence invoice={selectedDetail} label={label} currency={currency} />}
                 <Button type="button" className="w-full" onClick={() => { setPrintTarget(selectedDetail); }}>
                   <Printer className="h-4 w-4" />
                   {printT("printInvoice")}
@@ -628,6 +636,40 @@ function CgpEvidence({
             <p className="mt-1 text-[11px] text-muted-foreground">
               {label("Stored rate", "السعر المحفوظ")}: {String(line.rate?.value ?? line.proposedRate ?? "—")}
             </p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function GiftVoucherEvidence({
+  invoice,
+  label,
+  currency,
+}: {
+  invoice: SearchPrintInvoice;
+  label: (english: string, arabic: string) => string;
+  currency: string;
+}) {
+  const voucher = invoice.projectionDetail?.voucher || invoice.projectionSummary || {};
+  const moneyValue = voucher.faceValue ?? invoice.total;
+  const info = [
+    [label("Voucher number", "رقم القسيمة"), voucher.voucherNumber ?? invoice.invoiceNumber ?? invoice.id],
+    [label("Voucher code", "رمز القسيمة"), voucher.voucherCode ?? "—"],
+    [label("Value", "القيمة"), `${moneyValue ?? "—"} ${voucher.currency ?? currency}`],
+    [label("Voucher status", "حالة القسيمة"), voucher.status ?? invoice.projectionSummary?.voucherStatus ?? "—"],
+    [label("Issued date", "تاريخ الإصدار"), voucher.issuedAt ?? invoice.date ?? "—"],
+    [label("Customer", "العميل"), voucher.customerName ?? invoice.customerName ?? label("Anonymous", "بدون عميل")],
+  ];
+  return (
+    <section className="rounded-3xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/30 dark:bg-amber-500/10" aria-label={label("Gift Voucher evidence", "بيانات قسيمة الهدية")}>
+      <h3 className="text-sm font-extrabold">{label("Gift Voucher", "قسيمة هدية")}</h3>
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        {info.map(([name, value]) => (
+          <div key={name} className="rounded-2xl bg-white/70 p-3 dark:bg-slate-950/30">
+            <p className="text-[10px] text-muted-foreground">{name}</p>
+            <p className="mt-1 text-xs font-extrabold">{String(value || "—")}</p>
           </div>
         ))}
       </div>

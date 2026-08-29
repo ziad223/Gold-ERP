@@ -140,7 +140,11 @@ export type InvoicePrintViewModel = {
     };
     giftVoucher?: {
       voucherNumber?: string;
+      voucherCode?: string;
       voucherValue?: number;
+      currency?: string;
+      issueDate?: string;
+      status?: string;
       expiryDate?: string;
       redemptionPolicyAr?: string;
       redemptionPolicyEn?: string;
@@ -461,11 +465,22 @@ function buildSpecialSections(
   }
 
   if (type === "giftVoucher") {
-    addWarning(warnings, "gift_voucher_fields_missing");
+    const projectionSummary = (invoice as Invoice & { projectionSummary?: Record<string, unknown> }).projectionSummary || {};
+    const projectionDetail = (invoice as Invoice & { projectionDetail?: { voucher?: Record<string, unknown> } }).projectionDetail;
+    const voucher = projectionDetail?.voucher || projectionSummary;
+    const voucherNumber = asString(voucher.voucherNumber) ?? invoice.invoiceNumber ?? invoice.id;
+    const voucherCode = asString(voucher.voucherCode);
+    const voucherValue = asNumber(voucher.faceValue) ?? asNumber(invoice.total);
+    if (!voucherCode || voucherValue === undefined) addWarning(warnings, "gift_voucher_fields_missing");
     return {
       giftVoucher: {
-        voucherNumber: invoice.invoiceNumber || invoice.id,
-        voucherValue: asNumber(invoice.total),
+        voucherNumber,
+        voucherCode,
+        voucherValue,
+        currency: asString(voucher.currency),
+        issueDate: asString(voucher.issuedAt) ?? invoice.date,
+        status: asString(voucher.status) ?? asString(voucher.voucherStatus),
+        expiryDate: asString(voucher.expiryDate),
         redemptionPolicyAr: "الاستخدام الكامل فقط.",
         redemptionPolicyEn: "Full redemption only.",
       },

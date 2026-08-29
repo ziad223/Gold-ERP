@@ -317,6 +317,7 @@ export type InvoiceType =
   | "repair"
   | "installment"
   | "giftVoucher"
+  | "gift_voucher"
   | "customerGoldPurchase"
   | "customer_gold_purchase";
 
