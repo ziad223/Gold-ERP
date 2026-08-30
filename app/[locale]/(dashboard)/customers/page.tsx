@@ -19,7 +19,7 @@ import { useCustomers, useCustomerMutations } from "@/hooks/use-customers";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Link } from "@/i18n/navigation";
 import { toast } from "sonner";
-import type { Customer, CustomerTier } from "@/lib/types";
+import type { Customer, CustomerDuplicateCandidate, CustomerTier } from "@/lib/types";
 import { CustomerAddressFields } from "@/features/customers/components/CustomerAddressFields";
 import {
   customerAddressFromDraft,
@@ -86,6 +86,7 @@ export default function CustomersPage() {
 
   const {
     loading: mutationLoading,
+    findPotentialDuplicates,
     addCustomer,
     updateCustomer,
     deactivateCustomer,
@@ -102,10 +103,23 @@ export default function CustomersPage() {
   const [isEdit, setIsEdit] = useState(false);
   const [includeAddress, setIncludeAddress] = useState(false);
   const [addressDraft, setAddressDraft] = useState(emptyCustomerAddressDraft);
+  const [duplicateCandidates, setDuplicateCandidates] = useState<CustomerDuplicateCandidate[]>([]);
+  const [duplicateReviewAcknowledged, setDuplicateReviewAcknowledged] = useState(false);
+
+  const clearDuplicateReview = () => {
+    setDuplicateCandidates([]);
+    setDuplicateReviewAcknowledged(false);
+  };
+
+  const updateForm = (updates: Partial<typeof initialCustomer>) => {
+    setForm((current) => ({ ...current, ...updates }));
+    if (!isEdit) clearDuplicateReview();
+  };
 
   const handleOpenAdd = () => {
     setIsEdit(false);
     setForm(initialCustomer);
+    clearDuplicateReview();
     setIncludeAddress(false);
     setAddressDraft(emptyCustomerAddressDraft());
     setOpen(true);
@@ -113,6 +127,7 @@ export default function CustomersPage() {
 
   const handleOpenEdit = (c: Customer) => {
     setIsEdit(true);
+    clearDuplicateReview();
     setForm({
       id: c.id,
       name: c.name,
@@ -166,14 +181,38 @@ export default function CustomersPage() {
       } else {
         const initialAddress = customerAddressFromDraft(addressDraft);
         delete initialAddress.isPrimary;
-        const res = await addCustomer({
+        const createPayload = {
           name: form.name.trim(),
           phone: form.phone.trim(),
           email: form.email.trim(),
           tier: form.tier,
           notes: form.notes.trim(),
           ...(includeAddress && addressValidation.started ? { addresses: [initialAddress] } : {}),
-        });
+        };
+        const duplicateResult = await findPotentialDuplicates(createPayload);
+        const candidates = duplicateResult.candidates || [];
+        const hardPhoneMatch = candidates.some((candidate) =>
+          candidate.matchReasons.includes("EXACT_NORMALIZED_PHONE_MATCH"),
+        );
+        setDuplicateCandidates(candidates);
+        if (hardPhoneMatch) {
+          setDuplicateReviewAcknowledged(false);
+          toast.error(
+            locale === "ar"
+              ? "يوجد عميل بنفس رقم الهاتف بعد التطبيع. راجع سجل العميل الموجود قبل إنشاء هوية جديدة."
+              : "A customer with the same normalized phone already exists. Review the existing customer before creating another identity.",
+          );
+          return;
+        }
+        if (candidates.length > 0 && !duplicateReviewAcknowledged) {
+          toast.error(
+            locale === "ar"
+              ? "راجع العملاء المحتمل تشابههم وأكّد أنهم ليسوا نفس الشخص قبل الحفظ."
+              : "Review the potential matches and confirm they are different people before saving.",
+          );
+          return;
+        }
+        const res = await addCustomer(createPayload);
         if (res.success) {
           toast.success(common("saved"));
           setOpen(false);
@@ -636,7 +675,7 @@ export default function CustomersPage() {
               className="input-base"
               data-testid="customer-form-name"
               value={form.name}
-              onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+              onChange={(event) => updateForm({ name: event.target.value })}
             />
           </label>
           <label>
@@ -646,7 +685,7 @@ export default function CustomersPage() {
               className="input-base"
               data-testid="customer-form-phone"
               value={form.phone}
-              onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))}
+              onChange={(event) => updateForm({ phone: event.target.value })}
             />
           </label>
           <label>
@@ -656,7 +695,7 @@ export default function CustomersPage() {
               className="input-base"
               data-testid="customer-form-email"
               value={form.email}
-              onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+              onChange={(event) => updateForm({ email: event.target.value })}
             />
           </label>
           <label className="sm:col-span-2">
@@ -665,9 +704,7 @@ export default function CustomersPage() {
               className="input-base"
               data-testid="customer-form-tier"
               value={form.tier}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, tier: event.target.value as CustomerTier }))
-              }
+              onChange={(event) => updateForm({ tier: event.target.value as CustomerTier })}
             >
               <option value="Standard">{t("standard")}</option>
               <option value="Gold">{t("gold")}</option>
@@ -681,7 +718,7 @@ export default function CustomersPage() {
               data-testid="customer-form-notes"
               rows={2}
               value={form.notes}
-              onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
+              onChange={(event) => updateForm({ notes: event.target.value })}
             />
           </label>
           {!isEdit && (
@@ -731,6 +768,85 @@ export default function CustomersPage() {
                   </p>
                 </div>
               )}
+            </section>
+          )}
+          {!isEdit && duplicateCandidates.length > 0 && (
+            <section
+              className="rounded-2xl border border-amber-300 bg-amber-50/80 p-4 sm:col-span-2 dark:border-amber-800 dark:bg-amber-950/30"
+              data-testid="customer-duplicate-review"
+              aria-live="polite"
+            >
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-black text-amber-950 dark:text-amber-100">
+                    {duplicateCandidates.some((candidate) =>
+                      candidate.matchReasons.includes("EXACT_NORMALIZED_PHONE_MATCH"),
+                    )
+                      ? locale === "ar"
+                        ? "توجد هوية عميل محتملة بنفس رقم الهاتف"
+                        : "A potential customer identity uses the same normalized phone"
+                      : locale === "ar"
+                        ? "تم العثور على عملاء محتمل تشابههم"
+                        : "Potentially similar customers were found"}
+                  </p>
+                  <p className="mt-1 text-xs text-amber-900/80 dark:text-amber-200/80">
+                    {duplicateCandidates.some((candidate) =>
+                      candidate.matchReasons.includes("EXACT_NORMALIZED_PHONE_MATCH"),
+                    )
+                      ? locale === "ar"
+                        ? "لا يمكن إنشاء هوية ثانية بنفس رقم الهاتف. افتح السجل الموجود وراجعه."
+                        : "A second identity with the same normalized phone cannot be created. Review the existing record."
+                      : locale === "ar"
+                        ? "راجع النتائج قبل الحفظ؛ تشابه الاسم وحده لا يثبت أن العميل هو نفس الشخص."
+                        : "Review the results before saving; a name match alone does not prove the customer is the same person."}
+                  </p>
+                  <ul className="mt-3 space-y-2" data-testid="customer-duplicate-candidates">
+                    {duplicateCandidates.map((candidate) => (
+                      <li
+                        key={candidate.candidateCustomerId}
+                        className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-amber-200 bg-white/70 px-3 py-2 text-xs dark:border-amber-900 dark:bg-slate-950/30"
+                      >
+                        <Link
+                          href={`/customers/${encodeURIComponent(candidate.candidateCustomerId)}`}
+                          className="font-bold text-brand-700 underline-offset-2 hover:underline dark:text-brand-300"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {candidate.name} ({candidate.candidateCustomerId})
+                        </Link>
+                        <span className="text-amber-900/80 dark:text-amber-200/80">
+                          {candidate.matchReasons.includes("EXACT_NORMALIZED_PHONE_MATCH")
+                            ? locale === "ar"
+                              ? "تطابق هاتف"
+                              : "Phone match"
+                            : locale === "ar"
+                              ? "تشابه اسم للمراجعة"
+                              : "Name review signal"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {!duplicateCandidates.some((candidate) =>
+                    candidate.matchReasons.includes("EXACT_NORMALIZED_PHONE_MATCH"),
+                  ) && (
+                    <label className="mt-4 flex items-start gap-2 text-xs font-semibold text-amber-950 dark:text-amber-100">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-4 w-4 rounded border-amber-400 text-brand-600 focus:ring-brand-500"
+                        data-testid="customer-duplicate-review-ack"
+                        checked={duplicateReviewAcknowledged}
+                        onChange={(event) => setDuplicateReviewAcknowledged(event.target.checked)}
+                      />
+                      <span>
+                        {locale === "ar"
+                          ? "راجعت النتائج وأؤكد أن العميل الجديد ليس هوية مكررة."
+                          : "I reviewed the results and confirm this new customer is not a duplicate identity."}
+                      </span>
+                    </label>
+                  )}
+                </div>
+              </div>
             </section>
           )}
           <div className="flex justify-end gap-2 sm:col-span-2">

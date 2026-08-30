@@ -29,6 +29,7 @@ import type {
   Customer,
   CustomerCreatePayload,
   CustomerUpdatePayload,
+  CustomerDuplicateCheckResult,
   Supplier,
   Employee,
   Asset,
@@ -206,6 +207,43 @@ export class LocalCustomerRepository implements CustomerRepository {
   async getById(id: string): Promise<Customer | null> {
     const customer = this.ctx.customers.find((c) => c.id === id);
     return customer ? { ...customer } : null;
+  }
+
+  async findPotentialDuplicates(input: { name: string; phone: string }): Promise<CustomerDuplicateCheckResult> {
+    const phone = normalizePhone(input.phone);
+    const name = String(input.name || "").trim().toLowerCase();
+    const signalsEvaluated = [
+      ...(phone ? ["PHONE_NORMALIZED"] : []),
+      ...(name ? ["NAME_CASEFOLDED"] : []),
+    ];
+    const candidates = this.ctx.customers
+      .filter((customer) => {
+        const phoneMatch = Boolean(phone) && normalizePhone(customer.phone) === phone;
+        const nameMatch = Boolean(name) && String(customer.name || "").trim().toLowerCase() === name;
+        return phoneMatch || nameMatch;
+      })
+      .map((customer) => {
+        const matchReasons = [
+          ...(phone && normalizePhone(customer.phone) === phone ? ["EXACT_NORMALIZED_PHONE_MATCH" as const] : []),
+          ...(name && String(customer.name || "").trim().toLowerCase() === name ? ["WEAK_NAME_MATCH" as const] : []),
+        ];
+        return {
+          candidateCustomerId: customer.id,
+          name: customer.name,
+          phone: customer.phone,
+          email: customer.email || null,
+          status: customer.status || null,
+          tier: customer.tier || null,
+          branchRelationships: [],
+          classification: matchReasons.length > 1 ? "MULTI_SIGNAL_MATCH" as const : matchReasons[0],
+          matchReasons,
+        };
+      });
+    return {
+      candidates,
+      signalsEvaluated,
+      hardMatchPresent: candidates.some((candidate) => candidate.matchReasons.includes("EXACT_NORMALIZED_PHONE_MATCH")),
+    };
   }
 
   async create(customer: CustomerCreatePayload): Promise<MutationResult<Customer>> {

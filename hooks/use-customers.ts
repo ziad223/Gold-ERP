@@ -101,6 +101,15 @@ export function useCustomerMutations() {
   const { customerRepository } = useErp();
   const [loading, setLoading] = useState(false);
 
+  const findPotentialDuplicates = useCallback(async (input: CustomerCreatePayload) => {
+    setLoading(true);
+    try {
+      return await customerRepository.findPotentialDuplicates({ name: input.name, phone: input.phone });
+    } finally {
+      setLoading(false);
+    }
+  }, [customerRepository]);
+
   const addCustomer = useCallback(async (customer: CustomerCreatePayload) => {
     setLoading(true);
     try {
@@ -148,6 +157,7 @@ export function useCustomerMutations() {
 
   return {
     loading,
+    findPotentialDuplicates,
     addCustomer,
     updateCustomer,
     deactivateCustomer,

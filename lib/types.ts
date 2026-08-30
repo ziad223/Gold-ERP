@@ -253,6 +253,28 @@ export interface Customer {
   updatedAt?: string;
 }
 
+export type CustomerDuplicateMatchReason =
+  | "EXACT_NORMALIZED_PHONE_MATCH"
+  | "WEAK_NAME_MATCH";
+
+export interface CustomerDuplicateCandidate {
+  candidateCustomerId: string;
+  name: string;
+  phone: string;
+  email: string | null;
+  status?: Customer["status"] | null;
+  tier?: CustomerTier | null;
+  branchRelationships: Array<{ branchId: string; isActive: boolean }>;
+  classification: "EXACT_NORMALIZED_PHONE_MATCH" | "MULTI_SIGNAL_MATCH" | "WEAK_NAME_MATCH" | "NO_MATCH";
+  matchReasons: CustomerDuplicateMatchReason[];
+}
+
+export interface CustomerDuplicateCheckResult {
+  candidates: CustomerDuplicateCandidate[];
+  signalsEvaluated: string[];
+  hardMatchPresent?: boolean;
+}
+
 /** Read-only selected-customer projection used by POS only. */
 export interface PosCustomerSummary {
   id: string;

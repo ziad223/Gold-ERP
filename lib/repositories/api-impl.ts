@@ -32,11 +32,13 @@ import type {
   SupplierPaymentInput,
   SupplierPaymentReversalInput,
   SupplierPaymentResult,
+  CustomerDuplicateCheckInput,
 } from "./interfaces";
 import type {
   Customer,
   CustomerCreatePayload,
   CustomerUpdatePayload,
+  CustomerDuplicateCheckResult,
   Supplier,
   Employee,
   Asset,
@@ -104,6 +106,18 @@ export class ApiCustomerRepository implements CustomerRepository {
     return apiClient<any>(`/customers/${id}`, auth())
       .then((res) => normalizeEntity<Customer>(res))
       .catch(() => null);
+  }
+
+  async findPotentialDuplicates(input: CustomerDuplicateCheckInput): Promise<CustomerDuplicateCheckResult> {
+    const params = new URLSearchParams();
+    if (input.name) params.set("name", input.name);
+    if (input.phone) params.set("phone", input.phone);
+    const query = params.toString();
+    const res = await apiClient<any>(`/customers/duplicate-check${query ? `?${query}` : ""}`, {
+      ...auth(),
+      skipBranch: true,
+    });
+    return (res?.data ?? res) as CustomerDuplicateCheckResult;
   }
 
   async create(customer: CustomerCreatePayload): Promise<MutationResult<Customer>> {

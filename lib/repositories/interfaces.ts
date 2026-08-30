@@ -3,6 +3,7 @@ import type {
   Customer,
   CustomerCreatePayload,
   CustomerUpdatePayload,
+  CustomerDuplicateCheckResult,
   Supplier,
   Employee,
   EmployeeBranchAccess,
@@ -27,6 +28,8 @@ import type {
   SupplierConsignment,
   SupplierDocument,
 } from "../types";
+
+export type CustomerDuplicateCheckInput = Pick<CustomerCreatePayload, "name" | "phone">;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Unified Envelope & Queries
@@ -68,6 +71,7 @@ export type MutationResult<T> = {
 export interface CustomerRepository {
   list(query: ListQuery): Promise<PaginatedResult<Customer>>;
   getById(id: string): Promise<Customer | null>;
+  findPotentialDuplicates(input: CustomerDuplicateCheckInput): Promise<CustomerDuplicateCheckResult>;
   create(customer: CustomerCreatePayload): Promise<MutationResult<Customer>>;
   update(id: string, updates: CustomerUpdatePayload): Promise<MutationResult<Customer>>;
   deactivate(id: string, reason?: string): Promise<MutationResult<Customer>>;
