@@ -67,7 +67,10 @@ export function Breadcrumbs() {
       <ol className="flex min-w-0 flex-wrap items-center gap-1.5">
         {items.map((segment, index) => {
           const isLast = index === items.length - 1;
-          const href = `/${items.slice(0, index + 1).join("/")}`;
+          // `dashboard` is a display-only home crumb for non-dashboard pages.
+          // Build descendants from the actual pathname segments so the
+          // synthetic crumb never leaks into public URLs.
+          const href = index === 0 ? "/dashboard" : `/${segments.slice(0, index).join("/")}`;
           return (
             <li key={`${segment}-${index}`} className="flex min-w-0 items-center gap-1.5">
               {index > 0 && <ChevronRight aria-hidden="true" className={`h-3.5 w-3.5 shrink-0 text-muted ${rtl ? "rotate-180" : ""}`} />}
