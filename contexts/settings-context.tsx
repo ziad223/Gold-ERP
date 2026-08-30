@@ -32,6 +32,8 @@ export interface AppSettings {
   email?: string;
   website?: string;
   country?: string;
+  /** Company UI default only; never inferred into customer identity. */
+  defaultPhoneCountry?: string;
   city?: string;
   region?: string;
   address1?: string;
@@ -103,6 +105,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   businessName: "DARFUS Jewellery",
   logo: "",
   currency: "AED",
+  defaultPhoneCountry: "AE",
   vatRate: 5,
   lowStockThreshold: 3,
   decimalPrecision: 2,
@@ -313,6 +316,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           businessName: res.data.company?.businessName || DEFAULT_SETTINGS.businessName,
           logo: res.data.company?.logo || DEFAULT_SETTINGS.logo,
           currency: res.data.currency || DEFAULT_SETTINGS.currency,
+          defaultPhoneCountry: res.data.company?.defaultPhoneCountry || DEFAULT_SETTINGS.defaultPhoneCountry,
           vatRate: res.data.vatRate ?? DEFAULT_SETTINGS.vatRate,
           lowStockThreshold: res.data.lowStockThreshold ?? DEFAULT_SETTINGS.lowStockThreshold,
           decimalPrecision: res.data.decimalPrecision ?? DEFAULT_SETTINGS.decimalPrecision,
@@ -441,6 +445,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       if (updates.email !== undefined) payload.email = updates.email;
       if (updates.website !== undefined) payload.website = updates.website;
       if (updates.country !== undefined) payload.country = updates.country;
+      if (updates.defaultPhoneCountry !== undefined) payload.defaultPhoneCountry = updates.defaultPhoneCountry;
       if (updates.city !== undefined) payload.city = updates.city;
       if (updates.region !== undefined) payload.region = updates.region;
       if (updates.address1 !== undefined) payload.address1 = updates.address1;

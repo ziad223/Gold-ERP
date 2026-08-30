@@ -29,7 +29,7 @@ import type {
   SupplierDocument,
 } from "../types";
 
-export type CustomerDuplicateCheckInput = Pick<CustomerCreatePayload, "name" | "phone">;
+export type CustomerDuplicateCheckInput = Pick<CustomerCreatePayload, "name" | "phone" | "phoneCountry">;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Unified Envelope & Queries

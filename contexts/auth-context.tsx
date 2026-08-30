@@ -37,6 +37,8 @@ export interface DarfusCompany {
   workspace: string;
   companySize: string;
   country: string;
+  /** UI default only; phone country remains an explicit customer field. */
+  defaultPhoneCountry?: string;
   currency: string;
   city: string;
   region: string;
@@ -125,6 +127,7 @@ const defaultAccount: StoredAccount = {
     workspace: "demo",
     companySize: "11-50",
     country: "AE",
+    defaultPhoneCountry: "AE",
     currency: "AED",
     city: "Dubai",
     region: "Dubai",

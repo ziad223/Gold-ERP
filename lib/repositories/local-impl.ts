@@ -52,6 +52,7 @@ import type {
   OperatorCurrentResult,
   AuditAction,
 } from "../types";
+import { canonicalizeCustomerPhone } from "../customers/phone";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Phone Normalization Helper
@@ -209,22 +210,28 @@ export class LocalCustomerRepository implements CustomerRepository {
     return customer ? { ...customer } : null;
   }
 
-  async findPotentialDuplicates(input: { name: string; phone: string }): Promise<CustomerDuplicateCheckResult> {
-    const phone = normalizePhone(input.phone);
+  async findPotentialDuplicates(input: { name: string; phone: string; phoneCountry?: string }): Promise<CustomerDuplicateCheckResult> {
+    const phoneResult = input.phoneCountry ? canonicalizeCustomerPhone(input.phone, input.phoneCountry) : null;
+    const canonicalPhone = phoneResult?.isValid ? phoneResult.canonicalPhone : "";
+    const phone = canonicalPhone ? "" : normalizePhone(input.phone);
     const name = String(input.name || "").trim().toLowerCase();
     const signalsEvaluated = [
-      ...(phone ? ["PHONE_NORMALIZED"] : []),
+      ...(canonicalPhone ? ["PHONE_CANONICAL"] : phone ? ["PHONE_NORMALIZED"] : []),
       ...(name ? ["NAME_CASEFOLDED"] : []),
     ];
     const candidates = this.ctx.customers
       .filter((customer) => {
-        const phoneMatch = Boolean(phone) && normalizePhone(customer.phone) === phone;
+        const phoneMatch = Boolean(canonicalPhone)
+          ? customer.canonicalPhone === canonicalPhone
+          : Boolean(phone) && normalizePhone(customer.phone) === phone;
         const nameMatch = Boolean(name) && String(customer.name || "").trim().toLowerCase() === name;
         return phoneMatch || nameMatch;
       })
       .map((customer) => {
         const matchReasons = [
-          ...(phone && normalizePhone(customer.phone) === phone ? ["EXACT_NORMALIZED_PHONE_MATCH" as const] : []),
+          ...((canonicalPhone && customer.canonicalPhone === canonicalPhone) || (phone && normalizePhone(customer.phone) === phone)
+            ? ["EXACT_NORMALIZED_PHONE_MATCH" as const]
+            : []),
           ...(name && String(customer.name || "").trim().toLowerCase() === name ? ["WEAK_NAME_MATCH" as const] : []),
         ];
         return {
@@ -260,9 +267,21 @@ export class LocalCustomerRepository implements CustomerRepository {
       };
     }
 
-    // 2. Phone unique validation (normalized)
-    const normNewPhone = normalizePhone(customer.phone);
-    if (this.ctx.customers.some((c) => normalizePhone(c.phone) === normNewPhone)) {
+    const phone = canonicalizeCustomerPhone(customer.phone, customer.phoneCountry || "");
+    if (!phone.isValid) {
+      return {
+        success: false,
+        error: {
+          code: phone.phoneCountry ? "CUSTOMER_PHONE_INVALID" : "CUSTOMER_PHONE_COUNTRY_REQUIRED",
+          message: "A valid phone number and supported phone country are required.",
+          fieldErrors: { [phone.phoneCountry ? "phone" : "phoneCountry"]: ["Enter a valid phone number and country."] },
+        },
+      };
+    }
+
+    // 2. Phone unique validation (canonical; old local fixtures remain compatible)
+    if (this.ctx.customers.some((c) => c.canonicalPhone === phone.canonicalPhone
+      || (!c.canonicalPhone && normalizePhone(c.phone) === normalizePhone(customer.phone)))) {
       return {
         success: false,
         error: {
@@ -276,6 +295,9 @@ export class LocalCustomerRepository implements CustomerRepository {
     // Default status to active if not provided
     const newCustomer: Customer = {
       ...customer,
+      phone: phone.rawPhone,
+      phoneCountry: phone.phoneCountry,
+      canonicalPhone: phone.canonicalPhone,
       id: customerId,
       email: customer.email || "",
       tier: customer.tier || "Standard",
@@ -312,12 +334,34 @@ export class LocalCustomerRepository implements CustomerRepository {
       };
     }
 
-    // If phone is updated, check uniqueness
-    if (updates.phone) {
-      const normNewPhone = normalizePhone(updates.phone);
+    // If phone/country is updated, recanonicalize before applying the local change.
+    let canonicalUpdates: CustomerUpdatePayload = updates;
+    if (updates.phone !== undefined || updates.phoneCountry !== undefined) {
+      const phone = canonicalizeCustomerPhone(
+        updates.phone === undefined ? existing.phone : updates.phone,
+        updates.phoneCountry === undefined ? existing.phoneCountry || "" : updates.phoneCountry,
+      );
+      if (!phone.isValid) {
+        return {
+          success: false,
+          error: {
+            code: phone.phoneCountry ? "CUSTOMER_PHONE_INVALID" : "CUSTOMER_PHONE_COUNTRY_REQUIRED",
+            message: "A valid phone number and supported phone country are required.",
+            fieldErrors: { [phone.phoneCountry ? "phone" : "phoneCountry"]: ["Enter a valid phone number and country."] },
+          },
+        };
+      }
+      canonicalUpdates = {
+        ...updates,
+        phone: phone.rawPhone,
+        phoneCountry: phone.phoneCountry,
+        canonicalPhone: phone.canonicalPhone,
+      };
+      const normNewPhone = phone.canonicalPhone;
       if (
         this.ctx.customers.some(
-          (c) => c.id !== id && normalizePhone(c.phone) === normNewPhone
+          (c) => c.id !== id && (c.canonicalPhone === normNewPhone
+            || (!c.canonicalPhone && normalizePhone(c.phone) === normalizePhone(phone.rawPhone)))
         )
       ) {
         return {
@@ -333,7 +377,7 @@ export class LocalCustomerRepository implements CustomerRepository {
 
     const beforeState = JSON.stringify(existing);
     let updated: Customer = existing;
-    const localUpdates = { ...updates };
+    const localUpdates = { ...canonicalUpdates };
     delete localUpdates.expectedUpdatedAt;
 
     this.ctx.setCustomers((current) =>

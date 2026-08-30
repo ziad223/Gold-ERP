@@ -24,6 +24,7 @@ import { useCoreErpData } from "@/hooks/use-core-erp-data";
 import { formatCurrency } from "@/lib/utils";
 import { formatEnglishNumber, normalizeNumberInput, toEnglishDigits } from "@/lib/formatters/numbers";
 import { formatCustomerAddress } from "@/lib/customers/address-ui";
+import { PhoneCountrySelect } from "@/features/customers/components/PhoneCountrySelect";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { NumericToken } from "@/components/ui/numeric-token";
 import { formatDateTime, formatTime } from "@/lib/dates/dates";
@@ -108,6 +109,7 @@ export default function PosPage() {
   const [cart, setCart] = useState<any[]>([]);
   const [customerId, setCustomerId] = useState("");
   const [customerPhoneQuery, setCustomerPhoneQuery] = useState("");
+  const [customerPhoneCountry, setCustomerPhoneCountry] = useState("");
   const [customerLookupLoading, setCustomerLookupLoading] = useState(false);
   const [customerLookupResult, setCustomerLookupResult] = useState<any | null>(null);
   const [customerLookupAttempted, setCustomerLookupAttempted] = useState(false);
@@ -116,6 +118,10 @@ export default function PosPage() {
   const [customerSummaryLoading, setCustomerSummaryLoading] = useState(false);
   const [customerSummaryError, setCustomerSummaryError] = useState<string | null>(null);
   const customerSummaryGenerationRef = useRef(0);
+
+  useEffect(() => {
+    if (company?.defaultPhoneCountry) setCustomerPhoneCountry(company.defaultPhoneCountry);
+  }, [company?.defaultPhoneCountry]);
   const [method, setMethod] = useState("card");
   const [completed, setCompleted] = useState<string | null>(null);
   const [completedInvoice, setCompletedInvoice] = useState<Invoice | null>(null);
@@ -486,8 +492,8 @@ export default function PosPage() {
 
   const lookupCustomerByPhone = async () => {
     const phone = customerPhoneQuery.trim();
-    if (!phone) {
-      setCustomerLookupError(rtl ? "أدخل رقم هاتف العميل أولًا." : "Enter the customer phone number first.");
+    if (!phone || !customerPhoneCountry) {
+      setCustomerLookupError(rtl ? "أدخل رقم الهاتف واختر دولة الهاتف أولًا." : "Enter the phone number and select its country first.");
       setCustomerLookupResult(null);
       return;
     }
@@ -497,7 +503,7 @@ export default function PosPage() {
     setCustomerLookupResult(null);
     try {
       const response = await apiClient<{ data?: { found?: boolean; customer?: any | null } }>(
-        `/pos/customer-lookup?phone=${encodeURIComponent(phone)}`,
+        `/pos/customer-lookup?phone=${encodeURIComponent(phone)}&phoneCountry=${encodeURIComponent(customerPhoneCountry)}`,
         { locale },
       );
       const customer = response?.data?.customer || null;
@@ -1355,6 +1361,20 @@ export default function PosPage() {
               ))}
             </select>
             <div className="mt-3 flex flex-col gap-2 sm:flex-row" dir={rtl ? "rtl" : "ltr"}>
+              <div className="w-full sm:w-56">
+                <PhoneCountrySelect
+                  id="pos-customer-phone-country"
+                  testId="pos-customer-phone-country"
+                  label={rtl ? "دولة الهاتف" : "Phone country"}
+                  value={customerPhoneCountry}
+                  onChange={(value) => {
+                    setCustomerPhoneCountry(value);
+                    setCustomerLookupAttempted(false);
+                    setCustomerLookupResult(null);
+                    setCustomerLookupError(null);
+                  }}
+                />
+              </div>
               <label className="sr-only" htmlFor="pos-customer-phone-lookup">
                 {rtl ? "البحث عن العميل برقم الهاتف" : "Find customer by phone"}
               </label>

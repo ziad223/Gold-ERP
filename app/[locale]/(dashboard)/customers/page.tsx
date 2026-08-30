@@ -21,6 +21,7 @@ import { Link } from "@/i18n/navigation";
 import { toast } from "sonner";
 import type { Customer, CustomerDuplicateCandidate, CustomerTier } from "@/lib/types";
 import { CustomerAddressFields } from "@/features/customers/components/CustomerAddressFields";
+import { PhoneCountrySelect } from "@/features/customers/components/PhoneCountrySelect";
 import {
   customerAddressFromDraft,
   emptyCustomerAddressDraft,
@@ -31,6 +32,8 @@ const initialCustomer = {
   id: "",
   name: "",
   phone: "",
+  phoneCountry: "",
+  originalPhone: "",
   email: "",
   tier: "Standard" as CustomerTier,
   notes: "",
@@ -118,7 +121,7 @@ export default function CustomersPage() {
 
   const handleOpenAdd = () => {
     setIsEdit(false);
-    setForm(initialCustomer);
+    setForm({ ...initialCustomer, phoneCountry: company?.defaultPhoneCountry || "" });
     clearDuplicateReview();
     setIncludeAddress(false);
     setAddressDraft(emptyCustomerAddressDraft());
@@ -132,6 +135,8 @@ export default function CustomersPage() {
       id: c.id,
       name: c.name,
       phone: c.phone,
+      phoneCountry: c.phoneCountry || "",
+      originalPhone: c.phone,
       email: c.email || "",
       tier: c.tier,
       notes: c.notes || "",
@@ -153,8 +158,12 @@ export default function CustomersPage() {
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
-    if (!form.name.trim() || !form.phone.trim()) {
+    if (!form.name.trim() || !form.phone.trim() || (!isEdit && !form.phoneCountry)) {
       toast.error(common("required"));
+      return;
+    }
+    if (isEdit && !form.phoneCountry && form.phone.trim() !== form.originalPhone.trim()) {
+      toast.error(locale === "ar" ? "اختر دولة الهاتف قبل تغيير الرقم." : "Select the phone country before changing the number.");
       return;
     }
     const addressValidation = validateCustomerAddressDraft(addressDraft);
@@ -165,7 +174,7 @@ export default function CustomersPage() {
       if (isEdit) {
         const res = await updateCustomer(form.id, {
           name: form.name.trim(),
-          phone: form.phone.trim(),
+          ...(form.phoneCountry ? { phone: form.phone.trim(), phoneCountry: form.phoneCountry } : {}),
           email: form.email.trim(),
           tier: form.tier,
           notes: form.notes.trim(),
@@ -184,6 +193,7 @@ export default function CustomersPage() {
         const createPayload = {
           name: form.name.trim(),
           phone: form.phone.trim(),
+          phoneCountry: form.phoneCountry,
           email: form.email.trim(),
           tier: form.tier,
           notes: form.notes.trim(),
@@ -678,6 +688,14 @@ export default function CustomersPage() {
               onChange={(event) => updateForm({ name: event.target.value })}
             />
           </label>
+          <PhoneCountrySelect
+            id="customer-form-phone-country"
+            testId="customer-form-phone-country"
+            label={locale === "ar" ? "دولة الهاتف" : "Phone country"}
+            value={form.phoneCountry}
+            required={!isEdit || form.phone.trim() !== form.originalPhone.trim()}
+            onChange={(value) => updateForm({ phoneCountry: value })}
+          />
           <label>
             <span className="label-base">{t("phone")}</span>
             <input

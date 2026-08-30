@@ -228,6 +228,10 @@ export interface Customer {
   id: string;
   name: string;
   phone: string;
+  /** Explicit ISO-3166-1 alpha-2 phone country authority for new rows. */
+  phoneCountry?: string;
+  /** Server-computed E.164 identity; clients never author this field. */
+  canonicalPhone?: string;
   email: string;
   tier: CustomerTier;
   balance: number; // outstanding receivable
@@ -296,7 +300,7 @@ export interface PosCustomerSummary {
   };
 }
 
-export type CustomerCreatePayload = Pick<Customer, "name" | "phone"> & Partial<Pick<
+export type CustomerCreatePayload = Pick<Customer, "name" | "phone" | "phoneCountry"> & Partial<Pick<
   Customer,
   "email" | "tier" | "notes" | "addresses"
 >>;

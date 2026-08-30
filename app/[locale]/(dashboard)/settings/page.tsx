@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { useAuth } from "@/contexts/auth-context";
+import { PhoneCountrySelect } from "@/features/customers/components/PhoneCountrySelect";
 import { useErp } from "@/contexts/erp-context";
 import { useAppSettings, type Branch, type AppSettings } from "@/contexts/settings-context";
 import { usePrintTemplateDefaults } from "@/hooks/use-print-template-defaults";
@@ -184,6 +185,7 @@ export default function SettingsPage() {
   const [website, setWebsite] = useState("");
   // Phase 19X.2-F — official company address fields (existing DB columns).
   const [country, setCountry] = useState("");
+  const [defaultPhoneCountry, setDefaultPhoneCountry] = useState("");
   const [city, setCity] = useState("");
   const [region, setRegion] = useState("");
   const [address1, setAddress1] = useState("");
@@ -500,6 +502,7 @@ export default function SettingsPage() {
       setWebsite(company?.website || savedCompanyInfo.website || "");
       // Official address fields (existing DB columns via the auth company).
       setCountry(company?.country || "");
+      setDefaultPhoneCountry(company?.defaultPhoneCountry || settings.defaultPhoneCountry || "");
       setCity(company?.city || "");
       setRegion(company?.region || "");
       setAddress1(company?.address1 || "");
@@ -733,6 +736,7 @@ export default function SettingsPage() {
         email: email.trim(),
         website: website.trim(),
         country: country.trim(),
+        defaultPhoneCountry: defaultPhoneCountry || "",
         city: city.trim(),
         region: region.trim(),
         address1: address1.trim(),
@@ -1174,6 +1178,14 @@ export default function SettingsPage() {
                 onChange={(e) => setPhone(toEnglishDigits(e.target.value))}
               />
             </label>
+
+            <PhoneCountrySelect
+              id="settings-default-phone-country"
+              testId="settings-default-phone-country"
+              label={rtl ? "دولة الهاتف الافتراضية" : "Default phone country"}
+              value={defaultPhoneCountry}
+              onChange={setDefaultPhoneCountry}
+            />
 
             <label className="block">
               <span className="label-base">{rtl ? "البريد الإلكتروني" : "Email"}</span>

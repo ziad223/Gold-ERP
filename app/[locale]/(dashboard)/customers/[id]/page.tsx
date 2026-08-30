@@ -44,6 +44,7 @@ import { DATA_SOURCE } from "@/lib/data-source";
 import { toEnglishDigits } from "@/lib/formatters/numbers";
 import { getPublicFileUrl } from "@/lib/files";
 import { useErp } from "@/contexts/erp-context";
+import { PhoneCountrySelect } from "@/features/customers/components/PhoneCountrySelect";
 import type { CustomerStatement, CustomerCreditReconciliationReport, CustomerStatementV3Report } from "@/lib/repositories/interfaces";
 import type { Invoice } from "@/lib/types";
 import { ExchangeSummary } from "@/components/sales/ExchangeSummary";
@@ -89,6 +90,7 @@ type KycFormState = {
 type CustomerProfileFormState = {
   name: string;
   phone: string;
+  phoneCountry: string;
   email: string;
   tier: CustomerTier;
   notes: string;
@@ -98,6 +100,7 @@ type CustomerProfileFormState = {
 const emptyCustomerProfileForm = (): CustomerProfileFormState => ({
   name: "",
   phone: "",
+  phoneCountry: "",
   email: "",
   tier: "Standard",
   notes: "",
@@ -269,6 +272,7 @@ export default function CustomerProfilePage({ params }: PageProps) {
     setProfileForm({
       name: customer.name,
       phone: customer.phone,
+      phoneCountry: customer.phoneCountry || "",
       email: customer.email || "",
       tier: customer.tier,
       notes: customer.notes || "",
@@ -283,13 +287,17 @@ export default function CustomerProfilePage({ params }: PageProps) {
       toast.error(common("required"));
       return;
     }
+    if (!profileForm.phoneCountry && profileForm.phone.trim() !== customer.phone.trim()) {
+      toast.error(locale === "ar" ? "اختر دولة الهاتف قبل تغيير الرقم." : "Select the phone country before changing the number.");
+      return;
+    }
     const expectedUpdatedAt = requireExpectedUpdatedAt();
     if (!expectedUpdatedAt) return;
     setCustomerConflictMessage("");
     try {
       const result = await updateCustomer(customer.id, {
         name: profileForm.name.trim(),
-        phone: profileForm.phone.trim(),
+        ...(profileForm.phoneCountry ? { phone: profileForm.phone.trim(), phoneCountry: profileForm.phoneCountry } : {}),
         email: profileForm.email.trim(),
         tier: profileForm.tier,
         notes: profileForm.notes.trim(),
@@ -615,6 +623,14 @@ export default function CustomerProfilePage({ params }: PageProps) {
               onChange={(event) => setProfileForm((current) => ({ ...current, name: event.target.value }))}
             />
           </label>
+          <PhoneCountrySelect
+            id="customer-profile-phone-country"
+            testId="customer-profile-phone-country"
+            label={locale === "ar" ? "دولة الهاتف" : "Phone country"}
+            value={profileForm.phoneCountry}
+            required={profileForm.phone.trim() !== customer.phone.trim()}
+            onChange={(value) => setProfileForm((current) => ({ ...current, phoneCountry: value }))}
+          />
           <label>
             <span className="label-base">{t("phone")}</span>
             <input

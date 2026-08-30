@@ -112,6 +112,7 @@ export class ApiCustomerRepository implements CustomerRepository {
     const params = new URLSearchParams();
     if (input.name) params.set("name", input.name);
     if (input.phone) params.set("phone", input.phone);
+    if (input.phoneCountry) params.set("phoneCountry", input.phoneCountry);
     const query = params.toString();
     const res = await apiClient<any>(`/customers/duplicate-check${query ? `?${query}` : ""}`, {
       ...auth(),
