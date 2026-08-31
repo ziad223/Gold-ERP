@@ -167,7 +167,7 @@ button {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
-    transition-duration: 0.01ms !important;
+    transition-duration: 0ms !important;
   }
 }
 
@@ -489,11 +489,24 @@ input:-webkit-autofill:focus {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ux3-shell-header,
-  .ux3-shell-content,
-  .ux3-nav-item,
-  .ux3-breadcrumb-link {
+  .ux3-shell-header {
+    transition-property: background-color, border-color !important;
+    transition-duration: 80ms !important;
+  }
+
+  .ux3-shell-content {
+    transition-property: none !important;
     transition-duration: 0ms !important;
+  }
+
+  .ux3-nav-item {
+    transition-property: background-color, color !important;
+    transition-duration: 80ms !important;
+  }
+
+  .ux3-breadcrumb-link {
+    transition-property: color !important;
+    transition-duration: 80ms !important;
   }
 }
 
