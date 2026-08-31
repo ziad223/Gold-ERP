@@ -24,7 +24,6 @@ import { useCoreErpData } from "@/hooks/use-core-erp-data";
 import { formatCurrency } from "@/lib/utils";
 import { formatEnglishNumber, normalizeNumberInput, toEnglishDigits } from "@/lib/formatters/numbers";
 import { formatCustomerAddress } from "@/lib/customers/address-ui";
-import { PhoneCountrySelect } from "@/features/customers/components/PhoneCountrySelect";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { NumericToken } from "@/components/ui/numeric-token";
 import { formatDateTime, formatTime } from "@/lib/dates/dates";
@@ -70,6 +69,34 @@ function normalizePosAssetStatus(value: unknown): string | undefined {
   return normalized || undefined;
 }
 
+type PosCustomerSearchCandidate = {
+  id: string;
+  name: string;
+  phone: string;
+  phoneCountry?: string | null;
+  branchId?: string | null;
+};
+
+function toPosCustomerSearchCandidate(customer: any): PosCustomerSearchCandidate {
+  return {
+    id: String(customer?.id || ""),
+    name: String(customer?.name || ""),
+    phone: String(customer?.phone || ""),
+    phoneCountry: customer?.phoneCountry || null,
+    branchId: customer?.branchId || null,
+  };
+}
+
+function matchesPosCustomerSearch(candidate: PosCustomerSearchCandidate, query: string): boolean {
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  if (!normalizedQuery) return false;
+  const textMatch = [candidate.name, candidate.id, candidate.phone]
+    .some((value) => value.toLocaleLowerCase().includes(normalizedQuery));
+  const digits = query.replace(/[^0-9]/g, "");
+  const phoneDigits = candidate.phone.replace(/[^0-9]/g, "");
+  return textMatch || (digits.length >= 2 && phoneDigits.includes(digits));
+}
+
 export default function PosPage() {
   const t = useTranslations("POS");
   const filtersT = useTranslations("Filters");
@@ -89,9 +116,7 @@ export default function PosPage() {
   // Custom API hooks
   // API mode uses the bounded /pos/search projection for inventory candidates;
   // do not preload the full Products/Assets collections just to render search.
-  const { products, assets, goldPrice, isLoading: isErpLoading } = useCoreErpData({
-    resources: isApi ? ["customers"] : undefined,
-  });
+  const { products, assets, goldPrice, isLoading: isErpLoading } = useCoreErpData({ enabled: !isApi });
   const {
     customers, calculatePricing, postInvoice, isPosting,
     isApiMode, createDraftInvoice, updateDraftInvoice, cancelDraftInvoice, postDraftInvoice, fetchDraftInvoices,
@@ -108,20 +133,21 @@ export default function PosPage() {
   const searchGenerationRef = useRef(0);
   const [cart, setCart] = useState<any[]>([]);
   const [customerId, setCustomerId] = useState("");
-  const [customerPhoneQuery, setCustomerPhoneQuery] = useState("");
-  const [customerPhoneCountry, setCustomerPhoneCountry] = useState("");
-  const [customerLookupLoading, setCustomerLookupLoading] = useState(false);
-  const [customerLookupResult, setCustomerLookupResult] = useState<any | null>(null);
-  const [customerLookupAttempted, setCustomerLookupAttempted] = useState(false);
-  const [customerLookupError, setCustomerLookupError] = useState<string | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<PosCustomerSearchCandidate | null>(null);
+  const [customerSearchQuery, setCustomerSearchQuery] = useState("");
+  const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
+  const [customerSearchResults, setCustomerSearchResults] = useState<PosCustomerSearchCandidate[]>([]);
+  const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
+  const [customerSearchAttempted, setCustomerSearchAttempted] = useState(false);
+  const [customerSearchError, setCustomerSearchError] = useState<string | null>(null);
+  const [customerSearchHighlight, setCustomerSearchHighlight] = useState(0);
+  const customerSearchInputRef = useRef<HTMLInputElement | null>(null);
+  const customerSearchGenerationRef = useRef(0);
   const [customerSummary, setCustomerSummary] = useState<PosCustomerSummary | null>(null);
   const [customerSummaryLoading, setCustomerSummaryLoading] = useState(false);
   const [customerSummaryError, setCustomerSummaryError] = useState<string | null>(null);
   const customerSummaryGenerationRef = useRef(0);
 
-  useEffect(() => {
-    if (company?.defaultPhoneCountry) setCustomerPhoneCountry(company.defaultPhoneCountry);
-  }, [company?.defaultPhoneCountry]);
   const [method, setMethod] = useState("card");
   const [completed, setCompleted] = useState<string | null>(null);
   const [completedInvoice, setCompletedInvoice] = useState<Invoice | null>(null);
@@ -280,7 +306,7 @@ export default function PosPage() {
   // Build the cart/charges payload shared by save-draft & update-draft (API).
   const buildDraftPayload = () => ({
     customerId,
-    customerName: customers.find((c) => c.id === customerId)?.name || "",
+    customerName: selectedCustomer?.name || "",
     branchId: activeBranchId,
     branch: activeBranch,
     paymentMethod: method,
@@ -375,7 +401,18 @@ export default function PosPage() {
   const handleLoadDraft = (draft: any) => {
     if (isApiMode) {
       // API draft → hydrate cart from its invoice items.
-      setCustomerId(draft.customerId || "");
+      const draftCustomer = draft.customer
+        ? toPosCustomerSearchCandidate(draft.customer)
+        : {
+          id: String(draft.customerId || ""),
+          name: String(draft.customerName || draft.customerId || ""),
+          phone: String(draft.customerPhone || ""),
+          phoneCountry: draft.customerPhoneCountry || null,
+          branchId: draft.branchId || activeBranchId || null,
+        };
+      setCustomerId(draftCustomer.id);
+      setSelectedCustomer(draftCustomer.id ? draftCustomer : null);
+      setCustomerSearchQuery(draftCustomer.name);
       setCart((draft.items || []).map((it: any) => ({
         id: it.assetId,
         name: it.name,
@@ -399,7 +436,10 @@ export default function PosPage() {
       return;
     }
     // mock draft
-    setCustomerId(draft.customerId);
+    const draftCustomer = customers.find((customer) => customer.id === draft.customerId);
+    setCustomerId(draft.customerId || "");
+    setSelectedCustomer(draftCustomer ? toPosCustomerSearchCandidate(draftCustomer) : null);
+    setCustomerSearchQuery(draftCustomer?.name || "");
     setCart(draft.cart);
     setDiscount(draft.discount || "0");
     setMakingChargePerGram(draft.makingChargePerGram || "0");
@@ -483,38 +523,104 @@ export default function PosPage() {
     }
   };
 
-  // Initialize customer list selection
+  // Customer selection uses one bounded server projection in API mode. The
+  // local list is retained only for the mock/local POS fallback.
   useEffect(() => {
-    if (customers.length > 0 && !customerId) {
-      setCustomerId(customers[0].id);
-    }
-  }, [customers, customerId]);
-
-  const lookupCustomerByPhone = async () => {
-    const phone = customerPhoneQuery.trim();
-    if (!phone || !customerPhoneCountry) {
-      setCustomerLookupError(rtl ? "أدخل رقم الهاتف واختر دولة الهاتف أولًا." : "Enter the phone number and select its country first.");
-      setCustomerLookupResult(null);
+    const normalizedQuery = customerSearchQuery.trim();
+    const generation = ++customerSearchGenerationRef.current;
+    if (selectedCustomer || normalizedQuery.length < 2) {
+      setCustomerSearchResults([]);
+      setCustomerSearchLoading(false);
+      setCustomerSearchAttempted(false);
       return;
     }
-    setCustomerLookupLoading(true);
-    setCustomerLookupAttempted(true);
-    setCustomerLookupError(null);
-    setCustomerLookupResult(null);
-    try {
-      const response = await apiClient<{ data?: { found?: boolean; customer?: any | null } }>(
-        `/pos/customer-lookup?phone=${encodeURIComponent(phone)}&phoneCountry=${encodeURIComponent(customerPhoneCountry)}`,
-        { locale },
-      );
-      const customer = response?.data?.customer || null;
-      setCustomerLookupResult(customer);
-      if (customer) {
-        setCustomerId(customer.id);
+
+    setCustomerSearchAttempted(true);
+    setCustomerSearchError(null);
+    setCustomerSearchHighlight(0);
+
+    if (!isApi) {
+      const localResults = customers
+        .filter((customer) => customer.status !== "inactive")
+        .map(toPosCustomerSearchCandidate)
+        .filter((candidate) => matchesPosCustomerSearch(candidate, normalizedQuery))
+        .slice(0, 20);
+      setCustomerSearchResults(localResults);
+      setCustomerSearchLoading(false);
+      return;
+    }
+
+    setCustomerSearchLoading(true);
+    let controller: AbortController | null = null;
+    const timeout = window.setTimeout(() => {
+      const requestController = new AbortController();
+      controller = requestController;
+      void apiClient<{ items?: PosCustomerSearchCandidate[]; data?: { items?: PosCustomerSearchCandidate[] } }>(
+        `/pos/customers/search?query=${encodeURIComponent(normalizedQuery)}&limit=20`,
+        { locale, signal: requestController.signal },
+      )
+        .then((response) => {
+          if (generation !== customerSearchGenerationRef.current) return;
+          const items = response?.data?.items ?? response?.items ?? [];
+          setCustomerSearchResults(items.map(toPosCustomerSearchCandidate));
+          setCustomerSearchOpen(true);
+        })
+        .catch((error: any) => {
+          if (error?.name === "AbortError" || generation !== customerSearchGenerationRef.current) return;
+          setCustomerSearchResults([]);
+          setCustomerSearchError(error?.message || (rtl ? "تعذر البحث عن العميل." : "Customer search failed."));
+        })
+        .finally(() => {
+          if (generation === customerSearchGenerationRef.current) setCustomerSearchLoading(false);
+        });
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller?.abort();
+    };
+  }, [customerSearchQuery, customers, isApi, locale, rtl, selectedCustomer]);
+
+  const selectCustomer = (candidate: PosCustomerSearchCandidate) => {
+    setSelectedCustomer(candidate);
+    setCustomerId(candidate.id);
+    setCustomerSearchQuery(candidate.name);
+    setCustomerSearchOpen(false);
+    setCustomerSearchResults([]);
+    setCustomerSearchHighlight(0);
+    setCustomerSearchAttempted(false);
+    setCustomerSearchError(null);
+  };
+
+  const clearSelectedCustomer = () => {
+    setSelectedCustomer(null);
+    setCustomerId("");
+    setCustomerSearchQuery("");
+    setCustomerSearchOpen(false);
+    setCustomerSearchResults([]);
+    setCustomerSearchHighlight(0);
+    setCustomerSearchAttempted(false);
+    setCustomerSearchError(null);
+  };
+
+  const handleCustomerSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setCustomerSearchOpen(true);
+      setCustomerSearchHighlight((current) => Math.min(current + 1, Math.max(0, customerSearchResults.length - 1)));
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setCustomerSearchHighlight((current) => Math.max(0, current - 1));
+    } else if (event.key === "Enter") {
+      const candidate = customerSearchResults[customerSearchHighlight];
+      if (candidate && customerSearchOpen) {
+        event.preventDefault();
+        selectCustomer(candidate);
       }
-    } catch (error: any) {
-      setCustomerLookupError(error?.message || (rtl ? "تعذر البحث عن العميل." : "Customer lookup failed."));
-    } finally {
-      setCustomerLookupLoading(false);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      setCustomerSearchOpen(false);
+      setCustomerSearchHighlight(0);
     }
   };
 
@@ -1034,7 +1140,7 @@ export default function PosPage() {
       }
     }
 
-    const customer = customers.find((item) => item.id === customerId);
+    const customer = selectedCustomer;
     if (!customer) {
       setPricingError(rtl ? "العميل المحدد غير موجود أو لم يتم تحميله!" : "The selected customer was not found or is not loaded!");
       return;
@@ -1194,7 +1300,7 @@ export default function PosPage() {
   // VAT, journal lines, and the advances account are all server-derived.
   const createReservationFromPos = async () => {
     setPricingError("");
-    const customer = customers.find((item) => item.id === customerId);
+    const customer = selectedCustomer;
     if (!customer) { setPricingError(rtl ? "العميل مطلوب!" : "Customer is required!"); return; }
     const amount = Number(toEnglishDigits(resInitialPayment));
     const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -1345,73 +1451,77 @@ export default function PosPage() {
           </div>
           <div className="p-4">
             <label className="mb-2 block text-xs font-bold">{t("customer")}</label>
-            <select
-              value={customerId}
-              onChange={(event) => {
-                setCustomerId(event.target.value);
-                setCustomerLookupResult(null);
-                setCustomerLookupError(null);
-              }}
-              className="input-base w-full bg-input text-foreground border-border"
-            >
-              {customers.filter(c => c.status !== "inactive").map((customer) => (
-                <option key={customer.id} value={customer.id} className="bg-panel text-foreground">
-                  {customer.name} · {customer.tier}
-                </option>
-              ))}
-            </select>
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row" dir={rtl ? "rtl" : "ltr"}>
-              <div className="w-full sm:w-56">
-                <PhoneCountrySelect
-                  id="pos-customer-phone-country"
-                  testId="pos-customer-phone-country"
-                  label={rtl ? "دولة الهاتف" : "Phone country"}
-                  value={customerPhoneCountry}
-                  onChange={(value) => {
-                    setCustomerPhoneCountry(value);
-                    setCustomerLookupAttempted(false);
-                    setCustomerLookupResult(null);
-                    setCustomerLookupError(null);
-                  }}
-                />
-              </div>
-              <label className="sr-only" htmlFor="pos-customer-phone-lookup">
-                {rtl ? "البحث عن العميل برقم الهاتف" : "Find customer by phone"}
-              </label>
+            <div className="flex items-center gap-2" dir={rtl ? "rtl" : "ltr"}>
               <input
-                id="pos-customer-phone-lookup"
-                type="tel"
-                inputMode="tel"
-                value={customerPhoneQuery}
+                ref={customerSearchInputRef}
+                id="pos-customer-search"
+                data-testid="pos-customer-search"
+                type="search"
+                autoComplete="off"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={customerSearchOpen}
+                aria-controls="pos-customer-search-results"
+                aria-activedescendant={customerSearchOpen && customerSearchResults[customerSearchHighlight] ? `pos-customer-option-${customerSearchHighlight}` : undefined}
+                value={customerSearchQuery}
                 onChange={(event) => {
-                  setCustomerPhoneQuery(event.target.value);
-                  setCustomerLookupAttempted(false);
-                  setCustomerLookupResult(null);
-                  setCustomerLookupError(null);
+                  setSelectedCustomer(null);
+                  setCustomerId("");
+                  setCustomerSearchQuery(event.target.value);
+                  setCustomerSearchOpen(true);
+                  setCustomerSearchError(null);
+                  setCustomerSearchHighlight(0);
                 }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    void lookupCustomerByPhone();
-                  }
+                onFocus={() => {
+                  if (customerSearchQuery.trim().length >= 2) setCustomerSearchOpen(true);
                 }}
-                placeholder={rtl ? "رقم هاتف العميل" : "Customer phone"}
+                onKeyDown={handleCustomerSearchKeyDown}
+                placeholder={rtl ? "ابحث بالاسم أو رقم العميل أو الهاتف" : "Search by customer name, ID, or phone"}
                 className="input-base min-w-0 flex-1 bg-input text-foreground border-border"
               />
-              <Button type="button" variant="secondary" onClick={() => void lookupCustomerByPhone()} disabled={customerLookupLoading || !isApi}>
-                {customerLookupLoading ? (rtl ? "جارٍ البحث…" : "Searching…") : (rtl ? "بحث" : "Find")}
-              </Button>
+              {selectedCustomer && (
+                <button
+                  type="button"
+                  aria-label={rtl ? "مسح العميل المحدد" : "Clear selected customer"}
+                  onClick={clearSelectedCustomer}
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-border text-lg text-slate-500 transition hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                >
+                  ×
+                </button>
+              )}
             </div>
-            {customerLookupError && (
-              <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-                {customerLookupError}
-              </p>
+            {customerSearchOpen && (customerSearchLoading || customerSearchError || customerSearchResults.length > 0) && (
+              <div id="pos-customer-search-results" role="listbox" className="mt-2 max-h-64 overflow-y-auto rounded-xl border border-border bg-panel p-1 shadow-lg">
+                {customerSearchLoading && (
+                  <p className="px-3 py-2 text-[11px] text-slate-500">{rtl ? "جارٍ البحث…" : "Searching…"}</p>
+                )}
+                {customerSearchError && (
+                  <p role="alert" className="px-3 py-2 text-[11px] text-amber-700 dark:text-amber-200">{customerSearchError}</p>
+                )}
+                {!customerSearchLoading && !customerSearchError && customerSearchResults.map((candidate, index) => (
+                  <button
+                    key={candidate.id}
+                    id={`pos-customer-option-${index}`}
+                    type="button"
+                    role="option"
+                    aria-selected={index === customerSearchHighlight}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => selectCustomer(candidate)}
+                    className={`flex w-full items-start justify-between gap-3 rounded-lg px-3 py-2 text-start text-[11px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${index === customerSearchHighlight ? "bg-brand-50 dark:bg-brand-500/10" : "hover:bg-surface-muted"}`}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate font-bold text-navy-950 dark:text-white">{candidate.name || (rtl ? "بدون اسم" : "Unnamed customer")}</span>
+                      <span className="mt-0.5 block truncate text-slate-500">{candidate.id}{candidate.phone ? ` · ${candidate.phone}` : ""}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
             )}
-            {customerLookupAttempted && customerPhoneQuery.trim() && !customerLookupLoading && !customerLookupError && customerLookupResult === null && (
+            {customerSearchOpen && customerSearchAttempted && customerSearchQuery.trim().length >= 2 && !customerSearchLoading && !customerSearchError && customerSearchResults.length === 0 && (
               <div className="mt-2 rounded-xl border border-dashed border-slate-200 px-3 py-3 text-[11px] text-slate-500 dark:border-slate-700">
-                <span>{rtl ? "لم يتم العثور على عميل بهذا الرقم." : "No customer was found for this phone number."}</span>{" "}
+                <span>{rtl ? "لم يتم العثور على عميل مطابق." : "No matching customer was found."}</span>{" "}
                 <Link href="/customers" className="font-bold text-brand-700 underline dark:text-brand-300">
-                  {rtl ? "إنشاء عميل من شاشة العملاء" : "Create the customer from Customers"}
+                  {rtl ? "إنشاء العميل من شاشة العملاء" : "Create the customer from Customers"}
                 </Link>
               </div>
             )}
@@ -2004,7 +2114,7 @@ export default function PosPage() {
         <div className="space-y-4 text-sm">
           <p className="text-xs text-muted">{rtl ? "الإجماليات والقيود المحاسبية تُحتسب على الخادم. لا يتم إنشاء فاتورة بيع." : "Totals and journals are computed on the server. No sales invoice is created."}</p>
           <div className="rounded-2xl border border-border p-3 text-xs space-y-1">
-            <p>{rtl ? "العميل" : "Customer"}: <strong>{customers.find((c) => c.id === customerId)?.name || "—"}</strong></p>
+            <p>{rtl ? "العميل" : "Customer"}: <strong>{selectedCustomer?.name || "—"}</strong></p>
             <p>{rtl ? "عدد القطع" : "Items"}: <strong>{cart.length}</strong></p>
             <p>{rtl ? "إجمالي الحجز" : "Reservation total"}: <strong>{money(cart.reduce((sum, item) => sum + item.price * item.quantity, 0))}</strong></p>
             <p>{rtl ? "المتبقي بعد الدفعة" : "Remaining after payment"}: <strong>{money(Math.max(0, cart.reduce((sum, item) => sum + item.price * item.quantity, 0) - (Number(toEnglishDigits(resInitialPayment)) || 0)))}</strong></p>

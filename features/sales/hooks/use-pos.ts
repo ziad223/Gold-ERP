@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { getDataSourceMode } from "@/lib/data-source";
 import { useAuth } from "@/contexts/auth-context";
@@ -10,7 +10,6 @@ import { useAppSettings } from "@/contexts/settings-context";
 import { useLocale } from "next-intl";
 import { generateUUID } from "@/lib/api/client";
 import type { Customer, Invoice, Asset } from "@/lib/types";
-import { queryKeys } from "@/lib/query-keys";
 import { invalidateAffectedQueries } from "@/lib/realtime/invalidate-affected-queries";
 import type { ServerJournalPreview } from "@/features/accounting/components/JournalPreview";
 
@@ -32,6 +31,8 @@ interface PricingPreviewResult {
   journalPreview?: ServerJournalPreview | null;
 }
 
+const EMPTY_API_CUSTOMERS: Customer[] = [];
+
 export function usePos() {
   const { activeBranch, company } = useAuth();
   const { customers: mockCustomers, invoices: mockInvoices, addInvoice: addMockInvoice } = useErp();
@@ -40,17 +41,6 @@ export function usePos() {
   const locale = useLocale();
 
   const dataSource = getDataSourceMode();
-
-  // Query customers list
-  const { data: apiCustomers } = useQuery<Customer[]>({
-    queryKey: queryKeys.customers,
-    queryFn: async () => {
-      // Backend returns a paginated envelope { items, page, total, ... }.
-      const res = await apiClient<{ items: Customer[] }>("/customers", { locale });
-      return res.items ?? [];
-    },
-    enabled: dataSource === "api",
-  });
 
   // Calculate prices preview
   const pricingMutation = useMutation<PricingPreviewResult, Error, PricingPreviewPayload>({
@@ -88,7 +78,10 @@ export function usePos() {
     if (dataSource === "mock") {
       return mockCustomers;
     }
-    return apiCustomers || [];
+    // API mode uses the bounded POS customer-search projection. The POS must
+    // never preload the full customer collection just to select an invoice
+    // customer.
+    return EMPTY_API_CUSTOMERS;
   };
 
   // ── Draft invoice lifecycle (API mode) — the POS calls these for the
