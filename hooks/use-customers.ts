@@ -104,7 +104,11 @@ export function useCustomerMutations() {
   const findPotentialDuplicates = useCallback(async (input: CustomerCreatePayload) => {
     setLoading(true);
     try {
-      return await customerRepository.findPotentialDuplicates({ name: input.name, phone: input.phone });
+      return await customerRepository.findPotentialDuplicates({
+        name: input.name,
+        phone: input.phone,
+        phoneCountry: input.phoneCountry,
+      });
     } finally {
       setLoading(false);
     }
